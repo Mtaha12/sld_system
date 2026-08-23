@@ -113,7 +113,7 @@ const VerifyEmailForm = () => {
       <form onSubmit={handleVerify} className="w-full max-w-sm flex flex-col">
         <label className="text-sm text-gray-300 mb-3">Enter OTP</label>
         
-        <div className="flex gap-3 justify-between mb-6">
+        <div className="flex gap-2 sm:gap-3 justify-between mb-6">
           {otp.map((digit, index) => {
             let stateClasses = 'border-[#262833] focus:border-brand-orange focus:ring-1 focus:ring-brand-orange'
             if (status === 'success') stateClasses = 'border-brand-green text-brand-green'
@@ -130,7 +130,7 @@ const VerifyEmailForm = () => {
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
-                className={`flex-1 h-12 sm:h-[3.25rem] max-w-[3.25rem] bg-[#14151A] border rounded-xl text-center text-xl text-white font-medium focus:outline-none focus:scale-105 transition-all duration-200 ${stateClasses}`}
+                className={`flex-1 w-full min-w-0 h-12 sm:h-[3.25rem] max-w-[3.25rem] bg-[#14151A] border rounded-xl text-center text-xl text-white font-medium focus:outline-none focus:scale-105 transition-all duration-200 ${stateClasses}`}
               />
             )
           })}

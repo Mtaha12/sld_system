@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import PageTransition from '../components/ui/PageTransition';
+import Spinner from '../components/ui/Spinner';
 
 const AuthMasonry = lazy(() => import('./AuthMasonry'));
 
@@ -31,7 +32,9 @@ const AuthLayout = () => {
 
         {/* Content Container */}
         <div className="flex-1 flex flex-col justify-center py-8 px-6 sm:px-12 md:px-16 lg:px-24 max-w-2xl mx-auto w-full z-10">
-          <PageTransition />
+          <Suspense fallback={<div className="flex flex-col flex-1 justify-center items-center"><Spinner size="lg" /></div>}>
+            <PageTransition />
+          </Suspense>
         </div>
       </div>
     </div>
