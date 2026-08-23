@@ -27,12 +27,17 @@ export default {
           '0%, 100%': { transform: 'translateX(0)' },
           '25%': { transform: 'translateX(-4px)' },
           '75%': { transform: 'translateX(4px)' },
+        },
+        'fadeIn': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         }
       },
       animation: {
         'scroll-up': 'scroll-up 40s linear infinite',
         'scroll-down': 'scroll-down 40s linear infinite',
         'shake': 'shake 0.2s ease-in-out 0s 2',
+        'fade-in': 'fadeIn 0.4s ease-out forwards',
       }
     },
   },

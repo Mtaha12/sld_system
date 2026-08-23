@@ -1,6 +1,6 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { User, Lock } from 'lucide-react'
 import Input from '../../../components/ui/Input'
 import Button from '../../../components/ui/Button'
@@ -11,9 +11,11 @@ import { loginSchema } from '../validation/authSchema'
 import { authService } from '../services/authService'
 
 const LoginForm = () => {
+  const navigate = useNavigate()
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(loginSchema),
@@ -22,8 +24,14 @@ const LoginForm = () => {
   const onSubmit = async (data) => {
     try {
       await authService.login(data)
+      if (data.identifier === 'admin' && data.password === 'admin123') {
+        navigate('/dashboard')
+      } else {
+        setError('root', { message: 'Invalid credentials. Try admin / admin123' })
+      }
     } catch (error) {
       console.error('Login failed', error)
+      setError('root', { message: 'Login failed. Please try again.' })
     }
   }
 
@@ -40,6 +48,11 @@ const LoginForm = () => {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        {errors.root && (
+          <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-lg text-center animate-shake">
+            {errors.root.message}
+          </div>
+        )}
         <Input
           type="text"
           placeholder="Email or Username *"
