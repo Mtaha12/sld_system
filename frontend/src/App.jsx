@@ -12,6 +12,12 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const ManageCasesPage = lazy(() => import('./pages/ManageCasesPage'))
 const AddCaseLawPage = lazy(() => import('./pages/AddCaseLawPage'))
 
+const ManageNotificationsPage = lazy(() => import('./pages/ManageNotificationsPage'))
+const AddNotificationPage = lazy(() => import('./pages/AddNotificationPage'))
+
+const ManageStatutesPage = lazy(() => import('./pages/ManageStatutesPage'))
+const AddStatutePage = lazy(() => import('./pages/AddStatutePage'))
+
 function App() {
   return (
     <BrowserRouter>
@@ -30,6 +36,10 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/manage-cases" element={<ManageCasesPage />} />
             <Route path="/manage-cases/add" element={<AddCaseLawPage />} />
+            <Route path="/manage-notifications" element={<ManageNotificationsPage />} />
+            <Route path="/manage-notifications/add" element={<AddNotificationPage />} />
+            <Route path="/manage-statutes" element={<ManageStatutesPage />} />
+            <Route path="/manage-statutes/add" element={<AddStatutePage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />

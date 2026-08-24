@@ -15,12 +15,20 @@ const PAGE_HEADERS = {
     subtitle: 'Add new case law detail and publication records'
   },
   '/manage-notifications': {
-    title: 'Manage Notifications',
-    subtitle: 'View and manage system alerts and notifications'
+    title: 'Manage Notifications / Circulars / Letters / General Orders',
+    subtitle: 'View, search and manage notifications and orders'
   },
-  '/manage-statuses-forms': {
-    title: 'Manage Statuses Forms',
-    subtitle: 'Configure case statuses and dynamic forms'
+  '/manage-notifications/add': {
+    title: 'Manage Notifications / Circulars / Letters / General Orders',
+    subtitle: 'Add new notifications, circulars, letters, and general orders'
+  },
+  '/manage-statutes': {
+    title: 'Manage Statutes Forms',
+    subtitle: 'View, search and manage all statutes'
+  },
+  '/manage-statutes/add': {
+    title: 'Manage Statutes Forms',
+    subtitle: 'Add new statute forms'
   },
   '/settings': {
     title: 'Settings',

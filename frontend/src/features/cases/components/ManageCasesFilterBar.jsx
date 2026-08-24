@@ -58,7 +58,7 @@ const ManageCasesFilterBar = () => {
           {!isSearchExpanded ? (
             <Button 
               size="sm" 
-              className="bg-[#5c4dce] hover:bg-[#4a3db0] text-white border-transparent h-[42px] px-5 w-full whitespace-nowrap"
+              className="bg-brand-orange hover:bg-[#D44E35] text-white border-transparent h-[42px] px-5 w-full whitespace-nowrap"
               onClick={() => setIsSearchExpanded(true)}
             >
               <Search className="w-4 h-4" /> Search
@@ -68,7 +68,7 @@ const ManageCasesFilterBar = () => {
               <input 
                 type="text"
                 placeholder="Search..."
-                className="w-full h-full pl-9 pr-8 py-2 border border-[#5c4dce] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#5c4dce]"
+                className="w-full h-full pl-9 pr-8 py-2 border border-brand-orange rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-brand-orange"
                 autoFocus
               />
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { label: 'Manage Cases Law', path: '/manage-cases', icon: Scale },
   { label: 'Manage Notifications', path: '/manage-notifications', icon: Bell },
-  { label: 'Manage Statuses Forms', path: '/manage-statuses-forms', icon: FileText },
+  { label: 'Manage Statutes Forms', path: '/manage-statutes', icon: FileText },
 ];
 
 const AdminSidebar = ({ className = '' }) => {

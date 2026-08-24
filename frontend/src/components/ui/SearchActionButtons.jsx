@@ -15,7 +15,7 @@ const SearchActionButtons = ({
   return (
     <div className={`flex gap-2 w-full sm:w-auto shrink-0 ${className}`}>
       {showSearchButton && (
-        <Button variant="admin-primary" size={size} className="flex-1 sm:flex-none" onClick={onSearch}>
+        <Button variant="primary" size={size} className="flex-1 sm:flex-none" onClick={onSearch}>
           <Search className={size === 'sm' ? "w-4 h-4" : "w-5 h-5"} /> Search
         </Button>
       )}

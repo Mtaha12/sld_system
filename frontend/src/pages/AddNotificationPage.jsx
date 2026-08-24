@@ -1,18 +1,15 @@
-import { useNavigate } from 'react-router-dom';
-import AddCaseLawDetail from '../features/cases/components/AddCaseLawDetail';
+import AddNotificationForm from '../features/notifications/components/AddNotificationForm';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 
-const AddCaseLawPage = () => {
-  const navigate = useNavigate();
-
+const AddNotificationPage = () => {
   return (
     <div className="flex flex-col w-full animate-fade-in gap-6">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <AddCaseLawDetail onClose={() => navigate('/manage-cases')} />
+        <AddNotificationForm />
       </div>
       <AdminFooter />
     </div>
   );
 };
 
-export default AddCaseLawPage;
+export default AddNotificationPage;

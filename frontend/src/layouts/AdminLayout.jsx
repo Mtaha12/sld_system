@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import AdminSidebar from '../features/dashboard/components/AdminSidebar';
 import AdminHeader from '../features/dashboard/components/AdminHeader';
 import PageTransition from '../components/ui/PageTransition';
+import ChatWidget from '../components/ui/ChatWidget';
 
 const AdminLayout = () => {
   return (
@@ -19,6 +20,9 @@ const AdminLayout = () => {
           </PageTransition>
         </main>
       </div>
+      
+      {/* Global Floating Chat Widget */}
+      <ChatWidget />
     </div>
   );
 };

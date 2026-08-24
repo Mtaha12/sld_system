@@ -41,7 +41,7 @@ const AddCaseLawDetail = ({ onClose }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white relative">
+    <div className="flex flex-col bg-white relative">
       
       <PageHeader 
         title={<>Add <span className="text-brand-orange">Case Law</span> Detail</>}
@@ -51,7 +51,7 @@ const AddCaseLawDetail = ({ onClose }) => {
       />
 
       {/* Scrollable Content */}
-      <div className="p-6 overflow-y-auto flex-1">
+      <div className="p-6">
         
         {/* Success Notification */}
         {showSuccess && (
