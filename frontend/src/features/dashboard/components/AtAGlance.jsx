@@ -10,9 +10,9 @@ const STATS = [
 
 const AtAGlance = () => {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col flex-1">
+    <div className="bg-theme-surface rounded-2xl border border-theme-border shadow-sm flex flex-col flex-1">
       <div className="p-6 pb-2">
-        <h2 className="text-lg font-semibold text-gray-900">At a Glance</h2>
+        <h2 className="text-lg font-semibold text-theme-main">At a Glance</h2>
       </div>
       
       <div className="px-6 pb-6 pt-2 flex flex-col">
@@ -20,14 +20,14 @@ const AtAGlance = () => {
           <Link
             key={stat.label}
             to={stat.path}
-            className={`flex items-center gap-4 py-3.5 group hover:bg-gray-50 -mx-6 px-6 transition-colors ${
-              index !== STATS.length - 1 ? 'border-b border-gray-100' : ''
+            className={`flex items-center gap-4 py-3.5 group hover:bg-theme-surface-alt -mx-6 px-6 transition-colors ${
+              index !== STATS.length - 1 ? 'border-b border-theme-border/50' : ''
             }`}
           >
             <stat.icon className={`w-5 h-5 shrink-0 ${stat.color}`} strokeWidth={1.5} />
-            <span className="text-sm text-gray-600 flex-1 group-hover:text-gray-900 transition-colors">{stat.label}</span>
-            <span className="text-sm font-semibold text-gray-900">{stat.value}</span>
-            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-600 transition-colors" />
+            <span className="text-sm text-theme-muted flex-1 group-hover:text-theme-main transition-colors">{stat.label}</span>
+            <span className="text-sm font-semibold text-theme-main">{stat.value}</span>
+            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-theme-muted transition-colors" />
           </Link>
         ))}
       </div>

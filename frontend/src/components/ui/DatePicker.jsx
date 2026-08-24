@@ -127,8 +127,8 @@ const DatePicker = ({
         className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-colors
           ${isSelected ? 'bg-brand-orange text-white font-semibold shadow-sm' : 
             isFutureDate ? 'text-gray-300 cursor-not-allowed opacity-50' :
-            isToday ? 'bg-gray-100 text-brand-orange font-semibold hover:bg-gray-200' : 
-            'text-gray-700 hover:bg-gray-100'}`}
+            isToday ? 'bg-theme-surface-hover text-brand-orange font-semibold hover:bg-gray-200' : 
+            'text-theme-main hover:bg-theme-surface-hover'}`}
       >
         {i}
       </button>
@@ -142,9 +142,9 @@ const DatePicker = ({
         className="w-full relative cursor-pointer group"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div className={`w-full pl-3 pr-9 py-2.5 border rounded-lg text-sm transition-colors flex items-center bg-white h-[42px]
-          ${isOpen ? 'border-brand-orange ring-1 ring-brand-orange' : 'border-gray-200 hover:border-gray-300'}`}>
-          <span className={selectedDate ? "text-gray-900" : "text-gray-400"}>
+        <div className={`w-full pl-3 pr-9 py-2.5 border rounded-lg text-sm transition-colors flex items-center bg-theme-surface h-[42px]
+          ${isOpen ? 'border-brand-orange ring-1 ring-brand-orange' : 'border-theme-border hover:border-gray-300'}`}>
+          <span className={selectedDate ? "text-theme-main" : "text-theme-disabled"}>
             {selectedDate ? formatDate(selectedDate) : placeholder}
           </span>
         </div>
@@ -152,19 +152,19 @@ const DatePicker = ({
         {selectedDate ? (
           <button 
             onClick={clearDate}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded-full hover:bg-gray-100"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-disabled hover:text-theme-muted transition-colors p-0.5 rounded-full hover:bg-theme-surface-hover"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         ) : (
-          <CalendarIcon className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isOpen ? 'text-brand-orange' : 'text-gray-400 pointer-events-none'}`} />
+          <CalendarIcon className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isOpen ? 'text-brand-orange' : 'text-theme-disabled pointer-events-none'}`} />
         )}
       </div>
 
       {/* Popover Calendar */}
       {isOpen && (
         <div 
-          className={`absolute top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-50 w-72 animate-in fade-in slide-in-from-top-2 duration-200 ${
+          className={`absolute top-full mt-2 bg-theme-surface border border-theme-border rounded-xl shadow-lg p-4 z-50 w-72 animate-in fade-in slide-in-from-top-2 duration-200 ${
             align === 'right' ? 'right-0 origin-top-right' : 'left-0 origin-top-left'
           }`}
           data-datepicker-popover="true"
@@ -174,7 +174,7 @@ const DatePicker = ({
           <div className="flex items-center justify-between mb-4 gap-2">
             <button 
               onClick={handlePrevMonth}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-theme-surface-hover text-theme-muted transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -183,7 +183,7 @@ const DatePicker = ({
               <select 
                 value={currentMonth.getMonth()} 
                 onChange={handleMonthChange}
-                className="flex-1 p-1 text-sm font-medium bg-transparent border border-transparent hover:border-gray-200 rounded cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-orange appearance-none text-center"
+                className="flex-1 p-1 text-sm font-medium bg-transparent border border-transparent hover:border-theme-border rounded cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-orange appearance-none text-center"
               >
                 {MONTHS.map((month, index) => (
                   <option 
@@ -198,7 +198,7 @@ const DatePicker = ({
               <select 
                 value={currentMonth.getFullYear()} 
                 onChange={handleYearChange}
-                className="flex-1 p-1 text-sm font-medium bg-transparent border border-transparent hover:border-gray-200 rounded cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-orange appearance-none text-center"
+                className="flex-1 p-1 text-sm font-medium bg-transparent border border-transparent hover:border-theme-border rounded cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-orange appearance-none text-center"
               >
                 {YEARS.map(year => (
                   <option key={year} value={year}>{year}</option>
@@ -210,7 +210,7 @@ const DatePicker = ({
               onClick={handleNextMonth}
               disabled={isNextMonthDisabled}
               className={`p-1.5 rounded-lg transition-colors ${
-                isNextMonthDisabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'hover:bg-gray-100 text-gray-600'
+                isNextMonthDisabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'hover:bg-theme-surface-hover text-theme-muted'
               }`}
             >
               <ChevronRight className="w-4 h-4" />
@@ -220,7 +220,7 @@ const DatePicker = ({
           {/* Days Header */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-              <div key={day} className="text-center text-xs font-semibold text-gray-400 w-8 h-8 flex items-center justify-center">
+              <div key={day} className="text-center text-xs font-semibold text-theme-disabled w-8 h-8 flex items-center justify-center">
                 {day}
               </div>
             ))}
@@ -232,10 +232,10 @@ const DatePicker = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
+          <div className="mt-4 pt-3 border-t border-theme-border/50 flex justify-between items-center">
             <button 
               onClick={clearDate}
-              className="text-sm font-medium text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+              className="text-sm font-medium text-theme-muted hover:text-theme-main px-2 py-1 rounded hover:bg-theme-surface-hover transition-colors"
             >
               Clear
             </button>

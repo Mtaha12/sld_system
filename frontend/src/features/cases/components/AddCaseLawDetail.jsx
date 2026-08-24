@@ -41,7 +41,7 @@ const AddCaseLawDetail = ({ onClose }) => {
   };
 
   return (
-    <div className="flex flex-col bg-white relative">
+    <div className="flex flex-col bg-theme-surface relative">
       
       <PageHeader 
         title={<>Add <span className="text-brand-orange">Case Law</span> Detail</>}

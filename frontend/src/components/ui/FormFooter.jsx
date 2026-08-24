@@ -11,7 +11,7 @@ const FormFooter = ({
   submitIcon: SubmitIcon = Save
 }) => {
   return (
-    <div className="p-6 border-t border-gray-200 shrink-0 bg-white rounded-b-2xl flex justify-end gap-3">
+    <div className="p-6 border-t border-theme-border shrink-0 bg-theme-surface rounded-b-2xl flex justify-end gap-3">
       {onCancel && (
         <Button variant="outline" type="button" onClick={onCancel} disabled={isSubmitting}>
           {cancelText}

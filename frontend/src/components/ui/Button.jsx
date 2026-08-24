@@ -7,9 +7,9 @@ const Button = forwardRef(({ className = '', variant = 'primary', size = 'defaul
     primary: 'bg-brand-orange hover:bg-[#D44E35] text-white',
     'admin-primary': 'bg-[#641E16] hover:bg-[#4A1610] text-white',
     success: 'bg-green-600 hover:bg-green-700 text-white shadow-sm border border-green-600',
-    outline: 'bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 shadow-sm',
+    outline: 'bg-theme-surface border border-theme-border hover:bg-theme-surface-alt text-theme-main shadow-sm',
     'outline-dark': 'bg-[#14151A] border border-[#262833] hover:bg-[#1C1E26] text-gray-300',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-700',
+    ghost: 'bg-transparent hover:bg-theme-surface-hover text-theme-main',
   };
 
   const sizes = {

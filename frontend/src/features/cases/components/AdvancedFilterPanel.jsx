@@ -92,14 +92,14 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
   return (
     <div 
       ref={panelRef}
-      className="absolute top-full right-0 mt-2 w-[calc(100vw-32px)] sm:w-[480px] bg-white border border-gray-200 rounded-2xl shadow-xl z-30 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[80vh] flex flex-col"
+      className="absolute top-full right-0 mt-2 w-[calc(100vw-32px)] sm:w-[480px] bg-theme-surface border border-theme-border rounded-2xl shadow-xl z-30 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[80vh] flex flex-col"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <h3 className="font-semibold text-gray-900 text-lg">Advanced Filters</h3>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-theme-border/50 shrink-0">
+        <h3 className="font-semibold text-theme-main text-lg">Advanced Filters</h3>
         <button 
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-1 text-theme-disabled hover:text-theme-muted hover:bg-theme-surface-hover rounded-lg transition-colors"
         >
           <X size={20} />
         </button>
@@ -110,7 +110,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
         
         {/* Court */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Court</label>
+          <label className="block text-sm font-medium text-theme-main mb-1.5">Court</label>
           <Input 
             type="select" 
             variant="light" 
@@ -124,7 +124,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Status */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Case Status</label>
+            <label className="block text-sm font-medium text-theme-main mb-1.5">Case Status</label>
             <Input 
               type="select" 
               variant="light" 
@@ -137,7 +137,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
 
           {/* Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Case Type</label>
+            <label className="block text-sm font-medium text-theme-main mb-1.5">Case Type</label>
             <Input 
               type="select" 
               variant="light" 
@@ -151,7 +151,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
 
         {/* Date Range */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Date Range</label>
+          <label className="block text-sm font-medium text-theme-main mb-1.5">Date Range</label>
           <div className="grid grid-cols-2 gap-3">
             <DatePicker 
               selectedDate={fromDate} 
@@ -169,7 +169,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
 
         {/* Judge */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Judge</label>
+          <label className="block text-sm font-medium text-theme-main mb-1.5">Judge</label>
           <Input 
             type="text" 
             variant="light" 
@@ -183,7 +183,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
 
         {/* Law / Section */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Law / Section</label>
+          <label className="block text-sm font-medium text-theme-main mb-1.5">Law / Section</label>
           <Input 
             type="text" 
             variant="light" 
@@ -197,7 +197,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
 
         {/* Attachments */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Attachments</label>
+          <label className="block text-sm font-medium text-theme-main mb-2">Attachments</label>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input 
@@ -208,7 +208,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
                 onChange={(e) => setAttachments(e.target.value)}
                 className="text-brand-orange focus:ring-brand-orange h-4 w-4"
               />
-              <span className="text-sm text-gray-700">Any</span>
+              <span className="text-sm text-theme-main">Any</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input 
@@ -219,7 +219,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
                 onChange={(e) => setAttachments(e.target.value)}
                 className="text-brand-orange focus:ring-brand-orange h-4 w-4"
               />
-              <span className="text-sm text-gray-700">With Attachments</span>
+              <span className="text-sm text-theme-main">With Attachments</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input 
@@ -230,7 +230,7 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
                 onChange={(e) => setAttachments(e.target.value)}
                 className="text-brand-orange focus:ring-brand-orange h-4 w-4"
               />
-              <span className="text-sm text-gray-700">Without</span>
+              <span className="text-sm text-theme-main">Without</span>
             </label>
           </div>
         </div>
@@ -238,10 +238,10 @@ const AdvancedFilterPanel = ({ isOpen, onClose, onApply }) => {
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-100 flex items-center justify-between shrink-0 bg-gray-50 rounded-b-2xl">
+      <div className="p-4 border-t border-theme-border/50 flex items-center justify-between shrink-0 bg-theme-surface-alt rounded-b-2xl">
         <button 
           onClick={handleClear}
-          className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-3 py-2"
+          className="text-sm font-medium text-theme-muted hover:text-theme-main transition-colors px-3 py-2"
         >
           Clear All
         </button>

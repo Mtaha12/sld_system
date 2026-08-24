@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { ThemeProvider } from './contexts/ThemeContext'
 import AuthLayout from './layouts/AuthLayout'
 import AdminLayout from './layouts/AdminLayout'
 import Spinner from './components/ui/Spinner'
@@ -17,12 +18,14 @@ const AddNotificationPage = lazy(() => import('./pages/AddNotificationPage'))
 
 const ManageStatutesPage = lazy(() => import('./pages/ManageStatutesPage'))
 const AddStatutePage = lazy(() => import('./pages/AddStatutePage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 
 function App() {
   return (
-    <BrowserRouter>
-      <Suspense fallback={<div className="min-h-screen bg-brand-dark flex items-center justify-center"><Spinner size="lg" /></div>}>
-        <Routes>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Suspense fallback={<div className="min-h-screen bg-brand-dark flex items-center justify-center"><Spinner size="lg" /></div>}>
+          <Routes>
           {/* Public Auth Routes */}
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<LoginPage />} />
@@ -40,12 +43,14 @@ function App() {
             <Route path="/manage-notifications/add" element={<AddNotificationPage />} />
             <Route path="/manage-statutes" element={<ManageStatutesPage />} />
             <Route path="/manage-statutes/add" element={<AddStatutePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
-      </Suspense>
-    </BrowserRouter>
+        </Suspense>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }
 

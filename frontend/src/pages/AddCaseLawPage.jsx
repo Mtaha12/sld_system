@@ -7,7 +7,7 @@ const AddCaseLawPage = () => {
 
   return (
     <div className="flex flex-col w-full animate-fade-in gap-6">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-theme-surface rounded-2xl shadow-sm border border-theme-border overflow-hidden">
         <AddCaseLawDetail onClose={() => navigate('/manage-cases')} />
       </div>
       <AdminFooter />

@@ -37,7 +37,7 @@ const AddNotificationForm = () => {
   };
 
   return (
-    <div className="flex flex-col bg-white relative">
+    <div className="flex flex-col bg-theme-surface relative">
       
       <PageHeader 
         title={<>Add <span className="text-brand-orange">Notifications / Circulars / Letters / General Orders</span> Detail</>}
@@ -132,10 +132,10 @@ const AddNotificationForm = () => {
           <FormSection title="Content Details" icon={Layers}>
             <div className="space-y-8">
               {blocks.map((block, index) => (
-                <div key={block.id} className="bg-[#FAFAFA] border border-gray-200 rounded-xl p-6 relative">
+                <div key={block.id} className="bg-[#FAFAFA] border border-theme-border rounded-xl p-6 relative">
                   
                   {/* Block Number Badge */}
-                  <div className="absolute top-0 right-0 bg-gray-200 text-gray-700 px-3 py-1 rounded-bl-xl rounded-tr-xl text-xs font-bold tracking-wider">
+                  <div className="absolute top-0 right-0 bg-gray-200 text-theme-main px-3 py-1 rounded-bl-xl rounded-tr-xl text-xs font-bold tracking-wider">
                     BLOCK {index + 1}
                   </div>
                   

@@ -9,7 +9,7 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
 
   const variants = {
     dark: `bg-[#14151A] border ${error ? 'border-red-500' : 'border-[#262833]'} text-gray-100 placeholder-gray-500 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange`,
-    light: `bg-white border ${error ? 'border-red-500' : 'border-gray-200'} text-gray-900 placeholder-gray-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm`
+    light: `bg-theme-surface border ${error ? 'border-red-500' : 'border-theme-border'} text-theme-main placeholder-gray-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm`
   };
 
   const sizes = {
@@ -23,7 +23,7 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
     <div className="flex flex-col gap-1.5 w-full">
       <div className="relative">
         {Icon && (
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none z-10">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-theme-muted pointer-events-none z-10">
             <Icon size={20} />
           </div>
         )}
@@ -36,13 +36,13 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
               {...props}
             >
               {options?.map((opt) => (
-                <option key={opt.value} value={opt.value} className={variant === 'light' ? 'bg-white text-gray-900' : 'bg-[#14151A] text-gray-100'}>
+                <option key={opt.value} value={opt.value} className={variant === 'light' ? 'bg-theme-surface text-theme-main' : 'bg-[#14151A] text-gray-100'}>
                   {opt.label}
                 </option>
               ))}
             </select>
             {/* Custom dropdown arrow */}
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-theme-muted">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -60,7 +60,7 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-theme-muted hover:text-gray-300 transition-colors focus:outline-none"
                 tabIndex="-1"
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}

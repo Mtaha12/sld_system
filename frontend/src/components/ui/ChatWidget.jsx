@@ -46,7 +46,7 @@ const ChatWidget = () => {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 flex flex-col overflow-hidden animate-fade-in h-[500px] max-h-[80vh]">
+        <div className="fixed bottom-6 right-6 w-80 sm:w-96 bg-theme-surface rounded-2xl shadow-2xl border border-theme-border z-50 flex flex-col overflow-hidden animate-fade-in h-[500px] max-h-[80vh]">
           
           {/* Header */}
           <div className="bg-[#14151A] text-white p-4 flex items-center justify-between shrink-0">
@@ -56,19 +56,19 @@ const ChatWidget = () => {
               </div>
               <div>
                 <h3 className="font-medium text-sm">SLD Support Chat</h3>
-                <p className="text-xs text-gray-400">Typically replies in a few minutes</p>
+                <p className="text-xs text-theme-disabled">Typically replies in a few minutes</p>
               </div>
             </div>
             <button 
               onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-white transition-colors p-1 rounded-md hover:bg-white/10"
+              className="text-theme-disabled hover:text-white transition-colors p-1 rounded-md hover:bg-theme-surface/10"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 bg-gray-50 flex flex-col gap-4">
+          <div className="flex-1 overflow-y-auto p-4 bg-theme-surface-alt flex flex-col gap-4">
             {chatHistory.map((msg, idx) => (
               <div 
                 key={idx} 
@@ -78,12 +78,12 @@ const ChatWidget = () => {
                   className={`px-4 py-2.5 text-sm ${
                     msg.sender === 'user' 
                       ? 'bg-brand-orange text-white rounded-2xl rounded-tr-sm' 
-                      : 'bg-white text-gray-800 border border-gray-200 shadow-sm rounded-2xl rounded-tl-sm'
+                      : 'bg-theme-surface text-theme-main border border-theme-border shadow-sm rounded-2xl rounded-tl-sm'
                   }`}
                 >
                   {msg.text}
                 </div>
-                <span className="text-[10px] text-gray-400 mt-1 px-1">
+                <span className="text-[10px] text-theme-disabled mt-1 px-1">
                   {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
@@ -92,14 +92,14 @@ const ChatWidget = () => {
           </div>
 
           {/* Input Area */}
-          <div className="p-3 bg-white border-t border-gray-100 shrink-0">
+          <div className="p-3 bg-theme-surface border-t border-theme-border/50 shrink-0">
             <form onSubmit={handleSend} className="relative flex items-center">
               <input
                 type="text"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Type your message..."
-                className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all text-gray-800"
+                className="w-full pl-4 pr-12 py-3 bg-theme-surface-alt border border-theme-border rounded-xl text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all text-theme-main"
               />
               <button 
                 type="submit"

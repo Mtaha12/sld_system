@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -12,6 +13,18 @@ export default {
           green: '#2A9D6A',
           dark: '#0B0C10',
           darker: '#08080A',
+        },
+        theme: {
+          base: 'var(--bg-base)',
+          surface: 'var(--bg-surface)',
+          'surface-hover': 'var(--bg-surface-hover)',
+          'surface-alt': 'var(--bg-surface-alt)',
+          'table-header': 'var(--bg-table-header)',
+          border: 'var(--border-default)',
+          'border-hover': 'var(--border-hover)',
+          main: 'var(--text-main)',
+          muted: 'var(--text-muted)',
+          disabled: 'var(--text-disabled)',
         }
       },
       keyframes: {

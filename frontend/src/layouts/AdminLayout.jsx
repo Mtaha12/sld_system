@@ -6,15 +6,17 @@ import ChatWidget from '../components/ui/ChatWidget';
 
 const AdminLayout = () => {
   return (
-    <div className="flex h-[100dvh] bg-gray-50 font-sans text-gray-900 animate-fade-in overflow-hidden">
+    <div className="flex h-[100dvh] bg-theme-base font-sans text-theme-main animate-fade-in overflow-hidden">
       {/* Sidebar */}
       <AdminSidebar className="hidden lg:flex z-30 shrink-0" />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden">
+      {/* Main Content Column */}
+      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        {/* Shared Global Header */}
         <AdminHeader />
         
-        <main className="flex-1 p-6 sm:p-8 w-full">
+        {/* Scrollable Page Content */}
+        <main className="flex-1 p-6 sm:p-8 w-full overflow-y-auto overflow-x-hidden relative z-0">
           <PageTransition>
             <Outlet />
           </PageTransition>

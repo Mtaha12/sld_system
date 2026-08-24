@@ -10,7 +10,7 @@ const Textarea = forwardRef(({
     <div className="flex flex-col gap-1.5 w-full">
       <textarea 
         ref={ref}
-        className={`w-full rounded-lg px-3 py-2 border ${error ? 'border-red-500' : 'border-gray-200'} text-sm text-gray-900 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm resize-y ${className}`}
+        className={`w-full rounded-lg px-3 py-2 border ${error ? 'border-red-500' : 'border-theme-border'} text-sm text-theme-main focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm resize-y ${className}`}
         style={{ minHeight }}
         {...props}
       />

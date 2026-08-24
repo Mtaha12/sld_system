@@ -1,5 +1,7 @@
-import { Bell, ChevronDown } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { Bell, ChevronDown, LogOut } from 'lucide-react';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { ACTIVITIES } from './RecentActivity';
 
 const PAGE_HEADERS = {
   '/dashboard': {
@@ -38,7 +40,31 @@ const PAGE_HEADERS = {
 
 const AdminHeader = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  
+  const notificationsRef = useRef(null);
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setIsNotificationsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setIsProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  
+  const handleLogout = () => {
+    navigate('/login');
+  };
+
   // Fallback to Dashboard if route is unknown
   const headerContent = PAGE_HEADERS[location.pathname] || {
     title: 'Overview',
@@ -46,30 +72,100 @@ const AdminHeader = () => {
   };
 
   return (
-    <header className="h-24 px-6 sm:px-8 flex items-center justify-between bg-white/50 backdrop-blur-md border-b border-gray-200 sticky top-0 z-20 shrink-0">
+    <header className="h-20 sm:h-24 px-6 sm:px-8 flex items-center justify-between bg-theme-base border-b border-theme-border relative z-50 shrink-0">
       
-      <div className="flex flex-col">
-        <h1 className="text-2xl font-semibold text-gray-900">{headerContent.title}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{headerContent.subtitle}</p>
+      <div className="flex flex-col min-w-0 pr-4">
+        <h1 className="text-xl sm:text-2xl font-semibold text-theme-main truncate">{headerContent.title}</h1>
+        <p className="text-xs sm:text-sm text-theme-muted mt-0.5 truncate">{headerContent.subtitle}</p>
       </div>
 
-      <div className="flex items-center gap-6">
-        <button className="relative w-11 h-11 flex items-center justify-center text-gray-600 hover:text-gray-900 transition-colors rounded-full hover:bg-gray-100 shrink-0">
-          <Bell className="w-6 h-6 shrink-0" strokeWidth={1.5} />
-          <span className="absolute top-1 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white box-content">
-            3
-          </span>
-        </button>
+      <div className="flex items-center gap-4 sm:gap-6 shrink-0">
+        
+        <div className="relative" ref={notificationsRef}>
+          <button 
+            onClick={() => {
+              setIsNotificationsOpen(!isNotificationsOpen);
+              setIsProfileOpen(false);
+            }}
+            className={`relative w-11 h-11 flex items-center justify-center transition-colors rounded-full shrink-0 ${isNotificationsOpen ? 'text-theme-main bg-theme-surface-hover' : 'text-theme-muted hover:text-theme-main hover:bg-theme-surface-hover'}`}
+          >
+            <Bell className="w-6 h-6 shrink-0" strokeWidth={1.5} />
+            <span className="absolute top-1 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white box-content">
+              3
+            </span>
+          </button>
 
-        <div className="flex items-center gap-3 cursor-pointer pl-4 border-l border-gray-200 group">
-          <div className="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-sm group-hover:ring-2 ring-brand-orange/20 transition-all">
-            <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Adam Admin" className="w-full h-full object-cover" />
+          {isNotificationsOpen && (
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-transparent" 
+                onClick={() => setIsNotificationsOpen(false)} 
+              />
+              <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-theme-surface rounded-xl shadow-2xl border border-theme-border overflow-hidden z-50">
+                <div className="px-4 py-3 border-b border-theme-border flex items-center justify-between bg-theme-surface-alt">
+                  <h3 className="font-semibold text-theme-main">Notifications</h3>
+                  <span className="text-xs font-medium text-brand-orange bg-brand-orange/10 px-2 py-0.5 rounded-full">3 New</span>
+                </div>
+                <div className="max-h-[400px] overflow-y-auto divide-y divide-theme-border bg-theme-surface">
+                  {ACTIVITIES.slice(0, 4).map((activity) => (
+                    <div key={activity.id} className="px-4 py-3 hover:bg-theme-surface-hover transition-colors flex gap-3 cursor-pointer bg-theme-surface">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${activity.bgColor} ${activity.iconColor}`}>
+                        <activity.icon className="w-4 h-4" strokeWidth={2} />
+                      </div>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className="text-sm font-semibold text-theme-main">{activity.action}</span>
+                          <span className="text-[10px] text-theme-disabled shrink-0 whitespace-nowrap">{activity.time}</span>
+                        </div>
+                        <p className="text-xs text-theme-muted truncate">{activity.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-4 py-2.5 border-t border-theme-border bg-theme-surface-alt text-center">
+                  <Link to="/dashboard" onClick={() => setIsNotificationsOpen(false)} className="text-sm font-medium text-brand-orange hover:underline">
+                    View all activity
+                  </Link>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="relative" ref={profileRef}>
+          <div 
+            onClick={() => {
+              setIsProfileOpen(!isProfileOpen);
+              setIsNotificationsOpen(false);
+            }}
+            className="flex items-center gap-3 cursor-pointer pl-4 border-l border-theme-border group"
+          >
+            <div className="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-sm group-hover:ring-2 ring-brand-orange/20 transition-all">
+              <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Adam Admin" className="w-full h-full object-cover" />
+            </div>
+            <div className="hidden sm:flex flex-col">
+              <span className="text-sm font-semibold text-theme-main">Adam Admin</span>
+              <span className="text-xs text-theme-muted">Administrator</span>
+            </div>
+            <ChevronDown className={`w-4 h-4 transition-all ${isProfileOpen ? 'text-theme-main rotate-180' : 'text-theme-disabled group-hover:text-theme-muted'}`} />
           </div>
-          <div className="hidden sm:flex flex-col">
-            <span className="text-sm font-semibold text-gray-900">Adam Admin</span>
-            <span className="text-xs text-gray-500">Administrator</span>
-          </div>
-          <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+
+          {isProfileOpen && (
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-transparent" 
+                onClick={() => setIsProfileOpen(false)} 
+              />
+              <div className="absolute top-full right-0 mt-3 w-48 bg-theme-surface rounded-xl shadow-2xl border border-theme-border overflow-hidden z-50 py-1">
+                <button 
+                  onClick={handleLogout}
+                  className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" /> Logout
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>

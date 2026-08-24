@@ -9,7 +9,53 @@ html, body, #root {
 }
 
 @layer base {
-  /* Fix browser autofill styling for dark mode inputs */
+  :root {
+    color-scheme: light;
+    --bg-base: #F8F9FA;
+    --bg-surface: #FFFFFF;
+    --bg-surface-hover: #F9FAFB;
+    --bg-surface-alt: #F3F4F6;
+    --bg-table-header: #F5F6FA;
+    
+    --border-default: #E5E7EB;
+    --border-hover: #D1D5DB;
+
+    --text-main: #111827;
+    --text-muted: #6B7280;
+    --text-disabled: #9CA3AF;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --bg-base: #0B0C10; 
+    --bg-surface: #14151A;
+    --bg-surface-hover: #1E2028;
+    --bg-surface-alt: #1A1C23;
+    --bg-table-header: #1E2028;
+    
+    --border-default: #262833;
+    --border-hover: #373A4A;
+
+    --text-main: #F3F4F6;
+    --text-muted: #9CA3AF;
+    --text-disabled: #6B7280;
+  }
+  
+  html, body, #root {
+    background-color: var(--bg-base);
+    color: var(--text-main);
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+
+  /* Form controls defaults */
+  input, select, textarea {
+    background-color: var(--bg-surface);
+    color: var(--text-main);
+  }
+
+  /* Universal theme-adaptive browser autofill */
   input:-webkit-autofill,
   input:-webkit-autofill:hover, 
   input:-webkit-autofill:focus, 
@@ -18,10 +64,9 @@ html, body, #root {
   select:-webkit-autofill:hover,
   select:-webkit-autofill:focus,
   select:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 50px #14151A inset !important;
-    -webkit-text-fill-color: #f3f4f6 !important;
-    caret-color: #f3f4f6 !important;
-    background-clip: content-box !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-surface) inset !important;
+    -webkit-text-fill-color: var(--text-main) !important;
+    caret-color: var(--text-main) !important;
     transition: background-color 5000s ease-in-out 0s;
   }
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { CKEditor } from 'ckeditor4-react';
+import { useTheme } from '../../contexts/ThemeContext';
 import './RichTextEditor.css';
 
 const RichTextEditor = ({ 
@@ -9,8 +10,11 @@ const RichTextEditor = ({
   className = "",
   minHeight = 250
 }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   return (
-    <div className={`rich-text-editor-wrapper w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm ${className}`}>
+    <div className={`rich-text-editor-wrapper w-full overflow-hidden rounded-lg border border-theme-border shadow-sm transition-colors ${className}`}>
       <CKEditor
         initData={value}
         editorUrl="https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js"
@@ -40,7 +44,10 @@ const RichTextEditor = ({
             { name: 'about', items: ['About'] }
           ],
           removePlugins: 'resize',
-          uiColor: '#ffffff',
+          uiColor: isDark ? '#14151A' : '#ffffff',
+          contentsCss: isDark 
+            ? 'body { background-color: #1A1C23 !important; color: #F3F4F6 !important; }'
+            : 'body { background-color: #ffffff !important; color: #111827 !important; }',
           versionCheck: false,
         }}
       />

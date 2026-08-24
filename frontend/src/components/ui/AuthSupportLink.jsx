@@ -1,6 +1,6 @@
 const AuthSupportLink = ({ action, text }) => {
   return (
-    <div className="text-center mt-1 text-sm text-gray-400">
+    <div className="text-center mt-1 text-sm text-theme-disabled">
       {text ? text : `Getting issues ${action}?`}{' '}
       <a
         href="#"

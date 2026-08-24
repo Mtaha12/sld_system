@@ -8,7 +8,7 @@ const ACTIONS = [
     icon: Briefcase,
     path: '/cases/new',
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   },
   {
     title: 'Add Statute',
@@ -16,7 +16,7 @@ const ACTIONS = [
     icon: Scale,
     path: '/statutes/new',
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   },
   {
     title: 'Add Notification',
@@ -24,7 +24,7 @@ const ACTIONS = [
     icon: Bell,
     path: '/notifications/new',
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   },
   {
     title: 'Manage Cases',
@@ -32,15 +32,15 @@ const ACTIONS = [
     icon: Book,
     path: '/manage-cases',
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   }
 ];
 
 const QuickActions = () => {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col mb-6">
+    <div className="bg-theme-surface rounded-2xl border border-theme-border shadow-sm flex flex-col mb-6">
       <div className="p-6 pb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
+        <h2 className="text-lg font-semibold text-theme-main">Quick Actions</h2>
       </div>
       
       <div className="px-6 pb-6 space-y-3">
@@ -48,14 +48,14 @@ const QuickActions = () => {
           <Link
             key={action.title}
             to={action.path}
-            className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-[#641E16]/30 hover:shadow-md transition-all group bg-white"
+            className="flex items-center gap-4 p-4 rounded-xl border border-theme-border/50 hover:border-[#641E16]/30 hover:shadow-md transition-all group bg-theme-surface"
           >
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${action.bgColor} ${action.iconColor}`}>
               <action.icon className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col flex-1">
-              <span className="text-sm font-semibold text-gray-900 group-hover:text-[#641E16] transition-colors">{action.title}</span>
-              <span className="text-xs text-gray-500">{action.description}</span>
+              <span className="text-sm font-semibold text-theme-main group-hover:text-[#641E16] transition-colors">{action.title}</span>
+              <span className="text-xs text-theme-muted">{action.description}</span>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-[#641E16] transition-colors" />
           </Link>

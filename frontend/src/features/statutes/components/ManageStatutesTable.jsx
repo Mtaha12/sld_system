@@ -44,7 +44,7 @@ const TableHeader = ({ title, className }) => (
   <th className={`px-6 py-4 font-medium align-top ${className || ''}`}>
     <div className="flex items-center gap-1">
       <span className="leading-tight">{title}</span>
-      <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0 cursor-pointer hover:text-brand-orange" />
+      <ArrowUpDown className="w-3.5 h-3.5 text-theme-disabled shrink-0 cursor-pointer hover:text-brand-orange" />
     </div>
   </th>
 );
@@ -98,20 +98,20 @@ const ManageStatutesTable = () => {
           variant="outline"
           size="sm"
           onClick={() => setIsModalOpen(true)}
-          className="bg-white hover:bg-gray-50 text-blue-600 border border-blue-200 h-[38px] px-4 shadow-sm"
+          className="bg-theme-surface hover:bg-theme-surface-alt text-blue-600 border border-blue-200 h-[38px] px-4 shadow-sm"
         >
           <CalendarClock className="w-4 h-4 mr-2" /> Update Dates
         </Button>
-        <div className="text-gray-600 font-medium text-sm">
+        <div className="text-theme-muted font-medium text-sm">
           Total Records: (9,331)
         </div>
       </div>
 
       {/* Table Container */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-theme-surface rounded-xl shadow-sm border border-theme-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="text-xs text-gray-700 bg-[#FFF8F6] border-b border-gray-200">
+            <thead className="text-xs text-theme-main bg-theme-table-header border-b border-theme-border">
               <tr>
                 <TableHeader title="Sr #" />
                 <TableHeader title="Law / Statute" className="min-w-[200px]" />
@@ -125,15 +125,15 @@ const ManageStatutesTable = () => {
                 <th className="px-6 py-4 font-medium text-center">≡</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-theme-border/50">
               {statutes.map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50/50 transition-colors bg-white">
-                  <td className="px-6 py-4 text-gray-500">{row.id}</td>
-                  <td className="px-6 py-4 font-medium text-gray-900">{row.law}</td>
-                  <td className="px-6 py-4 text-gray-500">{row.chapter}</td>
+                <tr key={row.id} className="hover:bg-theme-surface-alt/50 transition-colors bg-theme-surface">
+                  <td className="px-6 py-4 text-theme-muted">{row.id}</td>
+                  <td className="px-6 py-4 font-medium text-theme-main">{row.law}</td>
+                  <td className="px-6 py-4 text-theme-muted">{row.chapter}</td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
-                      row.display === 'Yes' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200'
+                      row.display === 'Yes' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-theme-surface-alt text-theme-muted border-theme-border'
                     }`}>
                       {row.display === 'Yes' ? 'Active' : 'Inactive'}
                     </span>
@@ -143,16 +143,16 @@ const ManageStatutesTable = () => {
                       type="text" 
                       value={row.dated}
                       readOnly
-                      className="border border-gray-200 rounded-md px-3 py-1.5 w-28 text-sm bg-gray-50 text-gray-500 cursor-default focus:outline-none"
+                      className="border border-theme-border rounded-md px-3 py-1.5 w-28 text-sm bg-theme-surface-alt text-theme-muted cursor-default focus:outline-none"
                     />
                   </td>
-                  <td className="px-6 py-4 text-gray-500">{row.section}</td>
-                  <td className="px-6 py-4 text-gray-600 text-xs">{row.sectionHeading}</td>
-                  <td className="px-6 py-4 text-gray-500">{row.department}</td>
-                  <td className="px-6 py-4 text-gray-600 text-xs">{row.heading}</td>
+                  <td className="px-6 py-4 text-theme-muted">{row.section}</td>
+                  <td className="px-6 py-4 text-theme-muted text-xs">{row.sectionHeading}</td>
+                  <td className="px-6 py-4 text-theme-muted">{row.department}</td>
+                  <td className="px-6 py-4 text-theme-muted text-xs">{row.heading}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-2">
-                      <button className="p-1.5 text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded transition-colors border border-blue-100" title="Edit">
+                      <button className="p-1.5 text-blue-500 hover:text-blue-700 bg-blue-500/20 hover:bg-blue-100 rounded transition-colors border border-blue-100" title="Edit">
                         <Edit className="w-3.5 h-3.5" />
                       </button>
                       <button className="p-1.5 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded transition-colors border border-red-100" title="Delete">
@@ -167,13 +167,13 @@ const ManageStatutesTable = () => {
         </div>
 
         {/* Pagination Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-between">
-          <span className="text-sm text-gray-500">
-            Showing <span className="font-medium text-gray-900">1</span> to <span className="font-medium text-gray-900">3</span> of <span className="font-medium text-gray-900">3</span> entries
+        <div className="px-6 py-4 border-t border-theme-border/50 bg-theme-surface flex items-center justify-between">
+          <span className="text-sm text-theme-muted">
+            Showing <span className="font-medium text-theme-main">1</span> to <span className="font-medium text-theme-main">3</span> of <span className="font-medium text-theme-main">3</span> entries
           </span>
           <div className="flex items-center gap-2">
             <button className="w-8 h-8 flex items-center justify-center rounded-md bg-brand-orange text-white text-sm font-medium">1</button>
-            <button className="text-sm text-gray-500 hover:text-gray-700 font-medium px-2">Next →</button>
+            <button className="text-sm text-theme-muted hover:text-theme-main font-medium px-2">Next →</button>
           </div>
         </div>
       </div>
@@ -185,14 +185,14 @@ const ManageStatutesTable = () => {
             className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm animate-fade-in" 
             onClick={closeModal}
           />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white rounded-xl shadow-2xl z-50 animate-fade-in border border-gray-100">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 rounded-t-xl">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-theme-surface rounded-xl shadow-2xl z-50 animate-fade-in border border-theme-border/50">
+            <div className="px-5 py-4 border-b border-theme-border/50 flex items-center justify-between bg-theme-surface-alt/50 rounded-t-xl">
+              <h3 className="font-semibold text-theme-main flex items-center gap-2">
                 <CalendarClock className="w-4 h-4 text-blue-600" /> Update Date
               </h3>
               <button 
                 onClick={closeModal}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-theme-disabled hover:text-theme-muted transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -206,18 +206,18 @@ const ManageStatutesTable = () => {
               )}
               
               <div className="space-y-1.5 relative">
-                <label className="text-sm font-medium text-gray-700">SR Number</label>
+                <label className="text-sm font-medium text-theme-main">SR Number</label>
                 <input 
                   type="number"
                   placeholder="e.g. 9338"
                   value={modalSrNumber}
                   onChange={(e) => setModalSrNumber(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors"
+                  className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors"
                 />
               </div>
 
               <div className="space-y-1.5 relative">
-                <label className="text-sm font-medium text-gray-700">New Date</label>
+                <label className="text-sm font-medium text-theme-main">New Date</label>
                 <DatePicker 
                   selectedDate={modalDate}
                   onChange={setModalDate}
@@ -227,7 +227,7 @@ const ManageStatutesTable = () => {
               </div>
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50/50 rounded-b-xl">
+            <div className="px-5 py-4 border-t border-theme-border/50 flex justify-end gap-2 bg-theme-surface-alt/50 rounded-b-xl">
               <Button variant="outline" size="sm" onClick={closeModal} className="px-4">
                 Cancel
               </Button>

@@ -5,7 +5,7 @@ import AddStatuteForm from '../features/statutes/components/AddStatuteForm';
 const AddStatutePage = () => {
   return (
     <div className="flex flex-col w-full animate-fade-in gap-6">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative">
+      <div className="bg-theme-surface rounded-2xl shadow-sm border border-theme-border overflow-hidden relative">
         <AddStatuteForm />
       </div>
       <AdminFooter />

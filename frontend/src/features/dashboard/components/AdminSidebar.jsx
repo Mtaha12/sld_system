@@ -1,11 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useTheme } from '../../../contexts/ThemeContext';
 import {
   LayoutDashboard,
   Scale,
   Bell,
   FileText,
   Settings,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png';
 
@@ -18,6 +21,8 @@ const NAV_ITEMS = [
 
 const AdminSidebar = ({ className = '' }) => {
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
+  const isDarkMode = theme === 'dark';
 
   return (
     <aside className={`bg-[#14151A] text-gray-300 flex-col h-full border-r border-[#262833] transition-[width] duration-300 ease-in-out group w-[80px] hover:w-[260px] overflow-hidden ${className}`}>
@@ -59,7 +64,22 @@ const AdminSidebar = ({ className = '' }) => {
       </div>
 
       {/* Bottom Actions */}
-      <div className="px-4 pb-6 mt-auto shrink-0 w-[260px]">
+      <div className="px-4 pb-6 mt-auto shrink-0 w-[260px] flex flex-col gap-2">
+        <button
+          onClick={toggleTheme}
+          title="Toggle Theme"
+          className="flex items-center px-3 py-3 rounded-xl transition-colors relative hover:bg-[#262833] hover:text-white text-left w-full"
+        >
+          {isDarkMode ? (
+            <Moon className="w-6 h-6 shrink-0 transition-colors text-gray-400" />
+          ) : (
+            <Sun className="w-6 h-6 shrink-0 transition-colors text-gray-400" />
+          )}
+          <span className="text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-4">
+            {isDarkMode ? 'Dark Mode' : 'Light Mode'}
+          </span>
+        </button>
+
         <Link
           to="/settings"
           title="Settings"

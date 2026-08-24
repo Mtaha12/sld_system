@@ -1,7 +1,7 @@
 import { Briefcase, Edit, FileText, Bell, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const ACTIVITIES = [
+export const ACTIVITIES = [
   {
     id: 1,
     action: 'New case added',
@@ -9,7 +9,7 @@ const ACTIVITIES = [
     time: '2 mins ago',
     icon: Briefcase,
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   },
   {
     id: 2,
@@ -18,7 +18,7 @@ const ACTIVITIES = [
     time: '15 mins ago',
     icon: Edit,
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   },
   {
     id: 3,
@@ -27,7 +27,7 @@ const ACTIVITIES = [
     time: '1 hour ago',
     icon: FileText,
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   },
   {
     id: 4,
@@ -36,7 +36,7 @@ const ACTIVITIES = [
     time: '3 hours ago',
     icon: Bell,
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   },
   {
     id: 5,
@@ -45,7 +45,7 @@ const ACTIVITIES = [
     time: '5 hours ago',
     icon: Briefcase,
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   },
   {
     id: 6,
@@ -54,15 +54,15 @@ const ACTIVITIES = [
     time: '1 day ago',
     icon: Edit,
     iconColor: 'text-brand-orange',
-    bgColor: 'bg-orange-50'
+    bgColor: 'bg-brand-orange/10'
   }
 ];
 
 const RecentActivity = () => {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col h-full">
-      <div className="p-6 flex items-center justify-between border-b border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+    <div className="bg-theme-surface rounded-2xl border border-theme-border shadow-sm flex flex-col h-full">
+      <div className="p-6 flex items-center justify-between border-b border-theme-border/50">
+        <h2 className="text-lg font-semibold text-theme-main">Recent Activity</h2>
         <Link to="/activity" className="text-sm font-medium text-[#641E16] hover:text-[#4A1610] flex items-center gap-1 transition-colors">
           View all activity <ChevronRight className="w-4 h-4" />
         </Link>
@@ -71,20 +71,26 @@ const RecentActivity = () => {
       <div className="p-6 flex-1">
         <div className="relative">
           {/* Vertical Line */}
-          <div className="absolute left-6 top-6 bottom-6 w-px bg-gray-200"></div>
+          <div className="absolute left-6 top-6 bottom-6 w-px bg-theme-border -translate-x-1/2"></div>
           
           <div className="space-y-8 relative">
-            {ACTIVITIES.map((activity) => (
-              <div key={activity.id} className="flex gap-4 group">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 border border-white ring-4 ring-white z-10 ${activity.bgColor} ${activity.iconColor}`}>
+            {ACTIVITIES.map((activity, index) => (
+              <div key={activity.id} className="flex gap-4 group relative">
+                
+                {/* Connecting Dot */}
+                {index !== ACTIVITIES.length - 1 && (
+                  <div className="absolute left-6 top-[64px] w-[5px] h-[5px] bg-brand-orange rounded-full -translate-x-1/2 -translate-y-1/2 z-10"></div>
+                )}
+
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 border border-theme-border z-10 bg-theme-surface ${activity.iconColor}`}>
                   <activity.icon className="w-5 h-5" strokeWidth={1.5} />
                 </div>
                 <div className="flex flex-col pt-1.5 flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-4 mb-0.5">
-                    <span className="text-sm font-semibold text-gray-900">{activity.action}</span>
-                    <span className="text-xs text-gray-400 shrink-0">{activity.time}</span>
+                    <span className="text-sm font-semibold text-theme-main">{activity.action}</span>
+                    <span className="text-xs text-theme-disabled shrink-0">{activity.time}</span>
                   </div>
-                  <span className="text-sm text-gray-500 truncate group-hover:text-gray-700 transition-colors">{activity.description}</span>
+                  <span className="text-sm text-theme-muted truncate group-hover:text-theme-main transition-colors">{activity.description}</span>
                 </div>
               </div>
             ))}
