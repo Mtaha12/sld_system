@@ -1,7 +1,7 @@
 import { forwardRef, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 
-const Input = forwardRef(({ className = '', type, icon: Icon, error, options, variant = 'dark', ...props }, ref) => {
+const Input = forwardRef(({ className = '', type, icon: Icon, error, options, variant = 'dark', inputSize = 'default', ...props }, ref) => {
   const [showPassword, setShowPassword] = useState(false)
   const isPassword = type === 'password'
   
@@ -12,7 +12,12 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
     light: `bg-white border ${error ? 'border-red-500' : 'border-gray-200'} text-gray-900 placeholder-gray-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm`
   };
 
-  const commonClasses = `w-full rounded-xl px-4 py-3.5 focus:outline-none transition-colors ${Icon ? 'pl-11' : ''} ${isPassword ? 'pr-12' : ''} ${variants[variant] || variants.dark} ${className}`
+  const sizes = {
+    default: 'px-4 py-3.5 rounded-xl text-base',
+    sm: 'px-3 py-2 rounded-lg text-sm h-[38px]'
+  };
+
+  const commonClasses = `w-full focus:outline-none transition-colors ${Icon ? 'pl-11' : ''} ${isPassword ? 'pr-12' : ''} ${variants[variant] || variants.dark} ${sizes[inputSize] || sizes.default} ${className}`
 
   return (
     <div className="flex flex-col gap-1.5 w-full">

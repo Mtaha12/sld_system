@@ -10,6 +10,7 @@ const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const ManageCasesPage = lazy(() => import('./pages/ManageCasesPage'))
+const AddCaseLawPage = lazy(() => import('./pages/AddCaseLawPage'))
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route element={<AdminLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/manage-cases" element={<ManageCasesPage />} />
+            <Route path="/manage-cases/add" element={<AddCaseLawPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />

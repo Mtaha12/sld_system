@@ -1,0 +1,207 @@
+/* Modernize CKEditor 4 Toolbar to match reference image */
+
+/* Reset box-sizing for perfect alignment */
+.cke_top *, .cke_top *:before, .cke_top *:after {
+  box-sizing: border-box !important;
+}
+
+/* Wrapper and Main Container */
+.cke_chrome {
+  border: none !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
+  padding: 0 !important;
+}
+
+/* Toolbar Background */
+.cke_top {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  padding: 12px 12px 4px 12px !important;
+  border-radius: 8px 8px 0 0 !important;
+  box-shadow: none !important;
+}
+
+/* Toolbar Rows */
+.cke_toolbox {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: flex-start !important;
+}
+
+.cke_toolbar {
+  display: flex !important;
+  align-items: center !important;
+  float: none !important;
+  height: 32px !important;
+  margin: 0 4px 6px 0 !important;
+  gap: 4px !important;
+}
+
+.cke_toolbar_break {
+  display: block !important;
+  width: 100% !important;
+  height: 0 !important;
+  margin: 0 !important;
+  clear: both !important;
+}
+
+/* Toolgroups (Button containers) */
+.cke_toolgroup {
+  background: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  padding: 2px !important;
+  display: flex !important;
+  align-items: center !important;
+  height: 32px !important;
+  margin: 0 !important;
+}
+
+.cke_toolgroup::before,
+.cke_toolgroup::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Individual Buttons */
+.cke_button {
+  border-radius: 4px !important;
+  padding: 0 !important;
+  transition: all 0.2s ease !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  opacity: 0.75 !important;
+  height: 26px !important;
+  width: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 1px !important;
+}
+
+.cke_button::before,
+.cke_button::after,
+.cke_combo::before,
+.cke_combo::after,
+.cke_combo_button::before,
+.cke_combo_button::after {
+  display: none !important;
+  content: none !important;
+}
+
+.cke_button_icon {
+  margin: 0 !important;
+  display: block !important;
+}
+
+.cke_button_label {
+  display: none !important;
+}
+
+/* Hover and Active states */
+.cke_button:hover {
+  background: #f3f4f6 !important;
+  opacity: 1 !important;
+}
+
+.cke_button_on {
+  background: #f3f4f6 !important;
+  border-color: transparent !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+/* Separators */
+.cke_toolbar_separator,
+.cke_toolbar_start,
+.cke_toolbar_end {
+  display: none !important;
+}
+
+/* Dropdowns (Combo Boxes) */
+.cke_combo {
+  display: inline-flex !important;
+  margin: 0 !important;
+}
+
+.cke_combo_button {
+  background: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  padding: 0 8px !important;
+  transition: all 0.2s ease !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  margin: 0 !important;
+}
+
+.cke_combo_button:hover {
+  background: #f3f4f6 !important;
+}
+
+.cke_combo_text {
+  color: #374151 !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  text-shadow: none !important;
+  font-weight: 500 !important;
+  line-height: normal !important;
+  margin-right: 6px !important;
+  width: auto !important;
+  display: block !important;
+  float: none !important;
+}
+
+/* Dropdown arrow */
+.cke_combo_open {
+  border-left: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  float: none !important;
+}
+
+.cke_combo_arrow {
+  margin: 0 !important;
+  border-top-color: #6b7280 !important;
+}
+
+/* Remove default active/focus outlines */
+.cke_combo_on a.cke_combo_button,
+.cke_combo_off a.cke_combo_button:active,
+.cke_combo_off a.cke_combo_button:focus {
+  box-shadow: none !important;
+  border-color: #d1d5db !important;
+}
+
+/* Footer / Path area */
+.cke_bottom {
+  background: #ffffff !important;
+  border-top: 1px solid #e5e7eb !important;
+  border-radius: 0 0 8px 8px !important;
+  padding: 8px 12px !important;
+  box-shadow: none !important;
+}
+
+.cke_path_item, .cke_path_empty {
+  color: #9ca3af !important;
+  font-family: inherit !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  text-shadow: none !important;
+}
+
+/* Adjust Content Area */
+.cke_contents {
+  border: none !important;
+  background: #ffffff !important;
+}

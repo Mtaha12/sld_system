@@ -10,6 +10,10 @@ const PAGE_HEADERS = {
     title: 'Manage Cases Law',
     subtitle: 'View, search and manage all legal cases'
   },
+  '/manage-cases/add': {
+    title: 'Manage Cases Law',
+    subtitle: 'Add new case law detail and publication records'
+  },
   '/manage-notifications': {
     title: 'Manage Notifications',
     subtitle: 'View and manage system alerts and notifications'

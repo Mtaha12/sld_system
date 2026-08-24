@@ -1,85 +1,164 @@
 import { useState } from 'react';
-import { Search, Calendar, ChevronDown, Building2, MapPin, User, Download, ArrowUpDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, ChevronDown, Plus, Printer, Download, List, FileText, FileDown, X } from 'lucide-react';
 import Button from '../../../components/ui/Button';
-import SearchActionButtons from '../../../components/ui/SearchActionButtons';
 import DatePicker from '../../../components/ui/DatePicker';
-import AdvancedFilterPanel from './AdvancedFilterPanel';
 
 const ManageCasesFilterBar = () => {
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const [startDate, setStartDate] = useState(null);
-  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
-  const [activeFiltersCount, setActiveFiltersCount] = useState(0);
+  const navigate = useNavigate();
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
 
   return (
-    <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col xl:flex-row items-stretch xl:items-center gap-3 mb-6 relative">
+    <div className="bg-white p-5 rounded-2xl shadow-sm flex flex-col gap-4 mb-6 relative">
       
-      {/* Top Row / Search Bar always visible */}
-      <div className="flex flex-wrap md:flex-nowrap items-center gap-3 w-full xl:w-auto flex-1">
-        <div className="relative flex-1 min-w-[200px] lg:min-w-[320px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-orange" />
-          <input 
-            type="text" 
-            placeholder="Search cases, case numbers, parties, judges, lawyers, statutes..." 
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-orange placeholder:text-gray-400"
-          />
+      {/* Row 1: Search and Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        
+        {/* Static Subject Input */}
+        <div className="flex-1 min-w-[200px]">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Subject" 
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-orange text-gray-700"
+            />
+          </div>
         </div>
         
         <DatePicker
-          selectedDate={startDate}
-          onChange={setStartDate}
-          placeholder="Enter year start"
-          className="w-full sm:w-[170px] shrink-0"
+          selectedDate={fromDate}
+          onChange={setFromDate}
+          placeholder="From year/vol"
+          disableFutureDates={true}
+          className="w-full sm:w-[150px] shrink-0"
         />
 
-        <div className="relative w-full sm:w-36 shrink-0">
-          <select className="w-full pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm appearance-none focus:outline-none focus:border-brand-orange bg-white text-gray-700">
-            <option>To present</option>
+        <DatePicker
+          selectedDate={toDate}
+          onChange={setToDate}
+          placeholder="To year/vol"
+          disableFutureDates={true}
+          className="w-full sm:w-[150px] shrink-0"
+        />
+
+        <div className="relative w-full sm:w-[140px] shrink-0">
+          <select className="w-full pl-3 pr-9 py-2.5 border border-gray-200 rounded-lg text-sm appearance-none focus:outline-none focus:border-brand-orange bg-white text-gray-700">
+            <option value="">Magazine</option>
           </select>
-          <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+          <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
 
-        <div className="relative">
-          <SearchActionButtons 
-            size="sm" 
-            filterLabel="All" 
-            showSearchButton={false}
-            showMenu={true} 
-            onMenuClick={() => setIsFiltersOpen(!isFiltersOpen)} 
-            onFilterClick={() => setIsAdvancedFiltersOpen(true)}
-            activeFiltersCount={activeFiltersCount}
-          />
-          
-          <AdvancedFilterPanel 
-            isOpen={isAdvancedFiltersOpen}
-            onClose={() => setIsAdvancedFiltersOpen(false)}
-            onApply={(count) => setActiveFiltersCount(count)}
-          />
+        {/* Expanding Search Button */}
+        <div className={`flex items-center transition-all duration-300 ease-in-out ${isSearchExpanded ? 'w-48' : 'w-auto'}`}>
+          {!isSearchExpanded ? (
+            <Button 
+              size="sm" 
+              className="bg-[#5c4dce] hover:bg-[#4a3db0] text-white border-transparent h-[42px] px-5 w-full whitespace-nowrap"
+              onClick={() => setIsSearchExpanded(true)}
+            >
+              <Search className="w-4 h-4" /> Search
+            </Button>
+          ) : (
+            <div className="relative w-full h-[42px] animate-fade-in">
+              <input 
+                type="text"
+                placeholder="Search..."
+                className="w-full h-full pl-9 pr-8 py-2 border border-[#5c4dce] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#5c4dce]"
+                autoFocus
+              />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <button 
+                onClick={() => setIsSearchExpanded(false)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
+        
+        <Button 
+          variant="outline"
+          size="sm" 
+          className="bg-white hover:bg-gray-50 text-[#4b5563] border border-gray-200 h-[42px] px-5"
+        >
+          <List className="w-4 h-4" /> All
+        </Button>
+
+        <Button 
+          variant="success" 
+          size="sm" 
+          onClick={() => navigate('/manage-cases/add')}
+          className="h-[42px] px-5 whitespace-nowrap"
+        >
+          <Plus className="w-4 h-4" /> Add Record
+        </Button>
       </div>
 
-      {/* Expandable Action Buttons */}
-      <div className={`${isFiltersOpen ? 'flex' : 'hidden'} xl:flex flex-col sm:flex-row flex-wrap xl:flex-nowrap items-stretch sm:items-center gap-3 xl:gap-2 xl:pl-3 xl:border-l xl:border-gray-200`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="success" size="sm">
-            <Building2 className="w-4 h-4" /> Add Record
+      {/* Row 2: Actions */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button 
+          variant="outline"
+          size="sm" 
+          className="bg-white hover:bg-[#f3efff] text-[#5c4dce] border border-[#5c4dce] h-[38px]"
+        >
+          <Printer className="w-4 h-4" /> Head Notes
+        </Button>
+        
+        <Button 
+          variant="outline"
+          size="sm" 
+          className="bg-white hover:bg-[#eaf6ff] text-[#2583e8] border border-[#2583e8] h-[38px]"
+        >
+          <Printer className="w-4 h-4" /> Judgment
+        </Button>
+        
+        <div className="relative">
+          <Button 
+            variant="outline"
+            size="sm" 
+            className="bg-white hover:bg-[#fff0f0] text-[#e65c5c] border border-[#e65c5c] h-[38px]"
+            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+          >
+            <Download className="w-4 h-4" /> Export Cases <ChevronDown className="w-3 h-3 ml-1" />
           </Button>
-          <Button variant="outline" size="sm">
-            <MapPin className="w-4 h-4 text-purple-600" /> Judgements
-          </Button>
-          <Button variant="outline" size="sm">
-            <User className="w-4 h-4 text-blue-600" /> Set Case ID
-          </Button>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2 xl:ml-auto xl:border-l xl:border-gray-200 xl:pl-3 mt-2 sm:mt-0">
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 text-gray-500" /> Export Cases
-          </Button>
-          <Button variant="outline" size="sm">
-            <ArrowUpDown className="w-4 h-4 text-gray-500" /> Sort Cases
-          </Button>
+          {isExportMenuOpen && (
+            <>
+              <div 
+                className="fixed inset-0 z-10" 
+                onClick={() => setIsExportMenuOpen(false)}
+              />
+              <div className="absolute top-full left-0 mt-1 w-40 bg-white border border-gray-100 rounded-lg shadow-lg py-1 z-20 animate-fade-in">
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-[#fff0f0] hover:text-[#e65c5c] flex items-center gap-2 transition-colors"
+                  onClick={() => setIsExportMenuOpen(false)}
+                >
+                  <FileText className="w-4 h-4" /> Export as PDF
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-[#fff0f0] hover:text-[#e65c5c] flex items-center gap-2 transition-colors"
+                  onClick={() => setIsExportMenuOpen(false)}
+                >
+                  <FileDown className="w-4 h-4" /> Export as Word
+                </button>
+              </div>
+            </>
+          )}
         </div>
+        
+        <Button 
+          variant="outline"
+          size="sm" 
+          className="bg-white hover:bg-gray-50 text-[#4b5563] border border-gray-300 h-[38px]"
+        >
+          <Printer className="w-4 h-4" /> Get Case ID
+        </Button>
       </div>
 
     </div>

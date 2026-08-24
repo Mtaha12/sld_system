@@ -34,7 +34,7 @@ const AdminSidebar = ({ className = '' }) => {
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden py-6 px-4 space-y-2 scrollbar-hide w-[260px]">
         {NAV_ITEMS.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
           return (
             <Link
               key={item.path}
@@ -64,16 +64,16 @@ const AdminSidebar = ({ className = '' }) => {
           to="/settings"
           title="Settings"
           className={`flex items-center px-3 py-3 rounded-xl transition-colors relative ${
-            location.pathname === '/settings'
+            location.pathname === '/settings' || location.pathname.startsWith('/settings/')
               ? 'bg-brand-orange text-white'
               : 'hover:bg-[#262833] hover:text-white'
           }`}
         >
-          <Settings className={`w-6 h-6 shrink-0 transition-colors ${location.pathname === '/settings' ? 'text-white' : 'text-gray-400'}`} />
+          <Settings className={`w-6 h-6 shrink-0 transition-colors ${location.pathname === '/settings' || location.pathname.startsWith('/settings/') ? 'text-white' : 'text-gray-400'}`} />
           <span className="text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-4">
             Settings
           </span>
-          <ChevronRight className={`w-4 h-4 shrink-0 transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[20px] group-hover:opacity-100 ml-auto ${location.pathname === '/settings' ? 'text-white' : 'text-gray-500'}`} />
+          <ChevronRight className={`w-4 h-4 shrink-0 transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[20px] group-hover:opacity-100 ml-auto ${location.pathname === '/settings' || location.pathname.startsWith('/settings/') ? 'text-white' : 'text-gray-500'}`} />
         </Link>
       </div>
     </aside>

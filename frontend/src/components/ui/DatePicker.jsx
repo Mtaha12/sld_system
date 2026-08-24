@@ -6,9 +6,7 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-// Generate years from 1990 to 10 years in the future
 const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 50 }, (_, i) => currentYear - 30 + i);
 
 const formatDate = (date) => {
   if (!date) return '';
@@ -23,7 +21,8 @@ const DatePicker = ({
   onChange, 
   placeholder = "Select date",
   className = "",
-  align = "left"
+  align = "left",
+  disableFutureDates = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date());
@@ -53,6 +52,7 @@ const DatePicker = ({
 
   const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+  const today = new Date();
 
   const handlePrevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
@@ -77,7 +77,6 @@ const DatePicker = ({
   };
 
   const setToday = () => {
-    const today = new Date();
     setCurrentMonth(today);
     onChange(today);
     setIsOpen(false);
@@ -90,6 +89,13 @@ const DatePicker = ({
     setIsOpen(false);
   };
 
+  const maxYear = disableFutureDates ? currentYear : currentYear + 20;
+  const YEARS = Array.from({ length: 50 }, (_, i) => maxYear - 49 + i);
+
+  const isNextMonthDisabled = disableFutureDates && 
+    (currentMonth.getFullYear() > today.getFullYear() || 
+    (currentMonth.getFullYear() === today.getFullYear() && currentMonth.getMonth() >= today.getMonth()));
+
   // Generate calendar days
   const days = [];
   // Empty slots for previous month
@@ -98,21 +104,29 @@ const DatePicker = ({
   }
   // Actual days
   for (let i = 1; i <= daysInMonth; i++) {
+    const dateOfCurrentDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
+    
     const isSelected = selectedDate && 
       selectedDate.getDate() === i && 
       selectedDate.getMonth() === currentMonth.getMonth() &&
       selectedDate.getFullYear() === currentMonth.getFullYear();
       
-    const isToday = new Date().getDate() === i && 
-      new Date().getMonth() === currentMonth.getMonth() &&
-      new Date().getFullYear() === currentMonth.getFullYear();
+    const isToday = today.getDate() === i && 
+      today.getMonth() === currentMonth.getMonth() &&
+      today.getFullYear() === currentMonth.getFullYear();
+      
+    // Set hours to 0 to compare dates accurately without time component
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const isFutureDate = disableFutureDates && (dateOfCurrentDay > normalizedToday);
 
     days.push(
       <button
         key={i}
-        onClick={() => handleDateSelect(i)}
+        onClick={() => !isFutureDate && handleDateSelect(i)}
+        disabled={isFutureDate}
         className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-colors
           ${isSelected ? 'bg-brand-orange text-white font-semibold shadow-sm' : 
+            isFutureDate ? 'text-gray-300 cursor-not-allowed opacity-50' :
             isToday ? 'bg-gray-100 text-brand-orange font-semibold hover:bg-gray-200' : 
             'text-gray-700 hover:bg-gray-100'}`}
       >
@@ -128,7 +142,7 @@ const DatePicker = ({
         className="w-full relative cursor-pointer group"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div className={`w-full pl-3 pr-9 py-2 border rounded-lg text-sm transition-colors flex items-center h-[38px]
+        <div className={`w-full pl-3 pr-9 py-2.5 border rounded-lg text-sm transition-colors flex items-center bg-white h-[42px]
           ${isOpen ? 'border-brand-orange ring-1 ring-brand-orange' : 'border-gray-200 hover:border-gray-300'}`}>
           <span className={selectedDate ? "text-gray-900" : "text-gray-400"}>
             {selectedDate ? formatDate(selectedDate) : placeholder}
@@ -143,7 +157,7 @@ const DatePicker = ({
             <X className="w-3.5 h-3.5" />
           </button>
         ) : (
-          <CalendarIcon className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isOpen ? 'text-brand-orange' : 'text-gray-500 group-hover:text-gray-600'}`} />
+          <CalendarIcon className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isOpen ? 'text-brand-orange' : 'text-gray-400 pointer-events-none'}`} />
         )}
       </div>
 
@@ -172,7 +186,13 @@ const DatePicker = ({
                 className="flex-1 p-1 text-sm font-medium bg-transparent border border-transparent hover:border-gray-200 rounded cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-orange appearance-none text-center"
               >
                 {MONTHS.map((month, index) => (
-                  <option key={month} value={index}>{month}</option>
+                  <option 
+                    key={month} 
+                    value={index}
+                    disabled={disableFutureDates && currentMonth.getFullYear() === today.getFullYear() && index > today.getMonth()}
+                  >
+                    {month}
+                  </option>
                 ))}
               </select>
               <select 
@@ -188,7 +208,10 @@ const DatePicker = ({
 
             <button 
               onClick={handleNextMonth}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors"
+              disabled={isNextMonthDisabled}
+              className={`p-1.5 rounded-lg transition-colors ${
+                isNextMonthDisabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'hover:bg-gray-100 text-gray-600'
+              }`}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
