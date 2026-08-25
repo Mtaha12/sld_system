@@ -10,9 +10,29 @@ export default {
       colors: {
         brand: {
           orange: '#E55C41',
+          'orange-hover': '#D44E35',
           green: '#2A9D6A',
+          maroon: '#641E16',
+          'maroon-hover': '#4A1610',
           dark: '#0B0C10',
           darker: '#08080A',
+          'dark-surface': '#14151A',
+          'dark-border': '#262833',
+          'dark-hover': '#1C1E26',
+        },
+        accent: {
+          purple: {
+            DEFAULT: '#5c4dce',
+            light: '#f3efff',
+          },
+          blue: {
+            DEFAULT: '#2583e8',
+            light: '#eaf6ff',
+          },
+          red: {
+            DEFAULT: '#e65c5c',
+            light: '#fff0f0',
+          },
         },
         theme: {
           base: 'var(--bg-base)',

@@ -96,8 +96,6 @@ export const ACTIVITIES = [
 
 const RecentActivity = ({ 
   activities = ACTIVITIES, 
-  activeFiltersCount = 0,
-  searchQuery = '',
   onResetFilters 
 }) => {
   return (
@@ -112,7 +110,7 @@ const RecentActivity = ({
           )}
         </div>
         
-        <Link to="/activity" className="text-sm font-medium text-brand-orange hover:text-[#D44E35] flex items-center gap-1 transition-colors">
+        <Link to="/activity" className="text-sm font-medium text-brand-orange hover:text-brand-orange-hover flex items-center gap-1 transition-colors">
           View all activity <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
@@ -131,7 +129,7 @@ const RecentActivity = ({
               <button
                 type="button"
                 onClick={onResetFilters}
-                className="mt-2 text-xs font-semibold text-brand-orange hover:text-[#D44E35] flex items-center gap-1.5 transition-colors"
+                className="mt-2 text-xs font-semibold text-brand-orange hover:text-brand-orange-hover flex items-center gap-1.5 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Clear Search & Filters
               </button>

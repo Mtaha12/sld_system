@@ -38,7 +38,7 @@ const ChatWidget = () => {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-brand-orange hover:bg-[#D44E35] text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 z-50 focus:outline-none focus:ring-4 focus:ring-brand-orange/30"
+          className="fixed bottom-6 right-6 w-14 h-14 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 z-50 focus:outline-none focus:ring-4 focus:ring-brand-orange/30"
         >
           <MessageSquare className="w-6 h-6" />
         </button>
@@ -49,7 +49,7 @@ const ChatWidget = () => {
         <div className="fixed bottom-6 right-6 w-80 sm:w-96 bg-theme-surface rounded-2xl shadow-2xl border border-theme-border z-50 flex flex-col overflow-hidden animate-fade-in h-[500px] max-h-[80vh]">
           
           {/* Header */}
-          <div className="bg-[#14151A] text-white p-4 flex items-center justify-between shrink-0">
+          <div className="bg-brand-dark-surface text-white p-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-brand-orange rounded-full flex items-center justify-center shrink-0">
                 <MessageSquare className="w-4 h-4 text-white" />
@@ -104,7 +104,7 @@ const ChatWidget = () => {
               <button 
                 type="submit"
                 disabled={!message.trim()}
-                className="absolute right-2 p-2 bg-brand-orange text-white rounded-lg hover:bg-[#D44E35] transition-colors disabled:opacity-50 disabled:hover:bg-brand-orange"
+                className="absolute right-2 p-2 bg-brand-orange text-white rounded-lg hover:bg-brand-orange-hover transition-colors disabled:opacity-50 disabled:hover:bg-brand-orange"
               >
                 <Send className="w-4 h-4" />
               </button>

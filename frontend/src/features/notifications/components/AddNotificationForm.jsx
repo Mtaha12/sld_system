@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { X, CheckCircle2, FileText, Bell, Layers } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
@@ -10,43 +12,61 @@ import FormField from '../../../components/ui/FormField';
 import FileUpload from '../../../components/ui/FileUpload';
 import PageHeader from '../../../components/ui/PageHeader';
 import FormFooter from '../../../components/ui/FormFooter';
+import { notificationSchema } from '../validation/notificationSchema';
+import { notificationService } from '../services/notificationService';
 
 const AddNotificationForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const editData = location.state?.notificationData;
   const isEdit = Boolean(location.state?.isEdit || editData);
-
   const [showSuccess, setShowSuccess] = useState(false);
-  const [srNumber, setSrNumber] = useState(() => editData?.srNumber || '11675');
-  const [department, setDepartment] = useState(() => editData?.department?.toLowerCase() || 'notifications');
-  const [subDepartment, setSubDepartment] = useState(() => editData?.subDepartment || 'federal');
-  const [year, setYear] = useState(() => editData?.year || '2026');
-  const [number, setNumber] = useState(() => editData?.number || '14');
-  const [sroNumber, setSroNumber] = useState(() => editData?.sroNumber || '');
-  const [subject, setSubject] = useState(() => editData?.subject || '');
-  const [status, setStatus] = useState(() => editData?.status?.toLowerCase() || 'active');
-  const [lawStatute, setLawStatute] = useState(() => editData?.lawStatute || '');
-  const [section, setSection] = useState(() => editData?.section || '');
 
-  // States for repeatable blocks
-  const [blocks, setBlocks] = useState(() => [
-    { 
-      id: 1, 
-      date: editData?.lawDate ? new Date(editData.lawDate) : null, 
-      detail: isEdit ? `<p><strong>${editData?.subject || 'Notification'}</strong></p><p>Official statutory notification details and circular directives issued under the applicable legal framework.</p>` : '' 
-    },
-    { id: 2, date: null, detail: '' },
-    { id: 3, date: null, detail: '' },
-    { id: 4, date: null, detail: '' }
-  ]);
-
-  const updateBlock = (id, field, value) => {
-    setBlocks(blocks.map(block => block.id === id ? { ...block, [field]: value } : block));
+  const defaultValues = {
+    srNumber: editData?.srNumber || '11675',
+    department: editData?.department?.toLowerCase() || 'notifications',
+    subDepartment: editData?.subDepartment || 'federal',
+    year: editData?.year || '2026',
+    number: editData?.number || '14',
+    sroNumber: editData?.sroNumber || '',
+    subject: editData?.subject || '',
+    status: editData?.status?.toLowerCase() || 'active',
+    lawStatute: editData?.lawStatute || '',
+    section: editData?.section || '',
+    blocks: [
+      { 
+        id: 1, 
+        date: editData?.lawDate ? new Date(editData.lawDate) : null, 
+        detail: isEdit ? `<p><strong>${editData?.subject || 'Notification'}</strong></p><p>Official statutory notification details and circular directives issued under the applicable legal framework.</p>` : '',
+        attachments: []
+      },
+      { id: 2, date: null, detail: '', attachments: [] },
+      { id: 3, date: null, detail: '', attachments: [] },
+      { id: 4, date: null, detail: '', attachments: [] }
+    ]
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(notificationSchema),
+    defaultValues,
+  });
+
+  const { fields: blockFields } = useFieldArray({
+    control,
+    name: 'blocks'
+  });
+
+  const onSubmit = async (data) => {
+    if (isEdit && editData?.id) {
+      await notificationService.updateNotification(editData.id, data);
+    } else {
+      await notificationService.createNotification(data);
+    }
     setShowSuccess(true);
     setTimeout(() => {
       setShowSuccess(false);
@@ -80,7 +100,7 @@ const AddNotificationForm = () => {
           </div>
         )}
 
-        <form id="notification-form" onSubmit={handleSubmit} className="space-y-6">
+        <form id="notification-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           
           <FormSection title="Record Information" icon={FileText}>
             
@@ -90,10 +110,9 @@ const AddNotificationForm = () => {
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={srNumber}
-                  onChange={(e) => setSrNumber(e.target.value)}
                   placeholder="11675" 
-                  required 
+                  error={errors.srNumber}
+                  {...register('srNumber')}
                 />
               </FormField>
               <FormField label="Department" required>
@@ -101,9 +120,9 @@ const AddNotificationForm = () => {
                   variant="light" 
                   inputSize="sm"
                   type="select" 
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
+                  error={errors.department}
                   options={[{ label: 'Notifications', value: 'notifications' }]} 
+                  {...register('department')}
                 />
               </FormField>
               <FormField label="Sub Department" required>
@@ -111,29 +130,27 @@ const AddNotificationForm = () => {
                   variant="light" 
                   inputSize="sm"
                   type="select" 
-                  value={subDepartment}
-                  onChange={(e) => setSubDepartment(e.target.value)}
+                  error={errors.subDepartment}
                   options={[{ label: 'Federal', value: 'federal' }]} 
+                  {...register('subDepartment')}
                 />
               </FormField>
               <FormField label="Year" required>
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
                   placeholder="2026" 
-                  required 
+                  error={errors.year}
+                  {...register('year')}
                 />
               </FormField>
               <FormField label="Number" required>
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value)}
                   placeholder="Enter number..." 
-                  required 
+                  error={errors.number}
+                  {...register('number')}
                 />
               </FormField>
             </div>
@@ -144,19 +161,18 @@ const AddNotificationForm = () => {
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={sroNumber}
-                  onChange={(e) => setSroNumber(e.target.value)}
                   placeholder="Enter SRO #..." 
-                  required 
+                  error={errors.sroNumber}
+                  {...register('sroNumber')}
                 />
               </FormField>
               <FormField label="Subject" className="col-span-1 md:col-span-6">
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
                   placeholder="Enter Subject..." 
+                  error={errors.subject}
+                  {...register('subject')}
                 />
               </FormField>
               <FormField label="Status" required className="col-span-1 md:col-span-3">
@@ -164,9 +180,9 @@ const AddNotificationForm = () => {
                   variant="light" 
                   inputSize="sm"
                   type="select" 
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  error={errors.status}
                   options={[{ label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]} 
+                  {...register('status')}
                 />
               </FormField>
             </div>
@@ -177,18 +193,18 @@ const AddNotificationForm = () => {
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={lawStatute}
-                  onChange={(e) => setLawStatute(e.target.value)}
                   placeholder="Enter Law or Statute name..."
+                  error={errors.lawStatute}
+                  {...register('lawStatute')}
                 />
               </FormField>
               <FormField label="Section 1">
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={section}
-                  onChange={(e) => setSection(e.target.value)}
                   placeholder="Enter Section..." 
+                  error={errors.section}
+                  {...register('section')}
                 />
               </FormField>
             </div>
@@ -198,7 +214,7 @@ const AddNotificationForm = () => {
           {/* Repeatable Content Blocks */}
           <FormSection title="Content Details" icon={Layers}>
             <div className="space-y-8">
-              {blocks.map((block, index) => (
+              {blockFields.map((block, index) => (
                 <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-6 relative">
                   
                   {/* Block Number Badge */}
@@ -211,15 +227,30 @@ const AddNotificationForm = () => {
                     {/* Left Column: Date & Attachment */}
                     <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-6">
                       <FormField label="Law Date">
-                        <DatePicker 
-                          selectedDate={block.date} 
-                          onChange={(d) => updateBlock(block.id, 'date', d)} 
-                          placeholder="mm/dd/yyyy"
+                        <Controller
+                          control={control}
+                          name={`blocks.${index}.date`}
+                          render={({ field }) => (
+                            <DatePicker 
+                              selectedDate={field.value} 
+                              onChange={field.onChange} 
+                              placeholder="mm/dd/yyyy"
+                            />
+                          )}
                         />
                       </FormField>
                       
                       <FormField label="Attachment" className="flex-1 flex flex-col">
-                        <FileUpload />
+                        <Controller
+                          control={control}
+                          name={`blocks.${index}.attachments`}
+                          render={({ field }) => (
+                            <FileUpload 
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
+                          )}
+                        />
                       </FormField>
                     </div>
 
@@ -227,10 +258,16 @@ const AddNotificationForm = () => {
                     <div className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-[350px]">
                       <FormField label="Detail" className="flex-1 flex flex-col">
                         <div className="flex-1 h-full relative z-0">
-                          <RichTextEditor 
-                            value={block.detail} 
-                            onChange={(d) => updateBlock(block.id, 'detail', d)}
-                            minHeight={320}
+                          <Controller
+                            control={control}
+                            name={`blocks.${index}.detail`}
+                            render={({ field }) => (
+                              <RichTextEditor 
+                                value={field.value} 
+                                onChange={field.onChange}
+                                minHeight={320}
+                              />
+                            )}
                           />
                         </div>
                       </FormField>
@@ -248,6 +285,7 @@ const AddNotificationForm = () => {
       <FormFooter 
         formId="notification-form"
         onCancel={() => navigate('/manage-notifications')}
+        isSubmitting={isSubmitting}
         submitText={isEdit ? "Update Record" : "Add Record"}
       />
 

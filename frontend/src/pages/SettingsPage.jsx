@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { 
-  User, 
   Mail, 
   CheckCircle2, 
   Plus, 
@@ -9,9 +10,7 @@ import {
   Moon, 
   Monitor, 
   Save, 
-  Check,
   Camera,
-  Upload,
   Trash2
 } from 'lucide-react';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
@@ -21,15 +20,14 @@ import Button from '../components/ui/Button';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUser } from '../contexts/UserContext';
 import { PAKISTAN_CITIES } from '../constants/cities';
+import { profileSettingsSchema, addEmailSchema } from '../features/auth/validation/settingsSchema';
 
 const SettingsPage = () => {
   const { themePreference, setThemePreference } = useTheme();
   const { user, updateAvatar, updateProfile, resetAvatar, DEFAULT_AVATAR } = useUser();
   const [isEditing, setIsEditing] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isAddingEmail, setIsAddingEmail] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
   const avatarInputRef = useRef(null);
 
   const [emails, setEmails] = useState([
@@ -42,18 +40,49 @@ const SettingsPage = () => {
     }
   ]);
 
-  const [formData, setFormData] = useState({
-    fullName: user.fullName || 'Adam Admin',
-    username: user.username || 'adam_admin',
-    contactNumber: user.contactNumber || '+92 300 1234567',
-    city: user.city || 'Karachi',
-    companyName: user.companyName || 'SLD Law Firm',
-    address: user.address || '123 Legal Street, Phase 4, Clifton',
+  const {
+    register: registerProfile,
+    handleSubmit: handleSubmitProfile,
+    reset: resetProfile,
+    watch: watchProfile,
+    formState: { errors: profileErrors },
+  } = useForm({
+    resolver: zodResolver(profileSettingsSchema),
+    defaultValues: {
+      fullName: user.fullName || 'Adam Admin',
+      username: user.username || 'adam_admin',
+      contactNumber: user.contactNumber || '+92 300 1234567',
+      city: user.city || 'Karachi',
+      companyName: user.companyName || 'SLD Law Firm',
+      address: user.address || '123 Legal Street, Phase 4, Clifton',
+    }
   });
 
-  const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+  const {
+    register: registerEmail,
+    handleSubmit: handleSubmitEmail,
+    reset: resetEmail,
+    formState: { errors: emailErrors },
+  } = useForm({
+    resolver: zodResolver(addEmailSchema),
+    defaultValues: {
+      email: '',
+    }
+  });
+
+  // Keep form in sync if user changes
+  useEffect(() => {
+    resetProfile({
+      fullName: user.fullName || 'Adam Admin',
+      username: user.username || 'adam_admin',
+      contactNumber: user.contactNumber || '+92 300 1234567',
+      city: user.city || 'Karachi',
+      companyName: user.companyName || 'SLD Law Firm',
+      address: user.address || '123 Legal Street, Phase 4, Clifton',
+    });
+  }, [user, resetProfile]);
+
+  const watchedValues = watchProfile();
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
@@ -82,32 +111,27 @@ const SettingsPage = () => {
     setTimeout(() => setToastMessage(''), 3500);
   };
 
-  const handleSaveProfile = (e) => {
-    e.preventDefault();
-    updateProfile(formData);
-    setIsSaved(true);
+  const onSaveProfile = (data) => {
+    updateProfile(data);
     setIsEditing(false);
     setToastMessage('Profile settings saved successfully across all pages!');
     setTimeout(() => {
-      setIsSaved(false);
       setToastMessage('');
     }, 3500);
   };
 
-  const handleAddEmail = (e) => {
-    e.preventDefault();
-    if (!newEmail || !newEmail.includes('@')) return;
+  const onAddEmailSubmit = (data) => {
     setEmails(prev => [
       ...prev,
       {
         id: Date.now(),
-        email: newEmail,
+        email: data.email,
         isPrimary: false,
         isVerified: false,
         addedDate: 'Just now',
       }
     ]);
-    setNewEmail('');
+    resetEmail();
     setIsAddingEmail(false);
     setToastMessage('New email address added successfully!');
     setTimeout(() => setToastMessage(''), 3500);
@@ -173,7 +197,7 @@ const SettingsPage = () => {
                 <div className="w-16 h-16 rounded-full border-2 border-theme-border overflow-hidden bg-theme-surface-alt shadow-sm group-hover:ring-2 ring-brand-orange transition-all">
                   <img 
                     src={user.avatarUrl} 
-                    alt={formData.fullName} 
+                    alt={watchedValues.fullName || user.fullName} 
                     className="w-full h-full object-cover" 
                   />
                 </div>
@@ -190,12 +214,12 @@ const SettingsPage = () => {
 
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h2 className="text-lg font-bold text-theme-main truncate">{formData.fullName}</h2>
+                  <h2 className="text-lg font-bold text-theme-main truncate">{watchedValues.fullName || user.fullName}</h2>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-orange/10 text-brand-orange border border-brand-orange/20">
                     Administrator
                   </span>
                 </div>
-                <p className="text-xs text-theme-muted mt-0.5 truncate">{formData.companyName} • {formData.city}</p>
+                <p className="text-xs text-theme-muted mt-0.5 truncate">{watchedValues.companyName || user.companyName} • {watchedValues.city || user.city}</p>
                 <p className="text-xs text-theme-muted">{emails[0]?.email}</p>
               </div>
             </div>
@@ -227,8 +251,13 @@ const SettingsPage = () => {
               <Button
                 variant={isEditing ? 'outline' : 'primary'}
                 size="sm"
-                onClick={() => setIsEditing(!isEditing)}
-                className={!isEditing ? 'bg-brand-orange hover:bg-[#D44E35] text-white' : ''}
+                onClick={() => {
+                  if (isEditing) {
+                    resetProfile();
+                  }
+                  setIsEditing(!isEditing);
+                }}
+                className={!isEditing ? 'bg-brand-orange hover:bg-brand-orange-hover text-white' : ''}
               >
                 {isEditing ? 'Cancel' : 'Edit Profile'}
               </Button>
@@ -236,17 +265,17 @@ const SettingsPage = () => {
           </div>
 
           {/* Profile Form (2-column responsive) */}
-          <form onSubmit={handleSaveProfile} className="p-6">
+          <form onSubmit={handleSubmitProfile(onSaveProfile)} className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               
               <FormField label="Full Name">
                 <Input 
                   variant="light" 
                   inputSize="sm"
-                  value={formData.fullName} 
-                  onChange={(e) => handleChange('fullName', e.target.value)}
                   placeholder="Enter your full name"
                   disabled={!isEditing}
+                  error={profileErrors.fullName}
+                  {...registerProfile('fullName')}
                 />
               </FormField>
 
@@ -254,10 +283,10 @@ const SettingsPage = () => {
                 <Input 
                   variant="light" 
                   inputSize="sm"
-                  value={formData.username} 
-                  onChange={(e) => handleChange('username', e.target.value)}
                   placeholder="Enter username"
                   disabled={!isEditing}
+                  error={profileErrors.username}
+                  {...registerProfile('username')}
                 />
               </FormField>
 
@@ -265,10 +294,10 @@ const SettingsPage = () => {
                 <Input 
                   variant="light" 
                   inputSize="sm"
-                  value={formData.contactNumber} 
-                  onChange={(e) => handleChange('contactNumber', e.target.value)}
                   placeholder="+92 300 1234567"
                   disabled={!isEditing}
+                  error={profileErrors.contactNumber}
+                  {...registerProfile('contactNumber')}
                 />
               </FormField>
 
@@ -277,10 +306,10 @@ const SettingsPage = () => {
                   variant="light" 
                   type="select" 
                   inputSize="sm"
-                  value={formData.city} 
-                  onChange={(e) => handleChange('city', e.target.value)}
                   options={PAKISTAN_CITIES.slice(1)}
                   disabled={!isEditing}
+                  error={profileErrors.city}
+                  {...registerProfile('city')}
                 />
               </FormField>
 
@@ -288,10 +317,10 @@ const SettingsPage = () => {
                 <Input 
                   variant="light" 
                   inputSize="sm"
-                  value={formData.companyName} 
-                  onChange={(e) => handleChange('companyName', e.target.value)}
                   placeholder="Enter company or firm name"
                   disabled={!isEditing}
+                  error={profileErrors.companyName}
+                  {...registerProfile('companyName')}
                 />
               </FormField>
 
@@ -299,10 +328,10 @@ const SettingsPage = () => {
                 <Input 
                   variant="light" 
                   inputSize="sm"
-                  value={formData.address} 
-                  onChange={(e) => handleChange('address', e.target.value)}
                   placeholder="Enter complete office address"
                   disabled={!isEditing}
+                  error={profileErrors.address}
+                  {...registerProfile('address')}
                 />
               </FormField>
 
@@ -314,7 +343,10 @@ const SettingsPage = () => {
                   type="button" 
                   variant="outline" 
                   size="sm"
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => {
+                    resetProfile();
+                    setIsEditing(false);
+                  }}
                 >
                   Cancel
                 </Button>
@@ -322,7 +354,7 @@ const SettingsPage = () => {
                   type="submit" 
                   variant="primary" 
                   size="sm"
-                  className="bg-brand-orange hover:bg-[#D44E35] text-white"
+                  className="bg-brand-orange hover:bg-brand-orange-hover text-white"
                 >
                   <Save className="w-4 h-4 mr-1.5" /> Save Changes
                 </Button>
@@ -347,7 +379,7 @@ const SettingsPage = () => {
             {!isAddingEmail && (
               <Button 
                 variant="outline" 
-                size="sm"
+                size="sm" 
                 onClick={() => setIsAddingEmail(true)}
                 className="self-start sm:self-auto text-xs"
               >
@@ -394,7 +426,7 @@ const SettingsPage = () => {
 
           {/* Add Email Inline Form */}
           {isAddingEmail && (
-            <form onSubmit={handleAddEmail} className="mt-4 p-4 rounded-xl border border-theme-border bg-theme-surface-hover/50 animate-fade-in">
+            <form onSubmit={handleSubmitEmail(onAddEmailSubmit)} className="mt-4 p-4 rounded-xl border border-theme-border bg-theme-surface-hover/50 animate-fade-in">
               <div className="flex flex-col sm:flex-row items-end gap-3">
                 <div className="flex-1 w-full">
                   <label className="block text-xs font-medium text-theme-main mb-1.5">New Email Address</label>
@@ -402,10 +434,10 @@ const SettingsPage = () => {
                     variant="light"
                     inputSize="sm"
                     type="email"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
                     placeholder="Enter email address"
                     autoFocus
+                    error={emailErrors.email}
+                    {...registerEmail('email')}
                   />
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -413,7 +445,7 @@ const SettingsPage = () => {
                     type="button" 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => { setIsAddingEmail(false); setNewEmail(''); }}
+                    onClick={() => { setIsAddingEmail(false); resetEmail(); }}
                     className="flex-1 sm:flex-initial"
                   >
                     Cancel
@@ -422,7 +454,7 @@ const SettingsPage = () => {
                     type="submit" 
                     variant="primary" 
                     size="sm"
-                    className="flex-1 sm:flex-initial bg-brand-orange hover:bg-[#D44E35] text-white"
+                    className="flex-1 sm:flex-initial bg-brand-orange hover:bg-brand-orange-hover text-white"
                   >
                     Save Email
                   </Button>

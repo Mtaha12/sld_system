@@ -14,43 +14,7 @@ import {
 import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
 import Modal from '../../../components/ui/Modal';
-
-// Mock data based on the screenshot
-const INITIAL_DATA = [
-  {
-    id: 9338,
-    law: 'Income Tax Rules, 2002',
-    chapter: 'CHAPTER-XIX',
-    display: 'Yes',
-    dated: '08/20/2026',
-    section: '231CB',
-    sectionHeading: 'Independent case scrutiny committees',
-    department: 'Tax',
-    heading: 'MISCELLANEOUS'
-  },
-  {
-    id: 9337,
-    law: 'Federal Excise Act, 2005',
-    chapter: 'Chapter-V',
-    display: 'Yes',
-    dated: '07/01/2026',
-    section: '34AA',
-    sectionHeading: 'Independent case scrutiny committee',
-    department: 'Tax',
-    heading: 'POWERS, ADJUDICATION AND APPEALS'
-  },
-  {
-    id: 9336,
-    law: 'Federal Excise Act, 2005',
-    chapter: 'Chapter-II',
-    display: 'Yes',
-    dated: '07/01/2026',
-    section: '7A',
-    sectionHeading: 'National faceless centre and',
-    department: 'Tax',
-    heading: 'LEVY, COLLECTION AND PAYMENT OF DUTY'
-  }
-];
+import { statuteService } from '../services/statuteService';
 
 const TableHeader = ({ title, className }) => (
   <th className={`px-6 py-4 font-medium align-top ${className || ''}`}>
@@ -69,8 +33,14 @@ const ManageStatutesTable = ({
   setToastMessage: propSetToastMessage
 }) => {
   const navigate = useNavigate();
-  const [internalStatutes, setInternalStatutes] = useState(INITIAL_DATA);
+  const [internalStatutes, setInternalStatutes] = useState([]);
   const [internalToastMessage, setInternalToastMessage] = useState('');
+
+  useEffect(() => {
+    if (!propStatutes) {
+      statuteService.getStatutes().then(data => setInternalStatutes(data));
+    }
+  }, [propStatutes]);
 
   const statutes = propStatutes || internalStatutes;
   const setStatutes = propSetStatutes || setInternalStatutes;

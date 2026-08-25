@@ -12,19 +12,12 @@ import {
   Calendar, 
   Building2, 
   Paperclip,
-  CheckCircle2,
-  ExternalLink,
   ChevronRight
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import { MOCK_CASES } from '../../cases/data/casesMockData';
 import { MOCK_NOTIFICATIONS } from '../../notifications/data/notificationsMockData';
-
-const MOCK_STATUTES = [
-  { id: 9338, law: 'Income Tax Rules, 2002', section: '231CB', sectionHeading: 'Independent case scrutiny committees', chapter: 'CHAPTER-XIX' },
-  { id: 9337, law: 'Federal Excise Act, 2005', section: '34AA', sectionHeading: 'Independent case scrutiny committee', chapter: 'Chapter-V' },
-  { id: 9336, law: 'Federal Excise Act, 2005', section: '7A', sectionHeading: 'National faceless centre and', chapter: 'Chapter-II' }
-];
+import { MOCK_STATUTES } from '../../statutes/data/statutesMockData';
 
 const RECORD_TYPES = [
   { id: 'all', label: 'All Records' },

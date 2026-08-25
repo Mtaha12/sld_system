@@ -8,6 +8,16 @@ const AuthMasonry = lazy(() => import('./AuthMasonry'));
 const AuthLayout = () => {
   const location = useLocation();
   const isLogin = location.pathname === '/login' || location.pathname === '/';
+  const isContact = location.pathname === '/contact';
+
+  const headerPromptText = isContact 
+    ? 'Need to access your account?'
+    : isLogin 
+      ? "Don't have an account?" 
+      : 'Already have an account?';
+
+  const headerLinkTo = isContact || !isLogin ? '/login' : '/signup';
+  const headerLinkLabel = isContact || !isLogin ? 'Log in' : 'Sign up';
 
   return (
     <div className="flex min-h-[100dvh] bg-brand-dark font-sans lg:overflow-hidden">
@@ -20,15 +30,17 @@ const AuthLayout = () => {
 
       {/* Right side - Form */}
       <div className="w-full lg:w-[40%] flex flex-col bg-brand-darker relative min-h-[100dvh] lg:h-screen lg:overflow-y-auto">
-        {/* Navigation / Header Actions */}
-        <div className="flex justify-end p-6 sm:p-8 lg:absolute lg:top-8 lg:right-8 lg:p-0 z-20">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <span>{isLogin ? "Don't have an account?" : "Already have an account?"}</span>
-            <Link to={isLogin ? "/signup" : "/login"} className="text-white hover:text-brand-orange bg-[#1A1C23] hover:bg-[#262833] px-4 py-2 rounded-lg transition-colors">
-              {isLogin ? 'Sign up' : 'Log in'}
-            </Link>
+        {/* Navigation / Header Actions (rendered on sub-pages like /contact, /forgot-password, /verify-email) */}
+        {!isLogin && location.pathname !== '/signup' && (
+          <div className="flex justify-end p-6 sm:p-8 lg:absolute lg:top-8 lg:right-8 lg:p-0 z-20">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <span>{headerPromptText}</span>
+              <Link to={headerLinkTo} className="text-white hover:text-brand-orange bg-[#1A1C23] hover:bg-brand-dark-border px-4 py-2 rounded-lg transition-colors">
+                {headerLinkLabel}
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Content Container */}
         <div className="flex-1 flex flex-col justify-center py-8 px-6 sm:px-12 md:px-16 lg:px-24 max-w-2xl mx-auto w-full z-10">

@@ -8,7 +8,8 @@ import {
   Settings,
   ChevronRight,
   Sun,
-  Moon
+  Moon,
+  X
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png';
 
@@ -19,21 +20,38 @@ const NAV_ITEMS = [
   { label: 'Manage Statutes Forms', path: '/manage-statutes', icon: FileText },
 ];
 
-const AdminSidebar = ({ className = '' }) => {
+const AdminSidebar = ({ className = '', isMobile = false, onItemClick, onClose }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const isDarkMode = theme === 'dark';
 
   return (
-    <aside className={`bg-[#14151A] text-gray-300 flex-col h-full border-r border-[#262833] transition-[width] duration-300 ease-in-out group w-[80px] hover:w-[260px] overflow-hidden ${className}`}>
+    <aside className={`bg-brand-dark-surface text-gray-300 flex-col h-full border-r border-brand-dark-border transition-[width] duration-300 ease-in-out ${
+      isMobile 
+        ? 'w-[260px] flex shadow-2xl z-50' 
+        : 'w-[80px] hover:w-[260px] group overflow-hidden'
+    } ${className}`}>
       
       {/* Logo Container */}
-      <div className="h-24 flex items-center justify-center border-b border-[#262833] shrink-0 pt-2 w-full transition-all duration-300">
+      <div className={`h-24 flex items-center border-b border-brand-dark-border shrink-0 pt-2 w-full transition-all duration-300 ${
+        isMobile ? 'justify-between px-4' : 'justify-center'
+      }`}>
         <img 
           src={logo} 
           alt="SLD System" 
-          className="h-[36px] group-hover:h-[64px] object-contain transition-all duration-300 ease-in-out shrink-0" 
+          className={`${
+            isMobile ? 'h-[44px]' : 'h-[36px] group-hover:h-[64px]'
+          } object-contain transition-all duration-300 ease-in-out shrink-0`} 
         />
+        {isMobile && onClose && (
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-brand-dark-border transition-colors"
+            aria-label="Close navigation"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -45,18 +63,27 @@ const AdminSidebar = ({ className = '' }) => {
               key={item.path}
               to={item.path}
               title={item.label}
+              onClick={onItemClick}
               className={`flex items-center px-3 py-3 rounded-xl transition-colors relative ${
                 isActive
                   ? 'bg-brand-orange text-white'
-                  : 'hover:bg-[#262833] hover:text-white'
+                  : 'hover:bg-brand-dark-border hover:text-white'
               }`}
             >
               <item.icon className={`w-6 h-6 shrink-0 transition-colors ${isActive ? 'text-white' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-4">
+              <span className={`text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ${
+                isMobile 
+                  ? 'max-w-[180px] opacity-100 ml-4' 
+                  : 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-4'
+              }`}>
                 {item.label}
               </span>
               {item.hasChildren && (
-                <ChevronRight className={`w-4 h-4 shrink-0 transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[20px] group-hover:opacity-100 ml-auto ${isActive ? 'text-white' : 'text-gray-500'}`} />
+                <ChevronRight className={`w-4 h-4 shrink-0 transition-all duration-300 ${
+                  isMobile
+                    ? 'max-w-[20px] opacity-100 ml-auto'
+                    : 'max-w-0 opacity-0 group-hover:max-w-[20px] group-hover:opacity-100 ml-auto'
+                } ${isActive ? 'text-white' : 'text-gray-500'}`} />
               )}
             </Link>
           );
@@ -68,14 +95,18 @@ const AdminSidebar = ({ className = '' }) => {
         <button
           onClick={toggleTheme}
           title="Toggle Theme"
-          className="flex items-center px-3 py-3 rounded-xl transition-colors relative hover:bg-[#262833] hover:text-white text-left w-full"
+          className="flex items-center px-3 py-3 rounded-xl transition-colors relative hover:bg-brand-dark-border hover:text-white text-left w-full"
         >
           {isDarkMode ? (
             <Moon className="w-6 h-6 shrink-0 transition-colors text-gray-400" />
           ) : (
             <Sun className="w-6 h-6 shrink-0 transition-colors text-gray-400" />
           )}
-          <span className="text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-4">
+          <span className={`text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ${
+            isMobile 
+              ? 'max-w-[180px] opacity-100 ml-4' 
+              : 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-4'
+          }`}>
             {isDarkMode ? 'Dark Mode' : 'Light Mode'}
           </span>
         </button>
@@ -83,17 +114,26 @@ const AdminSidebar = ({ className = '' }) => {
         <Link
           to="/settings"
           title="Settings"
+          onClick={onItemClick}
           className={`flex items-center px-3 py-3 rounded-xl transition-colors relative ${
             location.pathname === '/settings' || location.pathname.startsWith('/settings/')
               ? 'bg-brand-orange text-white'
-              : 'hover:bg-[#262833] hover:text-white'
+              : 'hover:bg-brand-dark-border hover:text-white'
           }`}
         >
           <Settings className={`w-6 h-6 shrink-0 transition-colors ${location.pathname === '/settings' || location.pathname.startsWith('/settings/') ? 'text-white' : 'text-gray-400'}`} />
-          <span className="text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-4">
+          <span className={`text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ${
+            isMobile 
+              ? 'max-w-[180px] opacity-100 ml-4' 
+              : 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-4'
+          }`}>
             Settings
           </span>
-          <ChevronRight className={`w-4 h-4 shrink-0 transition-all duration-300 max-w-0 opacity-0 group-hover:max-w-[20px] group-hover:opacity-100 ml-auto ${location.pathname === '/settings' || location.pathname.startsWith('/settings/') ? 'text-white' : 'text-gray-500'}`} />
+          <ChevronRight className={`w-4 h-4 shrink-0 transition-all duration-300 ${
+            isMobile
+              ? 'max-w-[20px] opacity-100 ml-auto'
+              : 'max-w-0 opacity-0 group-hover:max-w-[20px] group-hover:opacity-100 ml-auto'
+          } ${location.pathname === '/settings' || location.pathname.startsWith('/settings/') ? 'text-white' : 'text-gray-500'}`} />
         </Link>
       </div>
     </aside>

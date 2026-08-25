@@ -11,9 +11,9 @@ import {
   CheckCircle2, 
   Bell 
 } from 'lucide-react';
-import { MOCK_NOTIFICATIONS } from '../data/notificationsMockData';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
+import { notificationService } from '../services/notificationService';
 
 const TableHeader = ({ title }) => (
   <th className="px-3 py-3 font-semibold text-theme-main align-top">
@@ -36,9 +36,15 @@ const ManageNotificationsTable = ({
   setToastMessage: propSetToastMessage
 }) => {
   const navigate = useNavigate();
-  const [internalNotifications, setInternalNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [internalNotifications, setInternalNotifications] = useState([]);
   const [internalCurrentPage, setInternalCurrentPage] = useState(1);
   const [internalToastMessage, setInternalToastMessage] = useState('');
+
+  useEffect(() => {
+    if (!propNotifications) {
+      notificationService.getNotifications().then(data => setInternalNotifications(data));
+    }
+  }, [propNotifications]);
 
   const notifications = propNotifications || internalNotifications;
   const setNotifications = propSetNotifications || setInternalNotifications;

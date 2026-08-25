@@ -12,15 +12,14 @@ import {
   CheckCircle2, 
   Scale, 
   FileText, 
-  Users,
-  Download,
-  Upload,
+  Download, 
+  Upload, 
   FileDown
 } from 'lucide-react';
-import { MOCK_CASES } from '../data/casesMockData';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import FileUpload from '../../../components/ui/FileUpload';
+import { caseService } from '../services/caseService';
 
 const TableHeader = ({ title }) => (
   <th className="px-2 py-3 font-semibold text-theme-main align-top">
@@ -45,10 +44,16 @@ const ManageCasesTable = ({
   onExportSelection
 }) => {
   const navigate = useNavigate();
-  const [internalCases, setInternalCases] = useState(MOCK_CASES);
+  const [internalCases, setInternalCases] = useState([]);
   const [internalSelectedIds, setInternalSelectedIds] = useState([]);
   const [internalToastMessage, setInternalToastMessage] = useState('');
   const [internalCurrentPage, setInternalCurrentPage] = useState(1);
+
+  useEffect(() => {
+    if (!propCases) {
+      caseService.getCases().then(data => setInternalCases(data));
+    }
+  }, [propCases]);
   
   const cases = propCases || internalCases;
   const setCases = propSetCases || setInternalCases;

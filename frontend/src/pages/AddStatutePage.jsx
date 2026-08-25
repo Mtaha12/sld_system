@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import AddStatuteForm from '../features/statutes/components/AddStatuteForm';
 

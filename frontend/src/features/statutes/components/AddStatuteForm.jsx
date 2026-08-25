@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { X, CheckCircle2, FileText, Layers } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
@@ -10,43 +12,61 @@ import FormField from '../../../components/ui/FormField';
 import FileUpload from '../../../components/ui/FileUpload';
 import PageHeader from '../../../components/ui/PageHeader';
 import FormFooter from '../../../components/ui/FormFooter';
+import { statuteSchema } from '../validation/statuteSchema';
+import { statuteService } from '../services/statuteService';
 
 const AddStatuteForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const editData = location.state?.statuteData;
   const isEdit = Boolean(location.state?.isEdit || editData);
-
   const [showSuccess, setShowSuccess] = useState(false);
-  const [srNumber, setSrNumber] = useState(() => editData?.id || '9339');
-  const [department, setDepartment] = useState(() => editData?.department?.toLowerCase() || 'tax');
-  const [chapter, setChapter] = useState(() => editData?.chapter || '');
-  const [display, setDisplay] = useState(() => (editData?.display?.toLowerCase() === 'no' ? 'no' : 'yes'));
-  const [status, setStatus] = useState(() => (editData?.display === 'No' ? 'inactive' : 'active'));
-  const [law, setLaw] = useState(() => editData?.law || 'Income Tax Rules, 2002');
-  const [section, setSection] = useState(() => editData?.section || '231CB');
-  const [heading, setHeading] = useState(() => editData?.heading || '');
 
-  // States for repeatable blocks
-  const [blocks, setBlocks] = useState(() => [
-    { 
-      id: 1, 
-      sectionHeading: editData?.sectionHeading || '', 
-      fromDate: editData?.dated ? new Date(editData.dated) : null, 
-      toDate: null, 
-      detail: isEdit ? `<p><strong>${editData?.sectionHeading || 'Statute Section'}</strong></p><p>Detailed statutory provisions, regulatory clauses, and compliance directives under ${editData?.law || 'Statutory Code'}.</p>` : '' 
-    },
-    { id: 2, sectionHeading: '', fromDate: null, toDate: null, detail: '' },
-    { id: 3, sectionHeading: '', fromDate: null, toDate: null, detail: '' },
-    { id: 4, sectionHeading: '', fromDate: null, toDate: null, detail: '' }
-  ]);
-
-  const updateBlock = (id, field, value) => {
-    setBlocks(blocks.map(block => block.id === id ? { ...block, [field]: value } : block));
+  const defaultValues = {
+    srNumber: editData?.id || '9339',
+    department: editData?.department?.toLowerCase() || 'tax',
+    chapter: editData?.chapter || '',
+    display: editData?.display?.toLowerCase() === 'no' ? 'no' : 'yes',
+    status: editData?.display === 'No' ? 'inactive' : 'active',
+    law: editData?.law || 'Income Tax Rules, 2002',
+    section: editData?.section || '231CB',
+    heading: editData?.heading || '',
+    blocks: [
+      { 
+        id: 1, 
+        sectionHeading: editData?.sectionHeading || '', 
+        fromDate: editData?.dated ? new Date(editData.dated) : null, 
+        toDate: null, 
+        detail: isEdit ? `<p><strong>${editData?.sectionHeading || 'Statute Section'}</strong></p><p>Detailed statutory provisions, regulatory clauses, and compliance directives under ${editData?.law || 'Statutory Code'}.</p>` : '',
+        attachments: []
+      },
+      { id: 2, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] },
+      { id: 3, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] },
+      { id: 4, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] }
+    ]
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(statuteSchema),
+    defaultValues,
+  });
+
+  const { fields: blockFields } = useFieldArray({
+    control,
+    name: 'blocks'
+  });
+
+  const onSubmit = async (data) => {
+    if (isEdit && editData?.id) {
+      await statuteService.updateStatute(editData.id, data);
+    } else {
+      await statuteService.createStatute(data);
+    }
     setShowSuccess(true);
     setTimeout(() => {
       setShowSuccess(false);
@@ -80,7 +100,7 @@ const AddStatuteForm = () => {
           </div>
         )}
 
-        <form id="statute-form" onSubmit={handleSubmit} className="space-y-6">
+        <form id="statute-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           
           <FormSection title="Record Information" icon={FileText}>
             
@@ -90,10 +110,9 @@ const AddStatuteForm = () => {
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={srNumber}
-                  onChange={(e) => setSrNumber(e.target.value)}
                   placeholder="e.g. 9339" 
-                  required 
+                  error={errors.srNumber}
+                  {...register('srNumber')}
                 />
               </FormField>
               <FormField label="Department" className="col-span-1 md:col-span-3">
@@ -101,18 +120,18 @@ const AddStatuteForm = () => {
                   variant="light" 
                   inputSize="sm"
                   type="select" 
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
+                  error={errors.department}
                   options={[{ label: 'Tax', value: 'tax' }, { label: 'Civil', value: 'civil' }]} 
+                  {...register('department')}
                 />
               </FormField>
               <FormField label="Chapter" className="col-span-1 md:col-span-3">
                 <Input 
                   variant="light" 
                   inputSize="sm" 
-                  value={chapter}
-                  onChange={(e) => setChapter(e.target.value)}
                   placeholder="e.g. CHAPTER-XIX" 
+                  error={errors.chapter}
+                  {...register('chapter')}
                 />
               </FormField>
               <FormField label="Display" required className="col-span-1 md:col-span-2">
@@ -120,10 +139,9 @@ const AddStatuteForm = () => {
                   variant="light" 
                   inputSize="sm"
                   type="select" 
-                  value={display}
-                  onChange={(e) => setDisplay(e.target.value)}
+                  error={errors.display}
                   options={[{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }]} 
-                  required
+                  {...register('display')}
                 />
               </FormField>
               <FormField label="Status" required className="col-span-1 md:col-span-2">
@@ -131,10 +149,9 @@ const AddStatuteForm = () => {
                   variant="light" 
                   inputSize="sm"
                   type="select" 
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  error={errors.status}
                   options={[{ label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]} 
-                  required
+                  {...register('status')}
                 />
               </FormField>
             </div>
@@ -144,19 +161,19 @@ const AddStatuteForm = () => {
               <FormField label="Law/Statute">
                 <Input 
                   variant="light" 
-                  inputSize="sm"
-                  value={law}
-                  onChange={(e) => setLaw(e.target.value)}
+                  inputSize="sm" 
                   placeholder="Enter Law or Statute name..."
+                  error={errors.law}
+                  {...register('law')}
                 />
               </FormField>
               <FormField label="Section">
                 <Input 
                   variant="light" 
-                  inputSize="sm"
-                  value={section}
-                  onChange={(e) => setSection(e.target.value)}
-                  placeholder="Enter section (e.g. 231CB)..."
+                  inputSize="sm" 
+                  placeholder="Enter section (e.g. 231CB)..." 
+                  error={errors.section}
+                  {...register('section')}
                 />
               </FormField>
             </div>
@@ -166,10 +183,9 @@ const AddStatuteForm = () => {
               <FormField label="Heading">
                 <textarea 
                   rows={3}
-                  value={heading}
-                  onChange={(e) => setHeading(e.target.value)}
                   className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm resize-y text-theme-main bg-theme-surface"
                   placeholder="Enter heading..."
+                  {...register('heading')}
                 ></textarea>
               </FormField>
             </div>
@@ -179,7 +195,7 @@ const AddStatuteForm = () => {
           {/* Repeatable Content Blocks */}
           <FormSection title="Content Details" icon={Layers}>
             <div className="space-y-8">
-              {blocks.map((block, index) => (
+              {blockFields.map((block, index) => (
                 <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-6 relative">
                   
                   {/* Block Number Badge */}
@@ -194,8 +210,8 @@ const AddStatuteForm = () => {
                         variant="light" 
                         inputSize="sm" 
                         placeholder="Enter section heading..." 
-                        value={block.sectionHeading}
-                        onChange={(e) => updateBlock(block.id, 'sectionHeading', e.target.value)}
+                        error={errors.blocks?.[index]?.sectionHeading}
+                        {...register(`blocks.${index}.sectionHeading`)}
                       />
                     </FormField>
 
@@ -204,23 +220,44 @@ const AddStatuteForm = () => {
                       {/* Left Column: Dates & Attachment */}
                       <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-6">
                         <FormField label="From Date">
-                          <DatePicker 
-                            selectedDate={block.fromDate} 
-                            onChange={(d) => updateBlock(block.id, 'fromDate', d)} 
-                            placeholder="mm/dd/yyyy"
+                          <Controller
+                            control={control}
+                            name={`blocks.${index}.fromDate`}
+                            render={({ field }) => (
+                              <DatePicker 
+                                selectedDate={field.value} 
+                                onChange={field.onChange} 
+                                placeholder="mm/dd/yyyy"
+                              />
+                            )}
                           />
                         </FormField>
 
                         <FormField label="To Date">
-                          <DatePicker 
-                            selectedDate={block.toDate} 
-                            onChange={(d) => updateBlock(block.id, 'toDate', d)} 
-                            placeholder="mm/dd/yyyy"
+                          <Controller
+                            control={control}
+                            name={`blocks.${index}.toDate`}
+                            render={({ field }) => (
+                              <DatePicker 
+                                selectedDate={field.value} 
+                                onChange={field.onChange} 
+                                placeholder="mm/dd/yyyy"
+                              />
+                            )}
                           />
                         </FormField>
                         
                         <FormField label="Attachment" className="flex-1 flex flex-col">
-                          <FileUpload />
+                          <Controller
+                            control={control}
+                            name={`blocks.${index}.attachments`}
+                            render={({ field }) => (
+                              <FileUpload 
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            )}
+                          />
                         </FormField>
                       </div>
 
@@ -228,10 +265,16 @@ const AddStatuteForm = () => {
                       <div className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-[350px]">
                         <FormField label="Detail" className="flex-1 flex flex-col">
                           <div className="flex-1 h-full relative z-0">
-                            <RichTextEditor 
-                              value={block.detail} 
-                              onChange={(d) => updateBlock(block.id, 'detail', d)}
-                              minHeight={320}
+                            <Controller
+                              control={control}
+                              name={`blocks.${index}.detail`}
+                              render={({ field }) => (
+                                <RichTextEditor 
+                                  value={field.value} 
+                                  onChange={field.onChange}
+                                  minHeight={320}
+                                />
+                              )}
                             />
                           </div>
                         </FormField>
@@ -250,6 +293,7 @@ const AddStatuteForm = () => {
       <FormFooter 
         formId="statute-form"
         onCancel={() => navigate('/manage-statutes')}
+        isSubmitting={isSubmitting}
         submitText={isEdit ? "Update Record" : "Add Record"}
       />
 

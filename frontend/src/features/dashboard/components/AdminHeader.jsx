@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, ChevronDown, LogOut } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu } from 'lucide-react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { ACTIVITIES } from './RecentActivity';
 import { useUser } from '../../../contexts/UserContext';
@@ -39,7 +39,7 @@ const PAGE_HEADERS = {
   }
 };
 
-const AdminHeader = () => {
+const AdminHeader = ({ onToggleMenu }) => {
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -62,10 +62,11 @@ const AdminHeader = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  const { user } = useUser();
+  const { user, logoutUser } = useUser();
 
   const handleLogout = () => {
-    navigate('/login');
+    logoutUser();
+    navigate('/login', { replace: true });
   };
 
   // Fallback to Dashboard if route is unknown
@@ -77,9 +78,20 @@ const AdminHeader = () => {
   return (
     <header className="h-20 sm:h-24 px-6 sm:px-8 flex items-center justify-between bg-theme-base border-b border-theme-border relative z-50 shrink-0">
       
-      <div className="flex flex-col min-w-0 pr-4">
-        <h1 className="text-xl sm:text-2xl font-semibold text-theme-main truncate">{headerContent.title}</h1>
-        <p className="text-xs sm:text-sm text-theme-muted mt-0.5 truncate">{headerContent.subtitle}</p>
+      <div className="flex items-center gap-3 min-w-0 pr-4">
+        {onToggleMenu && (
+          <button
+            onClick={onToggleMenu}
+            className="p-2 -ml-2 rounded-xl text-theme-muted hover:text-theme-main hover:bg-theme-surface-hover lg:hidden shrink-0 transition-colors cursor-pointer"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        )}
+        <div className="flex flex-col min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-theme-main truncate">{headerContent.title}</h1>
+          <p className="text-xs sm:text-sm text-theme-muted mt-0.5 truncate">{headerContent.subtitle}</p>
+        </div>
       </div>
 
       <div className="flex items-center gap-4 sm:gap-6 shrink-0">

@@ -9,7 +9,8 @@ import {
   List, 
   FileText, 
   FileDown, 
-  FileSpreadsheet 
+  FileSpreadsheet,
+  Hash
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
@@ -114,7 +115,7 @@ const ManageCasesFilterBar = ({
         <Button 
           type="submit"
           size="sm" 
-          className="bg-brand-orange hover:bg-[#D44E35] text-white border-transparent h-[42px] px-5 whitespace-nowrap shadow-sm"
+          className="bg-brand-orange hover:bg-brand-orange-hover text-white border-transparent h-[42px] px-5 whitespace-nowrap shadow-sm"
         >
           <Search className="w-4 h-4 mr-2" /> Search
         </Button>
@@ -147,7 +148,7 @@ const ManageCasesFilterBar = ({
           variant="outline"
           size="sm" 
           onClick={onHeadNotes}
-          className="bg-theme-surface hover:bg-[#f3efff] dark:hover:bg-theme-surface-alt text-[#5c4dce] border border-[#5c4dce] h-[38px] shadow-sm"
+          className="bg-theme-surface hover:bg-accent-purple-light dark:hover:bg-theme-surface-alt text-accent-purple border border-accent-purple h-[38px] shadow-sm"
         >
           <Printer className="w-4 h-4 mr-1.5" /> Head Notes
         </Button>
@@ -157,7 +158,7 @@ const ManageCasesFilterBar = ({
           variant="outline"
           size="sm" 
           onClick={onJudgment}
-          className="bg-theme-surface hover:bg-[#eaf6ff] dark:hover:bg-theme-surface-alt text-[#2583e8] border border-[#2583e8] h-[38px] shadow-sm"
+          className="bg-theme-surface hover:bg-accent-blue-light dark:hover:bg-theme-surface-alt text-accent-blue border border-accent-blue h-[38px] shadow-sm"
         >
           <Printer className="w-4 h-4 mr-1.5" /> Judgment
         </Button>
@@ -167,8 +168,8 @@ const ManageCasesFilterBar = ({
             type="button"
             variant="outline"
             size="sm" 
-            className={`bg-theme-surface hover:bg-[#fff0f0] dark:hover:bg-theme-surface-alt text-[#e65c5c] border border-[#e65c5c] h-[38px] shadow-sm flex items-center gap-1.5 ${
-              selectedCount > 0 ? 'ring-2 ring-[#e65c5c]/30 font-semibold' : ''
+            className={`bg-theme-surface hover:bg-accent-red-light dark:hover:bg-theme-surface-alt text-accent-red border border-accent-red h-[38px] shadow-sm flex items-center gap-1.5 ${
+              selectedCount > 0 ? 'ring-2 ring-accent-red/30 font-semibold' : ''
             }`}
             onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
           >
@@ -190,21 +191,21 @@ const ManageCasesFilterBar = ({
                 <div className="py-1">
                   <button 
                     type="button"
-                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-[#fff0f0] dark:hover:bg-theme-surface-alt hover:text-[#e65c5c] flex items-center gap-2.5 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors"
                     onClick={() => handleExportClick('pdf')}
                   >
                     <FileText className="w-4 h-4 text-red-500" /> Export as PDF (.pdf)
                   </button>
                   <button 
                     type="button"
-                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-[#fff0f0] dark:hover:bg-theme-surface-alt hover:text-[#e65c5c] flex items-center gap-2.5 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors"
                     onClick={() => handleExportClick('word')}
                   >
                     <FileDown className="w-4 h-4 text-blue-500" /> Export as Word (.docx)
                   </button>
                   <button 
                     type="button"
-                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-[#fff0f0] dark:hover:bg-theme-surface-alt hover:text-[#e65c5c] flex items-center gap-2.5 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors"
                     onClick={() => handleExportClick('excel')}
                   >
                     <FileSpreadsheet className="w-4 h-4 text-green-500" /> Export as Excel (.csv)
@@ -222,7 +223,7 @@ const ManageCasesFilterBar = ({
           onClick={onGetCaseId}
           className="bg-theme-surface hover:bg-theme-surface-alt text-theme-main border border-theme-border h-[38px] shadow-sm"
         >
-          <Printer className="w-4 h-4 mr-1.5" /> Get Case ID
+          <Hash className="w-4 h-4 mr-1.5" /> Get Case ID
         </Button>
       </div>
 

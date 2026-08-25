@@ -1,16 +1,14 @@
 export const authService = {
   login: async (credentials) => {
-    console.log('Login credentials:', credentials)
     // Mock API call
     return new Promise((resolve) => {
       setTimeout(() => {
-        resolve({ success: true })
+        resolve({ success: true, user: { username: credentials?.username || 'admin' } })
       }, 1500)
     })
   },
 
   signup: async (userData) => {
-    console.log('Signup data:', userData)
     // Mock API call
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -33,18 +31,64 @@ export const authService = {
   },
 
   resendVerificationCode: async (email) => {
-    console.log('Resending code to:', email)
     return new Promise((resolve) => {
-      setTimeout(() => resolve({ success: true }), 500)
+      setTimeout(() => resolve({ success: true, email }), 500)
     })
   },
 
   forgotPassword: async (data) => {
-    console.log('Forgot password request for:', data)
     return new Promise((resolve) => {
       setTimeout(() => {
-        resolve({ success: true })
+        resolve({ success: true, email: data?.email })
       }, 1500)
     })
+  },
+
+  /**
+   * Dedicated backend integration point for Google Login.
+   * When the backend OAuth endpoint is ready, this will dispatch POST /api/auth/google/login.
+   * @param {Object} googlePayload - Standardized credential payload from googleAuthService
+   */
+  loginWithGoogle: async (googlePayload) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          success: true,
+          provider: 'google',
+          mode: 'login',
+          payload: googlePayload,
+          user: {
+            email: googlePayload.profile?.email || 'google.user@example.com',
+            fullName: googlePayload.profile?.name || 'Google User',
+            username: googlePayload.profile?.email?.split('@')[0] || 'google_user'
+          },
+          message: 'Google authorization received. Ready for backend session exchange.'
+        });
+      }, 800);
+    });
+  },
+
+  /**
+   * Dedicated backend integration point for Google Sign Up.
+   * When the backend OAuth endpoint is ready, this will dispatch POST /api/auth/google/signup.
+   * @param {Object} googlePayload - Standardized credential payload from googleAuthService
+   */
+  signupWithGoogle: async (googlePayload) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          success: true,
+          provider: 'google',
+          mode: 'signup',
+          payload: googlePayload,
+          user: {
+            email: googlePayload.profile?.email || 'google.user@example.com',
+            fullName: googlePayload.profile?.name || 'Google User',
+            username: googlePayload.profile?.email?.split('@')[0] || 'google_user'
+          },
+          message: 'Google registration received. Ready for backend account creation.'
+        });
+      }, 800);
+    });
   },
 }

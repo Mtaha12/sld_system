@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Hash, Search, AlertCircle, Printer } from 'lucide-react';
+import { Hash, Search, AlertCircle } from 'lucide-react';
 import ManageNotificationsFilterBar from '../features/notifications/components/ManageNotificationsFilterBar';
 import ManageNotificationsTable from '../features/notifications/components/ManageNotificationsTable';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
@@ -8,17 +8,28 @@ import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import FormField from '../components/ui/FormField';
-import { MOCK_NOTIFICATIONS } from '../features/notifications/data/notificationsMockData';
+import { notificationService } from '../features/notifications/services/notificationService';
 
 const ManageNotificationsPage = () => {
   const [searchParams] = useSearchParams();
   const initialParamQuery = searchParams.get('search') || '';
 
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [highlightedId, setHighlightedId] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState(initialParamQuery);
+
+  // Fetch initial notifications from notificationService
+  useEffect(() => {
+    let isMounted = true;
+    notificationService.getNotifications().then(data => {
+      if (isMounted) {
+        setNotifications(data);
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // Sync when search URL query changes
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Search, Plus, List, Printer, Hash } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Search, Plus, List, Printer } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 
 const ManageStatutesFilterBar = ({
@@ -51,9 +51,9 @@ const ManageStatutesFilterBar = ({
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
           <Button 
-            type="submit"
+            type="submit" 
             size="sm" 
-            className="bg-brand-orange hover:bg-[#D44E35] text-white border-transparent h-[42px] px-6 whitespace-nowrap shadow-sm"
+            className="bg-brand-orange hover:bg-brand-orange-hover text-white border-transparent h-[42px] px-6 whitespace-nowrap shadow-sm"
           >
             <Search className="w-4 h-4 mr-2" /> Search
           </Button>

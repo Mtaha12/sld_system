@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Search, Plus, Printer, List, Hash } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Search, Plus, Printer, List } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 
 const ManageNotificationsFilterBar = ({
@@ -9,7 +9,6 @@ const ManageNotificationsFilterBar = ({
   onSearch,
   onShowAll
 }) => {
-  const navigate = useNavigate();
   const [subject, setSubject] = useState(initialSearch || '');
 
   useEffect(() => {
@@ -55,7 +54,7 @@ const ManageNotificationsFilterBar = ({
         <Button 
           type="submit"
           size="sm" 
-          className="bg-brand-orange hover:bg-[#D44E35] text-white border-transparent h-[42px] px-5 whitespace-nowrap shadow-sm"
+          className="bg-brand-orange hover:bg-brand-orange-hover text-white border-transparent h-[42px] px-5 whitespace-nowrap shadow-sm"
         >
           <Search className="w-4 h-4 mr-2" /> Search
         </Button>

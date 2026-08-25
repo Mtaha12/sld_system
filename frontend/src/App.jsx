@@ -4,12 +4,14 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { UserProvider } from './contexts/UserContext'
 import AuthLayout from './layouts/AuthLayout'
 import AdminLayout from './layouts/AdminLayout'
+import ProtectedRoute from './components/layout/ProtectedRoute'
 import Spinner from './components/ui/Spinner'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SignupPage = lazy(() => import('./pages/SignupPage'))
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
+const ContactPage = lazy(() => import('./pages/ContactPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const ManageCasesPage = lazy(() => import('./pages/ManageCasesPage'))
 const AddCaseLawPage = lazy(() => import('./pages/AddCaseLawPage'))
@@ -34,21 +36,24 @@ function App() {
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/contact" element={<ContactPage />} />
             </Route>
             
             {/* Protected Admin Routes */}
-            <Route element={<AdminLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/manage-cases" element={<ManageCasesPage />} />
-              <Route path="/manage-cases/add" element={<AddCaseLawPage />} />
-              <Route path="/cases/new" element={<Navigate to="/manage-cases/add" replace />} />
-              <Route path="/manage-notifications" element={<ManageNotificationsPage />} />
-              <Route path="/manage-notifications/add" element={<AddNotificationPage />} />
-              <Route path="/notifications/new" element={<Navigate to="/manage-notifications/add" replace />} />
-              <Route path="/manage-statutes" element={<ManageStatutesPage />} />
-              <Route path="/manage-statutes/add" element={<AddStatutePage />} />
-              <Route path="/statutes/new" element={<Navigate to="/manage-statutes/add" replace />} />
-              <Route path="/settings" element={<SettingsPage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AdminLayout />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/manage-cases" element={<ManageCasesPage />} />
+                <Route path="/manage-cases/add" element={<AddCaseLawPage />} />
+                <Route path="/cases/new" element={<Navigate to="/manage-cases/add" replace />} />
+                <Route path="/manage-notifications" element={<ManageNotificationsPage />} />
+                <Route path="/manage-notifications/add" element={<AddNotificationPage />} />
+                <Route path="/notifications/new" element={<Navigate to="/manage-notifications/add" replace />} />
+                <Route path="/manage-statutes" element={<ManageStatutesPage />} />
+                <Route path="/manage-statutes/add" element={<AddStatutePage />} />
+                <Route path="/statutes/new" element={<Navigate to="/manage-statutes/add" replace />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </Route>
             </Route>
 
             <Route path="*" element={<Navigate to="/login" replace />} />

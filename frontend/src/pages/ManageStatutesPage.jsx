@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Hash, Search, AlertCircle, Printer } from 'lucide-react';
+import { Hash, Search, AlertCircle } from 'lucide-react';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import ManageStatutesFilterBar from '../features/statutes/components/ManageStatutesFilterBar';
 import ManageStatutesTable from '../features/statutes/components/ManageStatutesTable';
@@ -8,51 +8,27 @@ import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import FormField from '../components/ui/FormField';
-
-const INITIAL_DATA = [
-  {
-    id: 9338,
-    law: 'Income Tax Rules, 2002',
-    chapter: 'CHAPTER-XIX',
-    display: 'Active',
-    dated: '08/20/2026',
-    section: '231CB',
-    sectionHeading: 'Independent case scrutiny committees',
-    department: 'Tax',
-    heading: 'MISCELLANEOUS'
-  },
-  {
-    id: 9337,
-    law: 'Federal Excise Act, 2005',
-    chapter: 'Chapter-V',
-    display: 'Active',
-    dated: '07/01/2026',
-    section: '34AA',
-    sectionHeading: 'Independent case scrutiny committee',
-    department: 'Tax',
-    heading: 'POWERS, ADJUDICATION AND APPEALS'
-  },
-  {
-    id: 9336,
-    law: 'Federal Excise Act, 2005',
-    chapter: 'Chapter-II',
-    display: 'Active',
-    dated: '07/01/2026',
-    section: '7A',
-    sectionHeading: 'National faceless centre and',
-    department: 'Tax',
-    heading: 'LEVY, COLLECTION AND PAYMENT OF DUTY'
-  }
-];
+import { statuteService } from '../features/statutes/services/statuteService';
 
 const ManageStatutesPage = () => {
   const [searchParams] = useSearchParams();
   const initialParamQuery = searchParams.get('search') || '';
 
-  const [statutes, setStatutes] = useState(INITIAL_DATA);
+  const [statutes, setStatutes] = useState([]);
   const [highlightedId, setHighlightedId] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState(initialParamQuery);
+
+  // Fetch initial statutes from statuteService
+  useEffect(() => {
+    let isMounted = true;
+    statuteService.getStatutes().then(data => {
+      if (isMounted) {
+        setStatutes(data);
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // Sync if URL query changes
   useEffect(() => {

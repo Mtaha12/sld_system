@@ -4,11 +4,11 @@ const Button = forwardRef(({ className = '', variant = 'primary', size = 'defaul
   const baseStyles = 'flex items-center justify-center font-medium transition-colors duration-200 focus:outline-none';
   
   const variants = {
-    primary: 'bg-brand-orange hover:bg-[#D44E35] text-white',
-    'admin-primary': 'bg-[#641E16] hover:bg-[#4A1610] text-white',
+    primary: 'bg-brand-orange hover:bg-brand-orange-hover text-white',
+    'admin-primary': 'bg-brand-maroon hover:bg-brand-maroon-hover text-white',
     success: 'bg-green-600 hover:bg-green-700 text-white shadow-sm border border-green-600',
     outline: 'bg-theme-surface border border-theme-border hover:bg-theme-surface-alt text-theme-main shadow-sm',
-    'outline-dark': 'bg-[#14151A] border border-[#262833] hover:bg-[#1C1E26] text-gray-300',
+    'outline-dark': 'bg-brand-dark-surface border border-brand-dark-border hover:bg-brand-dark-hover text-gray-300',
     ghost: 'bg-transparent hover:bg-theme-surface-hover text-theme-main',
   };
 

@@ -8,8 +8,9 @@ import {
   Printer, 
   Hash, 
   Search, 
-  CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  Copy,
+  Check
 } from 'lucide-react';
 import ManageCasesFilterBar from '../features/cases/components/ManageCasesFilterBar';
 import ManageCasesTable from '../features/cases/components/ManageCasesTable';
@@ -18,7 +19,7 @@ import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import FormField from '../components/ui/FormField';
-import { MOCK_CASES } from '../features/cases/data/casesMockData';
+import { caseService } from '../features/cases/services/caseService';
 
 // Helper function to generate and download file bundles
 const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '') => {
@@ -67,9 +68,20 @@ const ManageCasesPage = () => {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get('search') || '';
 
-  const [cases, setCases] = useState(MOCK_CASES);
+  const [cases, setCases] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
+
+  // Fetch initial cases from caseService
+  useEffect(() => {
+    let isMounted = true;
+    caseService.getCases().then(data => {
+      if (isMounted) {
+        setCases(data);
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
   
   // Search & Filter State
   const [filters, setFilters] = useState({
@@ -97,6 +109,8 @@ const ManageCasesPage = () => {
   const [actionModal, setActionModal] = useState(null); // 'headNotes' | 'judgment' | 'getCaseId' | null
   const [actionCaseNumber, setActionCaseNumber] = useState('');
   const [actionError, setActionError] = useState('');
+  const [caseIdResult, setCaseIdResult] = useState(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   // State for currentPage and highlighted case
   const [currentPage, setCurrentPage] = useState(1);
@@ -210,10 +224,12 @@ const ManageCasesPage = () => {
     }
   };
 
-  // Get Case ID Handler (opens dialogue box to locate & scroll to case)
+  // Get Case ID Handler (opens dialogue box to look up case no using SLD #)
   const handleGetCaseId = () => {
     setActionCaseNumber('');
     setActionError('');
+    setCaseIdResult(null);
+    setIsCopied(false);
     setActionModal('getCaseId');
   };
 
@@ -223,83 +239,75 @@ const ManageCasesPage = () => {
     setActionError('');
 
     if (!actionCaseNumber.trim()) {
-      setActionError('Please enter a Case Number or SLD #.');
+      if (actionModal === 'getCaseId') {
+        setActionError('Please enter an SLD Number.');
+      } else {
+        setActionError('Please enter a Case Number (e.g. C.A. 145/2026).');
+      }
       return;
     }
 
-    const clean = actionCaseNumber.trim().toLowerCase().replace(/^sld\s*#?/i, '').trim();
-    
-    // Find index in total cases
-    const foundIndex = cases.findIndex(c => 
-      c.sldNumber?.toLowerCase() === clean || 
-      c.id?.toString() === clean ||
-      (Array.isArray(c.caseNumber) && c.caseNumber.some(n => n.toLowerCase().includes(clean)))
-    );
+    const inputVal = actionCaseNumber.trim();
 
+    // 1. Get Case ID Modal: Takes SLD Number -> Displays Case Number in same dialogue with Copy button
     if (actionModal === 'getCaseId') {
+      const cleanSld = inputVal.toLowerCase().replace(/^sld\s*#?/i, '').trim();
+
+      const foundIndex = cases.findIndex(c => 
+        c.sldNumber?.toLowerCase() === cleanSld || 
+        c.id?.toString() === cleanSld
+      );
+
       if (foundIndex === -1) {
-        setActionError(`Case SLD #${actionCaseNumber.trim()} does not exist in records.`);
+        setActionError(`No case found matching SLD #${inputVal}. Please enter a valid SLD number.`);
+        setCaseIdResult(null);
         return;
       }
 
       const target = cases[foundIndex];
-      
-      // If current search filters hide this case, reset search
-      const isVisibleInFilter = filteredCases.some(c => c.id === target.id);
-      if (!isVisibleInFilter) {
-        setFilters({ subject: '', fromDate: null, toDate: null, magazine: '' });
-      }
-
-      // Calculate the page the case resides on (10 items per page)
+      const caseNumbers = Array.isArray(target.caseNumber) ? target.caseNumber.join(', ') : (target.caseNumber || 'N/A');
       const targetPage = Math.floor(foundIndex / 10) + 1;
-      setCurrentPage(targetPage);
-      setHighlightedId(target.id);
 
-      setActionModal(null);
-      setToastMessage(`Located Case SLD #${target.sldNumber} on Page ${targetPage}. Scrolling to position...`);
-
-      // Scroll smoothly to case element
-      setTimeout(() => {
-        const rowEl = document.getElementById(`case-row-${target.id}`);
-        if (rowEl) {
-          rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 200);
-
-      // Reset highlight after pulse animation
-      setTimeout(() => {
-        setHighlightedId(null);
-      }, 4500);
-
+      setCaseIdResult({
+        target,
+        caseNumbers,
+        targetPage
+      });
+      setIsCopied(false);
       return;
     }
 
-    // Handle Head Notes or Judgment
-    const matched = cases.find(c => 
-      c.sldNumber === clean || 
-      c.id.toString() === clean ||
-      (Array.isArray(c.caseNumber) && c.caseNumber.some(n => n.toLowerCase().includes(clean)))
+    // 2. Head Notes or Judgment: Strictly works with Case Number (NOT SLD Number)
+    const cleanCaseNumber = inputVal.toLowerCase();
+
+    // Find strictly by Case Number
+    const matched = cases.find(c =>
+      Array.isArray(c.caseNumber) && c.caseNumber.some(n => n.toLowerCase().includes(cleanCaseNumber))
     );
 
-    const target = matched || {
-      id: 9999,
-      sldNumber: actionCaseNumber.trim(),
-      dated: new Date().toISOString().split('T')[0],
-      court: 'Pakistan Law Jurisdiction',
-      caseNumber: [actionCaseNumber.trim()],
-      judges: ['Honorable Bench'],
-      lawyers: ['Advocate on Record'],
-      petitioners: ['Party vs. State'],
-      mapYearPage: [`SLD 2025 ${actionCaseNumber.trim()}`],
-      status: 'Active'
-    };
+    if (!matched) {
+      // Check if user entered an SLD number instead
+      const isSldInput = cases.some(c => 
+        c.sldNumber?.toLowerCase() === cleanCaseNumber || 
+        c.id?.toString() === cleanCaseNumber
+      );
+
+      if (isSldInput) {
+        setActionError(`"${inputVal}" is an SLD Number. Head Notes and Judgments only work with Case Numbers (e.g. C.A. 145/2026). Use 'Get Case ID' to look up Case Numbers by SLD.`);
+      } else {
+        setActionError(`No case found matching Case Number "${inputVal}". Please enter a valid Case Number.`);
+      }
+      return;
+    }
+
+    const caseNumberDisplay = Array.isArray(matched.caseNumber) ? matched.caseNumber.join(', ') : matched.caseNumber;
 
     if (actionModal === 'headNotes') {
-      downloadCaseExport([target], 'pdf', 'HEAD NOTES & CITATIONS');
-      setToastMessage(`Generated Head Notes for Case SLD #${target.sldNumber || actionCaseNumber.trim()}.`);
+      downloadCaseExport([matched], 'pdf', 'HEAD NOTES & CITATIONS');
+      setToastMessage(`Generated Head Notes for Case No: ${caseNumberDisplay} (SLD #${matched.sldNumber}).`);
     } else if (actionModal === 'judgment') {
-      downloadCaseExport([target], 'pdf', 'FULL JUDGMENT ORDER');
-      setToastMessage(`Generated Judgment for Case SLD #${target.sldNumber || actionCaseNumber.trim()}.`);
+      downloadCaseExport([matched], 'pdf', 'FULL JUDGMENT ORDER');
+      setToastMessage(`Generated Judgment Order for Case No: ${caseNumberDisplay} (SLD #${matched.sldNumber}).`);
     }
 
     setActionModal(null);
@@ -356,7 +364,7 @@ const ManageCasesPage = () => {
             <Button 
               variant="primary" 
               size="sm"
-              className="bg-brand-orange hover:bg-[#D44E35] text-white flex items-center gap-1.5"
+              className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-1.5"
               onClick={handleExportSubmit}
             >
               <Download className="w-4 h-4" /> Export Case
@@ -461,18 +469,22 @@ const ManageCasesPage = () => {
       {/* Head Notes / Judgment / Get Case ID Dialogue Modal */}
       <Modal
         isOpen={Boolean(actionModal)}
-        onClose={() => setActionModal(null)}
+        onClose={() => {
+          setActionModal(null);
+          setCaseIdResult(null);
+          setIsCopied(false);
+        }}
         title={
           actionModal === 'headNotes' 
-            ? 'Generate Head Notes' 
+            ? 'Generate Head Notes by Case Number' 
             : actionModal === 'judgment' 
-            ? 'Generate Judgment Order' 
-            : 'Get Case by ID'
+            ? 'Generate Judgment by Case Number' 
+            : 'Get Case Number by SLD #'
         }
         subtitle={
           actionModal === 'getCaseId' 
-            ? 'Enter an SLD # or Case ID to scroll directly to its position' 
-            : 'Enter the Case Number or SLD # to proceed'
+            ? 'Enter an SLD Number to retrieve the corresponding Case Number' 
+            : 'Enter the Case Number to proceed (e.g. C.A. 145/2026)'
         }
         icon={actionModal === 'getCaseId' ? Hash : Printer}
         maxWidth="max-w-md"
@@ -481,18 +493,22 @@ const ManageCasesPage = () => {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setActionModal(null)}
+              onClick={() => {
+                setActionModal(null);
+                setCaseIdResult(null);
+                setIsCopied(false);
+              }}
             >
-              Cancel
+              Close
             </Button>
             <Button 
               variant="primary" 
               size="sm"
-              className="bg-brand-orange hover:bg-[#D44E35] text-white flex items-center gap-1.5"
+              className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-1.5"
               onClick={handleActionSubmit}
             >
               {actionModal === 'getCaseId' ? <Search className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
-              {actionModal === 'getCaseId' ? 'Locate & Scroll' : 'Generate'}
+              {actionModal === 'getCaseId' ? 'Get Case No' : 'Generate Document'}
             </Button>
           </>
         }
@@ -505,44 +521,161 @@ const ManageCasesPage = () => {
             </div>
           )}
 
-          <FormField label="Case SLD # or Case ID" required>
+          <FormField 
+            label={actionModal === 'getCaseId' ? 'SLD Number (Required)' : 'Case Number (Required)'} 
+            required
+          >
             <Input 
               value={actionCaseNumber}
               onChange={(e) => {
                 setActionCaseNumber(e.target.value);
                 if (actionError) setActionError('');
+                if (caseIdResult) setCaseIdResult(null);
               }}
-              placeholder="e.g. 1629516 or 1629515"
+              placeholder={
+                actionModal === 'getCaseId' 
+                  ? 'e.g. 1629516 or 1629515' 
+                  : 'e.g. C.A. 145/2026 or C.P.L.A. 3458-K/2022'
+              }
               required
               autoFocus
             />
           </FormField>
 
-          {/* Suggestions */}
+          {/* Dynamic Suggestions */}
           <div>
             <span className="text-[11px] text-theme-muted font-medium block mb-1.5">
-              {actionModal === 'getCaseId' ? 'Quick select Case SLD #:' : 'Suggestions:'}
+              {actionModal === 'getCaseId' ? 'Quick select SLD Number:' : 'Quick select Case Number:'}
             </span>
             <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-              {cases.slice(0, 10).map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => {
-                    setActionCaseNumber(c.sldNumber);
-                    if (actionError) setActionError('');
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                    actionCaseNumber === c.sldNumber
-                      ? 'bg-brand-orange text-white border-brand-orange'
-                      : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border-theme-border'
-                  }`}
-                >
-                  SLD #{c.sldNumber}
-                </button>
-              ))}
+              {actionModal === 'getCaseId' ? (
+                cases.slice(0, 10).map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setActionCaseNumber(c.sldNumber);
+                      if (actionError) setActionError('');
+                      if (caseIdResult) setCaseIdResult(null);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      actionCaseNumber === c.sldNumber
+                        ? 'bg-brand-orange text-white border-brand-orange'
+                        : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border-theme-border'
+                    }`}
+                  >
+                    SLD #{c.sldNumber}
+                  </button>
+                ))
+              ) : (
+                cases
+                  .filter(c => Array.isArray(c.caseNumber) && c.caseNumber.length > 0)
+                  .slice(0, 8)
+                  .map(c => {
+                    const firstCaseNum = c.caseNumber[0];
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setActionCaseNumber(firstCaseNum);
+                          if (actionError) setActionError('');
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                          actionCaseNumber === firstCaseNum
+                            ? 'bg-brand-orange text-white border-brand-orange'
+                            : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border-theme-border'
+                        }`}
+                      >
+                        {firstCaseNum}
+                      </button>
+                    );
+                  })
+              )}
             </div>
           </div>
+
+          {/* Case Number Result Card with Copy Button */}
+          {actionModal === 'getCaseId' && caseIdResult && (
+            <div className="mt-4 p-3.5 bg-theme-surface-alt/80 border border-brand-orange/40 rounded-xl space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-theme-main">Case Number Found:</span>
+                <span className="px-2 py-0.5 rounded-md bg-brand-orange/10 text-brand-orange text-[11px] font-medium border border-brand-orange/30">
+                  SLD #{caseIdResult.target.sldNumber}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 bg-theme-surface border border-theme-border rounded-lg p-2.5">
+                <span className="font-mono text-sm font-semibold text-brand-orange select-all break-all">
+                  {caseIdResult.caseNumbers}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(caseIdResult.caseNumbers);
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2500);
+                  }}
+                  className="h-8 px-2.5 text-xs flex items-center gap-1.5 bg-theme-surface hover:bg-theme-surface-alt border-theme-border text-theme-main transition-colors shrink-0"
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-green-500" />
+                      <span className="text-green-500 font-medium">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-theme-muted pt-0.5">
+                <div>
+                  <span className="font-medium text-theme-main block">Court:</span>
+                  <span className="truncate block">{caseIdResult.target.court || 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-theme-main block">Table Location:</span>
+                  <span>Page {caseIdResult.targetPage}</span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center justify-center gap-1.5 h-9 mt-1"
+                onClick={() => {
+                  const isVisibleInFilter = filteredCases.some(c => c.id === caseIdResult.target.id);
+                  if (!isVisibleInFilter) {
+                    setFilters({ subject: '', fromDate: null, toDate: null, magazine: '' });
+                  }
+                  setCurrentPage(caseIdResult.targetPage);
+                  setHighlightedId(caseIdResult.target.id);
+                  setActionModal(null);
+                  setCaseIdResult(null);
+                  setToastMessage(`Located Case SLD #${caseIdResult.target.sldNumber} (Case No: ${caseIdResult.caseNumbers}) on Page ${caseIdResult.targetPage}.`);
+
+                  setTimeout(() => {
+                    const rowEl = document.getElementById(`case-row-${caseIdResult.target.id}`);
+                    if (rowEl) {
+                      rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  }, 200);
+
+                  setTimeout(() => {
+                    setHighlightedId(null);
+                  }, 5000);
+                }}
+              >
+                <Search className="w-3.5 h-3.5" /> View Case in Table
+              </Button>
+            </div>
+          )}
         </form>
       </Modal>
 
