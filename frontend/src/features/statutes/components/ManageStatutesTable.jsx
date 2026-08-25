@@ -1,7 +1,19 @@
-import { useState } from 'react';
-import { Edit, Trash2, CalendarClock, X, ArrowUpDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Eye, 
+  Pencil, 
+  Trash2, 
+  CalendarClock, 
+  X, 
+  ArrowUpDown, 
+  AlertTriangle, 
+  CheckCircle2, 
+  FileText 
+} from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
+import Modal from '../../../components/ui/Modal';
 
 // Mock data based on the screenshot
 const INITIAL_DATA = [
@@ -49,12 +61,41 @@ const TableHeader = ({ title, className }) => (
   </th>
 );
 
-const ManageStatutesTable = () => {
-  const [statutes, setStatutes] = useState(INITIAL_DATA);
+const ManageStatutesTable = ({
+  statutes: propStatutes,
+  setStatutes: propSetStatutes,
+  highlightedId,
+  toastMessage: propToastMessage,
+  setToastMessage: propSetToastMessage
+}) => {
+  const navigate = useNavigate();
+  const [internalStatutes, setInternalStatutes] = useState(INITIAL_DATA);
+  const [internalToastMessage, setInternalToastMessage] = useState('');
+
+  const statutes = propStatutes || internalStatutes;
+  const setStatutes = propSetStatutes || setInternalStatutes;
+  const toastMessage = propToastMessage !== undefined ? propToastMessage : internalToastMessage;
+  const setToastMessage = propSetToastMessage || setInternalToastMessage;
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalSrNumber, setModalSrNumber] = useState('');
   const [modalDate, setModalDate] = useState(null);
   const [modalError, setModalError] = useState('');
+  const [viewModalItem, setViewModalItem] = useState(null);
+  const [deleteModalItem, setDeleteModalItem] = useState(null);
+
+  // Smooth scroll to highlighted statute row
+  useEffect(() => {
+    if (highlightedId) {
+      const timer = setTimeout(() => {
+        const rowEl = document.getElementById(`statute-row-${highlightedId}`);
+        if (rowEl) {
+          rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedId]);
 
   const handleUpdateDate = () => {
     setModalError('');
@@ -89,9 +130,34 @@ const ManageStatutesTable = () => {
     setModalError('');
   };
 
+  const handleEdit = (row) => {
+    navigate('/manage-statutes/add', { state: { statuteData: row, isEdit: true } });
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deleteModalItem) return;
+    setStatutes(prev => prev.filter(s => s.id !== deleteModalItem.id));
+    setToastMessage(`Statute #${deleteModalItem.id} (${deleteModalItem.law}) deleted successfully.`);
+    setDeleteModalItem(null);
+    setTimeout(() => setToastMessage(''), 3500);
+  };
+
   return (
-    <div className="flex flex-col gap-3 relative">
+    <div className="flex flex-col gap-3 relative animate-fade-in">
       
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="p-3 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 rounded-xl flex items-center justify-between text-sm animate-fade-in">
+          <div className="flex items-center gap-2 font-medium">
+            <CheckCircle2 className="w-4 h-4" />
+            {toastMessage}
+          </div>
+          <button onClick={() => setToastMessage('')} className="text-theme-muted hover:text-theme-main">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Table Header Controls */}
       <div className="flex items-center justify-between w-full px-2">
         <Button 
@@ -102,8 +168,8 @@ const ManageStatutesTable = () => {
         >
           <CalendarClock className="w-4 h-4 mr-2" /> Update Dates
         </Button>
-        <div className="text-theme-muted font-medium text-sm">
-          Total Records: (9,331)
+        <div className="text-brand-orange font-semibold text-sm">
+          Total Records: ({statutes.length})
         </div>
       </div>
 
@@ -113,8 +179,8 @@ const ManageStatutesTable = () => {
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-theme-main bg-theme-table-header border-b border-theme-border">
               <tr>
-                <TableHeader title="Sr #" />
-                <TableHeader title="Law / Statute" className="min-w-[200px]" />
+                <TableHeader title="ID" />
+                <TableHeader title="Law" className="min-w-[200px]" />
                 <TableHeader title="Chapter" />
                 <TableHeader title="Display" />
                 <TableHeader title="Dated" />
@@ -126,14 +192,26 @@ const ManageStatutesTable = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border/50">
-              {statutes.map((row) => (
-                <tr key={row.id} className="hover:bg-theme-surface-alt/50 transition-colors bg-theme-surface">
+              {statutes.map((row) => {
+                const isHighlighted = highlightedId === row.id;
+                return (
+                  <tr 
+                    key={row.id} 
+                    id={`statute-row-${row.id}`}
+                    className={`transition-all duration-300 ${
+                      isHighlighted
+                        ? 'bg-brand-orange/20 dark:bg-brand-orange/30 ring-2 ring-brand-orange font-medium animate-pulse shadow-sm'
+                        : 'hover:bg-theme-surface-alt/50 bg-theme-surface'
+                    }`}
+                  >
                   <td className="px-6 py-4 text-theme-muted">{row.id}</td>
                   <td className="px-6 py-4 font-medium text-theme-main">{row.law}</td>
                   <td className="px-6 py-4 text-theme-muted">{row.chapter}</td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
-                      row.display === 'Yes' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-theme-surface-alt text-theme-muted border-theme-border'
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded text-[10px] font-medium border ${
+                      row.display === 'Yes' 
+                        ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/50' 
+                        : 'bg-theme-surface-alt text-theme-muted border-theme-border'
                     }`}>
                       {row.display === 'Yes' ? 'Active' : 'Inactive'}
                     </span>
@@ -151,96 +229,213 @@ const ManageStatutesTable = () => {
                   <td className="px-6 py-4 text-theme-muted">{row.department}</td>
                   <td className="px-6 py-4 text-theme-muted text-xs">{row.heading}</td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-2">
-                      <button className="p-1.5 text-blue-500 hover:text-blue-700 bg-blue-500/20 hover:bg-blue-100 rounded transition-colors border border-blue-100" title="Edit">
-                        <Edit className="w-3.5 h-3.5" />
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button 
+                        onClick={() => setViewModalItem(row)}
+                        className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors" 
+                        title="View"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
                       </button>
-                      <button className="p-1.5 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded transition-colors border border-red-100" title="Delete">
+                      <button 
+                        onClick={() => handleEdit(row)}
+                        className="p-1.5 text-theme-muted hover:text-blue-500 border border-theme-border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" 
+                        title="Edit"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => setDeleteModalItem(row)}
+                        className="p-1.5 text-theme-muted hover:text-red-500 border border-theme-border rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" 
+                        title="Delete"
+                      >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              );
+            })}
+          </tbody>
+        </table>
         </div>
 
         {/* Pagination Footer */}
         <div className="px-6 py-4 border-t border-theme-border/50 bg-theme-surface flex items-center justify-between">
           <span className="text-sm text-theme-muted">
-            Showing <span className="font-medium text-theme-main">1</span> to <span className="font-medium text-theme-main">3</span> of <span className="font-medium text-theme-main">3</span> entries
+            Showing <span className="font-medium text-theme-main">1</span> to <span className="font-medium text-theme-main">{statutes.length}</span> of <span className="font-medium text-theme-main">{statutes.length}</span> entries
           </span>
           <div className="flex items-center gap-2">
-            <button className="w-8 h-8 flex items-center justify-center rounded-md bg-brand-orange text-white text-sm font-medium">1</button>
+            <button className="w-8 h-8 flex items-center justify-center rounded text-sm transition-colors bg-[#641E16] text-white font-medium hover:bg-[#4A1610]">1</button>
             <button className="text-sm text-theme-muted hover:text-theme-main font-medium px-2">Next →</button>
           </div>
         </div>
       </div>
 
-      {/* Update Dates Modal */}
-      {isModalOpen && (
-        <>
-          <div 
-            className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm animate-fade-in" 
-            onClick={closeModal}
-          />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-theme-surface rounded-xl shadow-2xl z-50 animate-fade-in border border-theme-border/50">
-            <div className="px-5 py-4 border-b border-theme-border/50 flex items-center justify-between bg-theme-surface-alt/50 rounded-t-xl">
-              <h3 className="font-semibold text-theme-main flex items-center gap-2">
-                <CalendarClock className="w-4 h-4 text-blue-600" /> Update Date
-              </h3>
-              <button 
-                onClick={closeModal}
-                className="text-theme-disabled hover:text-theme-muted transition-colors"
+      {/* View Statute Modal */}
+      <Modal
+        isOpen={Boolean(viewModalItem)}
+        onClose={() => setViewModalItem(null)}
+        title="Statute Details"
+        subtitle={`SR #${viewModalItem?.id} • Dated ${viewModalItem?.dated}`}
+        icon={FileText}
+        footer={
+          <>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setViewModalItem(null)}
+            >
+              Close
+            </Button>
+            <Button 
+              variant="primary" 
+              size="sm"
+              className="bg-brand-orange hover:bg-[#D44E35] text-white"
+              onClick={() => {
+                const toEdit = viewModalItem;
+                setViewModalItem(null);
+                handleEdit(toEdit);
+              }}
+            >
+              <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit Record
+            </Button>
+          </>
+        }
+      >
+        {viewModalItem && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
+                <span className="block text-xs text-theme-muted mb-1 font-medium">Department</span>
+                <span className="font-semibold text-theme-main">{viewModalItem.department}</span>
+              </div>
+              <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
+                <span className="block text-xs text-theme-muted mb-1 font-medium">Chapter</span>
+                <span className="font-semibold text-theme-main">{viewModalItem.chapter}</span>
+              </div>
+              <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
+                <span className="block text-xs text-theme-muted mb-1 font-medium">Status</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50">
+                  {viewModalItem.display === 'Yes' ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
+              <span className="block text-xs text-theme-muted mb-1 font-medium">Law / Statute</span>
+              <p className="text-theme-main font-semibold leading-relaxed">{viewModalItem.law}</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
+              <span className="block text-xs text-theme-muted mb-1 font-medium">Section & Section Heading</span>
+              <p className="text-theme-main font-medium">
+                <strong className="text-brand-orange">Section {viewModalItem.section}:</strong> {viewModalItem.sectionHeading}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
+              <span className="block text-xs text-theme-muted mb-1 font-medium">Main Heading</span>
+              <p className="text-theme-main leading-relaxed">{viewModalItem.heading}</p>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(deleteModalItem)}
+        onClose={() => setDeleteModalItem(null)}
+        maxWidth="max-w-md"
+      >
+        {deleteModalItem && (
+          <div>
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="w-11 h-11 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/20">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-theme-main">Delete Statute</h3>
+                <p className="text-xs text-theme-muted">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-theme-muted leading-relaxed mb-6">
+              Are you sure you want to delete statute <strong className="text-theme-main">#{deleteModalItem.id}</strong> ({deleteModalItem.law} - Section {deleteModalItem.section})?
+            </p>
+
+            <div className="flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setDeleteModalItem(null)}
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-5 flex flex-col gap-4">
-              {modalError && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg">
-                  {modalError}
-                </div>
-              )}
-              
-              <div className="space-y-1.5 relative">
-                <label className="text-sm font-medium text-theme-main">SR Number</label>
-                <input 
-                  type="number"
-                  placeholder="e.g. 9338"
-                  value={modalSrNumber}
-                  onChange={(e) => setModalSrNumber(e.target.value)}
-                  className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors"
-                />
-              </div>
-
-              <div className="space-y-1.5 relative">
-                <label className="text-sm font-medium text-theme-main">New Date</label>
-                <DatePicker 
-                  selectedDate={modalDate}
-                  onChange={setModalDate}
-                  placeholder="Select new date"
-                  className="w-full"
-                />
-              </div>
-            </div>
-
-            <div className="px-5 py-4 border-t border-theme-border/50 flex justify-end gap-2 bg-theme-surface-alt/50 rounded-b-xl">
-              <Button variant="outline" size="sm" onClick={closeModal} className="px-4">
                 Cancel
               </Button>
-              <Button variant="primary" size="sm" onClick={handleUpdateDate} className="px-6 bg-blue-600 hover:bg-blue-700">
-                Update
+              <Button 
+                variant="primary" 
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleDeleteConfirm}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete Record
               </Button>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </Modal>
+
+      {/* Update Dates Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title="Update Date"
+        icon={CalendarClock}
+        maxWidth="max-w-sm"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={closeModal} className="px-4">
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleUpdateDate} className="px-6 bg-blue-600 hover:bg-blue-700">
+              Update
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {modalError && (
+            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg">
+              {modalError}
+            </div>
+          )}
+          
+          <div className="space-y-1.5 relative">
+            <label className="text-sm font-medium text-theme-main">SR Number</label>
+            <input 
+              type="number"
+              placeholder="e.g. 9338"
+              value={modalSrNumber}
+              onChange={(e) => setModalSrNumber(e.target.value)}
+              className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors bg-theme-surface"
+            />
+          </div>
+
+          <div className="space-y-1.5 relative">
+            <label className="text-sm font-medium text-theme-main">New Date</label>
+            <DatePicker 
+              selectedDate={modalDate}
+              onChange={setModalDate}
+              placeholder="Select new date"
+              className="w-full"
+            />
+          </div>
+        </div>
+      </Modal>
 
     </div>
   );
 };
 
 export default ManageStatutesTable;
+

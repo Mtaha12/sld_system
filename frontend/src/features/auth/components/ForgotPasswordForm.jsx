@@ -76,6 +76,7 @@ const ForgotPasswordForm = () => {
           type="text"
           placeholder="Email or Username *"
           icon={Mail}
+          variant="dark"
           error={errors.identifier}
           {...register('identifier')}
         />

@@ -6,7 +6,7 @@ const PageHeader = ({ title, subtitle, icon: Icon, onClose }) => {
     <div className="flex items-start justify-between p-6 border-b border-theme-border/50 shrink-0">
       <div className="flex gap-3">
         {Icon && (
-          <div className="p-2 bg-orange-50 rounded-lg text-brand-orange">
+          <div className="p-2 bg-orange-50 dark:bg-brand-orange/10 rounded-lg text-brand-orange">
             <Icon className="w-6 h-6" />
           </div>
         )}

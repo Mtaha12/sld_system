@@ -57,6 +57,7 @@ const LoginForm = () => {
           type="text"
           placeholder="Email or Username *"
           icon={User}
+          variant="dark"
           error={errors.identifier}
           {...register('identifier')}
         />
@@ -65,6 +66,7 @@ const LoginForm = () => {
           type="password"
           placeholder="Password *"
           icon={Lock}
+          variant="dark"
           error={errors.password}
           {...register('password')}
         />

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Bell, ChevronDown, LogOut } from 'lucide-react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { ACTIVITIES } from './RecentActivity';
+import { useUser } from '../../../contexts/UserContext';
 
 const PAGE_HEADERS = {
   '/dashboard': {
@@ -61,6 +62,8 @@ const AdminHeader = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
+  const { user } = useUser();
+
   const handleLogout = () => {
     navigate('/login');
   };
@@ -132,20 +135,20 @@ const AdminHeader = () => {
           )}
         </div>
 
-        <div className="relative" ref={profileRef}>
+        <div className="relative pl-4 border-l border-theme-border" ref={profileRef}>
           <div 
             onClick={() => {
               setIsProfileOpen(!isProfileOpen);
               setIsNotificationsOpen(false);
             }}
-            className="flex items-center gap-3 cursor-pointer pl-4 border-l border-theme-border group"
+            className="flex items-center gap-3 cursor-pointer group select-none"
           >
             <div className="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-sm group-hover:ring-2 ring-brand-orange/20 transition-all">
-              <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Adam Admin" className="w-full h-full object-cover" />
+              <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
             </div>
             <div className="hidden sm:flex flex-col">
-              <span className="text-sm font-semibold text-theme-main">Adam Admin</span>
-              <span className="text-xs text-theme-muted">Administrator</span>
+              <span className="text-sm font-semibold text-theme-main">{user.fullName}</span>
+              <span className="text-xs text-theme-muted">{user.role || 'Administrator'}</span>
             </div>
             <ChevronDown className={`w-4 h-4 transition-all ${isProfileOpen ? 'text-theme-main rotate-180' : 'text-theme-disabled group-hover:text-theme-muted'}`} />
           </div>
@@ -156,10 +159,10 @@ const AdminHeader = () => {
                 className="fixed inset-0 z-40 bg-transparent" 
                 onClick={() => setIsProfileOpen(false)} 
               />
-              <div className="absolute top-full right-0 mt-3 w-48 bg-theme-surface rounded-xl shadow-2xl border border-theme-border overflow-hidden z-50 py-1">
+              <div className="absolute top-full right-0 mt-2 w-full min-w-[160px] bg-theme-surface rounded-xl shadow-xl border border-theme-border overflow-hidden z-50 p-1 animate-fade-in">
                 <button 
                   onClick={handleLogout}
-                  className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                  className="w-full px-3 py-2 text-left text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" /> Logout
                 </button>

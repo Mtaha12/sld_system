@@ -51,6 +51,7 @@ const SignupForm = () => {
               type="text"
               placeholder="Full Name *"
               icon={User}
+              variant="dark"
               error={errors.fullName}
               {...register('fullName')}
             />
@@ -61,6 +62,7 @@ const SignupForm = () => {
               type="text"
               placeholder="Username *"
               icon={AtSign}
+              variant="dark"
               error={errors.username}
               {...register('username')}
             />
@@ -71,6 +73,7 @@ const SignupForm = () => {
               type="email"
               placeholder="Email Address *"
               icon={Mail}
+              variant="dark"
               error={errors.email}
               {...register('email')}
             />
@@ -81,6 +84,7 @@ const SignupForm = () => {
               type="tel"
               placeholder="Contact Number *"
               icon={Phone}
+              variant="dark"
               error={errors.contactNumber}
               {...register('contactNumber')}
             />
@@ -90,6 +94,7 @@ const SignupForm = () => {
             <Input
               type="select"
               icon={Building2}
+              variant="dark"
               error={errors.city}
               options={PAKISTAN_CITIES}
               {...register('city')}
@@ -101,6 +106,7 @@ const SignupForm = () => {
               type="text"
               placeholder="Company Name *"
               icon={Building}
+              variant="dark"
               error={errors.companyName}
               {...register('companyName')}
             />
@@ -111,6 +117,7 @@ const SignupForm = () => {
               type="text"
               placeholder="Address *"
               icon={MapPin}
+              variant="dark"
               error={errors.address}
               {...register('address')}
             />
@@ -121,6 +128,7 @@ const SignupForm = () => {
               type="password"
               placeholder="Password *"
               icon={Lock}
+              variant="dark"
               error={errors.password}
               {...register('password')}
             />
@@ -131,6 +139,7 @@ const SignupForm = () => {
               type="password"
               placeholder="Confirm Password *"
               icon={Lock}
+              variant="dark"
               error={errors.confirmPassword}
               {...register('confirmPassword')}
             />

@@ -1,30 +1,31 @@
 import { forwardRef, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 
-const Input = forwardRef(({ className = '', type, icon: Icon, error, options, variant = 'dark', inputSize = 'default', ...props }, ref) => {
+const Input = forwardRef(({ className = '', type, icon: Icon, error, options, variant = 'theme', inputSize = 'default', ...props }, ref) => {
   const [showPassword, setShowPassword] = useState(false)
   const isPassword = type === 'password'
   
   const inputType = isPassword ? (showPassword ? 'text' : 'password') : type
 
   const variants = {
-    dark: `bg-[#14151A] border ${error ? 'border-red-500' : 'border-[#262833]'} text-gray-100 placeholder-gray-500 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange`,
-    light: `bg-theme-surface border ${error ? 'border-red-500' : 'border-theme-border'} text-theme-main placeholder-gray-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm`
+    theme: `bg-theme-surface border ${error ? 'border-red-500' : 'border-theme-border'} text-theme-main placeholder-theme-disabled focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors shadow-sm`,
+    light: `bg-white dark:bg-zinc-900 border ${error ? 'border-red-500' : 'border-gray-200 dark:border-zinc-800'} text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm`,
+    dark: `bg-[#14151A] border ${error ? 'border-red-500' : 'border-[#262833]'} text-gray-100 placeholder-gray-500 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange`
   };
 
   const sizes = {
-    default: 'px-4 py-3.5 rounded-xl text-base',
+    default: 'px-4 py-2.5 rounded-xl text-sm',
     sm: 'px-3 py-2 rounded-lg text-sm h-[38px]'
   };
 
-  const commonClasses = `w-full focus:outline-none transition-colors ${Icon ? 'pl-11' : ''} ${isPassword ? 'pr-12' : ''} ${variants[variant] || variants.dark} ${sizes[inputSize] || sizes.default} ${className}`
+  const commonClasses = `w-full focus:outline-none transition-colors ${Icon ? 'pl-11' : ''} ${isPassword ? 'pr-12' : ''} ${variants[variant] || variants.theme} ${sizes[inputSize] || sizes.default} ${className}`
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
       <div className="relative">
         {Icon && (
           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-theme-muted pointer-events-none z-10">
-            <Icon size={20} />
+            <Icon size={18} />
           </div>
         )}
         
@@ -36,7 +37,7 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
               {...props}
             >
               {options?.map((opt) => (
-                <option key={opt.value} value={opt.value} className={variant === 'light' ? 'bg-theme-surface text-theme-main' : 'bg-[#14151A] text-gray-100'}>
+                <option key={opt.value} value={opt.value} className={variant === 'dark' ? 'bg-[#14151A] text-gray-100' : 'bg-theme-surface text-theme-main'}>
                   {opt.label}
                 </option>
               ))}
@@ -63,16 +64,17 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-theme-muted hover:text-gray-300 transition-colors focus:outline-none"
                 tabIndex="-1"
               >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             )}
           </div>
         )}
       </div>
-      {error && <span className="text-sm text-red-500 ml-1">{error.message}</span>}
+      {error && <span className="text-xs text-red-500 ml-1">{error.message}</span>}
     </div>
   )
 })
 
 Input.displayName = 'Input'
 export default Input
+

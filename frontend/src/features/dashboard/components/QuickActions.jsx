@@ -6,7 +6,7 @@ const ACTIONS = [
     title: 'Add New Case',
     description: 'Create a new legal case',
     icon: Briefcase,
-    path: '/cases/new',
+    path: '/manage-cases/add',
     iconColor: 'text-brand-orange',
     bgColor: 'bg-brand-orange/10'
   },
@@ -14,7 +14,7 @@ const ACTIONS = [
     title: 'Add Statute',
     description: 'Add a new statute or law',
     icon: Scale,
-    path: '/statutes/new',
+    path: '/manage-statutes/add',
     iconColor: 'text-brand-orange',
     bgColor: 'bg-brand-orange/10'
   },
@@ -22,7 +22,7 @@ const ACTIONS = [
     title: 'Add Notification',
     description: 'Create a new system notification',
     icon: Bell,
-    path: '/notifications/new',
+    path: '/manage-notifications/add',
     iconColor: 'text-brand-orange',
     bgColor: 'bg-brand-orange/10'
   },
@@ -48,16 +48,16 @@ const QuickActions = () => {
           <Link
             key={action.title}
             to={action.path}
-            className="flex items-center gap-4 p-4 rounded-xl border border-theme-border/50 hover:border-[#641E16]/30 hover:shadow-md transition-all group bg-theme-surface"
+            className="flex items-center gap-4 p-4 rounded-xl border border-theme-border/50 hover:border-brand-orange/40 hover:shadow-md transition-all group bg-theme-surface hover:bg-theme-surface-hover"
           >
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${action.bgColor} ${action.iconColor}`}>
               <action.icon className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col flex-1">
-              <span className="text-sm font-semibold text-theme-main group-hover:text-[#641E16] transition-colors">{action.title}</span>
+              <span className="text-sm font-semibold text-theme-main group-hover:text-brand-orange transition-colors">{action.title}</span>
               <span className="text-xs text-theme-muted">{action.description}</span>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-[#641E16] transition-colors" />
+            <ChevronRight className="w-5 h-5 text-theme-disabled group-hover:text-brand-orange transition-colors" />
           </Link>
         ))}
       </div>
@@ -66,3 +66,4 @@ const QuickActions = () => {
 };
 
 export default QuickActions;
+

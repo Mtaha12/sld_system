@@ -1,40 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Search, Plus, List, Printer } from 'lucide-react';
+import { Search, Plus, List, Printer, Hash } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 
-const ManageStatutesFilterBar = () => {
+const ManageStatutesFilterBar = ({
+  initialSearch = '',
+  onGetStatuteId,
+  onSearch,
+  onShowAll
+}) => {
+  const [subject, setSubject] = useState(initialSearch || '');
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSubject(initialSearch);
+    }
+  }, [initialSearch]);
+
+  const handleSearchSubmit = (e) => {
+    e?.preventDefault();
+    onSearch?.(subject);
+  };
+
+  const handleShowAllClick = () => {
+    setSubject('');
+    onShowAll?.();
+  };
 
   return (
     <div className="flex flex-col gap-4 mb-6 bg-transparent">
       
-      <div className="flex flex-col xl:flex-row items-center gap-3">
+      <form onSubmit={handleSearchSubmit} className="flex flex-col xl:flex-row items-center gap-3">
         
-        {/* Expanding Subject Input */}
+        {/* Search Input */}
         <div className="flex-1 w-full xl:w-auto relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-theme-disabled" />
           <input 
             type="text" 
-            placeholder="Subject" 
-            className="w-full pl-9 pr-4 py-2 bg-theme-surface border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange text-theme-main h-[42px]"
+            value={subject}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSubject(val);
+              onSearch?.(val);
+            }}
+            placeholder="Search by Statute ID, Law, Chapter, Section, Heading..." 
+            className="w-full pl-9 pr-4 py-2 bg-theme-surface border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange text-theme-main h-[42px] shadow-sm transition-colors"
           />
         </div>
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
           <Button 
+            type="submit"
             size="sm" 
-            className="bg-brand-orange hover:bg-[#D44E35] text-white border-transparent h-[42px] px-6 whitespace-nowrap"
+            className="bg-brand-orange hover:bg-[#D44E35] text-white border-transparent h-[42px] px-6 whitespace-nowrap shadow-sm"
           >
             <Search className="w-4 h-4 mr-2" /> Search
           </Button>
           
           <Button 
+            type="button"
             variant="outline"
             size="sm" 
-            className="bg-theme-surface hover:bg-theme-surface-alt text-theme-main border border-theme-border h-[42px] px-5 whitespace-nowrap"
+            onClick={handleShowAllClick}
+            className="bg-theme-surface hover:bg-theme-surface-alt text-theme-main border border-theme-border h-[42px] px-5 whitespace-nowrap shadow-sm"
           >
-            <List className="w-4 h-4" /> All
+            <List className="w-4 h-4 mr-1.5" /> All
           </Button>
 
           <Link 
@@ -45,16 +76,19 @@ const ManageStatutesFilterBar = () => {
           </Link>
 
           <Button 
+            type="button"
             variant="outline"
             size="sm" 
-            className="bg-theme-surface hover:bg-theme-surface-alt text-theme-main border border-theme-border h-[42px] px-5 whitespace-nowrap"
+            onClick={onGetStatuteId}
+            className="bg-theme-surface hover:bg-theme-surface-alt text-theme-main border border-theme-border h-[42px] px-5 whitespace-nowrap shadow-sm"
           >
-            <Printer className="w-4 h-4" /> Get Statute ID
+            <Printer className="w-4 h-4 mr-1.5" /> Get Statute ID
           </Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 };
 
 export default ManageStatutesFilterBar;
+

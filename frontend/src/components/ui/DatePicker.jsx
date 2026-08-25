@@ -126,8 +126,8 @@ const DatePicker = ({
         disabled={isFutureDate}
         className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-colors
           ${isSelected ? 'bg-brand-orange text-white font-semibold shadow-sm' : 
-            isFutureDate ? 'text-gray-300 cursor-not-allowed opacity-50' :
-            isToday ? 'bg-theme-surface-hover text-brand-orange font-semibold hover:bg-gray-200' : 
+            isFutureDate ? 'text-theme-disabled cursor-not-allowed opacity-50' :
+            isToday ? 'bg-theme-surface-hover text-brand-orange font-semibold hover:bg-theme-surface-alt' : 
             'text-theme-main hover:bg-theme-surface-hover'}`}
       >
         {i}
@@ -143,7 +143,7 @@ const DatePicker = ({
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className={`w-full pl-3 pr-9 py-2.5 border rounded-lg text-sm transition-colors flex items-center bg-theme-surface h-[42px]
-          ${isOpen ? 'border-brand-orange ring-1 ring-brand-orange' : 'border-theme-border hover:border-gray-300'}`}>
+          ${isOpen ? 'border-brand-orange ring-1 ring-brand-orange' : 'border-theme-border hover:border-theme-border-hover'}`}>
           <span className={selectedDate ? "text-theme-main" : "text-theme-disabled"}>
             {selectedDate ? formatDate(selectedDate) : placeholder}
           </span>
@@ -210,7 +210,7 @@ const DatePicker = ({
               onClick={handleNextMonth}
               disabled={isNextMonthDisabled}
               className={`p-1.5 rounded-lg transition-colors ${
-                isNextMonthDisabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'hover:bg-theme-surface-hover text-theme-muted'
+                isNextMonthDisabled ? 'text-theme-disabled cursor-not-allowed opacity-50' : 'hover:bg-theme-surface-hover text-theme-muted'
               }`}
             >
               <ChevronRight className="w-4 h-4" />
@@ -241,7 +241,7 @@ const DatePicker = ({
             </button>
             <button 
               onClick={setToday}
-              className="text-sm font-medium text-brand-orange hover:text-[#D44E35] px-2 py-1 rounded hover:bg-orange-50 transition-colors"
+              className="text-sm font-medium text-brand-orange hover:text-[#D44E35] px-2 py-1 rounded hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors"
             >
               Today
             </button>
