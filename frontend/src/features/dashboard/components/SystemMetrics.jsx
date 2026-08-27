@@ -1,27 +1,49 @@
+import { useState, useEffect } from 'react';
 import { Briefcase, Scale, FileText, Bell, Paperclip } from 'lucide-react';
-
-const METRICS = [
-  { label: 'Total Cases', value: '476,889', icon: Briefcase, color: 'text-theme-main' },
-  { label: 'Active Cases', value: '162,415', icon: Scale, color: 'text-theme-main' },
-  { label: 'Total Statutes', value: '98,765', icon: FileText, color: 'text-theme-main' },
-  { label: 'Total Notifications', value: '2,456', icon: Bell, color: 'text-theme-main' },
-  { label: 'Total Attachments', value: '156,987', icon: Paperclip, color: 'text-theme-main' },
-];
+import api from '../../../services/api.js';
 
 const SystemMetrics = () => {
+  const [metrics, setMetrics] = useState([
+    { label: 'Total Cases', value: '...', icon: Briefcase, color: 'text-theme-main' },
+    { label: 'Active Cases', value: '...', icon: Scale, color: 'text-theme-main' },
+    { label: 'Total Statutes', value: '...', icon: FileText, color: 'text-theme-main' },
+    { label: 'Total Notifications', value: '...', icon: Bell, color: 'text-theme-main' },
+    { label: 'Total Attachments', value: '...', icon: Paperclip, color: 'text-theme-main' },
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.get('/api/dashboard/metrics')
+      .then(res => {
+        if (res.data.success && isMounted) {
+          const d = res.data.data;
+          setMetrics([
+            { label: 'Total Cases', value: d.totalCases, icon: Briefcase, color: 'text-theme-main' },
+            { label: 'Active Cases', value: d.activeCases, icon: Scale, color: 'text-theme-main' },
+            { label: 'Total Statutes', value: d.totalStatutes, icon: FileText, color: 'text-theme-main' },
+            { label: 'Total Notifications', value: d.totalNotifications, icon: Bell, color: 'text-theme-main' },
+            { label: 'Total Attachments', value: d.totalAttachments, icon: Paperclip, color: 'text-theme-main' },
+          ]);
+        }
+      })
+      .catch(err => console.error('Failed to load system metrics from backend API', err));
+
+    return () => { isMounted = false; };
+  }, []);
+
   return (
     <div className="bg-theme-surface rounded-2xl border border-theme-border shadow-sm p-2 flex flex-col md:flex-row mb-8">
-      {METRICS.map((metric, index) => (
+      {metrics.map((metric, index) => (
         <div 
           key={metric.label} 
           className="flex-1 flex flex-col relative group cursor-pointer"
         >
           {/* Vertical Divider (Desktop) */}
-          {index !== METRICS.length - 1 && (
+          {index !== metrics.length - 1 && (
             <div className="hidden md:block absolute right-0 top-4 bottom-4 w-px bg-theme-surface-hover z-0"></div>
           )}
           {/* Horizontal Divider (Mobile) */}
-          {index !== METRICS.length - 1 && (
+          {index !== metrics.length - 1 && (
             <div className="md:hidden absolute bottom-0 left-4 right-4 h-px bg-theme-surface-hover z-0"></div>
           )}
 

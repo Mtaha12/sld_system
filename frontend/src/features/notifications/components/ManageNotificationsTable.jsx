@@ -91,10 +91,15 @@ const ManageNotificationsTable = ({
     navigate('/manage-notifications/add', { state: { notificationData: item, isEdit: true } });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteModalItem) return;
-    setNotifications(prev => prev.filter(n => n.id !== deleteModalItem.id));
-    setToastMessage(`Notification SR #${deleteModalItem.srNumber} deleted successfully.`);
+    try {
+      await notificationService.deleteNotification(deleteModalItem.id);
+      setNotifications(prev => prev.filter(n => n.id !== deleteModalItem.id));
+      setToastMessage(`Notification SR #${deleteModalItem.srNumber} deleted successfully.`);
+    } catch (err) {
+      setToastMessage(`Failed to delete record: ${err.message}`);
+    }
     setDeleteModalItem(null);
     setTimeout(() => setToastMessage(''), 3500);
   };

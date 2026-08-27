@@ -138,17 +138,34 @@ export const googleAuthService = {
 
     // 2. If VITE_GOOGLE_CLIENT_ID is not yet configured (e.g. local dev / pending GCP project setup),
     // provide an authentic client-side OIDC simulation flow so developers and QA can test the exact flow.
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      const email = window.prompt("Google Account Simulation:\nEnter the Gmail address you want to sign in/up with:", "your_email@gmail.com");
+      if (!email) {
+        reject(new Error("Google authentication was cancelled by the user."));
+        return;
+      }
+      
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        alert("Invalid email format. Google sign-in failed.");
+        reject(new Error("Invalid email format."));
+        return;
+      }
+
       setTimeout(() => {
+        const selectedEmail = email.trim().toLowerCase();
+        const defaultName = selectedEmail.split('@')[0];
+        const fullName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
+
         const simulatedPayload = {
           provider: 'google',
           mode,
           credential: 'mock_google_id_token_' + Math.random().toString(36).substring(2, 15),
           profile: {
-            email: 'advocate.demo@gmail.com',
-            name: 'Advocate Demo User',
-            givenName: 'Advocate',
-            familyName: 'Demo User',
+            email: selectedEmail,
+            name: fullName + ' (Google)',
+            givenName: fullName,
+            familyName: '(Google)',
             picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
             emailVerified: true
           },
@@ -157,7 +174,7 @@ export const googleAuthService = {
         };
 
         resolve(simulatedPayload);
-      }, 1200);
+      }, 800);
     });
   }
 };

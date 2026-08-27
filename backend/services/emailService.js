@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 /**
  * Creates and configures the Nodemailer SMTP Transporter

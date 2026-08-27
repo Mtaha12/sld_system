@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import api from '../services/api.js';
 
 export const DEFAULT_AVATAR = 'https://i.pravatar.cc/150?u=a042581f4e29026704d';
 
@@ -29,8 +30,7 @@ export const UserProvider = ({ children }) => {
     try {
       const stored = localStorage.getItem('sld_user_profile');
       if (stored) {
-        const parsed = JSON.parse(stored);
-        return { ...DEFAULT_USER, ...parsed };
+        return JSON.parse(stored);
       }
     } catch (e) {
       console.error('Failed to load user profile from storage', e);
@@ -38,17 +38,14 @@ export const UserProvider = ({ children }) => {
     return DEFAULT_USER;
   });
 
-  const loginUser = (credentials) => {
+  const loginUser = (userProfile) => {
     setIsAuthenticated(true);
-    if (credentials?.username || credentials?.fullName) {
-      setUser(prev => ({
-        ...prev,
-        fullName: credentials.fullName || prev.fullName,
-        username: credentials.username || prev.username,
-      }));
+    if (userProfile) {
+      setUser(userProfile);
     }
     try {
       localStorage.setItem('sld_auth_session', 'true');
+      localStorage.setItem('sld_user_profile', JSON.stringify(userProfile));
     } catch (e) {
       console.error('Failed to persist auth session', e);
     }
@@ -63,32 +60,43 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  const updateAvatar = (newAvatarUrl) => {
-    setUser(prev => {
-      const updated = { ...prev, avatarUrl: newAvatarUrl || DEFAULT_AVATAR };
-      try {
+  const updateAvatar = async (newAvatarUrl) => {
+    try {
+      setUser(prev => {
+        const updated = { ...prev, avatarUrl: newAvatarUrl || DEFAULT_AVATAR };
         localStorage.setItem('sld_user_profile', JSON.stringify(updated));
-      } catch (e) {
-        console.error('Failed to persist avatar', e);
-      }
-      return updated;
-    });
+        return updated;
+      });
+      await api.put('/api/auth/avatar', { avatar: newAvatarUrl || '' });
+    } catch (e) {
+      console.error('Failed to persist avatar to database', e);
+    }
   };
 
-  const updateProfile = (updatedFields) => {
-    setUser(prev => {
-      const updated = { ...prev, ...updatedFields };
-      try {
+  const updateProfile = async (updatedFields) => {
+    try {
+      setUser(prev => {
+        const updated = { ...prev, ...updatedFields };
         localStorage.setItem('sld_user_profile', JSON.stringify(updated));
-      } catch (e) {
-        console.error('Failed to persist profile', e);
-      }
-      return updated;
-    });
+        return updated;
+      });
+      await api.put('/api/auth/profile', updatedFields);
+    } catch (e) {
+      console.error('Failed to persist profile updates to database', e);
+    }
   };
 
-  const resetAvatar = () => {
-    updateAvatar(DEFAULT_AVATAR);
+  const resetAvatar = async () => {
+    try {
+      setUser(prev => {
+        const updated = { ...prev, avatarUrl: DEFAULT_AVATAR };
+        localStorage.setItem('sld_user_profile', JSON.stringify(updated));
+        return updated;
+      });
+      await api.delete('/api/auth/avatar');
+    } catch (e) {
+      console.error('Failed to reset avatar in database', e);
+    }
   };
 
   return (

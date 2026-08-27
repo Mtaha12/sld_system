@@ -33,7 +33,19 @@ const SignupForm = () => {
       }
     } catch (error) {
       console.error('Signup failed', error)
-      setError('root', { message: 'Signup failed. Please try again.' })
+      const apiErrors = error.response?.data?.errors;
+      if (apiErrors && Array.isArray(apiErrors)) {
+        apiErrors.forEach(err => {
+          if (err.field && err.field !== 'all') {
+            setError(err.field, { message: err.message });
+          } else {
+            setError('root', { message: err.message || 'Signup failed.' });
+          }
+        });
+      } else {
+        const errMsg = error.response?.data?.message || 'Signup failed. Please try again.';
+        setError('root', { message: errMsg });
+      }
     }
   }
 

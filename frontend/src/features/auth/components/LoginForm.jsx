@@ -29,26 +29,34 @@ const LoginForm = () => {
 
   const onSubmit = async (data) => {
     try {
-      await authService.login(data)
-      if (data.identifier === 'admin' && data.password === 'admin123') {
-        loginUser({ username: data.identifier })
-        const destination = location.state?.from?.pathname || '/dashboard'
-        navigate(destination, { replace: true })
+      const response = await authService.login(data);
+      if (response.success && response.user) {
+        loginUser(response.user);
+        const destination = location.state?.from?.pathname || '/dashboard';
+        navigate(destination, { replace: true });
       } else {
-        setError('root', { message: 'Invalid credentials. Try admin / admin123' })
+        setError('root', { message: response.message || 'Invalid credentials.' });
       }
     } catch (error) {
-      console.error('Login failed', error)
-      setError('root', { message: 'Login failed. Please try again.' })
+      console.error('Login failed', error);
+      setError('root', { message: error.message || 'Login failed. Please check your credentials.' });
     }
-  }
+  };
 
   const handleGoogleSuccess = (authResult) => {
     clearErrors('root')
+    if (authResult?.requiresVerification) {
+      setGoogleStatus(`Account authorized. Redirecting to email verification...`)
+      setTimeout(() => {
+        navigate('/verify-email', { state: { email: authResult.user.email } })
+      }, 1000)
+      return;
+    }
+
     if (authResult?.user) {
       setGoogleStatus(`Authenticated as ${authResult.user.fullName} (${authResult.user.email}). Exchanging session...`)
       setTimeout(() => {
-        loginUser({ username: authResult.user.username, fullName: authResult.user.fullName })
+        loginUser(authResult.user)
         const destination = location.state?.from?.pathname || '/dashboard'
         navigate(destination, { replace: true })
       }, 1000)

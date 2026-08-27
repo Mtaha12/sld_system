@@ -1,14 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import GlobalSearch from '../features/dashboard/components/GlobalSearch';
 import SystemMetrics from '../features/dashboard/components/SystemMetrics';
 import RecentActivity, { ACTIVITIES } from '../features/dashboard/components/RecentActivity';
 import QuickActions from '../features/dashboard/components/QuickActions';
 import AtAGlance from '../features/dashboard/components/AtAGlance';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
+import api from '../services/api.js';
+import { Briefcase, Edit, FileText, Bell } from 'lucide-react';
 
 const DashboardPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activities, setActivities] = useState([]);
   const [filters, setFilters] = useState({
     recordType: 'all',
     court: 'all',
@@ -16,6 +19,39 @@ const DashboardPage = () => {
     status: 'all',
     hasAttachment: false
   });
+
+  useEffect(() => {
+    let isMounted = true;
+    api.get('/api/dashboard/activities')
+      .then(res => {
+        if (res.data.success && isMounted) {
+          const formatted = res.data.data.map(item => {
+            let icon = Briefcase;
+            let iconColor = 'text-brand-orange';
+            if (item.type === 'case') {
+              icon = item.action.toLowerCase().includes('updated') ? Edit : Briefcase;
+            } else if (item.type === 'statute') {
+              icon = FileText;
+            } else if (item.type === 'notification') {
+              icon = Bell;
+            }
+            return {
+              ...item,
+              icon,
+              iconColor,
+              bgColor: 'bg-brand-orange/10'
+            };
+          });
+          setActivities(formatted);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load dashboard activities', err);
+        if (isMounted) setActivities(ACTIVITIES);
+      });
+
+    return () => { isMounted = false; };
+  }, []);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -28,7 +64,7 @@ const DashboardPage = () => {
   }, [filters]);
 
   const filteredActivities = useMemo(() => {
-    return ACTIVITIES.filter(item => {
+    return activities.filter(item => {
       // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -68,7 +104,7 @@ const DashboardPage = () => {
 
       return true;
     });
-  }, [searchQuery, filters]);
+  }, [searchQuery, filters, activities]);
 
   const handleResetFilters = () => {
     setSearchQuery('');

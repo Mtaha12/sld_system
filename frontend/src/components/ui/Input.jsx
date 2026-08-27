@@ -36,11 +36,18 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
               ref={ref}
               {...props}
             >
-              {options?.map((opt) => (
-                <option key={opt.value} value={opt.value} className={variant === 'dark' ? 'bg-[#14151A] text-gray-100' : 'bg-theme-surface text-theme-main'}>
-                  {opt.label}
-                </option>
-              ))}
+              {options?.map((opt) => {
+                const optClass = variant === 'dark'
+                  ? 'bg-[#14151A] text-gray-100'
+                  : variant === 'light'
+                  ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100'
+                  : 'bg-theme-surface text-theme-main';
+                return (
+                  <option key={opt.value} value={opt.value} className={optClass}>
+                    {opt.label}
+                  </option>
+                );
+              })}
             </select>
             {/* Custom dropdown arrow */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-theme-muted">

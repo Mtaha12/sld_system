@@ -1,94 +1,118 @@
+import api from '../../../services/api.js';
+
 export const authService = {
+  /**
+   * Performs standard username/email login
+   * @param {Object} credentials { identifier, password }
+   * @returns {Promise<Object>}
+   */
   login: async (credentials) => {
-    // Mock API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true, user: { username: credentials?.username || 'admin' } })
-      }, 1500)
-    })
-  },
-
-  signup: async (userData) => {
-    // Mock API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true, email: userData.email })
-      }, 1500)
-    })
-  },
-
-  verifyEmail: async (code) => {
-    // Mock API delay
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        if (code === '123456') {
-          resolve({ success: true })
-        } else {
-          resolve({ success: false, error: 'Invalid verification code' })
-        }
-      }, 800)
-    })
-  },
-
-  resendVerificationCode: async (email) => {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ success: true, email }), 500)
-    })
-  },
-
-  forgotPassword: async (data) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true, email: data?.email })
-      }, 1500)
-    })
+    const response = await api.post('/api/auth/login', credentials);
+    if (response.data.success && response.data.accessToken) {
+      localStorage.setItem('sld_access_token', response.data.accessToken);
+      localStorage.setItem('sld_refresh_token', response.data.refreshToken);
+      localStorage.setItem('sld_auth_session', 'true');
+      localStorage.setItem('sld_user_profile', JSON.stringify(response.data.user));
+    }
+    return response.data;
   },
 
   /**
-   * Dedicated backend integration point for Google Login.
-   * When the backend OAuth endpoint is ready, this will dispatch POST /api/auth/google/login.
-   * @param {Object} googlePayload - Standardized credential payload from googleAuthService
+   * Registers a new administrator account
+   * @param {Object} userData { fullName, username, email, password }
+   * @returns {Promise<Object>}
+   */
+  signup: async (userData) => {
+    const response = await api.post('/api/auth/signup', userData);
+    if (response.data.success) {
+      // Store email temporarily to bypass missing input parameters on verify code step
+      localStorage.setItem('sld_pending_email', userData.email);
+      if (response.data.data && response.data.data.otpCode) {
+        console.log(
+          '%c[SLD Portal OTP Code]: ' + response.data.data.otpCode + ' (Simulation Mode)',
+          'color: #e55c41; font-weight: bold; font-size: 16px; background-color: #14151a; padding: 6px 12px; border-radius: 4px; border: 1px solid #e55c41;'
+        );
+      }
+    }
+    return response.data;
+  },
+
+  /**
+   * Verifies the email address using the received 6-digit OTP code
+   * @param {string} code 
+   * @returns {Promise<Object>}
+   */
+  verifyEmail: async (code) => {
+    const email = localStorage.getItem('sld_pending_email') || '';
+    const response = await api.post('/api/auth/verify-email', { code, email });
+    if (response.data.success) {
+      localStorage.removeItem('sld_pending_email');
+    }
+    return response.data;
+  },
+
+  /**
+   * Resends verification OTP code to the email address
+   * @param {string} email 
+   * @returns {Promise<Object>}
+   */
+  resendVerificationCode: async (email) => {
+    const response = await api.post('/api/auth/resend-code', { email });
+    if (response.data.success && response.data.data && response.data.data.otpCode) {
+      console.log(
+        '%c[SLD Portal Resent OTP Code]: ' + response.data.data.otpCode + ' (Simulation Mode)',
+        'color: #e55c41; font-weight: bold; font-size: 16px; background-color: #14151a; padding: 6px 12px; border-radius: 4px; border: 1px solid #e55c41;'
+      );
+    }
+    return response.data;
+  },
+
+  /**
+   * Starts password reset flow
+   * @param {Object} data { identifier }
+   * @returns {Promise<Object>}
+   */
+  forgotPassword: async (data) => {
+    const response = await api.post('/api/auth/forgot-password', data);
+    if (response.data.success && response.data.data && response.data.data.otpCode) {
+      console.log(
+        '%c[SLD Portal Password Reset Code]: ' + response.data.data.otpCode + ' (Simulation Mode)',
+        'color: #e55c41; font-weight: bold; font-size: 16px; background-color: #14151a; padding: 6px 12px; border-radius: 4px; border: 1px solid #e55c41;'
+      );
+    }
+    return response.data;
+  },
+
+  /**
+   * Exchanges Google GIS credentials with backend JWT session tokens
+   * @param {Object} googlePayload GIS payload
+   * @returns {Promise<Object>}
    */
   loginWithGoogle: async (googlePayload) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          success: true,
-          provider: 'google',
-          mode: 'login',
-          payload: googlePayload,
-          user: {
-            email: googlePayload.profile?.email || 'google.user@example.com',
-            fullName: googlePayload.profile?.name || 'Google User',
-            username: googlePayload.profile?.email?.split('@')[0] || 'google_user'
-          },
-          message: 'Google authorization received. Ready for backend session exchange.'
-        });
-      }, 800);
+    const response = await api.post('/api/auth/google/login', { 
+      profile: googlePayload.profile || {
+        email: 'advocate.demo@gmail.com',
+        name: 'Advocate Demo User',
+        picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+      },
+      isSimulated: Boolean(googlePayload.isSimulated)
     });
+
+    if (response.data.success && response.data.accessToken) {
+      localStorage.setItem('sld_access_token', response.data.accessToken);
+      localStorage.setItem('sld_refresh_token', response.data.refreshToken);
+      localStorage.setItem('sld_auth_session', 'true');
+      localStorage.setItem('sld_user_profile', JSON.stringify(response.data.user));
+    }
+    return response.data;
   },
 
   /**
-   * Dedicated backend integration point for Google Sign Up.
-   * When the backend OAuth endpoint is ready, this will dispatch POST /api/auth/google/signup.
-   * @param {Object} googlePayload - Standardized credential payload from googleAuthService
+   * Handles Google account registrations (delegated to googleLogin)
+   * @param {Object} googlePayload 
+   * @returns {Promise<Object>}
    */
   signupWithGoogle: async (googlePayload) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          success: true,
-          provider: 'google',
-          mode: 'signup',
-          payload: googlePayload,
-          user: {
-            email: googlePayload.profile?.email || 'google.user@example.com',
-            fullName: googlePayload.profile?.name || 'Google User',
-            username: googlePayload.profile?.email?.split('@')[0] || 'google_user'
-          },
-          message: 'Google registration received. Ready for backend account creation.'
-        });
-      }, 800);
-    });
+    return authService.loginWithGoogle(googlePayload);
   },
-}
+};

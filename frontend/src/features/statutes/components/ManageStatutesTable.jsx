@@ -104,10 +104,15 @@ const ManageStatutesTable = ({
     navigate('/manage-statutes/add', { state: { statuteData: row, isEdit: true } });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteModalItem) return;
-    setStatutes(prev => prev.filter(s => s.id !== deleteModalItem.id));
-    setToastMessage(`Statute #${deleteModalItem.id} (${deleteModalItem.law}) deleted successfully.`);
+    try {
+      await statuteService.deleteStatute(deleteModalItem.id);
+      setStatutes(prev => prev.filter(s => s.id !== deleteModalItem.id));
+      setToastMessage(`Statute #${deleteModalItem.id} (${deleteModalItem.law}) deleted successfully.`);
+    } catch (err) {
+      setToastMessage(`Failed to delete record: ${err.message}`);
+    }
     setDeleteModalItem(null);
     setTimeout(() => setToastMessage(''), 3500);
   };

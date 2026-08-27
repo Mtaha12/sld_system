@@ -24,6 +24,194 @@ import { caseService } from '../features/cases/services/caseService';
 // Helper function to generate and download file bundles
 const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '') => {
   const count = caseItems.length;
+
+  if (format === 'pdf') {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Popup blocker blocked case export. Please enable popups.');
+      return;
+    }
+
+    let html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SLD System Law Reports Export</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1f2937;
+      padding: 40px;
+      line-height: 1.6;
+    }
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #e55c41;
+      padding-bottom: 16px;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      margin: 0;
+      color: #0b0c10;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .header p {
+      margin: 4px 0 0 0;
+      color: #4b5563;
+      font-size: 13px;
+    }
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+    .meta-table td {
+      padding: 10px 14px;
+      border: 1px solid #e5e7eb;
+      font-size: 13px;
+      vertical-align: top;
+    }
+    .meta-table td.label {
+      font-weight: 600;
+      background-color: #f9fafb;
+      width: 130px;
+      color: #4b5563;
+    }
+    .case-card {
+      page-break-after: always;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 30px;
+      background-color: #ffffff;
+    }
+    .case-card:last-child {
+      page-break-after: avoid;
+    }
+    .case-title {
+      color: #e55c41;
+      font-size: 16px;
+      font-weight: bold;
+      border-bottom: 1px solid #f3f4f6;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .detail-section {
+      margin-bottom: 20px;
+      background: #fafafa;
+      padding: 16px;
+      border-radius: 6px;
+      border-left: 4px solid #e55c41;
+    }
+    .section-label {
+      font-size: 11px;
+      color: #e55c41;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+    .section-value {
+      font-size: 13px;
+      white-space: pre-wrap;
+      color: #1f2937;
+    }
+    .section-value.bold {
+      font-weight: 700;
+      font-size: 14px;
+    }
+    @media print {
+      body {
+        padding: 0;
+      }
+      .case-card {
+        border: none;
+        padding: 0;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>SLD SYSTEM - LAW REPORTS EXPORT</h1>
+    <p>Supreme Court & High Court Law Reports Portal</p>
+    ${customTitle ? `<p style="font-weight: 600; color: #e55c41; margin-top: 6px; font-size: 14px;">${customTitle}</p>` : ''}
+    <p style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Generated Date: ${new Date().toLocaleString()}</p>
+  </div>
+  `;
+
+    caseItems.forEach((c, idx) => {
+      html += `
+      <div class="case-card">
+        <div class="case-title">
+          <span>CASE #${idx + 1} • SLD #${c.sldNumber || 'N/A'}</span>
+          <span style="font-size: 13px; color: #4b5563; font-weight: 500;">Dated: ${c.dated || 'N/A'}</span>
+        </div>
+        
+        <table class="meta-table">
+          <tr>
+            <td class="label">Court</td>
+            <td><strong>${c.court || 'N/A'}</strong></td>
+            <td class="label">Status</td>
+            <td><span style="color: #16a34a; font-weight: 600;">${c.status || 'Active'}</span></td>
+          </tr>
+          <tr>
+            <td class="label">Case Number</td>
+            <td>${Array.isArray(c.caseNumber) ? c.caseNumber.join(' ') : c.caseNumber || 'N/A'}</td>
+            <td class="label">Judges Bench</td>
+            <td>${Array.isArray(c.judges) ? c.judges.join(', ') : c.judges || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td class="label">Petitioners</td>
+            <td>${Array.isArray(c.petitioners) ? c.petitioners.join(', ') : c.petitioners || 'N/A'}</td>
+            <td class="label">Lawyers</td>
+            <td>${Array.isArray(c.lawyers) ? c.lawyers.join(', ') : c.lawyers || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td class="label">Citations</td>
+            <td colspan="3">${Array.isArray(c.mapYearPage) ? c.mapYearPage.join(' | ') : c.mapYearPage || 'N/A'}</td>
+          </tr>
+        </table>
+
+        <div class="detail-section">
+          <div class="section-label">Head Note / Principle Law</div>
+          <div class="section-value bold">${c.headNote || 'N/A'}</div>
+        </div>
+
+        <div class="detail-section">
+          <div class="section-label">References / Citations</div>
+          <div class="section-value">${c.references || 'N/A'}</div>
+        </div>
+
+        <div class="detail-section" style="border-left-color: #4b5563;">
+          <div class="section-label" style="color: #4b5563;">Judgment Order Details</div>
+          <div class="section-value">${c.judgment || 'N/A'}</div>
+        </div>
+      </div>
+      `;
+    });
+
+    html += `
+  <script>
+    window.onload = function() {
+      window.print();
+      setTimeout(function() { window.close(); }, 500);
+    };
+  </script>
+</body>
+</html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    return;
+  }
+
   const extension = format === 'word' ? 'doc' : format === 'excel' ? 'csv' : 'txt';
   const fileName = count === 1 
     ? `SLD_Case_${caseItems[0].sldNumber || caseItems[0].id}.${extension}`
@@ -265,7 +453,10 @@ const ManageCasesPage = () => {
       }
 
       const target = cases[foundIndex];
-      const caseNumbers = Array.isArray(target.caseNumber) ? target.caseNumber.join(', ') : (target.caseNumber || 'N/A');
+      const rawCaseNum = target.caseNumber;
+      const caseNumbers = Array.isArray(rawCaseNum)
+        ? rawCaseNum.map(n => n.split(',')[0].trim()).join(', ')
+        : (rawCaseNum || 'N/A').split(',')[0].trim();
       const targetPage = Math.floor(foundIndex / 10) + 1;
 
       setCaseIdResult({

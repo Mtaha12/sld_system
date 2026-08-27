@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send } from 'lucide-react';
+import api from '../../services/api.js';
 
 const ChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [chatHistory, setChatHistory] = useState([
     { sender: 'system', text: 'Hello! How can I help you today?' }
   ]);
@@ -17,19 +19,31 @@ const ChatWidget = () => {
     if (isOpen) {
       scrollToBottom();
     }
-  }, [isOpen, chatHistory]);
+  }, [isOpen, chatHistory, isTyping]);
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    const userMsg = message.trim();
+    if (!userMsg) return;
     
-    setChatHistory([...chatHistory, { sender: 'user', text: message }]);
+    setChatHistory(prev => [...prev, { sender: 'user', text: userMsg }]);
     setMessage('');
+    setIsTyping(true);
     
-    // Simulate auto-reply
-    setTimeout(() => {
-      setChatHistory(prev => [...prev, { sender: 'system', text: 'Thank you for reaching out! Our support team will get back to you shortly.' }]);
-    }, 1000);
+    try {
+      const response = await api.post('/api/chat', { message: userMsg });
+      if (response.data.success && response.data.reply) {
+        setChatHistory(prev => [...prev, { sender: 'system', text: response.data.reply }]);
+      } else {
+        setChatHistory(prev => [...prev, { sender: 'system', text: 'Sorry, I encountered an issue processing your request.' }]);
+      }
+    } catch (err) {
+      console.error('[Chatbot Error]', err);
+      const errMsg = err.response?.data?.message || err.message || 'Connection lost. Please try again.';
+      setChatHistory(prev => [...prev, { sender: 'system', text: `Error: ${errMsg}` }]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   return (
@@ -88,6 +102,15 @@ const ChatWidget = () => {
                 </span>
               </div>
             ))}
+            {isTyping && (
+              <div className="flex flex-col max-w-[85%] self-start items-start">
+                <div className="px-4 py-2.5 text-sm bg-theme-surface text-theme-muted border border-theme-border shadow-sm rounded-2xl rounded-tl-sm flex items-center gap-1.5 h-[38px]">
+                  <span className="w-1.5 h-1.5 bg-brand-orange rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-brand-orange rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-brand-orange rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 

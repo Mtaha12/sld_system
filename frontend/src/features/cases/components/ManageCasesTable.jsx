@@ -122,17 +122,23 @@ const ManageCasesTable = ({
     navigate('/manage-cases/add', { state: { caseData: item, isEdit: true } });
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteModalCase) return;
     
-    if (deleteModalCase.isBulk) {
-      setCases(prev => prev.filter(c => !selectedIds.includes(c.id)));
-      setToastMessage(`${deleteModalCase.count} cases deleted successfully.`);
-      setSelectedIds([]);
-    } else {
-      setCases(prev => prev.filter(c => c.id !== deleteModalCase.id));
-      setSelectedIds(prev => prev.filter(id => id !== deleteModalCase.id));
-      setToastMessage(`Case SLD #${deleteModalCase.sldNumber} deleted successfully.`);
+    try {
+      if (deleteModalCase.isBulk) {
+        await caseService.deleteCases(selectedIds);
+        setCases(prev => prev.filter(c => !selectedIds.includes(c.id)));
+        setToastMessage(`${deleteModalCase.count} cases deleted successfully.`);
+        setSelectedIds([]);
+      } else {
+        await caseService.deleteCase(deleteModalCase.id);
+        setCases(prev => prev.filter(c => c.id !== deleteModalCase.id));
+        setSelectedIds(prev => prev.filter(id => id !== deleteModalCase.id));
+        setToastMessage(`Case SLD #${deleteModalCase.sldNumber} deleted successfully.`);
+      }
+    } catch (err) {
+      setToastMessage(`Failed to delete records: ${err.message}`);
     }
     
     setDeleteModalCase(null);
