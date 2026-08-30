@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import autoUniqueIdPlugin from '../utils/autoUniqueIdPlugin.js';
 
 const statuteBlockSchema = new mongoose.Schema({
   sectionHeading: { type: String, default: '' },
@@ -9,10 +10,23 @@ const statuteBlockSchema = new mongoose.Schema({
 });
 
 const statuteSchema = new mongoose.Schema({
+  statuteId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true,
+  },
+  statute_id: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true,
+  },
   srNumber: {
     type: String,
-    required: [true, 'Statute SR # is required'],
-    unique: true,
+    required: false,
     trim: true,
     index: true,
   },
@@ -66,8 +80,25 @@ const statuteSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Apply auto unique ID plugin
+statuteSchema.plugin(autoUniqueIdPlugin, {
+  entityName: 'statute',
+  prefix: 'STAT',
+  field: 'statuteId',
+  aliases: ['statute_id']
+});
+
+// Fallback srNumber to statuteId if not manually provided
+statuteSchema.pre('save', async function () {
+  if (!this.srNumber) {
+    this.srNumber = this.statuteId;
+  }
+});
+
 // Indexes for text search queries
 statuteSchema.index({
+  statuteId: 'text',
+  statute_id: 'text',
   srNumber: 'text',
   law: 'text',
   chapter: 'text',

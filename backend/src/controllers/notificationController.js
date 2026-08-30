@@ -22,9 +22,11 @@ const formatNotificationForFrontend = (n) => {
   }
 
   return {
-    id: n.srNumber, // Frontend looks up by id, which maps to srNumber
+    id: n.srNumber || n.notificationId || n._id.toString(), // Frontend looks up by id, which maps to srNumber or notificationId
     mongoId: n._id.toString(),
-    srNumber: n.srNumber,
+    notificationId: n.notificationId || n.notification_id || '',
+    notification_id: n.notification_id || n.notificationId || '',
+    srNumber: n.srNumber || n.notificationId || '',
     number: n.number || '',
     year: n.year || new Date().getFullYear(),
     department: n.department || 'Notifications',
@@ -52,6 +54,8 @@ export const getNotifications = async (req, res, next) => {
       const q = query.trim();
       const searchRegex = new RegExp(q, 'i');
       filter.$or = [
+        { notificationId: searchRegex },
+        { notification_id: searchRegex },
         { srNumber: searchRegex },
         { number: searchRegex },
         { sroNumber: searchRegex },
@@ -63,7 +67,7 @@ export const getNotifications = async (req, res, next) => {
       ];
     }
 
-    const notifications = await Notification.find(filter).sort({ srNumber: -1 });
+    const notifications = await Notification.find(filter).sort({ createdAt: -1, srNumber: -1 });
     const data = notifications.map(formatNotificationForFrontend);
 
     return res.status(200).json({
@@ -80,9 +84,11 @@ export const getNotificationById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Search by client ID (srNumber) or Mongoose ID
+    // Search by client ID (srNumber), notificationId, or Mongoose ID
     const query = {
       $or: [
+        { notificationId: id },
+        { notification_id: id },
         { srNumber: id },
         ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
       ],
@@ -100,9 +106,7 @@ export const getNotificationById = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        id: n._id.toString()
-      }
+      data: formatNotificationForFrontend(n)
     });
   } catch (error) {
     next(error);
@@ -116,23 +120,18 @@ export const createNotification = async (req, res, next) => {
       sroNumber, subject, status, lawStatute, section, blocks 
     } = req.body;
 
-    if (!srNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'SR # (srNumber) is required.'
-      });
-    }
-
-    const exist = await Notification.findOne({ srNumber });
-    if (exist) {
-      return res.status(400).json({
-        success: false,
-        message: `Notification with SR #${srNumber} already exists.`
-      });
+    if (srNumber && typeof srNumber === 'string' && srNumber.trim().length > 0) {
+      const exist = await Notification.findOne({ srNumber: srNumber.trim() });
+      if (exist) {
+        return res.status(400).json({
+          success: false,
+          message: `Notification with SR #${srNumber} already exists.`
+        });
+      }
     }
 
     const newNotif = new Notification({
-      srNumber,
+      srNumber: srNumber ? srNumber.trim() : undefined,
       department: department || 'Notifications',
       subDepartment: subDepartment || 'federal',
       year: year ? parseInt(year, 10) : new Date().getFullYear(),
@@ -146,7 +145,14 @@ export const createNotification = async (req, res, next) => {
     });
 
     await newNotif.save();
-    logger.info(`[Notification Created] SR #${newNotif.srNumber} added.`);
+
+    // If srNumber was omitted, sync to generated notificationId
+    if (!newNotif.srNumber) {
+      newNotif.srNumber = newNotif.notificationId;
+      await newNotif.save();
+    }
+
+    logger.info(`[Notification Created] Notification ID ${newNotif.notificationId} (SR #${newNotif.srNumber}) added.`);
 
     return res.status(201).json({
       success: true,
@@ -162,19 +168,22 @@ export const updateNotification = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid notification ID format. Modifications require a valid Mongoose ID.'
-      });
-    }
+    const query = {
+      $or: [
+        { notificationId: id },
+        { notification_id: id },
+        { srNumber: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ],
+      isDeleted: { $ne: true }
+    };
 
     const { 
       srNumber, department, subDepartment, year, number, 
       sroNumber, subject, status, lawStatute, section, blocks 
     } = req.body;
 
-    const n = await Notification.findById(id);
+    const n = await Notification.findOne(query);
     if (!n) {
       return res.status(404).json({
         success: false,
@@ -183,7 +192,7 @@ export const updateNotification = async (req, res, next) => {
     }
 
     if (srNumber && srNumber !== n.srNumber) {
-      const exist = await Notification.findOne({ srNumber });
+      const exist = await Notification.findOne({ srNumber, _id: { $ne: n._id } });
       if (exist) {
         return res.status(400).json({
           success: false,
@@ -221,14 +230,17 @@ export const deleteNotification = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid notification ID format. Deletion requires a valid Mongoose ID.'
-      });
-    }
+    const query = {
+      $or: [
+        { notificationId: id },
+        { notification_id: id },
+        { srNumber: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ],
+      isDeleted: { $ne: true }
+    };
 
-    const n = await Notification.findById(id);
+    const n = await Notification.findOne(query);
     if (!n) {
       return res.status(404).json({
         success: false,
@@ -240,12 +252,12 @@ export const deleteNotification = async (req, res, next) => {
     n.deletedAt = new Date();
     await n.save();
 
-    logger.info(`[Notification Deleted] SR #${n.srNumber} soft-deleted.`);
+    logger.info(`[Notification Deleted] ID ${n.notificationId || n.srNumber} soft-deleted.`);
 
     return res.status(200).json({
       success: true,
       message: `Notification deleted successfully.`,
-      id
+      id: n._id
     });
   } catch (error) {
     next(error);

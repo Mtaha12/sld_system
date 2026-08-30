@@ -12,6 +12,7 @@ const DashboardPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activities, setActivities] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
     recordType: 'all',
     court: 'all',
@@ -22,6 +23,7 @@ const DashboardPage = () => {
 
   useEffect(() => {
     let isMounted = true;
+    setIsLoading(true);
     api.get('/api/dashboard/activities')
       .then(res => {
         if (res.data.success && isMounted) {
@@ -48,6 +50,9 @@ const DashboardPage = () => {
       .catch(err => {
         console.error('Failed to load dashboard activities', err);
         if (isMounted) setActivities(ACTIVITIES);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
       });
 
     return () => { isMounted = false; };
@@ -140,6 +145,7 @@ const DashboardPage = () => {
             activeFiltersCount={activeFiltersCount}
             searchQuery={searchQuery}
             onResetFilters={handleResetFilters}
+            isLoading={isLoading}
           />
         </div>
         

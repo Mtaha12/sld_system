@@ -1,4 +1,4 @@
-﻿import * as z from 'zod';
+import * as z from 'zod';
 
 export const notificationBlockSchema = z.object({
   id: z.any().optional(),
@@ -8,7 +8,7 @@ export const notificationBlockSchema = z.object({
 });
 
 export const notificationSchema = z.object({
-  srNumber: z.string().min(1, 'SR # is required'),
+  srNumber: z.string().optional().default(''),
   department: z.string().min(1, 'Department is required').default('notifications'),
   subDepartment: z.string().min(1, 'Sub Department is required').default('federal'),
   year: z.string().min(1, 'Year is required'),

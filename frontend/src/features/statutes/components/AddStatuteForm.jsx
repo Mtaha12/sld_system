@@ -23,7 +23,7 @@ const AddStatuteForm = () => {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const defaultValues = {
-    srNumber: editData?.id || '9339',
+    srNumber: editData?.srNumber || editData?.id || '',
     department: editData?.department?.toLowerCase() || 'tax',
     chapter: editData?.chapter || '',
     display: editData?.display?.toLowerCase() === 'no' ? 'no' : 'yes',

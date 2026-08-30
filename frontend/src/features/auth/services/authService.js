@@ -68,7 +68,7 @@ export const authService = {
   },
 
   /**
-   * Starts password reset flow
+   * Starts password reset flow (requests OTP)
    * @param {Object} data { identifier }
    * @returns {Promise<Object>}
    */
@@ -80,6 +80,26 @@ export const authService = {
         'color: #e55c41; font-weight: bold; font-size: 16px; background-color: #14151a; padding: 6px 12px; border-radius: 4px; border: 1px solid #e55c41;'
       );
     }
+    return response.data;
+  },
+
+  /**
+   * Verifies the password reset OTP code
+   * @param {Object} data { email, otp }
+   * @returns {Promise<Object>}
+   */
+  verifyResetOtp: async (data) => {
+    const response = await api.post('/api/auth/verify-reset-otp', data);
+    return response.data;
+  },
+
+  /**
+   * Resets the user password after OTP verification
+   * @param {Object} data { email, token, newPassword, confirmPassword }
+   * @returns {Promise<Object>}
+   */
+  resetPassword: async (data) => {
+    const response = await api.post('/api/auth/reset-password', data);
     return response.data;
   },
 

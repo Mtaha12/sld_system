@@ -1,4 +1,4 @@
-﻿import * as z from 'zod';
+import * as z from 'zod';
 
 export const statuteBlockSchema = z.object({
   id: z.any().optional(),
@@ -10,7 +10,7 @@ export const statuteBlockSchema = z.object({
 });
 
 export const statuteSchema = z.object({
-  srNumber: z.string().min(1, 'SR # is required'),
+  srNumber: z.string().optional().default(''),
   department: z.string().optional().default('tax'),
   chapter: z.string().optional().default(''),
   display: z.string().min(1, 'Display selection is required').default('yes'),

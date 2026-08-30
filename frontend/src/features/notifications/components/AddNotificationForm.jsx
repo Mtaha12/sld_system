@@ -23,7 +23,7 @@ const AddNotificationForm = () => {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const defaultValues = {
-    srNumber: editData?.srNumber || '11675',
+    srNumber: editData?.srNumber || '',
     department: editData?.department?.toLowerCase() || 'notifications',
     subDepartment: editData?.subDepartment || 'federal',
     year: editData?.year || '2026',

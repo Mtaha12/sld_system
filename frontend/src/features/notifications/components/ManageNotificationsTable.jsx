@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowUpDown, 
+  ArrowUp,
+  ArrowDown,
   Eye, 
   Pencil, 
   Trash2, 
-  Menu, 
   X, 
   AlertTriangle, 
   CheckCircle2, 
@@ -13,18 +14,35 @@ import {
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
+import SquareLoader from '../../../components/ui/SquareLoader';
 import { notificationService } from '../services/notificationService';
 
-const TableHeader = ({ title }) => (
-  <th className="px-3 py-3 font-semibold text-theme-main align-top">
-    <div className="flex items-start gap-1">
-      <span className="leading-tight">{title}</span>
-      {title !== 'Action' && title !== 'Status' && (
-        <ArrowUpDown className="w-3.5 h-3.5 text-theme-disabled shrink-0 cursor-pointer hover:text-brand-orange mt-0.5" />
-      )}
-    </div>
-  </th>
-);
+const TableHeader = ({ title, sortKey, sortConfig, onSort }) => {
+  const isSorted = sortConfig?.key === sortKey;
+  const direction = isSorted ? sortConfig.direction : null;
+
+  return (
+    <th 
+      onClick={() => sortKey && onSort?.(sortKey)}
+      className={`px-3 py-3 font-semibold text-theme-main align-top select-none ${sortKey ? 'cursor-pointer hover:bg-theme-surface-alt/80 transition-colors group' : ''}`}
+    >
+      <div className="flex items-start gap-1">
+        <span className={`leading-tight ${isSorted ? 'text-brand-orange font-bold' : ''}`}>{title}</span>
+        {sortKey && (
+          <span className="shrink-0 mt-0.5">
+            {direction === 'asc' ? (
+              <ArrowUp className="w-3.5 h-3.5 text-brand-orange" />
+            ) : direction === 'desc' ? (
+              <ArrowDown className="w-3.5 h-3.5 text-brand-orange" />
+            ) : (
+              <ArrowUpDown className="w-3.5 h-3.5 text-theme-disabled group-hover:text-brand-orange transition-colors" />
+            )}
+          </span>
+        )}
+      </div>
+    </th>
+  );
+};
 
 const ManageNotificationsTable = ({
   notifications: propNotifications,
@@ -33,21 +51,27 @@ const ManageNotificationsTable = ({
   setCurrentPage: propSetCurrentPage,
   highlightedId,
   toastMessage: propToastMessage,
-  setToastMessage: propSetToastMessage
+  setToastMessage: propSetToastMessage,
+  isLoading = false
 }) => {
   const navigate = useNavigate();
   const [internalNotifications, setInternalNotifications] = useState([]);
   const [internalCurrentPage, setInternalCurrentPage] = useState(1);
   const [internalToastMessage, setInternalToastMessage] = useState('');
+  const [internalLoading, setInternalLoading] = useState(false);
 
   useEffect(() => {
     if (!propNotifications) {
-      notificationService.getNotifications().then(data => setInternalNotifications(data));
+      setInternalLoading(true);
+      notificationService.getNotifications()
+        .then(data => setInternalNotifications(data))
+        .finally(() => setInternalLoading(false));
     }
   }, [propNotifications]);
 
   const notifications = propNotifications || internalNotifications;
   const setNotifications = propSetNotifications || setInternalNotifications;
+  const loading = isLoading || internalLoading;
   const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalCurrentPage;
   const setCurrentPage = propSetCurrentPage || setInternalCurrentPage;
   const toastMessage = propToastMessage !== undefined ? propToastMessage : internalToastMessage;
@@ -55,12 +79,72 @@ const ManageNotificationsTable = ({
 
   const [viewModalItem, setViewModalItem] = useState(null);
   const [deleteModalItem, setDeleteModalItem] = useState(null);
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [editModalItem, setEditModalItem] = useState(null);
+  const [editConfirmationInput, setEditConfirmationInput] = useState('');
+  const [editError, setEditError] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const itemsPerPage = 10;
   
-  const totalItems = notifications.length;
+  const handleSort = (key) => {
+    setSortConfig(prev => {
+      if (prev.key === key) {
+        if (prev.direction === 'asc') return { key, direction: 'desc' };
+        if (prev.direction === 'desc') return { key: null, direction: null };
+        return { key, direction: 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  const sortedNotifications = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) return notifications;
+
+    const { key, direction } = sortConfig;
+    const isAsc = direction === 'asc';
+
+    return [...notifications].sort((a, b) => {
+      let valA = a[key];
+      let valB = b[key];
+
+      if (key === 'srNumber') {
+        valA = a.srNumber !== undefined ? a.srNumber : a.id;
+        valB = b.srNumber !== undefined ? b.srNumber : b.id;
+      }
+
+      if (valA === null || valA === undefined || valA === '') return 1;
+      if (valB === null || valB === undefined || valB === '') return -1;
+
+      if (Array.isArray(valA)) valA = valA.join(', ');
+      if (Array.isArray(valB)) valB = valB.join(', ');
+
+      if (key.toLowerCase().includes('date')) {
+        const dateA = new Date(valA).getTime();
+        const dateB = new Date(valB).getTime();
+        if (!isNaN(dateA) && !isNaN(dateB)) {
+          return isAsc ? dateA - dateB : dateB - dateA;
+        }
+      }
+
+      const numA = typeof valA === 'number' ? valA : (!isNaN(Number(valA)) && String(valA).trim() !== '' ? Number(valA) : null);
+      const numB = typeof valB === 'number' ? valB : (!isNaN(Number(valB)) && String(valB).trim() !== '' ? Number(valB) : null);
+
+      if (numA !== null && numB !== null) {
+        return isAsc ? numA - numB : numB - numA;
+      }
+
+      const strA = String(valA);
+      const strB = String(valB);
+      const result = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+      return isAsc ? result : -result;
+    });
+  }, [notifications, sortConfig]);
+
+  const totalItems = sortedNotifications.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   
-  const currentData = notifications.slice(
+  const currentData = sortedNotifications.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -88,19 +172,53 @@ const ManageNotificationsTable = ({
   };
 
   const handleEdit = (item) => {
-    navigate('/manage-notifications/add', { state: { notificationData: item, isEdit: true } });
+    setEditModalItem(item);
+    setEditConfirmationInput('');
+    setEditError('');
+  };
+
+  const handleEditConfirm = (e) => {
+    e?.preventDefault();
+    if (!editModalItem) return;
+
+    const requiredKey = (editModalItem.notificationId || editModalItem.notification_id || `NOTIF-${String(editModalItem.srNumber).padStart(6, '0')}`).trim().toLowerCase();
+    const enteredInput = editConfirmationInput.trim().toLowerCase();
+
+    if (enteredInput !== requiredKey) {
+      setEditError('Invalid secret code. Please enter the correct secret code to proceed.');
+      return;
+    }
+
+    const targetItem = editModalItem;
+    setEditModalItem(null);
+    setEditConfirmationInput('');
+    setEditError('');
+    navigate('/manage-notifications/add', { state: { notificationData: targetItem, isEdit: true } });
   };
 
   const handleDeleteConfirm = async () => {
     if (!deleteModalItem) return;
+
+    const requiredKey = (deleteModalItem.notificationId || deleteModalItem.notification_id || `NOTIF-${String(deleteModalItem.srNumber).padStart(6, '0')}`).trim().toLowerCase();
+    const enteredInput = deleteConfirmationInput.trim().toLowerCase();
+
+    if (enteredInput !== requiredKey) {
+      setDeleteError('Invalid secret code. Please enter the correct secret code to confirm deletion.');
+      return;
+    }
+
     try {
       await notificationService.deleteNotification(deleteModalItem.id);
       setNotifications(prev => prev.filter(n => n.id !== deleteModalItem.id));
-      setToastMessage(`Notification SR #${deleteModalItem.srNumber} deleted successfully.`);
+      const displayId = deleteModalItem.notificationId || deleteModalItem.notification_id || `SR #${deleteModalItem.srNumber}`;
+      setToastMessage(`Notification ${displayId} deleted successfully.`);
     } catch (err) {
       setToastMessage(`Failed to delete record: ${err.message}`);
     }
+
     setDeleteModalItem(null);
+    setDeleteConfirmationInput('');
+    setDeleteError('');
     setTimeout(() => setToastMessage(''), 3500);
   };
 
@@ -129,81 +247,94 @@ const ManageNotificationsTable = ({
           <table className="w-full text-xs text-left table-auto">
             <thead className="bg-theme-table-header border-b border-theme-border whitespace-nowrap text-theme-main">
               <tr>
-                <TableHeader title="Sr #" />
-                <TableHeader title="Number" />
-                <TableHeader title="Year" />
-                <TableHeader title="Department" />
-                <TableHeader title="SRO #" />
-                <TableHeader title="Subject" />
-                <TableHeader title="Law Date" />
-                <TableHeader title="Law/Statute" />
-                <TableHeader title="Section" />
-                <TableHeader title="Status" />
-                <th className="px-3 py-3 font-semibold text-theme-main align-top text-center w-12">
-                  <Menu className="w-4 h-4 text-theme-main mx-auto" />
+                <TableHeader title="Sr #" sortKey="srNumber" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Number" sortKey="number" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Year" sortKey="year" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Department" sortKey="department" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="SRO #" sortKey="sroNumber" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Subject" sortKey="subject" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Law Date" sortKey="lawDate" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Law/Statute" sortKey="lawStatute" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Section" sortKey="section" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Status" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
+                <th className="px-3 py-3 font-semibold text-theme-main align-top text-center">
+                  Action
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border/50">
-              {currentData.map((item) => {
-                const isHighlighted = highlightedId === item.id;
-                return (
-                  <tr 
-                    key={item.id} 
-                    id={`notification-row-${item.id}`}
-                    className={`transition-all duration-300 ${
-                      isHighlighted
-                        ? 'bg-brand-orange/20 dark:bg-brand-orange/30 ring-2 ring-brand-orange font-medium animate-pulse shadow-sm'
-                        : 'hover:bg-theme-surface-alt/50'
-                    }`}
-                  >
-                  <td className="px-3 py-4 align-top text-theme-muted">{item.srNumber}</td>
-                  <td className="px-3 py-4 align-top text-theme-muted">{item.number}</td>
-                  <td className="px-3 py-4 align-top text-theme-muted">{item.year}</td>
-                  <td className="px-3 py-4 align-top text-theme-muted">{item.department}</td>
-                  <td className="px-3 py-4 align-top text-theme-main font-medium min-w-[200px]">{item.sroNumber}</td>
-                  <td className="px-3 py-4 align-top text-theme-muted min-w-[300px]">{item.subject}</td>
-                  <td className="px-3 py-4 align-top text-theme-muted">{item.lawDate || '-'}</td>
-                  <td className="px-3 py-4 align-top text-theme-muted">{item.lawStatute || '-'}</td>
-                  <td className="px-3 py-4 align-top text-theme-muted">{item.section || '-'}</td>
-                  <td className="px-3 py-4 align-top">
-                    <span className={`inline-flex items-center justify-center px-2.5 py-1 font-medium rounded text-[10px] border ${
-                      item.status === 'Active' 
-                        ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/50' 
-                        : 'bg-theme-surface-alt text-theme-main border-theme-border'
-                    }`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-4 align-top text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <button 
-                        onClick={() => setViewModalItem(item)}
-                        className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors" 
-                        title="View"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button 
-                        onClick={() => handleEdit(item)}
-                        className="p-1.5 text-theme-muted hover:text-blue-500 border border-theme-border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" 
-                        title="Edit"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button 
-                        onClick={() => setDeleteModalItem(item)}
-                        className="p-1.5 text-theme-muted hover:text-red-500 border border-theme-border rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" 
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={11} className="py-12 text-center">
+                    <SquareLoader text="Loading Notifications..." />
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
+              ) : currentData.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="py-12 text-center text-sm text-theme-muted">
+                    No Notifications found.
+                  </td>
+                </tr>
+              ) : (
+                currentData.map((item) => {
+                  const isHighlighted = highlightedId === item.id;
+                  return (
+                    <tr 
+                      key={item.id} 
+                      id={`notification-row-${item.id}`}
+                      className={`transition-all duration-300 ${
+                        isHighlighted
+                          ? 'bg-brand-orange/20 dark:bg-brand-orange/30 ring-2 ring-brand-orange font-medium animate-pulse shadow-sm'
+                          : 'hover:bg-theme-surface-alt/50'
+                      }`}
+                    >
+                    <td className="px-3 py-4 align-top text-theme-muted">{item.srNumber}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted">{item.number}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted">{item.year}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted">{item.department}</td>
+                    <td className="px-3 py-4 align-top text-theme-main font-medium min-w-[200px]">{item.sroNumber}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted min-w-[300px]">{item.subject}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted">{item.lawDate || '-'}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted">{item.lawStatute || '-'}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted">{item.section || '-'}</td>
+                    <td className="px-3 py-4 align-top">
+                      <span className={`inline-flex items-center justify-center px-2.5 py-1 font-medium rounded text-[10px] border ${
+                        item.status === 'Active' 
+                          ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/50' 
+                          : 'bg-theme-surface-alt text-theme-main border-theme-border'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 align-top text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button 
+                          onClick={() => setViewModalItem(item)}
+                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors" 
+                          title="View"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => handleEdit(item)}
+                          className="p-1.5 text-theme-muted hover:text-blue-500 border border-theme-border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" 
+                          title="Edit"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => setDeleteModalItem(item)}
+                          className="p-1.5 text-theme-muted hover:text-red-500 border border-theme-border rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" 
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }))}
+            </tbody>
         </table>
         </div>
 
@@ -321,7 +452,11 @@ const ManageNotificationsTable = ({
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={Boolean(deleteModalItem)}
-        onClose={() => setDeleteModalItem(null)}
+        onClose={() => {
+          setDeleteModalItem(null);
+          setDeleteConfirmationInput('');
+          setDeleteError('');
+        }}
         maxWidth="max-w-md"
       >
         {deleteModalItem && (
@@ -331,32 +466,132 @@ const ManageNotificationsTable = ({
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-theme-main">Delete Notification</h3>
-                <p className="text-xs text-theme-muted">This action cannot be undone.</p>
+                <h3 className="text-base font-bold text-theme-main">Delete Notification Record</h3>
+                <p className="text-xs text-theme-muted">This action is permanent and cannot be undone.</p>
               </div>
             </div>
 
-            <p className="text-sm text-theme-muted leading-relaxed mb-6">
-              Are you sure you want to delete notification <strong className="text-theme-main">SR #{deleteModalItem.srNumber}</strong>?
-            </p>
+            {deleteError && (
+              <div className="mb-4 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
 
-            <div className="flex items-center justify-end gap-3">
+            <div className="mb-5 space-y-2">
+              <label className="block text-xs font-semibold text-theme-main">
+                To perform this action enter secret code:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmationInput}
+                onChange={(e) => {
+                  setDeleteConfirmationInput(e.target.value);
+                  if (deleteError) setDeleteError('');
+                }}
+                placeholder="Enter secret code"
+                className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-sm text-theme-main placeholder:text-theme-disabled focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors font-mono"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-1">
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => setDeleteModalItem(null)}
+                onClick={() => {
+                  setDeleteModalItem(null);
+                  setDeleteConfirmationInput('');
+                  setDeleteError('');
+                }}
               >
                 Cancel
               </Button>
               <Button 
                 variant="primary" 
                 size="sm"
-                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={deleteConfirmationInput.trim().toLowerCase() !== (deleteModalItem.notificationId || deleteModalItem.notification_id || `NOTIF-${String(deleteModalItem.srNumber).padStart(6, '0')}`).toLowerCase()}
+                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white"
                 onClick={handleDeleteConfirm}
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete Record
               </Button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Secret Code Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(editModalItem)}
+        onClose={() => {
+          setEditModalItem(null);
+          setEditConfirmationInput('');
+          setEditError('');
+        }}
+        maxWidth="max-w-md"
+      >
+        {editModalItem && (
+          <div>
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="w-11 h-11 rounded-full bg-brand-orange/10 text-brand-orange flex items-center justify-center shrink-0 border border-brand-orange/20">
+                <Pencil className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-theme-main">Edit Notification Record</h3>
+                <p className="text-xs text-theme-muted">Enter the secret code to authorize editing.</p>
+              </div>
+            </div>
+
+            {editError && (
+              <div className="mb-4 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEditConfirm}>
+              <div className="mb-5 space-y-2">
+                <label className="block text-xs font-semibold text-theme-main">
+                  To perform this action enter secret code:
+                </label>
+                <input
+                  type="text"
+                  value={editConfirmationInput}
+                  onChange={(e) => {
+                    setEditConfirmationInput(e.target.value);
+                    if (editError) setEditError('');
+                  }}
+                  placeholder="Enter secret code"
+                  className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-sm text-theme-main placeholder:text-theme-disabled focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors font-mono"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-1">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    setEditModalItem(null);
+                    setEditConfirmationInput('');
+                    setEditError('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="primary" 
+                  size="sm"
+                  type="submit"
+                  disabled={editConfirmationInput.trim().toLowerCase() !== (editModalItem.notificationId || editModalItem.notification_id || `NOTIF-${String(editModalItem.srNumber).padStart(6, '0')}`).toLowerCase()}
+                  className="bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                >
+                  <Pencil className="w-3.5 h-3.5 mr-1.5" /> Proceed to Edit
+                </Button>
+              </div>
+            </form>
           </div>
         )}
       </Modal>

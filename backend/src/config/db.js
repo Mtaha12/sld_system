@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { backfillAllMissingUniqueIds } from '../utils/backfillUniqueIds.js';
 
 /**
  * Establishes connection to MongoDB database
@@ -17,6 +18,11 @@ const connectDB = async () => {
   try {
     const conn = await mongoose.connect(mongoUri);
     console.log(`[SLD System Backend] MongoDB Connected: ${conn.connection.host}`);
+    
+    // Automatically verify and backfill missing Unique IDs on existing records
+    backfillAllMissingUniqueIds().catch((err) => {
+      console.error(`[Unique ID Backfill Error]: ${err.message}`);
+    });
   } catch (error) {
     console.error(`[SLD System Backend] Database Connection Failed: ${error.message}`);
     // Exiting the process on connection failure in production, or retrying in development

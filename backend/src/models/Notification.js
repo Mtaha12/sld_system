@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import autoUniqueIdPlugin from '../utils/autoUniqueIdPlugin.js';
 
 const notificationBlockSchema = new mongoose.Schema({
   date: { type: String, default: null },
@@ -7,10 +8,23 @@ const notificationBlockSchema = new mongoose.Schema({
 });
 
 const notificationSchema = new mongoose.Schema({
+  notificationId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true,
+  },
+  notification_id: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true,
+  },
   srNumber: {
     type: String,
-    required: [true, 'Notification SR # is required'],
-    unique: true,
+    required: false,
     trim: true,
     index: true,
   },
@@ -78,8 +92,25 @@ const notificationSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Apply auto unique ID plugin
+notificationSchema.plugin(autoUniqueIdPlugin, {
+  entityName: 'notification',
+  prefix: 'NOTIF',
+  field: 'notificationId',
+  aliases: ['notification_id']
+});
+
+// Fallback srNumber to notificationId if not manually provided
+notificationSchema.pre('save', async function () {
+  if (!this.srNumber) {
+    this.srNumber = this.notificationId;
+  }
+});
+
 // Search indexing
 notificationSchema.index({
+  notificationId: 'text',
+  notification_id: 'text',
   srNumber: 'text',
   number: 'text',
   sroNumber: 'text',

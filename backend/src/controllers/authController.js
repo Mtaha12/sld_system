@@ -294,6 +294,8 @@ export const login = async (req, res, next) => {
       refreshToken,
       user: {
         id: user._id,
+        userId: user.userId || user.user_id || '',
+        user_id: user.user_id || user.userId || '',
         fullName: user.fullName,
         username: user.username,
         email: user.email,
@@ -332,7 +334,8 @@ export const forgotPassword = async (req, res, next) => {
       // Security best practice: don't disclose user doesn't exist
       return res.status(200).json({
         success: true,
-        message: 'If the account is registered, a password reset code has been sent.'
+        message: 'If the account is registered, a password reset code has been sent.',
+        email: identifier.includes('@') ? identifier.toLowerCase() : ''
       });
     }
 
@@ -349,12 +352,65 @@ export const forgotPassword = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: hasSmtp 
-        ? 'If the account is registered, a password reset code has been sent.'
+        ? 'If the account is registered, a password reset OTP has been sent.'
         : `[SIMULATION MODE] Password reset code is: ${resetToken}`,
       email: user.email,
       data: {
         ...(!hasSmtp ? { otpCode: resetToken } : {})
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyResetOtp = async (req, res, next) => {
+  try {
+    const { email, identifier, otp, code } = req.body;
+    const searchId = (email || identifier || '').trim();
+    const token = (otp || code || '').trim();
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP verification code is required.'
+      });
+    }
+
+    let user;
+    if (searchId) {
+      user = await User.findOne({
+        $or: [
+          { email: searchId.toLowerCase() },
+          { username: searchId }
+        ]
+      });
+    } else {
+      user = await User.findOne({
+        resetPasswordToken: token,
+        resetPasswordExpires: { $gt: new Date() }
+      });
+    }
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid request or user account not found.'
+      });
+    }
+
+    if (!user.resetPasswordToken || user.resetPasswordToken !== token || !user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification failed: OTP code is invalid or has expired.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully. You may now set your new password.',
+      email: user.email,
+      resetToken: token
     });
   } catch (error) {
     next(error);
@@ -387,7 +443,7 @@ export const getResetPasswordForm = async (req, res, next) => {
         <p>Enter your OTP token and your new password to reset.</p>
         <form action="/api/auth/reset-password" method="POST">
           <input type="text" name="token" placeholder="OTP Reset Token" value="${token || ''}" required />
-          <input type="password" name="newPassword" placeholder="New Password" required minlength="6" />
+          <input type="password" name="newPassword" placeholder="New Password" required minlength="8" />
           <button type="submit">Reset Password</button>
         </form>
       </div>
@@ -398,42 +454,86 @@ export const getResetPasswordForm = async (req, res, next) => {
 
 export const resetPassword = async (req, res, next) => {
   try {
-    const { token, newPassword } = req.body;
+    const { token, otp, email, identifier, newPassword, confirmPassword } = req.body;
+    const resetCode = (token || otp || '').trim();
+    const targetId = (email || identifier || '').trim();
 
-    if (!token || !newPassword) {
+    if (!resetCode || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Reset Token and New Password are required.'
+        message: 'OTP Code and New Password are required.'
       });
     }
 
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: new Date() }
-    });
-
-    if (!user) {
-      return res.status(400).send(`
-        <div style="font-family: sans-serif; text-align: center; padding: 40px; background: #0b0c10; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-          <h2 style="color: #e55c41;">Reset Token Invalid or Expired</h2>
-          <p>The code is either incorrect or has expired. Please request a new code from the application.</p>
-          <a href="/login" style="color: #e55c41; text-decoration: none; font-weight: bold;">Back to Login</a>
-        </div>
-      `);
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long.'
+      });
     }
 
-    user.password = newPassword; // pre-save hashes it
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match.'
+      });
+    }
+
+    let user;
+    if (targetId) {
+      user = await User.findOne({
+        $or: [
+          { email: targetId.toLowerCase() },
+          { username: targetId }
+        ],
+        resetPasswordToken: resetCode,
+        resetPasswordExpires: { $gt: new Date() }
+      });
+    } else {
+      user = await User.findOne({
+        resetPasswordToken: resetCode,
+        resetPasswordExpires: { $gt: new Date() }
+      });
+    }
+
+    if (!user) {
+      // If request from browser form submit (Accept text/html)
+      if (req.headers.accept && req.headers.accept.includes('text/html') && req.headers['content-type']?.includes('application/x-www-form-urlencoded')) {
+        return res.status(400).send(`
+          <div style="font-family: sans-serif; text-align: center; padding: 40px; background: #0b0c10; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <h2 style="color: #e55c41;">Reset Token Invalid or Expired</h2>
+            <p>The code is either incorrect, expired, or has already been used.</p>
+            <a href="/login" style="color: #e55c41; text-decoration: none; font-weight: bold;">Back to Login</a>
+          </div>
+        `);
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset failed: OTP code is invalid, expired, or has already been used.'
+      });
+    }
+
+    // Update password securely (User.js pre-save hook will hash with bcrypt 12-round salt)
+    user.password = newPassword;
     user.resetPasswordToken = null;
     user.resetPasswordExpires = null;
     await user.save();
 
-    return res.status(200).send(`
-      <div style="font-family: sans-serif; text-align: center; padding: 40px; background: #0b0c10; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-        <h2 style="color: #22c55e;">Password Reset Successful</h2>
-        <p>Your password has been successfully updated. You can now close this tab and log in at the portal.</p>
-        <a href="/login" style="color: #e55c41; text-decoration: none; font-weight: bold; font-size: 16px; margin-top: 15px;">Go to Portal Login</a>
-      </div>
-    `);
+    if (req.headers.accept && req.headers.accept.includes('text/html') && req.headers['content-type']?.includes('application/x-www-form-urlencoded')) {
+      return res.status(200).send(`
+        <div style="font-family: sans-serif; text-align: center; padding: 40px; background: #0b0c10; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+          <h2 style="color: #22c55e;">Password Reset Successful</h2>
+          <p>Your password has been successfully updated. You can now close this tab and log in at the portal.</p>
+          <a href="/login" style="color: #e55c41; text-decoration: none; font-weight: bold; font-size: 16px; margin-top: 15px;">Go to Portal Login</a>
+        </div>
+      `);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password has been successfully updated. You can now log in with your new password.'
+    });
   } catch (error) {
     next(error);
   }
@@ -673,6 +773,8 @@ export const updateProfile = async (req, res, next) => {
       message: 'Profile details saved successfully.',
       data: {
         id: user._id,
+        userId: user.userId || user.user_id || '',
+        user_id: user.user_id || user.userId || '',
         fullName: user.fullName,
         username: user.username,
         email: user.email,

@@ -259,13 +259,19 @@ const ManageCasesPage = () => {
   const [cases, setCases] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch initial cases from caseService
   useEffect(() => {
     let isMounted = true;
+    setIsLoading(true);
     caseService.getCases().then(data => {
       if (isMounted) {
         setCases(data);
+      }
+    }).finally(() => {
+      if (isMounted) {
+        setIsLoading(false);
       }
     });
     return () => { isMounted = false; };
@@ -299,6 +305,7 @@ const ManageCasesPage = () => {
   const [actionError, setActionError] = useState('');
   const [caseIdResult, setCaseIdResult] = useState(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isFetchingCaseId, setIsFetchingCaseId] = useState(false);
 
   // State for currentPage and highlighted case
   const [currentPage, setCurrentPage] = useState(1);
@@ -422,7 +429,7 @@ const ManageCasesPage = () => {
   };
 
   // Generic Action Modal Submit (Head Notes / Judgment / Get Case ID)
-  const handleActionSubmit = (e) => {
+  const handleActionSubmit = async (e) => {
     e?.preventDefault();
     setActionError('');
 
@@ -437,34 +444,59 @@ const ManageCasesPage = () => {
 
     const inputVal = actionCaseNumber.trim();
 
-    // 1. Get Case ID Modal: Takes SLD Number -> Displays Case Number in same dialogue with Copy button
+    // 1. Get Case ID Modal: Uses SLD Number to fetch the unique Case ID from the database
     if (actionModal === 'getCaseId') {
-      const cleanSld = inputVal.toLowerCase().replace(/^sld\s*#?/i, '').trim();
+      const cleanSld = inputVal.replace(/^sld\s*#?/i, '').trim();
+      setIsFetchingCaseId(true);
 
-      const foundIndex = cases.findIndex(c => 
-        c.sldNumber?.toLowerCase() === cleanSld || 
-        c.id?.toString() === cleanSld
-      );
+      try {
+        // Fetch matching record from the backend database by SLD Number / ID
+        let target = null;
+        try {
+          target = await caseService.getCaseById(cleanSld);
+        } catch (apiErr) {
+          // Fallback search in loaded cases list if API fails
+          target = cases.find(c => 
+            c.sldNumber?.toLowerCase() === cleanSld.toLowerCase() || 
+            c.id?.toString() === cleanSld ||
+            c.caseId?.toLowerCase() === cleanSld.toLowerCase()
+          );
+        }
 
-      if (foundIndex === -1) {
-        setActionError(`No case found matching SLD #${inputVal}. Please enter a valid SLD number.`);
+        if (!target) {
+          setActionError(`No case found matching SLD #${inputVal} in the database. Please enter a valid SLD number.`);
+          setCaseIdResult(null);
+          return;
+        }
+
+        const uniqueCaseId = target.caseId || target.case_id || target.id;
+        const rawCaseNum = target.caseNumber;
+        const caseNumbers = Array.isArray(rawCaseNum)
+          ? rawCaseNum.join(', ')
+          : (rawCaseNum || 'N/A');
+
+        // Locate page in loaded cases list
+        const foundIndex = cases.findIndex(c => 
+          c.sldNumber?.toLowerCase() === cleanSld.toLowerCase() || 
+          c.id === target.id ||
+          c.caseId === uniqueCaseId
+        );
+        const targetPage = foundIndex !== -1 ? Math.floor(foundIndex / 10) + 1 : 1;
+
+        setCaseIdResult({
+          target,
+          caseId: uniqueCaseId,
+          caseNumbers,
+          targetPage,
+          isInList: foundIndex !== -1
+        });
+        setIsCopied(false);
+      } catch (err) {
+        setActionError(`Failed to fetch case: ${err.message || 'Server error'}`);
         setCaseIdResult(null);
-        return;
+      } finally {
+        setIsFetchingCaseId(false);
       }
-
-      const target = cases[foundIndex];
-      const rawCaseNum = target.caseNumber;
-      const caseNumbers = Array.isArray(rawCaseNum)
-        ? rawCaseNum.map(n => n.split(',')[0].trim()).join(', ')
-        : (rawCaseNum || 'N/A').split(',')[0].trim();
-      const targetPage = Math.floor(foundIndex / 10) + 1;
-
-      setCaseIdResult({
-        target,
-        caseNumbers,
-        targetPage
-      });
-      setIsCopied(false);
       return;
     }
 
@@ -530,6 +562,7 @@ const ManageCasesPage = () => {
           setCurrentPage={setCurrentPage}
           highlightedId={highlightedId}
           onExportSelection={handleExport}
+          isLoading={isLoading}
         />
       </div>
 
@@ -670,11 +703,11 @@ const ManageCasesPage = () => {
             ? 'Generate Head Notes by Case Number' 
             : actionModal === 'judgment' 
             ? 'Generate Judgment by Case Number' 
-            : 'Get Case Number by SLD #'
+            : 'Get Case ID by SLD #'
         }
         subtitle={
           actionModal === 'getCaseId' 
-            ? 'Enter an SLD Number to retrieve the corresponding Case Number' 
+            ? 'Enter an SLD Number to fetch the unique Case ID from the database' 
             : 'Enter the Case Number to proceed (e.g. C.A. 145/2026)'
         }
         icon={actionModal === 'getCaseId' ? Hash : Printer}
@@ -697,9 +730,18 @@ const ManageCasesPage = () => {
               size="sm"
               className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-1.5"
               onClick={handleActionSubmit}
+              disabled={isFetchingCaseId}
             >
-              {actionModal === 'getCaseId' ? <Search className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
-              {actionModal === 'getCaseId' ? 'Get Case No' : 'Generate Document'}
+              {actionModal === 'getCaseId' ? (
+                isFetchingCaseId ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                ) : (
+                  <Search className="w-4 h-4" />
+                )
+              ) : (
+                <Printer className="w-4 h-4" />
+              )}
+              {actionModal === 'getCaseId' ? (isFetchingCaseId ? 'Fetching ID...' : 'Get Case ID') : 'Generate Document'}
             </Button>
           </>
         }
@@ -786,26 +828,29 @@ const ManageCasesPage = () => {
             </div>
           </div>
 
-          {/* Case Number Result Card with Copy Button */}
+          {/* Case Number / ID Result Card with Copy Button */}
           {actionModal === 'getCaseId' && caseIdResult && (
             <div className="mt-4 p-3.5 bg-theme-surface-alt/80 border border-brand-orange/40 rounded-xl space-y-3 animate-fade-in">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-theme-main">Case Number Found:</span>
-                <span className="px-2 py-0.5 rounded-md bg-brand-orange/10 text-brand-orange text-[11px] font-medium border border-brand-orange/30">
+                <span className="font-semibold text-theme-main">Database Record Found:</span>
+                <span className="px-2 py-0.5 rounded-md bg-brand-orange/10 text-brand-orange text-[11px] font-semibold border border-brand-orange/30">
                   SLD #{caseIdResult.target.sldNumber}
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-2 bg-theme-surface border border-theme-border rounded-lg p-2.5">
-                <span className="font-mono text-sm font-semibold text-brand-orange select-all break-all">
-                  {caseIdResult.caseNumbers}
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-theme-muted uppercase font-bold tracking-wider">Unique Case ID</span>
+                  <span className="font-mono text-base font-bold text-brand-orange select-all break-all">
+                    {caseIdResult.caseId}
+                  </span>
+                </div>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    navigator.clipboard.writeText(caseIdResult.caseNumbers);
+                    navigator.clipboard.writeText(caseIdResult.caseId);
                     setIsCopied(true);
                     setTimeout(() => setIsCopied(false), 2500);
                   }}
@@ -819,7 +864,7 @@ const ManageCasesPage = () => {
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy</span>
+                      <span>Copy ID</span>
                     </>
                   )}
                 </Button>
@@ -827,12 +872,12 @@ const ManageCasesPage = () => {
 
               <div className="grid grid-cols-2 gap-2 text-[11px] text-theme-muted pt-0.5">
                 <div>
-                  <span className="font-medium text-theme-main block">Court:</span>
-                  <span className="truncate block">{caseIdResult.target.court || 'N/A'}</span>
+                  <span className="font-medium text-theme-main block">Case Number:</span>
+                  <span className="truncate block">{caseIdResult.caseNumbers}</span>
                 </div>
                 <div>
-                  <span className="font-medium text-theme-main block">Table Location:</span>
-                  <span>Page {caseIdResult.targetPage}</span>
+                  <span className="font-medium text-theme-main block">Court:</span>
+                  <span className="truncate block">{caseIdResult.target.court || 'N/A'}</span>
                 </div>
               </div>
 
@@ -849,7 +894,7 @@ const ManageCasesPage = () => {
                   setHighlightedId(caseIdResult.target.id);
                   setActionModal(null);
                   setCaseIdResult(null);
-                  setToastMessage(`Located Case SLD #${caseIdResult.target.sldNumber} (Case No: ${caseIdResult.caseNumbers}) on Page ${caseIdResult.targetPage}.`);
+                  setToastMessage(`Located Case ${caseIdResult.caseId} (SLD #${caseIdResult.target.sldNumber}) on Page ${caseIdResult.targetPage}.`);
 
                   setTimeout(() => {
                     const rowEl = document.getElementById(`case-row-${caseIdResult.target.id}`);
@@ -863,7 +908,7 @@ const ManageCasesPage = () => {
                   }, 5000);
                 }}
               >
-                <Search className="w-3.5 h-3.5" /> View Case in Table
+                <Search className="w-3.5 h-3.5" /> View & Highlight in Table
               </Button>
             </div>
           )}

@@ -1,7 +1,7 @@
 import express from 'express';
 import { 
   register, verifyEmail, resendVerificationCode, login, 
-  forgotPassword, getResetPasswordForm, resetPassword, 
+  forgotPassword, verifyResetOtp, getResetPasswordForm, resetPassword, 
   googleLogin, googleSignup, getMe, updateProfile, 
   updateAvatar, removeAvatar, refreshToken 
 } from '../controllers/authController.js';
@@ -16,6 +16,7 @@ router.post('/verify-email', authLimiter, verifyEmail);
 router.post('/resend-code', authLimiter, resendVerificationCode);
 router.post('/login', authLimiter, login);
 router.post('/forgot-password', authLimiter, forgotPassword);
+router.post('/verify-reset-otp', authLimiter, verifyResetOtp);
 router.get('/reset-password', getResetPasswordForm); // HTML reset page
 router.post('/reset-password', authLimiter, resetPassword); // Form POST submission
 router.post('/google/login', googleLogin);

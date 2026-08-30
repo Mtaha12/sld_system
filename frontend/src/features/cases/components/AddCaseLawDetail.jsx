@@ -25,7 +25,7 @@ const AddCaseLawDetail = ({ onClose }) => {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const defaultValues = {
-    srNumber: editData?.sldNumber || '163629',
+    srNumber: editData?.sldNumber || '',
     dated: editData?.dated ? new Date(editData.dated) : null,
     department: editData?.department || 'tax',
     status: editData?.status?.toLowerCase() || 'active',

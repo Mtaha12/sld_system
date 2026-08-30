@@ -1,5 +1,6 @@
 import { Briefcase, Edit, FileText, Bell, ChevronRight, Filter, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import SquareLoader from '../../../components/ui/SquareLoader';
 
 export const ACTIVITIES = [
   {
@@ -96,7 +97,8 @@ export const ACTIVITIES = [
 
 const RecentActivity = ({ 
   activities = ACTIVITIES, 
-  onResetFilters 
+  onResetFilters,
+  isLoading = false
 }) => {
   return (
     <div className="bg-theme-surface rounded-2xl border border-theme-border shadow-sm flex flex-col h-full">
@@ -115,8 +117,10 @@ const RecentActivity = ({
         </Link>
       </div>
 
-      <div className="p-6 flex-1">
-        {activities.length === 0 ? (
+      <div className="p-6 flex-1 flex flex-col justify-center">
+        {isLoading ? (
+          <SquareLoader size="sm" text="Loading recent activity..." minHeight="min-h-[220px]" />
+        ) : activities.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-12 px-4 space-y-3">
             <div className="w-12 h-12 rounded-full bg-brand-orange/10 text-brand-orange flex items-center justify-center">
               <Filter className="w-6 h-6" />

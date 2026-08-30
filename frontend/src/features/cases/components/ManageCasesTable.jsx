@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowUpDown, 
+  ArrowUp,
+  ArrowDown,
   Calendar, 
   Paperclip, 
   Eye, 
@@ -19,17 +21,36 @@ import {
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import FileUpload from '../../../components/ui/FileUpload';
+import SquareLoader from '../../../components/ui/SquareLoader';
 import { caseService } from '../services/caseService';
 
-const TableHeader = ({ title }) => (
-  <th className="px-2 py-3 font-semibold text-theme-main align-top">
-    <div className="flex items-start gap-1">
-      {title === 'Month' && <Calendar className="w-3.5 h-3.5 text-theme-disabled shrink-0 mt-0.5" />}
-      <span className="leading-tight">{title}</span>
-      <ArrowUpDown className="w-3.5 h-3.5 text-theme-disabled shrink-0 cursor-pointer hover:text-brand-orange mt-0.5" />
-    </div>
-  </th>
-);
+const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon }) => {
+  const isSorted = sortConfig?.key === sortKey;
+  const direction = isSorted ? sortConfig.direction : null;
+
+  return (
+    <th 
+      onClick={() => sortKey && onSort?.(sortKey)}
+      className={`px-2 py-3 font-semibold text-theme-main align-top select-none ${sortKey ? 'cursor-pointer hover:bg-theme-surface-alt/80 transition-colors group' : ''}`}
+    >
+      <div className="flex items-start gap-1">
+        {HeaderIcon && <HeaderIcon className="w-3.5 h-3.5 text-theme-disabled shrink-0 mt-0.5" />}
+        <span className={`leading-tight ${isSorted ? 'text-brand-orange font-bold' : ''}`}>{title}</span>
+        {sortKey && (
+          <span className="shrink-0 mt-0.5">
+            {direction === 'asc' ? (
+              <ArrowUp className="w-3.5 h-3.5 text-brand-orange" />
+            ) : direction === 'desc' ? (
+              <ArrowDown className="w-3.5 h-3.5 text-brand-orange" />
+            ) : (
+              <ArrowUpDown className="w-3.5 h-3.5 text-theme-disabled group-hover:text-brand-orange transition-colors" />
+            )}
+          </span>
+        )}
+      </div>
+    </th>
+  );
+};
 
 const ManageCasesTable = ({
   cases: propCases,
@@ -41,22 +62,28 @@ const ManageCasesTable = ({
   currentPage: propCurrentPage,
   setCurrentPage: propSetCurrentPage,
   highlightedId,
-  onExportSelection
+  onExportSelection,
+  isLoading = false
 }) => {
   const navigate = useNavigate();
   const [internalCases, setInternalCases] = useState([]);
   const [internalSelectedIds, setInternalSelectedIds] = useState([]);
   const [internalToastMessage, setInternalToastMessage] = useState('');
   const [internalCurrentPage, setInternalCurrentPage] = useState(1);
+  const [internalLoading, setInternalLoading] = useState(false);
 
   useEffect(() => {
     if (!propCases) {
-      caseService.getCases().then(data => setInternalCases(data));
+      setInternalLoading(true);
+      caseService.getCases()
+        .then(data => setInternalCases(data))
+        .finally(() => setInternalLoading(false));
     }
   }, [propCases]);
   
   const cases = propCases || internalCases;
   const setCases = propSetCases || setInternalCases;
+  const loading = isLoading || internalLoading;
   const selectedIds = propSelectedIds !== undefined ? propSelectedIds : internalSelectedIds;
   const setSelectedIds = propSetSelectedIds || setInternalSelectedIds;
   const toastMessage = propToastMessage !== undefined ? propToastMessage : internalToastMessage;
@@ -66,13 +93,88 @@ const ManageCasesTable = ({
 
   const [viewModalCase, setViewModalCase] = useState(null);
   const [deleteModalCase, setDeleteModalCase] = useState(null);
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [editModalCase, setEditModalCase] = useState(null);
+  const [editConfirmationInput, setEditConfirmationInput] = useState('');
+  const [editError, setEditError] = useState('');
   const [attachmentModalCase, setAttachmentModalCase] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const itemsPerPage = 10;
   
-  const totalItems = cases.length;
+  const handleSort = (key) => {
+    setSortConfig(prev => {
+      if (prev.key === key) {
+        if (prev.direction === 'asc') return { key, direction: 'desc' };
+        if (prev.direction === 'desc') return { key: null, direction: null };
+        return { key, direction: 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  const sortedCases = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) return cases;
+
+    const { key, direction } = sortConfig;
+    const isAsc = direction === 'asc';
+
+    return [...cases].sort((a, b) => {
+      let valA = a[key];
+      let valB = b[key];
+
+      if (key === 'sldNumber') {
+        valA = a.sldNumber || a.id;
+        valB = b.sldNumber || b.id;
+      } else if (key === 'mapYearPage') {
+        valA = Array.isArray(a.mapYearPage) && a.mapYearPage.length 
+          ? a.mapYearPage.join(', ') 
+          : (a.publications?.map(p => `${p.mag || 'SLD'} ${p.year || ''} ${p.page || ''}`).join(', ') || '');
+        valB = Array.isArray(b.mapYearPage) && b.mapYearPage.length 
+          ? b.mapYearPage.join(', ') 
+          : (b.publications?.map(p => `${p.mag || 'SLD'} ${p.year || ''} ${p.page || ''}`).join(', ') || '');
+      } else if (key === 'month') {
+        valA = a.dated ? new Date(a.dated).getMonth() : -1;
+        valB = b.dated ? new Date(b.dated).getMonth() : -1;
+        return isAsc ? valA - valB : valB - valA;
+      } else if (key === 'attachments') {
+        valA = Array.isArray(a.attachments) ? a.attachments.length : (typeof a.attachments === 'number' ? a.attachments : (a.attachments ? 1 : 0));
+        valB = Array.isArray(b.attachments) ? b.attachments.length : (typeof b.attachments === 'number' ? b.attachments : (b.attachments ? 1 : 0));
+        return isAsc ? valA - valB : valB - valA;
+      }
+
+      if (valA === null || valA === undefined || valA === '') return 1;
+      if (valB === null || valB === undefined || valB === '') return -1;
+
+      if (Array.isArray(valA)) valA = valA.join(', ');
+      if (Array.isArray(valB)) valB = valB.join(', ');
+
+      if (key === 'dated') {
+        const dateA = new Date(valA).getTime();
+        const dateB = new Date(valB).getTime();
+        if (!isNaN(dateA) && !isNaN(dateB)) {
+          return isAsc ? dateA - dateB : dateB - dateA;
+        }
+      }
+
+      const numA = typeof valA === 'number' ? valA : (!isNaN(Number(valA)) && String(valA).trim() !== '' ? Number(valA) : null);
+      const numB = typeof valB === 'number' ? valB : (!isNaN(Number(valB)) && String(valB).trim() !== '' ? Number(valB) : null);
+
+      if (numA !== null && numB !== null) {
+        return isAsc ? numA - numB : numB - numA;
+      }
+
+      const strA = String(valA);
+      const strB = String(valB);
+      const result = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+      return isAsc ? result : -result;
+    });
+  }, [cases, sortConfig]);
+
+  const totalItems = sortedCases.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   
-  const currentData = cases.slice(
+  const currentData = sortedCases.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -119,12 +221,43 @@ const ManageCasesTable = ({
   };
 
   const handleEdit = (item) => {
-    navigate('/manage-cases/add', { state: { caseData: item, isEdit: true } });
+    setEditModalCase(item);
+    setEditConfirmationInput('');
+    setEditError('');
+  };
+
+  const handleEditConfirm = (e) => {
+    e?.preventDefault();
+    if (!editModalCase) return;
+
+    const requiredKey = (editModalCase.caseId || editModalCase.case_id || `CASE-${String(editModalCase.sldNumber).padStart(6, '0')}`).trim().toLowerCase();
+    const enteredInput = editConfirmationInput.trim().toLowerCase();
+
+    if (enteredInput !== requiredKey) {
+      setEditError('Invalid secret code. Please enter the correct secret code to proceed.');
+      return;
+    }
+
+    const targetCase = editModalCase;
+    setEditModalCase(null);
+    setEditConfirmationInput('');
+    setEditError('');
+    navigate('/manage-cases/add', { state: { caseData: targetCase, isEdit: true } });
   };
 
   const handleDeleteConfirm = async () => {
     if (!deleteModalCase) return;
     
+    if (!deleteModalCase.isBulk) {
+      const requiredKey = (deleteModalCase.caseId || deleteModalCase.case_id || `CASE-${String(deleteModalCase.sldNumber).padStart(6, '0')}`).trim().toLowerCase();
+      const enteredInput = deleteConfirmationInput.trim().toLowerCase();
+
+      if (enteredInput !== requiredKey) {
+        setDeleteError('Invalid secret code. Please enter the correct secret code to confirm deletion.');
+        return;
+      }
+    }
+
     try {
       if (deleteModalCase.isBulk) {
         await caseService.deleteCases(selectedIds);
@@ -135,13 +268,16 @@ const ManageCasesTable = ({
         await caseService.deleteCase(deleteModalCase.id);
         setCases(prev => prev.filter(c => c.id !== deleteModalCase.id));
         setSelectedIds(prev => prev.filter(id => id !== deleteModalCase.id));
-        setToastMessage(`Case SLD #${deleteModalCase.sldNumber} deleted successfully.`);
+        const displayId = deleteModalCase.caseId || deleteModalCase.case_id || `SLD #${deleteModalCase.sldNumber}`;
+        setToastMessage(`Case ${displayId} deleted successfully.`);
       }
     } catch (err) {
       setToastMessage(`Failed to delete records: ${err.message}`);
     }
     
     setDeleteModalCase(null);
+    setDeleteConfirmationInput('');
+    setDeleteError('');
     setTimeout(() => setToastMessage(''), 3500);
   };
 
@@ -261,22 +397,35 @@ const ManageCasesTable = ({
                     className="w-4 h-4 rounded border-theme-border bg-theme-surface text-brand-orange focus:ring-brand-orange cursor-pointer accent-[#E55C41]" 
                   />
                 </th>
-                <TableHeader title="SLD #" />
-                <TableHeader title="Dated" />
-                <TableHeader title="Map / Year / Page" />
-                <TableHeader title="Month" />
-                <TableHeader title="Court" />
-                <TableHeader title="Case #" />
-                <TableHeader title="Judges" />
-                <TableHeader title="Lawyers" />
-                <TableHeader title="Petitioners" />
-                <th className="px-2 py-3 font-semibold text-theme-main align-top">Attachment</th>
-                <th className="px-2 py-3 font-semibold text-theme-main align-top">Status</th>
+                <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Map / Year / Page" sortKey="mapYearPage" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Month" sortKey="month" sortConfig={sortConfig} onSort={handleSort} icon={Calendar} />
+                <TableHeader title="Court" sortKey="court" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Case #" sortKey="caseNumber" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Judges" sortKey="judges" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Lawyers" sortKey="lawyers" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Petitioners" sortKey="petitioners" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Attachment" sortKey="attachments" sortConfig={sortConfig} onSort={handleSort} />
+                <TableHeader title="Status" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
                 <th className="px-2 py-3 font-semibold text-theme-main align-top">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border/50">
-              {currentData.map((item) => {
+              {loading ? (
+                <tr>
+                  <td colSpan={13} className="py-12 text-center">
+                    <SquareLoader text="Loading Case Law records..." />
+                  </td>
+                </tr>
+              ) : currentData.length === 0 ? (
+                <tr>
+                  <td colSpan={13} className="py-12 text-center text-sm text-theme-muted">
+                    No Case Law records found.
+                  </td>
+                </tr>
+              ) : (
+                currentData.map((item) => {
                 const isSelected = selectedIds.includes(item.id);
                 const isHighlighted = highlightedId === item.id;
                 return (
@@ -373,7 +522,7 @@ const ManageCasesTable = ({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
@@ -495,7 +644,11 @@ const ManageCasesTable = ({
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={Boolean(deleteModalCase)}
-        onClose={() => setDeleteModalCase(null)}
+        onClose={() => {
+          setDeleteModalCase(null);
+          setDeleteConfirmationInput('');
+          setDeleteError('');
+        }}
         maxWidth="max-w-md"
       >
         {deleteModalCase && (
@@ -508,35 +661,137 @@ const ManageCasesTable = ({
                 <h3 className="text-base font-bold text-theme-main">
                   {deleteModalCase.isBulk ? 'Delete Selected Cases' : 'Delete Case Record'}
                 </h3>
-                <p className="text-xs text-theme-muted">This action cannot be undone.</p>
+                <p className="text-xs text-theme-muted">This action is permanent and cannot be undone.</p>
               </div>
             </div>
 
-            <p className="text-sm text-theme-muted leading-relaxed mb-6">
-              {deleteModalCase.isBulk ? (
-                <>Are you sure you want to delete <strong className="text-theme-main">{deleteModalCase.count} selected cases</strong>?</>
-              ) : (
-                <>Are you sure you want to delete case <strong className="text-theme-main">SLD #{deleteModalCase.sldNumber}</strong> ({deleteModalCase.court})?</>
-              )}
-            </p>
+            {deleteError && (
+              <div className="mb-4 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
 
-            <div className="flex items-center justify-end gap-3">
+            {deleteModalCase.isBulk ? (
+              <p className="text-sm text-theme-muted leading-relaxed mb-4">
+                Are you sure you want to delete <strong className="text-theme-main">{deleteModalCase.count} selected cases</strong>?
+              </p>
+            ) : (
+              <div className="mb-5 space-y-2">
+                <label className="block text-xs font-semibold text-theme-main">
+                  To perform this action enter secret code:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmationInput}
+                  onChange={(e) => {
+                    setDeleteConfirmationInput(e.target.value);
+                    if (deleteError) setDeleteError('');
+                  }}
+                  placeholder="Enter secret code"
+                  className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-sm text-theme-main placeholder:text-theme-disabled focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors font-mono"
+                  autoFocus
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-1">
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => setDeleteModalCase(null)}
+                onClick={() => {
+                  setDeleteModalCase(null);
+                  setDeleteConfirmationInput('');
+                  setDeleteError('');
+                }}
               >
                 Cancel
               </Button>
               <Button 
                 variant="primary" 
                 size="sm"
-                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={!deleteModalCase.isBulk && deleteConfirmationInput.trim().toLowerCase() !== (deleteModalCase.caseId || deleteModalCase.case_id || `CASE-${String(deleteModalCase.sldNumber).padStart(6, '0')}`).toLowerCase()}
+                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white"
                 onClick={handleDeleteConfirm}
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete {deleteModalCase.isBulk ? `${deleteModalCase.count} Cases` : 'Record'}
               </Button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Secret Code Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(editModalCase)}
+        onClose={() => {
+          setEditModalCase(null);
+          setEditConfirmationInput('');
+          setEditError('');
+        }}
+        maxWidth="max-w-md"
+      >
+        {editModalCase && (
+          <div>
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="w-11 h-11 rounded-full bg-brand-orange/10 text-brand-orange flex items-center justify-center shrink-0 border border-brand-orange/20">
+                <Pencil className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-theme-main">Edit Case Record</h3>
+                <p className="text-xs text-theme-muted">Enter the secret code to authorize editing.</p>
+              </div>
+            </div>
+
+            {editError && (
+              <div className="mb-4 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEditConfirm}>
+              <div className="mb-5 space-y-2">
+                <label className="block text-xs font-semibold text-theme-main">
+                  To perform this action enter secret code:
+                </label>
+                <input
+                  type="text"
+                  value={editConfirmationInput}
+                  onChange={(e) => {
+                    setEditConfirmationInput(e.target.value);
+                    if (editError) setEditError('');
+                  }}
+                  placeholder="Enter secret code"
+                  className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-sm text-theme-main placeholder:text-theme-disabled focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors font-mono"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-1">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    setEditModalCase(null);
+                    setEditConfirmationInput('');
+                    setEditError('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="primary" 
+                  size="sm"
+                  type="submit"
+                  disabled={editConfirmationInput.trim().toLowerCase() !== (editModalCase.caseId || editModalCase.case_id || `CASE-${String(editModalCase.sldNumber).padStart(6, '0')}`).toLowerCase()}
+                  className="bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                >
+                  <Pencil className="w-3.5 h-3.5 mr-1.5" /> Proceed to Edit
+                </Button>
+              </div>
+            </form>
           </div>
         )}
       </Modal>

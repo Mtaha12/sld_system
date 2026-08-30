@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import autoUniqueIdPlugin from '../utils/autoUniqueIdPlugin.js';
 
 const publicationSchema = new mongoose.Schema({
   year: { type: String, default: '' },
@@ -21,10 +22,23 @@ const attachmentSchema = new mongoose.Schema({
 });
 
 const caseSchema = new mongoose.Schema({
+  caseId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true,
+  },
+  case_id: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true,
+  },
   sldNumber: {
     type: String,
-    required: [true, 'SLD / SR Number is required'],
-    unique: true,
+    required: false,
     trim: true,
     index: true,
   },
@@ -109,8 +123,25 @@ const caseSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Apply auto unique ID plugin
+caseSchema.plugin(autoUniqueIdPlugin, {
+  entityName: 'case',
+  prefix: 'CASE',
+  field: 'caseId',
+  aliases: ['case_id']
+});
+
+// Fallback sldNumber to caseId if not manually provided
+caseSchema.pre('save', async function () {
+  if (!this.sldNumber) {
+    this.sldNumber = this.caseId;
+  }
+});
+
 // Indexes for high performance search
 caseSchema.index({
+  caseId: 'text',
+  case_id: 'text',
   sldNumber: 'text',
   court: 'text',
   caseNumber: 'text',

@@ -24,9 +24,11 @@ const formatStatuteForFrontend = (s) => {
   }
 
   return {
-    id: s.srNumber, // Frontend looks up by id, which maps to srNumber
+    id: s.srNumber || s.statuteId || s._id.toString(), // Frontend looks up by id, which maps to srNumber or statuteId
     mongoId: s._id.toString(),
-    srNumber: s.srNumber,
+    statuteId: s.statuteId || s.statute_id || '',
+    statute_id: s.statute_id || s.statuteId || '',
+    srNumber: s.srNumber || s.statuteId || '',
     law: s.law || '',
     chapter: s.chapter || '',
     display: s.display === 'no' ? 'No' : 'Active', // Mock data displays "Active" or "No" (which maps to active/inactive status)
@@ -53,6 +55,8 @@ export const getStatutes = async (req, res, next) => {
       const q = query.trim();
       const searchRegex = new RegExp(q, 'i');
       filter.$or = [
+        { statuteId: searchRegex },
+        { statute_id: searchRegex },
         { srNumber: searchRegex },
         { law: searchRegex },
         { chapter: searchRegex },
@@ -64,7 +68,7 @@ export const getStatutes = async (req, res, next) => {
       ];
     }
 
-    const statutes = await Statute.find(filter).sort({ srNumber: -1 });
+    const statutes = await Statute.find(filter).sort({ createdAt: -1, srNumber: -1 });
     const data = statutes.map(formatStatuteForFrontend);
 
     return res.status(200).json({
@@ -81,9 +85,11 @@ export const getStatuteById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Retrieve by srNumber (which is the client-facing ID) or Mongo ID
+    // Retrieve by srNumber, statuteId, or Mongo ID
     const query = {
       $or: [
+        { statuteId: id },
+        { statute_id: id },
         { srNumber: id },
         ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
       ],
@@ -101,9 +107,7 @@ export const getStatuteById = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        id: s._id.toString()
-      }
+      data: formatStatuteForFrontend(s)
     });
   } catch (error) {
     next(error);
@@ -114,23 +118,18 @@ export const createStatute = async (req, res, next) => {
   try {
     const { srNumber, department, chapter, display, status, law, section, heading, blocks } = req.body;
 
-    if (!srNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'SR # (srNumber) is required.'
-      });
-    }
-
-    const exist = await Statute.findOne({ srNumber });
-    if (exist) {
-      return res.status(400).json({
-        success: false,
-        message: `Statute with SR #${srNumber} already exists.`
-      });
+    if (srNumber && typeof srNumber === 'string' && srNumber.trim().length > 0) {
+      const exist = await Statute.findOne({ srNumber: srNumber.trim() });
+      if (exist) {
+        return res.status(400).json({
+          success: false,
+          message: `Statute with SR #${srNumber} already exists.`
+        });
+      }
     }
 
     const newStatute = new Statute({
-      srNumber,
+      srNumber: srNumber ? srNumber.trim() : undefined,
       department: department || 'tax',
       chapter: chapter || '',
       display: display || 'yes',
@@ -142,7 +141,14 @@ export const createStatute = async (req, res, next) => {
     });
 
     await newStatute.save();
-    logger.info(`[Statute Created] SR #${newStatute.srNumber} added.`);
+
+    // If srNumber was omitted, sync to generated statuteId
+    if (!newStatute.srNumber) {
+      newStatute.srNumber = newStatute.statuteId;
+      await newStatute.save();
+    }
+
+    logger.info(`[Statute Created] Statute ID ${newStatute.statuteId} (SR #${newStatute.srNumber}) added.`);
 
     return res.status(201).json({
       success: true,
@@ -158,16 +164,19 @@ export const updateStatute = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid statute ID format. Modifications require a valid Mongoose ID.'
-      });
-    }
+    const query = {
+      $or: [
+        { statuteId: id },
+        { statute_id: id },
+        { srNumber: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ],
+      isDeleted: { $ne: true }
+    };
 
     const { srNumber, department, chapter, display, status, law, section, heading, blocks } = req.body;
 
-    const s = await Statute.findById(id);
+    const s = await Statute.findOne(query);
     if (!s) {
       return res.status(404).json({
         success: false,
@@ -176,7 +185,7 @@ export const updateStatute = async (req, res, next) => {
     }
 
     if (srNumber && srNumber !== s.srNumber) {
-      const exist = await Statute.findOne({ srNumber });
+      const exist = await Statute.findOne({ srNumber, _id: { $ne: s._id } });
       if (exist) {
         return res.status(400).json({
           success: false,
@@ -212,14 +221,17 @@ export const deleteStatute = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid statute ID format. Deletion requires a valid Mongoose ID.'
-      });
-    }
+    const query = {
+      $or: [
+        { statuteId: id },
+        { statute_id: id },
+        { srNumber: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ],
+      isDeleted: { $ne: true }
+    };
 
-    const s = await Statute.findById(id);
+    const s = await Statute.findOne(query);
     if (!s) {
       return res.status(404).json({
         success: false,
@@ -231,12 +243,12 @@ export const deleteStatute = async (req, res, next) => {
     s.deletedAt = new Date();
     await s.save();
 
-    logger.info(`[Statute Deleted] SR #${s.srNumber} soft-deleted.`);
+    logger.info(`[Statute Deleted] ID ${s.statuteId || s.srNumber} soft-deleted.`);
 
     return res.status(200).json({
       success: true,
       message: `Statute record deleted successfully.`,
-      id
+      id: s._id
     });
   } catch (error) {
     next(error);

@@ -267,3 +267,145 @@
 {"level":"info","message":"[Notification Deleted] SR #audit_notif_94915 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-27 21:27:53"}
 {"level":"error","message":"[Gemini API Error] Status: 503. Body: {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n","service":"sld-backend-service","timestamp":"2026-08-27 21:29:29"}
 {"level":"error","message":"POST /api/chat - Error: Gemini API returned status 503","service":"sld-backend-service","stack":"Error: Gemini API returned status 503\n    at file:///C:/Users/HP/Desktop/Quirk/sld/sld_system/backend/server.js:192:13\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-08-27 21:29:29"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:27:20"}
+{"level":"error","message":"POST /api/auth/login - Error: Operation `users.findOne()` buffering timed out after 10000ms","service":"sld-backend-service","stack":"MongooseError: Operation `users.findOne()` buffering timed out after 10000ms\n    at Timeout._onTimeout (D:\\sld_system\\backend\\node_modules\\mongoose\\lib\\drivers\\node-mongodb-native\\collection.js:142:25)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","timestamp":"2026-08-30 12:29:24"}
+{"level":"info","message":"::1 - - [30/Aug/2026:07:29:25 +0000] \"POST /api/auth/login HTTP/1.1\" 500 103 \"http://localhost:5173/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\"","service":"sld-backend-service","timestamp":"2026-08-30 12:29:25"}
+{"level":"error","message":"POST /api/auth/google/login - Error: Operation `users.findOne()` buffering timed out after 10000ms","service":"sld-backend-service","stack":"MongooseError: Operation `users.findOne()` buffering timed out after 10000ms\n    at Timeout._onTimeout (D:\\sld_system\\backend\\node_modules\\mongoose\\lib\\drivers\\node-mongodb-native\\collection.js:142:25)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","timestamp":"2026-08-30 12:30:43"}
+{"level":"info","message":"::1 - - [30/Aug/2026:07:30:43 +0000] \"POST /api/auth/google/login HTTP/1.1\" 500 103 \"http://localhost:5173/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\"","service":"sld-backend-service","timestamp":"2026-08-30 12:30:43"}
+{"level":"error","message":"POST /api/auth/signup - Error: Operation `users.findOne()` buffering timed out after 10000ms","service":"sld-backend-service","stack":"MongooseError: Operation `users.findOne()` buffering timed out after 10000ms\n    at Timeout._onTimeout (D:\\sld_system\\backend\\node_modules\\mongoose\\lib\\drivers\\node-mongodb-native\\collection.js:142:25)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","timestamp":"2026-08-30 12:31:08"}
+{"level":"info","message":"::1 - - [30/Aug/2026:07:31:08 +0000] \"POST /api/auth/signup HTTP/1.1\" 500 103 \"http://localhost:5173/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\"","service":"sld-backend-service","timestamp":"2026-08-30 12:31:08"}
+{"level":"error","message":"POST /api/auth/login - Error: Operation `users.findOne()` buffering timed out after 10000ms","service":"sld-backend-service","stack":"MongooseError: Operation `users.findOne()` buffering timed out after 10000ms\n    at Timeout._onTimeout (D:\\sld_system\\backend\\node_modules\\mongoose\\lib\\drivers\\node-mongodb-native\\collection.js:142:25)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","timestamp":"2026-08-30 12:31:38"}
+{"level":"info","message":"::1 - - [30/Aug/2026:07:31:38 +0000] \"POST /api/auth/login HTTP/1.1\" 500 103 \"http://localhost:5173/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\"","service":"sld-backend-service","timestamp":"2026-08-30 12:31:38"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:34:30"}
+{"level":"error","message":"POST /api/auth/google/login - Error: Operation `users.findOne()` buffering timed out after 10000ms","service":"sld-backend-service","stack":"MongooseError: Operation `users.findOne()` buffering timed out after 10000ms\n    at Timeout._onTimeout (D:\\sld_system\\backend\\node_modules\\mongoose\\lib\\drivers\\node-mongodb-native\\collection.js:142:25)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","timestamp":"2026-08-30 12:35:04"}
+{"level":"info","message":"::1 - - [30/Aug/2026:07:35:04 +0000] \"POST /api/auth/google/login HTTP/1.1\" 500 103 \"http://localhost:5173/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\"","service":"sld-backend-service","timestamp":"2026-08-30 12:35:04"}
+{"level":"error","message":"POST /api/auth/signup - Error: Operation `users.findOne()` buffering timed out after 10000ms","service":"sld-backend-service","stack":"MongooseError: Operation `users.findOne()` buffering timed out after 10000ms\n    at Timeout._onTimeout (D:\\sld_system\\backend\\node_modules\\mongoose\\lib\\drivers\\node-mongodb-native\\collection.js:142:25)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","timestamp":"2026-08-30 12:35:40"}
+{"level":"info","message":"::1 - - [30/Aug/2026:07:35:40 +0000] \"POST /api/auth/signup HTTP/1.1\" 500 103 \"http://localhost:5173/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\"","service":"sld-backend-service","timestamp":"2026-08-30 12:35:40"}
+{"level":"error","message":"POST /api/auth/login - Error: Operation `users.findOne()` buffering timed out after 10000ms","service":"sld-backend-service","stack":"MongooseError: Operation `users.findOne()` buffering timed out after 10000ms\n    at Timeout._onTimeout (D:\\sld_system\\backend\\node_modules\\mongoose\\lib\\drivers\\node-mongodb-native\\collection.js:142:25)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)","timestamp":"2026-08-30 12:36:01"}
+{"level":"info","message":"::1 - - [30/Aug/2026:07:36:01 +0000] \"POST /api/auth/login HTTP/1.1\" 500 103 \"http://localhost:5173/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36\"","service":"sld-backend-service","timestamp":"2026-08-30 12:36:01"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:36:44"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to faizanahmedpriv@gmail.com","service":"sld-backend-service","timestamp":"2026-08-30 12:37:25"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-08-30 12:37:54"}
+{"level":"info","message":"[Case Deleted] SLD #1629514 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 12:38:06"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:54:00"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:54:09"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:54:15"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:54:23"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:54:30"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:54:37"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:54:46"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:54:53"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:55:09"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:55:18"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:55:28"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:55:55"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:55:59"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:56:11"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:56:12"}
+{"level":"info","message":"[Backfill] Found 32 'case' records missing unique IDs. Starting backfill...","service":"sld-backend-service","timestamp":"2026-08-30 12:56:14"}
+{"level":"info","message":"[UniqueId] Synchronized counter 'case' from 0 to 32","service":"sld-backend-service","timestamp":"2026-08-30 12:56:18"}
+{"level":"info","message":"[Backfill] Successfully backfilled 32 'case' records. Latest sequence: 32","service":"sld-backend-service","timestamp":"2026-08-30 12:56:18"}
+{"level":"info","message":"[Backfill] Found 3 'notification' records missing unique IDs. Starting backfill...","service":"sld-backend-service","timestamp":"2026-08-30 12:56:18"}
+{"level":"info","message":"[UniqueId] Synchronized counter 'notification' from 0 to 3","service":"sld-backend-service","timestamp":"2026-08-30 12:56:18"}
+{"level":"info","message":"[Backfill] Successfully backfilled 3 'notification' records. Latest sequence: 3","service":"sld-backend-service","timestamp":"2026-08-30 12:56:18"}
+{"level":"info","message":"[Backfill] Found 3 'statute' records missing unique IDs. Starting backfill...","service":"sld-backend-service","timestamp":"2026-08-30 12:56:19"}
+{"level":"info","message":"[UniqueId] Synchronized counter 'statute' from 0 to 3","service":"sld-backend-service","timestamp":"2026-08-30 12:56:19"}
+{"level":"info","message":"[Backfill] Successfully backfilled 3 'statute' records. Latest sequence: 3","service":"sld-backend-service","timestamp":"2026-08-30 12:56:19"}
+{"level":"info","message":"[Backfill] Found 13 'user' records missing unique IDs. Starting backfill...","service":"sld-backend-service","timestamp":"2026-08-30 12:56:20"}
+{"level":"info","message":"[UniqueId] Synchronized counter 'user' from 0 to 13","service":"sld-backend-service","timestamp":"2026-08-30 12:56:22"}
+{"level":"info","message":"[Backfill] Successfully backfilled 13 'user' records. Latest sequence: 13","service":"sld-backend-service","timestamp":"2026-08-30 12:56:22"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:56:22"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:57:29"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:57:30"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:57:50"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:57:51"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:57:53"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:57:58"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:57:59"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:58:02"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:58:06"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:58:07"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:58:13"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:58:17"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:58:19"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:58:34"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:58:35"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:58:37"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:58:43"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:58:44"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:58:47"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:58:51"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:58:53"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:58:55"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:59:02"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:59:03"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:59:13"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:59:15"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:59:18"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 12:59:22"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:59:24"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:59:26"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 12:59:32"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 12:59:33"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-08-30 13:00:41"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:04:28"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:04:29"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:08:21"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:08:23"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:16:13"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:16:15"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:17:48"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:17:50"}
+{"level":"info","message":"[Case Deleted] SLD #1629495 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 13:21:33"}
+{"level":"info","message":"[Case Deleted] SLD #1629494 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 13:22:20"}
+{"level":"info","message":"[Case Deleted] SLD #1629490 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 13:23:32"}
+{"level":"info","message":"[Case Deleted] SLD #1629493 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 13:24:22"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 13:27:24"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 13:27:25"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:27:27"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:27:28"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:27:30"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:27:31"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 13:29:41"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:29:43"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:29:45"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 13:29:53"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:29:55"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:29:57"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-08-30 13:29:59"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 13:30:07"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:30:07"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:30:09"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:30:17"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:30:19"}
+{"level":"info","message":"[Notification Deleted] ID NOTIF-000003 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 13:32:39"}
+{"level":"info","message":"[Notification Deleted] ID NOTIF-000002 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 13:33:18"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-000022 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 13:33:37"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 13:36:24"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 13:36:26"}
+{"level":"info","message":"[Statute Deleted] ID STAT-000002 soft-deleted.","service":"sld-backend-service","timestamp":"2026-08-30 13:36:52"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-08-30 13:37:07"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 14:42:59"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 14:43:00"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 14:43:00"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 14:43:02"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 14:43:04"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 14:43:06"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 14:51:54"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 14:51:56"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 14:58:07"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 14:58:08"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 14:58:10"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-08-30 14:58:12"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to faizanahmedpriv@gmail.com","service":"sld-backend-service","timestamp":"2026-08-30 14:59:03"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 15:04:21"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 15:04:23"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 15:04:24"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 15:04:31"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 15:04:32"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 15:04:34"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-08-30 15:05:27"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to pw_reset_test_1788084353635@example.com","service":"sld-backend-service","timestamp":"2026-08-30 15:05:58"}
+{"level":"info","message":"[Login Success] User pw_reset_user_1788084353635 logged in.","service":"sld-backend-service","timestamp":"2026-08-30 15:06:02"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 15:06:14"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 15:06:15"}

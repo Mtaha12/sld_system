@@ -1,7 +1,22 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import autoUniqueIdPlugin from '../utils/autoUniqueIdPlugin.js';
 
 const userSchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true,
+  },
+  user_id: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true,
+  },
   fullName: {
     type: String,
     required: [true, 'Full name is required'],
@@ -86,6 +101,14 @@ const userSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
+});
+
+// Apply auto unique ID plugin
+userSchema.plugin(autoUniqueIdPlugin, {
+  entityName: 'user',
+  prefix: 'USER',
+  field: 'userId',
+  aliases: ['user_id']
 });
 
 // Pre-save hook to hash password if it was modified

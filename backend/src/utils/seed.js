@@ -10,6 +10,8 @@ import Case from '../models/Case.js';
 import Statute from '../models/Statute.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
+import Counter from '../models/Counter.js';
+import { backfillAllMissingUniqueIds } from './backfillUniqueIds.js';
 
 // Mock Data
 import { MOCK_CASES } from '../../../frontend/src/features/cases/data/casesMockData.js';
@@ -183,6 +185,9 @@ const seedDB = async () => {
     } else {
       console.log('[Seeder] Default Admin user already exists.');
     }
+
+    console.log('[Seeder] Ensuring Unique IDs are synchronized...');
+    await backfillAllMissingUniqueIds();
 
     console.log('[Seeder] Database seeding completed successfully!');
     process.exit(0);

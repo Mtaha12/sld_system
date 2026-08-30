@@ -42,7 +42,9 @@ const formatCaseForFrontend = (c) => {
 
   return {
     id: c._id.toString(),
-    sldNumber: c.sldNumber,
+    caseId: c.caseId || c.case_id || '',
+    case_id: c.case_id || c.caseId || '',
+    sldNumber: c.sldNumber || c.caseId || '',
     dated: c.dated || '',
     department: c.department || 'tax',
     status: c.status || 'Active',
@@ -78,6 +80,8 @@ export const getCases = async (req, res, next) => {
       const q = subject.trim();
       const searchRegex = new RegExp(q, 'i');
       query.$or = [
+        { caseId: searchRegex },
+        { case_id: searchRegex },
         { sldNumber: searchRegex },
         { court: searchRegex },
         { headNote: searchRegex },
@@ -104,7 +108,7 @@ export const getCases = async (req, res, next) => {
     }
 
     // Retrieve all matches (Frontend paginates/filters locally, so we return all matches)
-    const cases = await Case.find(query).sort({ sldNumber: -1 });
+    const cases = await Case.find(query).sort({ createdAt: -1, sldNumber: -1 });
 
     const data = cases.map(formatCaseForFrontend);
 
@@ -124,7 +128,7 @@ export const getCaseById = async (req, res, next) => {
 
     const query = mongoose.isValidObjectId(id) 
       ? { _id: id } 
-      : { sldNumber: id };
+      : { $or: [{ caseId: id }, { case_id: id }, { sldNumber: id }] };
 
     const c = await Case.findOne({ ...query, isDeleted: { $ne: true } });
 
@@ -137,9 +141,7 @@ export const getCaseById = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        id: c._id.toString()
-      }
+      data: formatCaseForFrontend(c)
     });
   } catch (error) {
     next(error);
@@ -155,20 +157,15 @@ export const createCase = async (req, res, next) => {
       publications, laws, attachments 
     } = req.body;
 
-    if (!srNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'SR # (SLD Number) is required.'
-      });
-    }
-
-    // Check unique SLD
-    const exist = await Case.findOne({ sldNumber: srNumber });
-    if (exist) {
-      return res.status(400).json({
-        success: false,
-        message: `Case law with SLD/SR #${srNumber} already exists.`
-      });
+    // Check unique SLD if user entered a specific SR #
+    if (srNumber && typeof srNumber === 'string' && srNumber.trim().length > 0) {
+      const exist = await Case.findOne({ sldNumber: srNumber.trim() });
+      if (exist) {
+        return res.status(400).json({
+          success: false,
+          message: `Case law with SLD/SR #${srNumber} already exists.`
+        });
+      }
     }
 
     // Map publications to generate mapYearPage array
@@ -180,7 +177,7 @@ export const createCase = async (req, res, next) => {
     });
 
     const newCase = new Case({
-      sldNumber: srNumber,
+      sldNumber: srNumber ? srNumber.trim() : undefined,
       dated: dated || null,
       department: department || 'tax',
       status: status || 'Active',
@@ -200,7 +197,14 @@ export const createCase = async (req, res, next) => {
     });
 
     await newCase.save();
-    logger.info(`[Case Created] SLD #${newCase.sldNumber} added.`);
+
+    // If sldNumber was empty, fallback to generated caseId
+    if (!newCase.sldNumber) {
+      newCase.sldNumber = newCase.caseId;
+      await newCase.save();
+    }
+
+    logger.info(`[Case Created] Case ID ${newCase.caseId} (SLD #${newCase.sldNumber}) added.`);
 
     return res.status(201).json({
       success: true,
@@ -216,12 +220,15 @@ export const updateCase = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid case ID format. Modifications require a valid case ID.'
-      });
-    }
+    const query = {
+      $or: [
+        { caseId: id },
+        { case_id: id },
+        { sldNumber: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ],
+      isDeleted: { $ne: true }
+    };
 
     const { 
       srNumber, dated, department, status, court, 
@@ -230,7 +237,7 @@ export const updateCase = async (req, res, next) => {
       publications, laws, attachments 
     } = req.body;
 
-    const c = await Case.findById(id);
+    const c = await Case.findOne(query);
     if (!c) {
       return res.status(404).json({
         success: false,
@@ -239,7 +246,7 @@ export const updateCase = async (req, res, next) => {
     }
 
     if (srNumber && srNumber !== c.sldNumber) {
-      const exist = await Case.findOne({ sldNumber: srNumber });
+      const exist = await Case.findOne({ sldNumber: srNumber, _id: { $ne: c._id } });
       if (exist) {
         return res.status(400).json({
           success: false,
@@ -273,7 +280,7 @@ export const updateCase = async (req, res, next) => {
     if (attachments !== undefined) c.attachments = attachments;
 
     await c.save();
-    logger.info(`[Case Updated] SLD #${c.sldNumber} updated.`);
+    logger.info(`[Case Updated] Case ID ${c.caseId} (SLD #${c.sldNumber}) updated.`);
 
     return res.status(200).json({
       success: true,
@@ -289,14 +296,17 @@ export const deleteCase = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid case ID format. Deletion requires a valid case ID.'
-      });
-    }
+    const query = {
+      $or: [
+        { caseId: id },
+        { case_id: id },
+        { sldNumber: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ],
+      isDeleted: { $ne: true }
+    };
 
-    const c = await Case.findById(id);
+    const c = await Case.findOne(query);
     if (!c) {
       return res.status(404).json({
         success: false,
@@ -308,12 +318,12 @@ export const deleteCase = async (req, res, next) => {
     c.deletedAt = new Date();
     await c.save();
 
-    logger.info(`[Case Deleted] SLD #${c.sldNumber} soft-deleted.`);
+    logger.info(`[Case Deleted] Case ID ${c.caseId || c.sldNumber} soft-deleted.`);
 
     return res.status(200).json({
       success: true,
-      message: `Case SLD #${c.sldNumber} deleted successfully.`,
-      id
+      message: `Case deleted successfully.`,
+      id: c._id
     });
   } catch (error) {
     next(error);
