@@ -1,15 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send } from 'lucide-react';
+import { MessageSquare, X, Send, Sparkles } from 'lucide-react';
 import api from '../../services/api.js';
 
 const ChatWidget = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(() => {
+    return sessionStorage.getItem('sld_chat_open') === 'true';
+  });
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [chatHistory, setChatHistory] = useState([
-    { sender: 'system', text: 'Hello! How can I help you today?' }
-  ]);
+  const [chatHistory, setChatHistory] = useState(() => {
+    const saved = sessionStorage.getItem('sld_chat_history');
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return saved ? JSON.parse(saved) : [
+      { sender: 'system', text: 'Hello! How can I help you today with the SLD System?', timestamp: timeStr }
+    ];
+  });
   const messagesEndRef = useRef(null);
+
+  const suggestions = [
+    { label: '🔍 Search Case Law', text: 'How do I search for case law reports on the portal?' },
+    { label: '📄 Get Attachments', text: 'How can I download case attachments or PDF files?' },
+    { label: '🔑 Reset Password', text: 'How do I reset my password?' },
+    { label: '💼 Portal Features', text: 'Can you tell me about the SLD System features?' }
+  ];
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,29 +34,82 @@ const ChatWidget = () => {
     }
   }, [isOpen, chatHistory, isTyping]);
 
+  useEffect(() => {
+    sessionStorage.setItem('sld_chat_history', JSON.stringify(chatHistory));
+  }, [chatHistory]);
+
+  useEffect(() => {
+    sessionStorage.setItem('sld_chat_open', isOpen);
+  }, [isOpen]);
+
   const handleSend = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     const userMsg = message.trim();
     if (!userMsg) return;
     
-    setChatHistory(prev => [...prev, { sender: 'user', text: userMsg }]);
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setChatHistory(prev => [...prev, { sender: 'user', text: userMsg, timestamp: timeStr }]);
     setMessage('');
     setIsTyping(true);
     
     try {
       const response = await api.post('/api/chat', { message: userMsg });
+      const replyTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       if (response.data.success && response.data.reply) {
-        setChatHistory(prev => [...prev, { sender: 'system', text: response.data.reply }]);
+        setChatHistory(prev => [...prev, { sender: 'system', text: response.data.reply, timestamp: replyTimeStr }]);
       } else {
-        setChatHistory(prev => [...prev, { sender: 'system', text: 'Sorry, I encountered an issue processing your request.' }]);
+        setChatHistory(prev => [...prev, { sender: 'system', text: 'Sorry, I encountered an issue processing your request.', timestamp: replyTimeStr }]);
       }
     } catch (err) {
       console.error('[Chatbot Error]', err);
       const errMsg = err.response?.data?.message || err.message || 'Connection lost. Please try again.';
-      setChatHistory(prev => [...prev, { sender: 'system', text: `Error: ${errMsg}` }]);
+      const errTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setChatHistory(prev => [...prev, { sender: 'system', text: `Error: ${errMsg}`, timestamp: errTimeStr }]);
     } finally {
       setIsTyping(false);
     }
+  };
+
+  const handleSuggestionClick = async (suggestionText) => {
+    if (isTyping) return;
+    
+    const userMsg = suggestionText.trim();
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    setChatHistory(prev => [...prev, { sender: 'user', text: userMsg, timestamp: timeStr }]);
+    setIsTyping(true);
+    
+    try {
+      const response = await api.post('/api/chat', { message: userMsg });
+      const replyTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (response.data.success && response.data.reply) {
+        setChatHistory(prev => [...prev, { sender: 'system', text: response.data.reply, timestamp: replyTimeStr }]);
+      } else {
+        setChatHistory(prev => [...prev, { sender: 'system', text: 'Sorry, I encountered an issue processing your request.', timestamp: replyTimeStr }]);
+      }
+    } catch (err) {
+      console.error('[Chatbot Error]', err);
+      const errMsg = err.response?.data?.message || err.message || 'Connection lost. Please try again.';
+      const errTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setChatHistory(prev => [...prev, { sender: 'system', text: `Error: ${errMsg}`, timestamp: errTimeStr }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const formatMessageText = (text) => {
+    if (!text) return '';
+    // Bold helper: replace **bold** with <strong>bold</strong>
+    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Bullet point helper: replace starting asterisk with bullet point
+    formatted = formatted.replace(/^\*\s(.*)$/gm, '• $1');
+    
+    return formatted.split('\n').map((line, idx) => (
+      <React.Fragment key={idx}>
+        <span dangerouslySetInnerHTML={{ __html: line }} />
+        {idx < formatted.split('\n').length - 1 && <br />}
+      </React.Fragment>
+    ));
   };
 
   return (
@@ -69,8 +135,10 @@ const ChatWidget = () => {
                 <MessageSquare className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h3 className="font-medium text-sm">SLD Support Chat</h3>
-                <p className="text-xs text-theme-disabled">Typically replies in a few minutes</p>
+                <h3 className="font-medium text-sm flex items-center gap-1.5">
+                  SLD Support AI <Sparkles className="w-3.5 h-3.5 text-brand-orange animate-pulse" />
+                </h3>
+                <p className="text-xs text-theme-disabled">Superfast replies in seconds</p>
               </div>
             </div>
             <button 
@@ -89,16 +157,16 @@ const ChatWidget = () => {
                 className={`flex flex-col max-w-[85%] ${msg.sender === 'user' ? 'self-end items-end' : 'self-start items-start'}`}
               >
                 <div 
-                  className={`px-4 py-2.5 text-sm ${
+                  className={`px-4 py-2.5 text-sm leading-relaxed ${
                     msg.sender === 'user' 
                       ? 'bg-brand-orange text-white rounded-2xl rounded-tr-sm' 
                       : 'bg-theme-surface text-theme-main border border-theme-border shadow-sm rounded-2xl rounded-tl-sm'
                   }`}
                 >
-                  {msg.text}
+                  {formatMessageText(msg.text)}
                 </div>
-                <span className="text-[10px] text-theme-disabled mt-1 px-1">
-                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <span className="text-[9px] text-theme-disabled mt-1 px-1">
+                  {msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             ))}
@@ -114,6 +182,21 @@ const ChatWidget = () => {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Quick Suggestions */}
+          {!isTyping && (
+            <div className="px-3 pt-2 bg-theme-surface-alt flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto shrink-0 border-t border-theme-border/20">
+              {suggestions.map((sug, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSuggestionClick(sug.text)}
+                  className="text-xs bg-theme-surface hover:bg-theme-surface-hover text-theme-muted hover:text-brand-orange border border-theme-border/60 hover:border-brand-orange/40 px-2.5 py-1 rounded-full transition-all cursor-pointer select-none active:scale-95 shrink-0"
+                >
+                  {sug.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Input Area */}
           <div className="p-3 bg-theme-surface border-t border-theme-border/50 shrink-0">
             <form onSubmit={handleSend} className="relative flex items-center">
@@ -126,7 +209,7 @@ const ChatWidget = () => {
               />
               <button 
                 type="submit"
-                disabled={!message.trim()}
+                disabled={!message.trim() || isTyping}
                 className="absolute right-2 p-2 bg-brand-orange text-white rounded-lg hover:bg-brand-orange-hover transition-colors disabled:opacity-50 disabled:hover:bg-brand-orange"
               >
                 <Send className="w-4 h-4" />
