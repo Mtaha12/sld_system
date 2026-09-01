@@ -223,7 +223,28 @@ const SignupForm = () => {
           Sign up with Google
         </SocialAuthButton>
 
-        
+        {/* Contact Us Block */}
+        <div className="mt-5">
+          <div className="relative mb-3">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-theme-border/60"></div>
+            </div>
+            <div className="relative flex justify-center text-[10px]">
+              <span className="px-3 bg-theme-surface text-theme-muted font-semibold tracking-wider uppercase">CONTACT WITH US</span>
+            </div>
+          </div>
+          
+          <div className="text-left space-y-0.5 text-xs text-theme-muted">
+            <p className="text-[#E55C41] font-medium mb-1">
+              Having trouble signing up? Please contact:
+            </p>
+            <p className="text-white font-medium">Haroon Ahmad Rafiq</p>
+            <p className="leading-snug">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
+            <p className="leading-snug">0321-5390007-8, 051-8315912</p>
+            <p className="leading-snug">info@sldsystem.com</p>
+          </div>
+        </div>
+
       </form>
     </div>
   )
