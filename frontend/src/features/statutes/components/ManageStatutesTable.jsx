@@ -291,7 +291,6 @@ const ManageStatutesTable = ({
                 <TableHeader title="ID" sortKey="id" sortConfig={sortConfig} onSort={handleSort} />
                 <TableHeader title="Law" sortKey="law" sortConfig={sortConfig} onSort={handleSort} className="min-w-[200px]" />
                 <TableHeader title="Chapter" sortKey="chapter" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Display" sortKey="display" sortConfig={sortConfig} onSort={handleSort} />
                 <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} />
                 <TableHeader title="Section" sortKey="section" sortConfig={sortConfig} onSort={handleSort} />
                 <TableHeader title="Section Heading" sortKey="sectionHeading" sortConfig={sortConfig} onSort={handleSort} className="min-w-[250px]" />
@@ -329,15 +328,6 @@ const ManageStatutesTable = ({
                     <td className="px-6 py-4 text-theme-muted">{row.id}</td>
                     <td className="px-6 py-4 font-medium text-theme-main">{row.law}</td>
                     <td className="px-6 py-4 text-theme-muted">{row.chapter}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded text-[10px] font-medium border ${
-                        row.display === 'Yes' 
-                          ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/50' 
-                          : 'bg-theme-surface-alt text-theme-muted border-theme-border'
-                      }`}>
-                        {row.display === 'Yes' ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
                     <td className="px-6 py-4">
                       <input 
                         type="text" 
@@ -467,12 +457,6 @@ const ManageStatutesTable = ({
               <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
                 <span className="block text-xs text-theme-muted mb-1 font-medium">Chapter</span>
                 <span className="font-semibold text-theme-main">{viewModalItem.chapter}</span>
-              </div>
-              <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
-                <span className="block text-xs text-theme-muted mb-1 font-medium">Status</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50">
-                  {viewModalItem.display === 'Yes' ? 'Active' : 'Inactive'}
-                </span>
               </div>
             </div>
 

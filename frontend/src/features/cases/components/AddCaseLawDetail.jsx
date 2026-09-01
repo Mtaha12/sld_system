@@ -13,7 +13,6 @@ import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import Textarea from '../../../components/ui/Textarea';
 import FileUpload from '../../../components/ui/FileUpload';
-import PageHeader from '../../../components/ui/PageHeader';
 import FormFooter from '../../../components/ui/FormFooter';
 import { caseSchema } from '../validation/caseSchema';
 import { caseService } from '../services/caseService';
@@ -28,7 +27,6 @@ const AddCaseLawDetail = ({ onClose }) => {
     srNumber: editData?.sldNumber || '',
     dated: editData?.dated ? new Date(editData.dated) : null,
     department: editData?.department || 'tax',
-    status: editData?.status?.toLowerCase() || 'active',
     court: editData?.court || 'Federal Constitutional Court of Pakistan',
     caseNumber: Array.isArray(editData?.caseNumber) ? editData.caseNumber.join(' ') : (editData?.caseNumber || ''),
     judges: Array.isArray(editData?.judges) ? editData.judges.join(' ') : (editData?.judges || ''),
@@ -89,13 +87,6 @@ const AddCaseLawDetail = ({ onClose }) => {
   return (
     <div className="flex flex-col bg-theme-surface relative">
       
-      <PageHeader 
-        title={<>{isEdit ? 'Edit' : 'Add'} <span className="text-brand-orange">Case Law</span> Detail</>}
-        subtitle={isEdit ? "Update the case information and publication details" : "Enter the case information and publication details"}
-        icon={FileText}
-        onClose={onClose}
-      />
-
       {/* Scrollable Content */}
       <div className="p-6">
         
@@ -152,19 +143,9 @@ const AddCaseLawDetail = ({ onClose }) => {
                   {...register('department')}
                 />
               </FormField>
-              <FormField label="Status">
-                <Input 
-                  variant="light" 
-                  inputSize="sm"
-                  type="select" 
-                  error={errors.status}
-                  options={[{ label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]} 
-                  {...register('status')}
-                />
-              </FormField>
-            </div>
-
-            <FormField label="Court" className="mb-4">
+              </div>
+  
+              <FormField label="Court" className="mb-4">
               <Input 
                 variant="light" 
                 inputSize="sm"

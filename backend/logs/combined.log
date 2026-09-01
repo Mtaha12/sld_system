@@ -462,3 +462,119 @@
 {"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-08-30 21:17:35"}
 {"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-08-30 21:17:36"}
 {"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-08-30 21:17:38"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 09:53:01"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 09:53:51"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 09:53:52"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 09:53:54"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-09-01 09:55:34"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-09-01 09:55:44"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-09-01 10:03:23"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:18:45"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:18:46"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:18:48"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:18:49"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:18:51"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:18:55"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:18:55"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:18:58"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:19:01"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:19:02"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:19:03"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:19:13"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:19:14"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:19:17"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:19:21"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:19:22"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:19:23"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:19:25"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:19:38"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:19:39"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:19:41"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:19:52"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:19:53"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:19:54"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:21:49"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:21:50"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:21:52"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:22:08"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:22:09"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:22:10"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:23:48"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:23:49"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:23:50"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:24:06"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:24:07"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:24:09"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:29:38"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:29:38"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:29:40"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:29:55"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:29:55"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:29:57"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:30:10"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:30:11"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:30:13"}
+{"level":"error","message":"POST /api/statutes - Error: display is not defined","service":"sld-backend-service","stack":"ReferenceError: display is not defined\n    at createStatute (file:///D:/sld_system/sld_system/backend/src/controllers/statuteController.js:135:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:36:17"}
+{"level":"error","message":"POST /api/statutes - Error: display is not defined","service":"sld-backend-service","stack":"ReferenceError: display is not defined\n    at createStatute (file:///D:/sld_system/sld_system/backend/src/controllers/statuteController.js:135:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:36:23"}
+{"level":"error","message":"POST /api/statutes - Error: display is not defined","service":"sld-backend-service","stack":"ReferenceError: display is not defined\n    at createStatute (file:///D:/sld_system/sld_system/backend/src/controllers/statuteController.js:135:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:36:25"}
+{"level":"error","message":"POST /api/statutes - Error: display is not defined","service":"sld-backend-service","stack":"ReferenceError: display is not defined\n    at createStatute (file:///D:/sld_system/sld_system/backend/src/controllers/statuteController.js:135:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:36:25"}
+{"level":"info","message":"[Case Created] Case ID CASE-000397 (SLD #163629) added.","service":"sld-backend-service","timestamp":"2026-09-01 10:37:08"}
+{"level":"error","message":"POST /api/notifications - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at createNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:141:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:38:33"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-09-01 10:40:45"}
+{"level":"error","message":"POST /api/notifications - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at createNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:141:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:41:38"}
+{"level":"error","message":"POST /api/notifications - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at createNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:141:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:45:22"}
+{"level":"error","message":"POST /api/notifications - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at createNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:141:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:45:31"}
+{"level":"error","message":"POST /api/statutes - Error: display is not defined","service":"sld-backend-service","stack":"ReferenceError: display is not defined\n    at createStatute (file:///D:/sld_system/sld_system/backend/src/controllers/statuteController.js:135:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:45:48"}
+{"level":"error","message":"POST /api/notifications - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at createNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:141:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 10:46:55"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:48:06"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:48:08"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:48:09"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:48:25"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:48:26"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:48:28"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:55:49"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 10:55:50"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 10:55:51"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 10:55:52"}
+{"level":"info","message":"[Notification Created] Notification ID NOTIF-000018 (SR #111232) added.","service":"sld-backend-service","timestamp":"2026-09-01 10:56:00"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-09-01 10:58:33"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-09-01 11:02:57"}
+{"level":"error","message":"[Gemini API Error] Status: 503. Body: {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n","service":"sld-backend-service","timestamp":"2026-09-01 17:43:58"}
+{"level":"error","message":"POST /api/chat - Error: Gemini API returned status 503","service":"sld-backend-service","stack":"Error: Gemini API returned status 503\n    at file:///D:/sld_system/sld_system/backend/server.js:268:13\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 17:43:58"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 22:33:02"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 22:33:03"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 22:33:04"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 22:33:06"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 22:45:11"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 22:45:12"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 22:45:14"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 22:47:42"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 22:47:43"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 22:47:45"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 22:48:33"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 22:48:34"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 22:48:36"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 22:49:18"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 22:49:19"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 22:49:20"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 22:50:53"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 22:50:54"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 22:50:56"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 22:53:01"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 22:53:02"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 22:53:04"}
+{"level":"info","message":"[Case Created] Case ID CASE-000398 (SLD #19090) added.","service":"sld-backend-service","timestamp":"2026-09-01 23:16:53"}
+{"level":"error","message":"PUT /api/notifications/111232 - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at updateNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:210:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 23:36:22"}
+{"level":"error","message":"PUT /api/notifications/111232 - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at updateNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:210:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 23:36:24"}
+{"level":"error","message":"PUT /api/notifications/111232 - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at updateNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:210:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 23:36:30"}
+{"level":"error","message":"PUT /api/notifications/111232 - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at updateNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:210:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 23:36:31"}
+{"level":"error","message":"PUT /api/notifications/111232 - Error: status is not defined","service":"sld-backend-service","stack":"ReferenceError: status is not defined\n    at updateNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:210:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","timestamp":"2026-09-01 23:36:31"}
+{"level":"error","message":"POST /api/notifications - Error: Notification validation failed: subject: Notification Subject is required","service":"sld-backend-service","stack":"ValidationError: Notification validation failed: subject: Notification Subject is required\n    at model.validate (D:\\sld_system\\sld_system\\backend\\node_modules\\mongoose\\lib\\document.js:2944:36)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async model.$__save (D:\\sld_system\\sld_system\\backend\\node_modules\\mongoose\\lib\\model.js:399:7)\n    at async maybeTracedSave (D:\\sld_system\\sld_system\\backend\\node_modules\\mongoose\\lib\\model.js:676:7)\n    at async createNotification (file:///D:/sld_system/sld_system/backend/src/controllers/notificationController.js:146:5)","timestamp":"2026-09-01 23:36:58"}
+{"level":"info","message":"[Notification Created] Notification ID NOTIF-000019 (SR #163629) added.","service":"sld-backend-service","timestamp":"2026-09-01 23:37:21"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 23:39:27"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 23:39:28"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 23:39:29"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 23:39:31"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 23:40:10"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 23:40:10"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 23:40:12"}

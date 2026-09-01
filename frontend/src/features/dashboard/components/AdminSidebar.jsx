@@ -9,12 +9,14 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  X
+  X,
+  Search
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { label: 'Search Case Law', path: '/search-case-law', icon: Search },
   { label: 'Manage Cases Law', path: '/manage-cases', icon: Scale },
   { label: 'Manage Notifications', path: '/manage-notifications', icon: Bell },
   { label: 'Manage Statutes Forms', path: '/manage-statutes', icon: FileText },

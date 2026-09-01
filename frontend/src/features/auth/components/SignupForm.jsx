@@ -6,7 +6,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import Input from '../../../components/ui/Input'
 import Button from '../../../components/ui/Button'
 import SocialAuthButton from '../../../components/ui/SocialAuthButton'
-import AuthSupportLink from '../../../components/ui/AuthSupportLink'
 import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png'
 import { PAKISTAN_CITIES } from '../../../constants/cities'
 import { signupSchema } from '../validation/authSchema'
@@ -224,7 +223,7 @@ const SignupForm = () => {
           Sign up with Google
         </SocialAuthButton>
 
-        <AuthSupportLink action="signup" />
+        
       </form>
     </div>
   )

@@ -26,7 +26,7 @@ export const caseService = {
    * @returns {Promise<Array>}
    */
   searchCases: async (filters = {}) => {
-    const response = await api.get('/api/cases', { params: filters });
+    const response = await api.post('/api/cases/search', filters);
     return response.data.data;
   },
 

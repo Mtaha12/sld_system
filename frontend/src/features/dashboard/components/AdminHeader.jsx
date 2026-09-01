@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, ChevronDown, LogOut, Menu } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, Sparkles } from 'lucide-react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { ACTIVITIES } from './RecentActivity';
 import { useUser } from '../../../contexts/UserContext';
@@ -14,7 +14,7 @@ const PAGE_HEADERS = {
     subtitle: 'View, search and manage all legal cases'
   },
   '/manage-cases/add': {
-    title: 'Manage Cases Law',
+    title: 'Add Case Law Detail',
     subtitle: 'Add new case law detail and publication records'
   },
   '/manage-notifications': {
@@ -22,7 +22,7 @@ const PAGE_HEADERS = {
     subtitle: 'View, search and manage notifications and orders'
   },
   '/manage-notifications/add': {
-    title: 'Manage Notifications / Circulars / Letters / General Orders',
+    title: 'Add Notifications / Circulars / Letters / General Orders Detail',
     subtitle: 'Add new notifications, circulars, letters, and general orders'
   },
   '/manage-statutes': {
@@ -30,16 +30,30 @@ const PAGE_HEADERS = {
     subtitle: 'View, search and manage all statutes'
   },
   '/manage-statutes/add': {
-    title: 'Manage Statutes Forms',
-    subtitle: 'Add new statute forms'
+    title: 'Add Statute Form Detail',
+    subtitle: 'Add new statute forms and categories'
   },
   '/settings': {
     title: 'Settings',
-    subtitle: 'Manage your application and account preferences'
+    subtitle: 'Manage your application preferences and settings'
+  },
+  '/news': {
+    title: 'News Updates',
+    subtitle: 'Stay updated with the latest legal and tax news'
+  },
+  '/whatsapp-updates': {
+    title: 'Whatsapp Updates',
+    subtitle: 'View and manage all official Whatsapp communications'
+  },
+  '/search-case-law': {
+    title: 'Case Law Search',
+    subtitle: 'Search case laws, judgments and legal references across multiple sources.'
   }
 };
 
-const AdminHeader = ({ onToggleMenu }) => {
+import AIChatDrawer from './AIChatDrawer';
+
+const AdminHeader = ({ onToggleMenu, isAIChatOpen, setIsAIChatOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -92,6 +106,22 @@ const AdminHeader = ({ onToggleMenu }) => {
           <h1 className="text-xl sm:text-2xl font-semibold text-theme-main truncate">{headerContent.title}</h1>
           <p className="text-xs sm:text-sm text-theme-muted mt-0.5 truncate">{headerContent.subtitle}</p>
         </div>
+      </div>
+
+      {/* AI Search Button - Centered */}
+      <div className="hidden md:flex flex-1 max-w-2xl px-8 items-center justify-center">
+        <button 
+          onClick={() => setIsAIChatOpen(true)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-[#1A1C23] border border-gray-200 dark:border-theme-border rounded-xl text-sm text-gray-500 hover:border-[#f15a24] hover:ring-1 hover:ring-[#f15a24] hover:text-gray-800 dark:hover:text-gray-200 transition-all group focus:outline-none shadow-sm cursor-text"
+        >
+          <Sparkles className="w-4 h-4 text-[#f15a24]" />
+          <span>Search with the help of AI...</span>
+          <div className="ml-auto flex items-center gap-1">
+            <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-400 bg-white dark:bg-[#14151A] border border-gray-200 dark:border-[#262833] rounded">
+              <span className="text-xs">⌘</span> K
+            </kbd>
+          </div>
+        </button>
       </div>
 
       <div className="flex items-center gap-4 sm:gap-6 shrink-0">
@@ -183,6 +213,7 @@ const AdminHeader = ({ onToggleMenu }) => {
           )}
         </div>
       </div>
+      <AIChatDrawer isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
     </header>
   );
 };

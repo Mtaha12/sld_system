@@ -2,6 +2,11 @@ import Case from '../models/Case.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Helper to translate a space or newline separated string into an array of trimmed strings
  */
@@ -47,7 +52,6 @@ const formatCaseForFrontend = (c) => {
     sldNumber: c.sldNumber || c.caseId || '',
     dated: c.dated || '',
     department: c.department || 'tax',
-    status: c.status || 'Active',
     court: c.court || '',
     caseNumber: c.caseNumber || [],
     judges: c.judges || [],
@@ -151,7 +155,7 @@ export const getCaseById = async (req, res, next) => {
 export const createCase = async (req, res, next) => {
   try {
     const { 
-      srNumber, dated, department, status, court, 
+      srNumber, dated, department, court, 
       caseNumber, judges, petitioners, lawyers, 
       headNote, references, principleLaw, judgment, 
       publications, laws, attachments 
@@ -180,7 +184,6 @@ export const createCase = async (req, res, next) => {
       sldNumber: srNumber ? srNumber.trim() : undefined,
       dated: dated || null,
       department: department || 'tax',
-      status: status || 'Active',
       court: court || '',
       caseNumber: stringToArray(caseNumber),
       judges: stringToArray(judges),
@@ -231,7 +234,7 @@ export const updateCase = async (req, res, next) => {
     };
 
     const { 
-      srNumber, dated, department, status, court, 
+      srNumber, dated, department, court, 
       caseNumber, judges, petitioners, lawyers, 
       headNote, references, principleLaw, judgment, 
       publications, laws, attachments 
@@ -258,7 +261,6 @@ export const updateCase = async (req, res, next) => {
 
     if (dated !== undefined) c.dated = dated;
     if (department !== undefined) c.department = department;
-    if (status !== undefined) c.status = status;
     if (court !== undefined) c.court = court;
     if (caseNumber !== undefined) c.caseNumber = stringToArray(caseNumber);
     if (judges !== undefined) c.judges = stringToArray(judges);
@@ -370,3 +372,134 @@ export const deleteMultiple = async (req, res, next) => {
     next(error);
   }
 };
+export const searchCases = async (req, res, next) => {
+  try {
+    const filters = req.body;
+    
+    const hasFilter = Object.values(filters).some(val => val && val.toString().trim() !== '');
+    if (!hasFilter) {
+      return res.status(400).json({ success: false, message: 'Please provide at least one search criteria.' });
+    }
+
+    let andConditions = [{ isDeleted: false }];
+
+        if (filters.yearVolume) {
+      andConditions.push({
+        $or: [
+          { 'publications.year': { $regex: escapeRegex(filters.yearVolume), $options: 'i' } },
+          { 'publications.vol': { $regex: escapeRegex(filters.yearVolume), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.magazine) {
+      andConditions.push({ 'publications.mag': { $regex: `^${escapeRegex(filters.magazine)}$`, $options: 'i' } });
+    }
+
+    if (filters.page) {
+      andConditions.push({ 'publications.page': { $regex: escapeRegex(filters.page), $options: 'i' } });
+    }
+
+    if (filters.selectLaw) {
+      andConditions.push({
+        $or: [
+          { principleLaw: { $regex: escapeRegex(filters.selectLaw), $options: 'i' } },
+          { 'laws.lawStatute': { $regex: escapeRegex(filters.selectLaw), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.section) {
+      andConditions.push({
+        $or: [
+          { principleLaw: { $regex: escapeRegex(filters.section), $options: 'i' } },
+          { 'laws.section': { $regex: escapeRegex(filters.section), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.section2) {
+      andConditions.push({
+        $or: [
+          { principleLaw: { $regex: escapeRegex(filters.section2), $options: 'i' } },
+          { 'laws.section': { $regex: escapeRegex(filters.section2), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.court) {
+      andConditions.push({ court: { $regex: `^${escapeRegex(filters.court)}$`, $options: 'i' } });
+    }
+
+    if (filters.caseNumber) {
+      andConditions.push({ caseNumber: { $regex: escapeRegex(filters.caseNumber), $options: 'i' } });
+    }
+
+    if (filters.date) {
+      andConditions.push({ dated: { $regex: escapeRegex(filters.date), $options: 'i' } });
+    }
+
+    if (filters.keywords) {
+      andConditions.push({
+        $or: [
+          { headNote: { $regex: escapeRegex(filters.keywords), $options: 'i' } },
+          { judgment: { $regex: escapeRegex(filters.keywords), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.keywords2) {
+      andConditions.push({
+        $or: [
+          { headNote: { $regex: escapeRegex(filters.keywords2), $options: 'i' } },
+          { judgment: { $regex: escapeRegex(filters.keywords2), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.phrase) {
+      andConditions.push({
+        $or: [
+          { headNote: { $regex: escapeRegex(filters.phrase), $options: 'i' } },
+          { judgment: { $regex: escapeRegex(filters.phrase), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.judges) {
+      andConditions.push({ judges: { $regex: escapeRegex(filters.judges), $options: 'i' } });
+    }
+
+    if (filters.lawyers) {
+      andConditions.push({ lawyers: { $regex: escapeRegex(filters.lawyers), $options: 'i' } });
+    }
+
+    if (filters.petitioner) {
+      andConditions.push({ petitioners: { $regex: escapeRegex(filters.petitioner), $options: 'i' } });
+    }
+
+    if (filters.principleLaw) {
+      andConditions.push({
+        $or: [
+          { principleLaw: { $regex: escapeRegex(filters.principleLaw), $options: 'i' } },
+          { 'laws.lawStatute': { $regex: escapeRegex(filters.principleLaw), $options: 'i' } }
+        ]
+      });
+    }
+    const query = { $and: andConditions };
+    
+    // Also limit results for performance
+    const cases = await Case.find(query).sort({ createdAt: -1 }).limit(100);
+    const formattedCases = cases.map(c => formatCaseForFrontend(c));
+
+    res.status(200).json({
+      success: true,
+      count: cases.length,
+      data: formattedCases
+    });
+  } catch (error) {
+    logger.error('Error in searchCases:', error);
+    next(error);
+  }
+};
+

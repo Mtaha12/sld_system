@@ -4,7 +4,6 @@ export const caseSchema = z.object({
   srNumber: z.string().optional().default(''),
   dated: z.union([z.date(), z.string()]).nullable().optional(),
   department: z.string().min(1, 'Department is required').default('tax'),
-  status: z.string().min(1, 'Status is required').default('active'),
   court: z.string().optional().default(''),
   caseNumber: z.string().optional().default(''),
   judges: z.string().optional().default(''),

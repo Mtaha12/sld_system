@@ -10,7 +10,6 @@ import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import FileUpload from '../../../components/ui/FileUpload';
-import PageHeader from '../../../components/ui/PageHeader';
 import FormFooter from '../../../components/ui/FormFooter';
 import { notificationSchema } from '../validation/notificationSchema';
 import { notificationService } from '../services/notificationService';
@@ -23,27 +22,37 @@ const AddNotificationForm = () => {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const defaultValues = {
-    srNumber: editData?.srNumber || '',
+    srNumber: editData?.srNumber?.toString() || '',
     department: editData?.department?.toLowerCase() || 'notifications',
     subDepartment: editData?.subDepartment || 'federal',
-    year: editData?.year || '2026',
-    number: editData?.number || '14',
+    year: editData?.year?.toString() || '2026',
+    number: editData?.number?.toString() || '14',
     sroNumber: editData?.sroNumber || '',
     subject: editData?.subject || '',
     status: editData?.status?.toLowerCase() || 'active',
     lawStatute: editData?.lawStatute || '',
     section: editData?.section || '',
-    blocks: [
-      { 
-        id: 1, 
-        date: editData?.lawDate ? new Date(editData.lawDate) : null, 
-        detail: isEdit ? `<p><strong>${editData?.subject || 'Notification'}</strong></p><p>Official statutory notification details and circular directives issued under the applicable legal framework.</p>` : '',
-        attachments: []
-      },
-      { id: 2, date: null, detail: '', attachments: [] },
-      { id: 3, date: null, detail: '', attachments: [] },
-      { id: 4, date: null, detail: '', attachments: [] }
-    ]
+    blocks: (() => {
+      const empty1 = { id: 'new-block-1', date: null, detail: '', attachments: [] };
+      const empty2 = { id: 'new-block-2', date: null, detail: '', attachments: [] };
+      if (!isEdit) return [empty1, empty2];
+      
+      const existingFilled = (editData?.blocks || []).filter(b => {
+        const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
+        const hasDate = b.date !== null && b.date !== '';
+        const hasAttachments = b.attachments && b.attachments.length > 0;
+        return hasDetail || hasDate || hasAttachments;
+      }).map((b, i) => ({
+        id: b._id || `existing-${i}`,
+        date: b.date ? new Date(b.date) : null,
+        detail: b.detail || '',
+        attachments: b.attachments || []
+      }));
+      
+      const res = [empty1, ...existingFilled];
+      if (res.length < 2) res.push(empty2);
+      return res;
+    })()
   };
 
   const {
@@ -62,28 +71,33 @@ const AddNotificationForm = () => {
   });
 
   const onSubmit = async (data) => {
-    if (isEdit && editData?.id) {
-      await notificationService.updateNotification(editData.id, data);
-    } else {
-      await notificationService.createNotification(data);
+    // Strip empty blocks before saving
+    data.blocks = data.blocks.filter(b => {
+      const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
+      const hasDate = b.date !== null && b.date !== '';
+      const hasAttachments = b.attachments && b.attachments.length > 0;
+      return hasDetail || hasDate || hasAttachments;
+    });
+
+    try {
+      if (isEdit && editData?.id) {
+        await notificationService.updateNotification(editData.id, data);
+      } else {
+        await notificationService.createNotification(data);
+      }
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        navigate('/manage-notifications');
+      }, 2500);
+    } catch (error) {
+      console.error('Submission error:', error);
     }
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      navigate('/manage-notifications');
-    }, 2500);
   };
 
   return (
     <div className="flex flex-col bg-theme-surface relative">
       
-      <PageHeader 
-        title={<>{isEdit ? 'Edit' : 'Add'} <span className="text-brand-orange">Notifications / Circulars / Letters / General Orders</span> Detail</>}
-        subtitle={isEdit ? "Update the record information and content details" : "Enter the record information and content details"}
-        icon={Bell}
-        onClose={() => navigate('/manage-notifications')}
-      />
-
       <div className="p-6">
         
         {showSuccess && (
@@ -173,16 +187,6 @@ const AddNotificationForm = () => {
                   placeholder="Enter Subject..." 
                   error={errors.subject}
                   {...register('subject')}
-                />
-              </FormField>
-              <FormField label="Status" required className="col-span-1 md:col-span-3">
-                <Input 
-                  variant="light" 
-                  inputSize="sm"
-                  type="select" 
-                  error={errors.status}
-                  options={[{ label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]} 
-                  {...register('status')}
                 />
               </FormField>
             </div>
@@ -294,4 +298,6 @@ const AddNotificationForm = () => {
 };
 
 export default AddNotificationForm;
+
+
 

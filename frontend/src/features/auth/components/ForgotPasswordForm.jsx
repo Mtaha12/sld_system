@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom'
 import { Mail, Lock, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react'
 import Input from '../../../components/ui/Input'
 import Button from '../../../components/ui/Button'
-import AuthSupportLink from '../../../components/ui/AuthSupportLink'
 import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png'
 import { forgotPasswordSchema, resetPasswordSchema } from '../validation/authSchema'
 import { authService } from '../services/authService'
@@ -420,7 +419,7 @@ const ForgotPasswordForm = () => {
           {isSubmittingRequest ? 'Sending OTP...' : 'Send OTP'}
         </Button>
 
-        <AuthSupportLink text="Still having trouble?" />
+        
       </form>
     </div>
   )

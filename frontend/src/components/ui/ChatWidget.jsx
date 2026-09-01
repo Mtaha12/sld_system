@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Sparkles } from 'lucide-react';
 import api from '../../services/api.js';
 
-const ChatWidget = () => {
+const ChatWidget = ({ isHidden }) => {
   const [isOpen, setIsOpen] = useState(() => {
     return sessionStorage.getItem('sld_chat_open') === 'true';
   });
@@ -111,6 +111,8 @@ const ChatWidget = () => {
       </React.Fragment>
     ));
   };
+
+  if (isHidden) return null;
 
   return (
     <>

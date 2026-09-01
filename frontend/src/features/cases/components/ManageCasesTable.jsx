@@ -24,14 +24,14 @@ import FileUpload from '../../../components/ui/FileUpload';
 import SquareLoader from '../../../components/ui/SquareLoader';
 import { caseService } from '../services/caseService';
 
-const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon }) => {
-  const isSorted = sortConfig?.key === sortKey;
-  const direction = isSorted ? sortConfig.direction : null;
+const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon, widthClassName = '' }) => {
+  const isSorted = sortKey && sortConfig?.key === sortKey;
+  const direction = isSorted ? sortConfig?.direction : null;
 
   return (
     <th 
       onClick={() => sortKey && onSort?.(sortKey)}
-      className={`px-2 py-3 font-semibold text-theme-main align-top select-none ${sortKey ? 'cursor-pointer hover:bg-theme-surface-alt/80 transition-colors group' : ''}`}
+      className={`px-2 py-3 font-semibold text-theme-main align-top select-none ${widthClassName} ${sortKey ? 'cursor-pointer hover:bg-theme-surface-alt/80 transition-colors group' : ''}`}
     >
       <div className="flex items-start gap-1">
         {HeaderIcon && <HeaderIcon className="w-3.5 h-3.5 text-theme-disabled shrink-0 mt-0.5" />}
@@ -380,10 +380,10 @@ const ManageCasesTable = ({
       {/* Table Container */}
       <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left table-auto">
+          <table className="w-full text-xs text-left table-fixed">
             <thead className="bg-theme-table-header border-b border-theme-border text-theme-main">
               <tr>
-                <th className="px-3 py-3 w-10 text-center">
+                <th className="px-3 py-3 w-[3%] text-center">
                   <input 
                     type="checkbox" 
                     checked={isAllCurrentSelected}
@@ -397,18 +397,17 @@ const ManageCasesTable = ({
                     className="w-4 h-4 rounded border-theme-border bg-theme-surface text-brand-orange focus:ring-brand-orange cursor-pointer accent-[#E55C41]" 
                   />
                 </th>
-                <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Map / Year / Page" sortKey="mapYearPage" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Month" sortKey="month" sortConfig={sortConfig} onSort={handleSort} icon={Calendar} />
-                <TableHeader title="Court" sortKey="court" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Case #" sortKey="caseNumber" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Judges" sortKey="judges" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Lawyers" sortKey="lawyers" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Petitioners" sortKey="petitioners" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Attachment" sortKey="attachments" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Status" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
-                <th className="px-2 py-3 font-semibold text-theme-main align-top">Action</th>
+                <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-[5%]" />
+                <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-[6%]" />
+                <TableHeader title="Map / Year / Page" widthClassName="w-[9%]" />
+                <TableHeader title="Month" widthClassName="w-[4%]" />
+                <TableHeader title="Court" widthClassName="w-[9%]" />
+                <TableHeader title="Case #" widthClassName="w-[13%]" />
+                <TableHeader title="Judges" widthClassName="w-[13%]" />
+                <TableHeader title="Lawyers" widthClassName="w-[12%]" />
+                <TableHeader title="Petitioners" widthClassName="w-[12%]" />
+                <TableHeader title="Attachment" widthClassName="w-[6%]" />
+                <th className="px-2 py-3 font-semibold text-theme-main align-top w-[8%]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border/50">
@@ -449,7 +448,7 @@ const ManageCasesTable = ({
                       />
                     </td>
                     <td className="px-2 py-4 align-top text-theme-muted break-words">{item.sldNumber}</td>
-                    <td className="px-2 py-4 align-top text-theme-muted">{item.dated}</td>
+                    <td className="px-2 py-4 align-top text-theme-muted">{item.dated ? item.dated.split('T')[0] : ''}</td>
                     <td className="px-2 py-4 align-top text-theme-muted">
                       <div className="flex flex-col gap-1">
                         {item.mapYearPage.map((line, i) => <span key={i}>{line}</span>)}
@@ -489,11 +488,6 @@ const ManageCasesTable = ({
                         <Paperclip className="w-4 h-4 text-brand-orange shrink-0 group-hover:scale-110 transition-transform" />
                         <span className="text-brand-orange font-semibold text-xs">({item.attachments || 1})</span>
                       </button>
-                    </td>
-                    <td className="px-2 py-4 align-top">
-                      <span className="inline-flex items-center justify-center px-2 py-1 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 font-medium rounded text-[10px] border border-green-200 dark:border-green-800/50">
-                        {item.status}
-                      </span>
                     </td>
                     <td className="px-2 py-4 align-top">
                       <div className="flex items-center gap-1.5">
@@ -593,16 +587,10 @@ const ManageCasesTable = ({
       >
         {viewModalCase && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
                 <span className="block text-xs text-theme-muted mb-1 font-medium">Court</span>
                 <span className="font-semibold text-theme-main">{viewModalCase.court}</span>
-              </div>
-              <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
-                <span className="block text-xs text-theme-muted mb-1 font-medium">Status</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50">
-                  {viewModalCase.status}
-                </span>
               </div>
             </div>
 
@@ -927,4 +915,5 @@ const ManageCasesTable = ({
 };
 
 export default ManageCasesTable;
+
 

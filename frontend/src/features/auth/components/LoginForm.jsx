@@ -6,7 +6,6 @@ import { User, Lock, CheckCircle2, ChevronRight } from 'lucide-react'
 import Input from '../../../components/ui/Input'
 import Button from '../../../components/ui/Button'
 import SocialAuthButton from '../../../components/ui/SocialAuthButton'
-import AuthSupportLink from '../../../components/ui/AuthSupportLink'
 import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png'
 import { loginSchema } from '../validation/authSchema'
 import { authService } from '../services/authService'
@@ -152,7 +151,7 @@ const LoginForm = () => {
           Sign in with Google
         </SocialAuthButton>
 
-        <AuthSupportLink action="signin" />
+        
       </form>
     </div>
   )

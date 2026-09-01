@@ -67,10 +67,6 @@ const notificationSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
-  status: {
-    type: String,
-    default: 'Active',
-  },
   lawDate: {
     type: String,
     default: '',

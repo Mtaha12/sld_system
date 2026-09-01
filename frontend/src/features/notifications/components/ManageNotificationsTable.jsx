@@ -256,7 +256,6 @@ const ManageNotificationsTable = ({
                 <TableHeader title="Law Date" sortKey="lawDate" sortConfig={sortConfig} onSort={handleSort} />
                 <TableHeader title="Law/Statute" sortKey="lawStatute" sortConfig={sortConfig} onSort={handleSort} />
                 <TableHeader title="Section" sortKey="section" sortConfig={sortConfig} onSort={handleSort} />
-                <TableHeader title="Status" sortKey="status" sortConfig={sortConfig} onSort={handleSort} />
                 <th className="px-3 py-3 font-semibold text-theme-main align-top text-center">
                   Action
                 </th>
@@ -297,15 +296,6 @@ const ManageNotificationsTable = ({
                     <td className="px-3 py-4 align-top text-theme-muted">{item.lawDate || '-'}</td>
                     <td className="px-3 py-4 align-top text-theme-muted">{item.lawStatute || '-'}</td>
                     <td className="px-3 py-4 align-top text-theme-muted">{item.section || '-'}</td>
-                    <td className="px-3 py-4 align-top">
-                      <span className={`inline-flex items-center justify-center px-2.5 py-1 font-medium rounded text-[10px] border ${
-                        item.status === 'Active' 
-                          ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/50' 
-                          : 'bg-theme-surface-alt text-theme-main border-theme-border'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
                     <td className="px-3 py-4 align-top text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button 
@@ -412,12 +402,6 @@ const ManageNotificationsTable = ({
               <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
                 <span className="block text-xs text-theme-muted mb-1 font-medium">Number</span>
                 <span className="font-semibold text-theme-main">{viewModalItem.number}</span>
-              </div>
-              <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
-                <span className="block text-xs text-theme-muted mb-1 font-medium">Status</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50">
-                  {viewModalItem.status}
-                </span>
               </div>
             </div>
 

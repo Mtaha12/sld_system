@@ -13,8 +13,8 @@ export const statuteSchema = z.object({
   srNumber: z.string().optional().default(''),
   department: z.string().optional().default('tax'),
   chapter: z.string().optional().default(''),
-  display: z.string().min(1, 'Display selection is required').default('yes'),
-  status: z.string().min(1, 'Status is required').default('active'),
+
+
   law: z.string().optional().default(''),
   section: z.string().optional().default(''),
   heading: z.string().optional().default(''),

@@ -138,7 +138,6 @@ export const createNotification = async (req, res, next) => {
       number: number || '',
       sroNumber: sroNumber || '',
       subject: subject || '',
-      status: status || 'Active',
       lawStatute: lawStatute || '',
       section: section || '',
       blocks: blocks || []

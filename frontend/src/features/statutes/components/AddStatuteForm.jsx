@@ -10,7 +10,6 @@ import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import FileUpload from '../../../components/ui/FileUpload';
-import PageHeader from '../../../components/ui/PageHeader';
 import FormFooter from '../../../components/ui/FormFooter';
 import { statuteSchema } from '../validation/statuteSchema';
 import { statuteService } from '../services/statuteService';
@@ -23,7 +22,7 @@ const AddStatuteForm = () => {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const defaultValues = {
-    srNumber: editData?.srNumber || editData?.id || '',
+    srNumber: editData?.srNumber?.toString() || editData?.id?.toString() || '',
     department: editData?.department?.toLowerCase() || 'tax',
     chapter: editData?.chapter || '',
     display: editData?.display?.toLowerCase() === 'no' ? 'no' : 'yes',
@@ -31,19 +30,31 @@ const AddStatuteForm = () => {
     law: editData?.law || 'Income Tax Rules, 2002',
     section: editData?.section || '231CB',
     heading: editData?.heading || '',
-    blocks: [
-      { 
-        id: 1, 
-        sectionHeading: editData?.sectionHeading || '', 
-        fromDate: editData?.dated ? new Date(editData.dated) : null, 
-        toDate: null, 
-        detail: isEdit ? `<p><strong>${editData?.sectionHeading || 'Statute Section'}</strong></p><p>Detailed statutory provisions, regulatory clauses, and compliance directives under ${editData?.law || 'Statutory Code'}.</p>` : '',
-        attachments: []
-      },
-      { id: 2, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] },
-      { id: 3, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] },
-      { id: 4, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] }
-    ]
+    blocks: (() => {
+      const empty1 = { id: 'new-block-1', sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] };
+      const empty2 = { id: 'new-block-2', sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] };
+      if (!isEdit) return [empty1, empty2];
+      
+      const existingFilled = (editData?.blocks || []).filter(b => {
+        const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
+        const hasSectionHeading = b.sectionHeading && b.sectionHeading.trim() !== '';
+        const hasFromDate = b.fromDate !== null && b.fromDate !== '';
+        const hasToDate = b.toDate !== null && b.toDate !== '';
+        const hasAttachments = b.attachments && b.attachments.length > 0;
+        return hasDetail || hasSectionHeading || hasFromDate || hasToDate || hasAttachments;
+      }).map((b, i) => ({
+        id: b._id || `existing-${i}`,
+        sectionHeading: b.sectionHeading || '',
+        fromDate: b.fromDate ? new Date(b.fromDate) : null,
+        toDate: b.toDate ? new Date(b.toDate) : null,
+        detail: b.detail || '',
+        attachments: b.attachments || []
+      }));
+      
+      const res = [empty1, ...existingFilled];
+      if (res.length < 2) res.push(empty2);
+      return res;
+    })()
   };
 
   const {
@@ -62,28 +73,35 @@ const AddStatuteForm = () => {
   });
 
   const onSubmit = async (data) => {
-    if (isEdit && editData?.id) {
-      await statuteService.updateStatute(editData.id, data);
-    } else {
-      await statuteService.createStatute(data);
+    // Strip empty blocks before saving
+    data.blocks = data.blocks.filter(b => {
+      const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
+      const hasSectionHeading = b.sectionHeading && b.sectionHeading.trim() !== '';
+      const hasFromDate = b.fromDate !== null && b.fromDate !== '';
+      const hasToDate = b.toDate !== null && b.toDate !== '';
+      const hasAttachments = b.attachments && b.attachments.length > 0;
+      return hasDetail || hasSectionHeading || hasFromDate || hasToDate || hasAttachments;
+    });
+
+    try {
+      if (isEdit && editData?.id) {
+        await statuteService.updateStatute(editData.id, data);
+      } else {
+        await statuteService.createStatute(data);
+      }
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        navigate('/manage-statutes');
+      }, 2500);
+    } catch (error) {
+      console.error('Submission error:', error);
     }
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      navigate('/manage-statutes');
-    }, 2500);
   };
 
   return (
     <div className="flex flex-col bg-theme-surface relative">
       
-      <PageHeader 
-        title={<>{isEdit ? 'Edit' : 'Add'} <span className="text-brand-orange">Statute Form</span> Detail</>}
-        subtitle={isEdit ? "Update the statute information and content details" : "Enter the statute information and content details"}
-        icon={FileText}
-        onClose={() => navigate('/manage-statutes')}
-      />
-
       <div className="p-6">
         
         {showSuccess && (
@@ -132,26 +150,6 @@ const AddStatuteForm = () => {
                   placeholder="e.g. CHAPTER-XIX" 
                   error={errors.chapter}
                   {...register('chapter')}
-                />
-              </FormField>
-              <FormField label="Display" required className="col-span-1 md:col-span-2">
-                <Input 
-                  variant="light" 
-                  inputSize="sm"
-                  type="select" 
-                  error={errors.display}
-                  options={[{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }]} 
-                  {...register('display')}
-                />
-              </FormField>
-              <FormField label="Status" required className="col-span-1 md:col-span-2">
-                <Input 
-                  variant="light" 
-                  inputSize="sm"
-                  type="select" 
-                  error={errors.status}
-                  options={[{ label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]} 
-                  {...register('status')}
                 />
               </FormField>
             </div>

@@ -31,7 +31,7 @@ const formatStatuteForFrontend = (s) => {
     srNumber: s.srNumber || s.statuteId || '',
     law: s.law || '',
     chapter: s.chapter || '',
-    display: s.display === 'no' ? 'No' : 'Active', // Mock data displays "Active" or "No" (which maps to active/inactive status)
+
     status: s.status || 'active',
     dated,
     section: s.section || '',
@@ -116,7 +116,7 @@ export const getStatuteById = async (req, res, next) => {
 
 export const createStatute = async (req, res, next) => {
   try {
-    const { srNumber, department, chapter, display, status, law, section, heading, blocks } = req.body;
+    const { srNumber, department, chapter, law, section, heading, blocks } = req.body;
 
     if (srNumber && typeof srNumber === 'string' && srNumber.trim().length > 0) {
       const exist = await Statute.findOne({ srNumber: srNumber.trim() });
@@ -132,8 +132,6 @@ export const createStatute = async (req, res, next) => {
       srNumber: srNumber ? srNumber.trim() : undefined,
       department: department || 'tax',
       chapter: chapter || '',
-      display: display || 'yes',
-      status: status || 'active',
       law: law || '',
       section: section || '',
       heading: heading || '',
@@ -174,7 +172,7 @@ export const updateStatute = async (req, res, next) => {
       isDeleted: { $ne: true }
     };
 
-    const { srNumber, department, chapter, display, status, law, section, heading, blocks } = req.body;
+    const { srNumber, department, chapter, law, section, heading, blocks } = req.body;
 
     const s = await Statute.findOne(query);
     if (!s) {

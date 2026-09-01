@@ -22,6 +22,11 @@ const AddNotificationPage = lazy(() => import('./pages/AddNotificationPage'))
 const ManageStatutesPage = lazy(() => import('./pages/ManageStatutesPage'))
 const AddStatutePage = lazy(() => import('./pages/AddStatutePage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const NewsPage = lazy(() => import('./pages/NewsPage'))
+const WhatsappUpdatesPage = lazy(() => import('./pages/WhatsappUpdatesPage'))
+const SearchCaseLawPage = lazy(() => import('./pages/SearchCaseLawPage'))
+const CaseViewPage = lazy(() => import('./pages/CaseViewPage'))
+
 
 function App() {
   return (
@@ -39,10 +44,18 @@ function App() {
               <Route path="/contact" element={<ContactPage />} />
             </Route>
             
+                        {/* Standalone Document Views */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/cases/view/:id" element={<CaseViewPage />} />
+            </Route>
+
             {/* Protected Admin Routes */}
             <Route element={<ProtectedRoute />}>
               <Route element={<AdminLayout />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/news" element={<NewsPage />} />
+                <Route path="/whatsapp-updates" element={<WhatsappUpdatesPage />} />
+                <Route path="/search-case-law" element={<SearchCaseLawPage />} />
                 <Route path="/manage-cases" element={<ManageCasesPage />} />
                 <Route path="/manage-cases/add" element={<AddCaseLawPage />} />
                 <Route path="/cases/new" element={<Navigate to="/manage-cases/add" replace />} />
@@ -66,3 +79,4 @@ function App() {
 }
 
 export default App
+

@@ -101,10 +101,6 @@ const caseSchema = new mongoose.Schema({
     type: [attachmentSchema],
     default: [],
   },
-  status: {
-    type: String,
-    default: 'Active',
-  },
   // We keep a backup of the original mapYearPage array from the seed data
   mapYearPage: {
     type: [String],

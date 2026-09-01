@@ -40,14 +40,6 @@ const statuteSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
-  display: {
-    type: String,
-    default: 'yes',
-  },
-  status: {
-    type: String,
-    default: 'active',
-  },
   law: {
     type: String,
     default: '',
