@@ -21,6 +21,7 @@ import statuteRoutes from './src/routes/statuteRoutes.js';
 import notificationRoutes from './src/routes/notificationRoutes.js';
 import dashboardRoutes from './src/routes/dashboardRoutes.js';
 import paymentRoutes from './src/routes/paymentRoutes.js';
+import aiChatRoutes from './src/routes/aiChatRoutes.js';
 
 // Models
 import mongoose from 'mongoose';
@@ -97,6 +98,7 @@ app.use('/api/statutes', statuteRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/ai-chat', aiChatRoutes);
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

@@ -466,3 +466,31 @@ runTest('POST /api/auth/refresh-token - Renews expired sessions', async () => {
   assert.strictEqual(status, 200);
   assert.ok(data.accessToken);
 });
+
+// ----------------------------------------------------------------------------
+// 8. AI CHATBOT PROXY TESTS
+// ----------------------------------------------------------------------------
+runTest('POST /api/ai-chat/sessions - Rejects unauthenticated requests', async () => {
+  const { status } = await makeRequest('/api/ai-chat/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ sld_number: '123' })
+  });
+  assert.strictEqual(status, 401);
+});
+
+// For these tests, we don't necessarily have the Python server running.
+// We expect a 503 or error handled gracefully without exposing secrets or crashing.
+runTest('POST /api/ai-chat/sessions - Handles authenticated requests and gracefully catches Python unreachability', async () => {
+  const { status, data } = await makeRequest('/api/ai-chat/sessions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${userTokens.accessToken}` },
+    body: JSON.stringify({ sld_number: '123' })
+  });
+  // Since Python server might not be running on 8000 during this test, it should safely return 503
+  assert.ok(status === 503 || status === 200 || status === 201);
+  if (status === 503) {
+    assert.strictEqual(data.success, false);
+    assert.ok(data.message.includes('unavailable') || data.message.includes('unreachable'));
+    assert.ok(!data.message.includes('ECONNREFUSED')); // no raw stack traces
+  }
+});

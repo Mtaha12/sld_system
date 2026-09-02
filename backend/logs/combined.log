@@ -671,3 +671,113 @@
 {"level":"info","message":"[Payment Upload Success] Proof submitted for i222544@nu.edu.pk (Submission: 6a97e9fac285ee394497a480)","service":"sld-backend-service","timestamp":"2026-09-02 14:18:55"}
 {"level":"info","message":"[Payment Approved] User i222544@nu.edu.pk activated by owner email action.","service":"sld-backend-service","timestamp":"2026-09-02 14:19:46"}
 {"level":"info","message":"[Login Success] User ibbbi1234 logged in.","service":"sld-backend-service","timestamp":"2026-09-02 14:20:52"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 16:40:48"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 16:40:49"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 16:40:51"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-09-02 16:42:55"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 16:46:34"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 16:46:35"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 16:46:37"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 16:46:53"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 16:46:54"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 16:46:56"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 17:03:02"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 17:03:03"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 17:03:05"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 17:03:07"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 17:03:08"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 17:03:10"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to audit.user.85694@test.com","service":"sld-backend-service","timestamp":"2026-09-02 17:03:50"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to audit.admin.85694@test.com","service":"sld-backend-service","timestamp":"2026-09-02 17:03:54"}
+{"level":"error","message":"AI Chatbot API Key is not configured","service":"sld-backend-service","timestamp":"2026-09-02 17:07:48"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 17:08:11"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 17:08:12"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 17:08:14"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 404, Detail: Session not found","service":"sld-backend-service","timestamp":"2026-09-02 17:10:46"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 404, Detail: Session not found","service":"sld-backend-service","timestamp":"2026-09-02 17:11:05"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 17:29:36"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 17:29:37"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 17:29:39"}
+{"level":"info","message":"[Login Success] User devbyfaizi logged in.","service":"sld-backend-service","timestamp":"2026-09-02 17:31:09"}
+{"level":"error","message":"[SMTP Error] Failed to send OTP to audit.user.85025@test.com: getaddrinfo ENOTFOUND smtp.gmail.com","service":"sld-backend-service","timestamp":"2026-09-02 17:43:24"}
+{"level":"error","message":"POST /api/auth/signup - Error: SMTP Mail delivery failed: getaddrinfo ENOTFOUND smtp.gmail.com","service":"sld-backend-service","stack":"Error: SMTP Mail delivery failed: getaddrinfo ENOTFOUND smtp.gmail.com\n    at sendOtpEmail (file:///D:/sld_system/backend/src/controllers/authController.js:67:11)\n    at async register (file:///D:/sld_system/backend/src/controllers/authController.js:128:5)","timestamp":"2026-09-02 17:43:24"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 404, Detail: Session not found","service":"sld-backend-service","timestamp":"2026-09-02 17:43:35"}
+{"level":"error","message":"[SMTP Error] Failed to send OTP to audit.admin.85025@test.com: getaddrinfo ENOTFOUND smtp.gmail.com","service":"sld-backend-service","timestamp":"2026-09-02 17:43:36"}
+{"level":"error","message":"POST /api/auth/signup - Error: SMTP Mail delivery failed: getaddrinfo ENOTFOUND smtp.gmail.com","service":"sld-backend-service","stack":"Error: SMTP Mail delivery failed: getaddrinfo ENOTFOUND smtp.gmail.com\n    at sendOtpEmail (file:///D:/sld_system/backend/src/controllers/authController.js:67:11)\n    at async register (file:///D:/sld_system/backend/src/controllers/authController.js:128:5)","timestamp":"2026-09-02 17:43:36"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 17:47:57"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 17:47:58"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 17:47:59"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 17:48:04"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 17:57:34"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 17:57:35"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 17:57:37"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 18:02:59"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 18:03:00"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 18:03:02"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 18:05:41"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 18:05:42"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 18:05:44"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 19:03:01"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 19:03:01"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 19:03:02"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 19:03:04"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 19:05:42"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 19:05:43"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 19:05:45"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 20:03:01"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 20:03:02"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 20:03:05"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 20:03:09"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 20:05:43"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 20:05:44"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 20:05:46"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 21:03:04"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 21:03:05"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 21:03:06"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 21:03:08"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 21:05:45"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 21:05:47"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 21:05:50"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 22:03:06"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 22:03:07"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 22:03:07"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 22:03:10"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 22:06:14"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 22:06:15"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 22:06:17"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 22:24:38"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 22:24:39"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 22:24:40"}
+{"level":"info","message":"[Notification Updated] SR #11674 updated.","service":"sld-backend-service","timestamp":"2026-09-02 22:41:35"}
+{"level":"info","message":"[Notification Deleted] ID NOTIF-000019 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 22:47:01"}
+{"level":"info","message":"[Notification Deleted] ID NOTIF-000018 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 22:47:19"}
+{"level":"info","message":"[Notification Created] Notification ID NOTIF-000020 (SR #11675) added.","service":"sld-backend-service","timestamp":"2026-09-02 22:48:34"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 22:56:54"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 22:56:54"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 22:56:56"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 22:59:55"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:08"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:15"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:16"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:19"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:28"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:32"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:33"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:33"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:00:36"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:01:16"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:01:20"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-000403 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 23:01:35"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-000402 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 23:01:44"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-000401 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 23:01:52"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-000400 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 23:02:02"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-000398 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 23:02:13"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-000397 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 23:02:37"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:02:43"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:02:48"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:02:48"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:02:51"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:03:05"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:03:07"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:03:16"}
+{"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:03:20"}
