@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,6 +22,9 @@ const AddCaseLawDetail = ({ onClose }) => {
   const editData = location.state?.caseData;
   const isEdit = Boolean(location.state?.isEdit || editData);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [publicationVolumeOpen, setPublicationVolumeOpen] = useState(() => ({
+    0: Boolean(editData?.publications?.[0]?.vol)
+  }));
 
   const defaultValues = {
     srNumber: editData?.sldNumber || '',
@@ -35,9 +38,10 @@ const AddCaseLawDetail = ({ onClose }) => {
     headNote: editData?.headNote || (isEdit ? 'Constitutional review on statutory mandate under Article 199 and relevant procedural codes.' : ''),
     references: editData?.references || (isEdit ? '2019 CLC 551, (2025) Tax 304 139' : ''),
     principleLaw: editData?.principleLaw || (isEdit ? 'Income Tax Rules, 2002 - Section 231CB' : ''),
+    legalMaxim: editData?.legalMaxim || '',
     judgment: editData?.judgment || (isEdit ? '<p><strong>IN THE FEDERAL CONSTITUTIONAL COURT OF PAKISTAN</strong></p><p>Upon extensive deliberation and review of arguments presented by counsel for the petitioner and state respondents, the Court observed that the statutory provisions must be interpreted in alignment with natural justice and constitutional guarantees.</p>' : ''),
     publications: [
-      { id: 1, year: isEdit ? '2025' : '2026', vol: isEdit ? 'Vol. 1' : '', mag: 'sld', page: isEdit ? '8335' : '3425', month: 'may' }
+      { id: 1, year: isEdit ? '2025' : '2026', vol: '', mag: 'sld', page: isEdit ? '8335' : '' }
     ],
     laws: [
       { id: 1, lawStatute: 'income_tax_2002', section: isEdit ? 'Section 231CB' : '' }
@@ -49,11 +53,62 @@ const AddCaseLawDetail = ({ onClose }) => {
     register,
     control,
     handleSubmit,
+    setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(caseSchema),
     defaultValues,
   });
+
+  const autofillPublicationPage = async (index) => {
+    const publications = getValues('publications') || [];
+    const currentPub = publications[index];
+
+    if (!currentPub) return;
+
+    const year = String(currentPub.year || '').trim();
+    const mag = String(currentPub.mag || '').trim().toLowerCase();
+
+    if (!year || !mag) return;
+
+    try {
+      const cases = await caseService.getCases();
+      const matchingPages = cases
+        .flatMap((item) => item.publications || [])
+        .filter((entry) => {
+          const entryYear = String(entry?.year || '').trim();
+          const entryMag = String(entry?.mag || '').trim().toLowerCase();
+          return entryYear === year && entryMag === mag && entry?.page;
+        })
+        .map((entry) => Number(entry.page))
+        .filter((value) => Number.isFinite(value));
+
+      if (matchingPages.length > 0) {
+        const nextPage = String(Math.max(...matchingPages));
+        setValue(`publications.${index}.page`, nextPage, {
+          shouldDirty: true,
+          shouldTouch: true,
+          shouldValidate: true,
+        });
+      }
+    } catch (error) {
+      console.warn('[Publication auto-fill skipped]', error);
+    }
+  };
+
+  const handleAddVolume = (index) => {
+    const currentPublication = getValues(`publications.${index}`) || {};
+    setValue(`publications.${index}.vol`, currentPublication.vol || '', {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+    setPublicationVolumeOpen((prev) => ({
+      ...prev,
+      [index]: true,
+    }));
+  };
 
   const {
     fields: publicationFields,
@@ -109,7 +164,7 @@ const AddCaseLawDetail = ({ onClose }) => {
           
           {/* Case Information */}
           <FormSection title="Case Information" icon={FileText}>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 items-end">
               <FormField label="SR #" required>
                 <Input 
                   variant="light" 
@@ -133,19 +188,9 @@ const AddCaseLawDetail = ({ onClose }) => {
                   )}
                 />
               </FormField>
-              <FormField label="Department">
-                <Input 
-                  variant="light" 
-                  inputSize="sm"
-                  type="select" 
-                  error={errors.department}
-                  options={[{ label: 'Tax', value: 'tax' }, { label: 'Civil', value: 'civil' }]} 
-                  {...register('department')}
-                />
-              </FormField>
-              </div>
-  
-              <FormField label="Court" className="mb-4">
+            </div>
+
+            <FormField label="Court" className="mb-4">
               <Input 
                 variant="light" 
                 inputSize="sm"
@@ -181,15 +226,9 @@ const AddCaseLawDetail = ({ onClose }) => {
                       variant="light" 
                       inputSize="sm" 
                       placeholder="2026" 
-                      {...register(`publications.${idx}.year`)}
-                    />
-                  </FormField>
-                  <FormField label="Vol." className="col-span-2">
-                    <Input 
-                      variant="light" 
-                      inputSize="sm" 
-                      placeholder="Vol." 
-                      {...register(`publications.${idx}.vol`)}
+                      {...register(`publications.${idx}.year`, {
+                        onChange: () => autofillPublicationPage(idx),
+                      })}
                     />
                   </FormField>
                   <FormField label="Mag" className="col-span-2">
@@ -198,37 +237,57 @@ const AddCaseLawDetail = ({ onClose }) => {
                       inputSize="sm" 
                       type="select" 
                       options={[{ label: 'SLD', value: 'sld' }]} 
-                      {...register(`publications.${idx}.mag`)}
+                      {...register(`publications.${idx}.mag`, {
+                        onChange: () => autofillPublicationPage(idx),
+                      })}
                     />
                   </FormField>
-                  <FormField label="Page" className="col-span-2">
+                  {publicationVolumeOpen[idx] && (
+                    <FormField label="Vol." className="col-span-2">
+                      <Input 
+                        variant="light" 
+                        inputSize="sm" 
+                        placeholder="Vol." 
+                        {...register(`publications.${idx}.vol`)}
+                      />
+                    </FormField>
+                  )}
+                  <FormField label="Page" className={publicationVolumeOpen[idx] ? 'col-span-3' : 'col-span-5'}>
                     <Input 
                       variant="light" 
                       inputSize="sm" 
-                      placeholder={idx === 0 ? "3425" : "Page"} 
+                      placeholder="Page" 
                       {...register(`publications.${idx}.page`)}
                     />
                   </FormField>
-                  <FormField label="Month" className="col-span-2">
-                    <Input 
-                      variant="light" 
-                      inputSize="sm" 
-                      type="select" 
-                      options={[{ label: 'May', value: 'may' }, { label: 'August', value: 'august' }]} 
-                      {...register(`publications.${idx}.month`)}
-                    />
-                  </FormField>
-                  <div className="col-span-2 h-[38px] flex items-center">
-                    {idx === publicationFields.length - 1 && (
+                  <div className="col-span-3 flex items-center gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1 text-amber-600 border-amber-200 hover:bg-amber-50 h-[38px]" 
+                      onClick={() => handleAddVolume(idx)}
+                    >
+                      Add Vol
+                    </Button>
+                    {idx === publicationFields.length - 1 ? (
                       <Button 
                         type="button" 
                         variant="outline" 
                         size="sm"
-                        className="w-full text-green-600 border-green-200 hover:bg-green-50 h-full" 
-                        onClick={() => appendPublication({ year: '2026', vol: '', mag: 'sld', page: '', month: 'may' })}
+                        className="flex-1 text-green-600 border-green-200 hover:bg-green-50 h-[38px]" 
+                        onClick={() => {
+                          appendPublication({ year: '2026', vol: '', mag: 'sld', page: '' });
+                          setPublicationVolumeOpen((prev) => ({
+                            ...prev,
+                            [publicationFields.length]: false,
+                          }));
+                        }}
                       >
-                        <Plus className="w-4 h-4" /> Add More
+                        Add New
                       </Button>
+                    ) : (
+                      <div className="flex-1" />
                     )}
                   </div>
                 </div>
@@ -351,6 +410,16 @@ const AddCaseLawDetail = ({ onClose }) => {
               placeholder="Enter principle law..." 
               error={errors.principleLaw}
               {...register('principleLaw')}
+            />
+          </FormSection>
+
+          <FormSection title="Legal Maxim" icon={Scale}>
+            <Input 
+              variant="light" 
+              inputSize="sm" 
+              placeholder="Enter legal maxim..." 
+              error={errors.legalMaxim}
+              {...register('legalMaxim')}
             />
           </FormSection>
 

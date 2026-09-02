@@ -399,8 +399,7 @@ const ManageCasesTable = ({
                 </th>
                 <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-[5%]" />
                 <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-[6%]" />
-                <TableHeader title="Map / Year / Page" widthClassName="w-[9%]" />
-                <TableHeader title="Month" widthClassName="w-[4%]" />
+                <TableHeader title="Map / Year / Page" widthClassName="w-[12%]" />
                 <TableHeader title="Court" widthClassName="w-[9%]" />
                 <TableHeader title="Case #" widthClassName="w-[13%]" />
                 <TableHeader title="Judges" widthClassName="w-[13%]" />
@@ -449,12 +448,19 @@ const ManageCasesTable = ({
                     </td>
                     <td className="px-2 py-4 align-top text-theme-muted break-words">{item.sldNumber}</td>
                     <td className="px-2 py-4 align-top text-theme-muted">{item.dated ? item.dated.split('T')[0] : ''}</td>
-                    <td className="px-2 py-4 align-top text-theme-muted">
-                      <div className="flex flex-col gap-1">
-                        {item.mapYearPage.map((line, i) => <span key={i}>{line}</span>)}
+                    <td className="px-2 py-4 align-top text-theme-muted" style={{ minWidth: '210px' }}>
+                      <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden">
+                        {(Array.isArray(item.mapYearPage) ? item.mapYearPage.filter(Boolean) : [])
+                          .reduce((unique, line) => {
+                            if (!unique.includes(line)) unique.push(line);
+                            return unique;
+                          }, [])
+                          .slice(0, 2)
+                          .map((line, i) => (
+                            <span key={`${line}-${i}`} className="inline-block whitespace-nowrap">{line}</span>
+                          ))}
                       </div>
                     </td>
-                    <td className="px-2 py-4 align-top text-theme-muted">{item.month}</td>
                     <td className="px-2 py-4 align-top text-theme-main font-medium">{item.court}</td>
                     <td className="px-2 py-4 align-top text-theme-muted">
                       <div className="flex flex-col gap-1">

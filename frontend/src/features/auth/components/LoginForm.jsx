@@ -26,8 +26,11 @@ const LoginForm = () => {
     resolver: zodResolver(loginSchema),
   })
 
+  const [statusInfo, setStatusInfo] = useState(null);
+
   const onSubmit = async (data) => {
     try {
+      setStatusInfo(null);
       const response = await authService.login(data);
       if (response.success && response.user) {
         loginUser(response.user);
@@ -38,12 +41,31 @@ const LoginForm = () => {
       }
     } catch (error) {
       console.error('Login failed', error);
-      setError('root', { message: error.message || 'Login failed. Please check your credentials.' });
+      const resData = error.response?.data;
+      if (resData?.status === 'PENDING_APPROVAL' || resData?.status === 'REJECTED') {
+        setStatusInfo({
+          status: resData.status,
+          message: resData.message,
+          email: resData.email || data.identifier,
+          redirect: resData.redirect || '/payment-instructions'
+        });
+      } else if (resData?.unverified) {
+        setStatusInfo({
+          status: 'UNVERIFIED',
+          message: resData.message || 'Your email address is not verified. Please verify OTP first.',
+          email: resData.email || data.identifier,
+          redirect: '/verify-email'
+        });
+      } else {
+        const errorMsg = resData?.message || error.message || 'Login failed. Please check your credentials.';
+        setError('root', { message: errorMsg });
+      }
     }
   };
 
   const handleGoogleSuccess = (authResult) => {
     clearErrors('root')
+    setStatusInfo(null);
     if (authResult?.requiresVerification) {
       setGoogleStatus(`Account authorized. Redirecting to email verification...`)
       setTimeout(() => {
@@ -95,8 +117,27 @@ const LoginForm = () => {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        {statusInfo && (
+          <div className={`border p-4 rounded-xl text-left animate-fade-in ${
+            statusInfo.status === 'REJECTED' 
+              ? 'bg-red-500/10 border-red-500/40 text-red-300' 
+              : 'bg-amber-500/10 border-amber-500/40 text-amber-300'
+          }`}>
+            <p className="text-sm font-medium whitespace-pre-line leading-relaxed mb-3">
+              {statusInfo.message}
+            </p>
+            <Link 
+              to={statusInfo.redirect}
+              state={{ email: statusInfo.email }}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-orange hover:text-brand-orange-hover underline transition-colors"
+            >
+              {statusInfo.status === 'UNVERIFIED' ? 'Verify Email Address →' : 'Go to Payment Instructions →'}
+            </Link>
+          </div>
+        )}
+
         {errors.root && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-lg text-center animate-shake">
+          <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-lg text-center animate-shake whitespace-pre-line">
             {errors.root.message}
           </div>
         )}

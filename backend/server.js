@@ -1,17 +1,17 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dns from 'dns';
+import morgan from 'morgan';
 
 // Configure public DNS servers to resolve MongoDB Atlas SRV/TXT records securely
 dns.setServers(['8.8.8.8', '1.1.1.1']);
-import dotenv from 'dotenv';
-import morgan from 'morgan';
 
 // Configurations & Infrastructure
 import connectDB from './src/config/db.js';
 import errorHandler from './src/middleware/errorMiddleware.js';
-import { globalLimiter } from './src/middleware/rateLimiter.js';
+import { globalLimiter, chatLimiter } from './src/middleware/rateLimiter.js';
 import logger from './src/utils/logger.js';
 
 // Routers
@@ -20,6 +20,7 @@ import caseRoutes from './src/routes/caseRoutes.js';
 import statuteRoutes from './src/routes/statuteRoutes.js';
 import notificationRoutes from './src/routes/notificationRoutes.js';
 import dashboardRoutes from './src/routes/dashboardRoutes.js';
+import paymentRoutes from './src/routes/paymentRoutes.js';
 
 // Models
 import mongoose from 'mongoose';
@@ -29,8 +30,6 @@ import Notification from './src/models/Notification.js';
 
 // Services
 import { sendAdminContactEmail } from './services/emailService.js';
-
-dotenv.config({ override: true });
 
 // Establish MongoDB connection
 connectDB();
@@ -44,8 +43,22 @@ app.use(helmet({
 }));
 
 // CORS Configuration
+const allowedOrigins = new Set([
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+].filter(Boolean));
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('CORS policy: origin not allowed'));
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -65,6 +78,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // Global API rate limiting
 app.use('/api', globalLimiter);
+app.use('/api/chat', chatLimiter);
 
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
@@ -82,6 +96,7 @@ app.use('/api/cases', caseRoutes);
 app.use('/api/statutes', statuteRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {
@@ -241,31 +256,52 @@ BOUNDARIES & SCOPE RESTRICTIONS:
 6. Do not explain obvious concepts or provide examples unless the user asks for them.
 7. If information is uncertain or unavailable, state that clearly instead of guessing.`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: systemPrompt + "\n\nUser Question: " + message.trim()
-                }
-              ]
-            }
-          ]
-        })
-      }
-    );
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const controller = new AbortController();
+    const timeoutMs = 15000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let response;
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: systemPrompt + "\n\nUser Question: " + message.trim()
+                  }
+                ]
+              }
+            ]
+          })
+        }
+      );
+    } catch (fetchError) {
+      clearTimeout(timer);
+      logger.error(`[Gemini API Request Error] ${fetchError.message}`);
+      return res.status(504).json({
+        success: false,
+        message: 'The assistant timed out while processing your request. Please try again.'
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
       const errText = await response.text();
       logger.error(`[Gemini API Error] Status: ${response.status}. Body: ${errText}`);
-      throw new Error(`Gemini API returned status ${response.status}`);
+      return res.status(503).json({
+        success: false,
+        message: 'The assistant is temporarily unavailable. Please try again in a moment.'
+      });
     }
 
     const data = await response.json();

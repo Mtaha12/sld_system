@@ -81,9 +81,9 @@ const VerifyEmailForm = () => {
       const response = await authService.verifyEmail(code)
       if (response.success) {
         setStatus('success')
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await new Promise((resolve) => setTimeout(resolve, 800))
         setIsVerifying(false)
-        navigate('/login')
+        navigate('/payment-instructions', { state: { email } })
       } else {
         setStatus('error')
         setIsVerifying(false)

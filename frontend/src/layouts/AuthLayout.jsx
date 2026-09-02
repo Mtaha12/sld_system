@@ -31,7 +31,7 @@ const AuthLayout = () => {
       {/* Right side - Form */}
       <div className="w-full lg:w-[40%] flex flex-col bg-brand-darker relative min-h-[100dvh] lg:h-screen lg:overflow-y-auto">
         {/* Navigation / Header Actions (rendered on sub-pages like /contact, /forgot-password, /verify-email) */}
-        {!isLogin && location.pathname !== '/signup' && (
+        {!isLogin && location.pathname !== '/signup' && !location.pathname.startsWith('/payment') && (
           <div className="flex justify-end p-6 sm:p-8 lg:absolute lg:top-8 lg:right-8 lg:p-0 z-20">
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <span>{headerPromptText}</span>

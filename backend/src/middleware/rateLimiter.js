@@ -27,3 +27,17 @@ export const authLimiter = rateLimit({
     message: 'Too many login or verification attempts. Please wait 15 minutes and try again.'
   }
 });
+
+/**
+ * Strict limiter for chatbot requests to prevent abuse and external API overload
+ */
+export const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many chatbot requests. Please wait a moment and try again.'
+  }
+});

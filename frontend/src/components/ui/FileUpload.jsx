@@ -161,7 +161,7 @@ const FileUpload = ({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-xl bg-theme-surface p-8 flex-1 flex flex-col items-center justify-center text-center transition-all cursor-pointer group min-h-[220px] ${
+          className={`border-2 border-dashed rounded-xl bg-theme-surface p-6 flex-1 flex flex-col items-center justify-center text-center transition-all cursor-pointer group min-h-[180px] ${
             isDragging 
               ? 'border-brand-orange bg-brand-orange/10 scale-[1.01]' 
               : 'border-theme-border hover:border-brand-orange hover:bg-orange-50/30 dark:hover:bg-brand-orange/5'
@@ -183,7 +183,7 @@ const FileUpload = ({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`border rounded-xl bg-theme-surface p-4 flex-1 flex flex-col justify-between gap-3 min-h-[220px] transition-all ${
+          className={`border rounded-xl bg-theme-surface p-3 flex-1 flex flex-col justify-between gap-3 min-h-[180px] transition-all ${
             isDragging ? 'border-brand-orange ring-2 ring-brand-orange/30 bg-brand-orange/5' : 'border-theme-border'
           }`}
         >

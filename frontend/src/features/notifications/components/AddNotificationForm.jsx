@@ -23,7 +23,7 @@ const AddNotificationForm = () => {
 
   const defaultValues = {
     srNumber: editData?.srNumber?.toString() || '',
-    department: editData?.department?.toLowerCase() || 'notifications',
+    department: editData?.department?.toLowerCase() || 'notification',
     subDepartment: editData?.subDepartment || 'federal',
     year: editData?.year?.toString() || '2026',
     number: editData?.number?.toString() || '14',
@@ -135,7 +135,15 @@ const AddNotificationForm = () => {
                   inputSize="sm"
                   type="select" 
                   error={errors.department}
-                  options={[{ label: 'Notifications', value: 'notifications' }]} 
+                  options={[
+                    { label: 'Circular', value: 'circular' },
+                    { label: 'Corporate', value: 'corporate' },
+                    { label: 'General Order', value: 'general order' },
+                    { label: 'Judge Order', value: 'judge order' },
+                    { label: 'Letter', value: 'letter' },
+                    { label: 'Notification', value: 'notification' },
+                    { label: 'Other', value: 'other' }
+                  ]} 
                   {...register('department')}
                 />
               </FormField>
@@ -145,7 +153,10 @@ const AddNotificationForm = () => {
                   inputSize="sm"
                   type="select" 
                   error={errors.subDepartment}
-                  options={[{ label: 'Federal', value: 'federal' }]} 
+                  options={[
+                    { label: 'Federal', value: 'federal' },
+                    { label: 'Provincial', value: 'provincial' }
+                  ]} 
                   {...register('subDepartment')}
                 />
               </FormField>
@@ -226,11 +237,11 @@ const AddNotificationForm = () => {
                     BLOCK {index + 1}
                   </div>
                   
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-2 items-start">
                     
                     {/* Left Column: Date & Attachment */}
-                    <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-6">
-                      <FormField label="Law Date">
+                    <div className="lg:col-span-3 xl:col-span-2.5 flex flex-col gap-4 self-stretch">
+                      <FormField label="Law Date" className="w-full">
                         <Controller
                           control={control}
                           name={`blocks.${index}.date`}
@@ -239,6 +250,7 @@ const AddNotificationForm = () => {
                               selectedDate={field.value} 
                               onChange={field.onChange} 
                               placeholder="mm/dd/yyyy"
+                              className="w-full max-w-[170px] h-[42px]"
                             />
                           )}
                         />
@@ -252,6 +264,7 @@ const AddNotificationForm = () => {
                             <FileUpload 
                               value={field.value}
                               onChange={field.onChange}
+                              className="w-full h-[42px]"
                             />
                           )}
                         />
@@ -259,7 +272,7 @@ const AddNotificationForm = () => {
                     </div>
 
                     {/* Right Column: Editor */}
-                    <div className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-[350px]">
+                    <div className="lg:col-span-9 xl:col-span-9.5 flex flex-col min-h-[350px]">
                       <FormField label="Detail" className="flex-1 flex flex-col">
                         <div className="flex-1 h-full relative z-0">
                           <Controller

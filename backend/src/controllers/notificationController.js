@@ -120,6 +120,14 @@ export const createNotification = async (req, res, next) => {
       sroNumber, subject, status, lawStatute, section, blocks 
     } = req.body;
 
+    const normalizedDepartment = typeof department === 'string'
+      ? department.trim().toLowerCase()
+      : 'notification';
+
+    const normalizedSubDepartment = typeof subDepartment === 'string'
+      ? subDepartment.trim().toLowerCase()
+      : 'federal';
+
     if (srNumber && typeof srNumber === 'string' && srNumber.trim().length > 0) {
       const exist = await Notification.findOne({ srNumber: srNumber.trim() });
       if (exist) {
@@ -132,8 +140,8 @@ export const createNotification = async (req, res, next) => {
 
     const newNotif = new Notification({
       srNumber: srNumber ? srNumber.trim() : undefined,
-      department: department || 'Notifications',
-      subDepartment: subDepartment || 'federal',
+      department: normalizedDepartment,
+      subDepartment: normalizedSubDepartment,
       year: year ? parseInt(year, 10) : new Date().getFullYear(),
       number: number || '',
       sroNumber: sroNumber || '',
@@ -182,6 +190,14 @@ export const updateNotification = async (req, res, next) => {
       sroNumber, subject, status, lawStatute, section, blocks 
     } = req.body;
 
+    const normalizedDepartment = typeof department === 'string'
+      ? department.trim().toLowerCase()
+      : undefined;
+
+    const normalizedSubDepartment = typeof subDepartment === 'string'
+      ? subDepartment.trim().toLowerCase()
+      : undefined;
+
     const n = await Notification.findOne(query);
     if (!n) {
       return res.status(404).json({
@@ -201,8 +217,8 @@ export const updateNotification = async (req, res, next) => {
       n.srNumber = srNumber;
     }
 
-    if (department !== undefined) n.department = department;
-    if (subDepartment !== undefined) n.subDepartment = subDepartment;
+    if (department !== undefined) n.department = normalizedDepartment ?? n.department;
+    if (subDepartment !== undefined) n.subDepartment = normalizedSubDepartment ?? n.subDepartment;
     if (year !== undefined) n.year = year ? parseInt(year, 10) : n.year;
     if (number !== undefined) n.number = number;
     if (sroNumber !== undefined) n.sroNumber = sroNumber;

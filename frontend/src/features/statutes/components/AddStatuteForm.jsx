@@ -123,8 +123,8 @@ const AddStatuteForm = () => {
           <FormSection title="Record Information" icon={FileText}>
             
             {/* Top row fields */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4 items-end">
-              <FormField label="SR #" required className="col-span-1 md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 items-end">
+              <FormField label="SR #" required>
                 <Input 
                   variant="light" 
                   inputSize="sm" 
@@ -133,17 +133,25 @@ const AddStatuteForm = () => {
                   {...register('srNumber')}
                 />
               </FormField>
-              <FormField label="Department" className="col-span-1 md:col-span-3">
+              <FormField label="Department">
                 <Input 
                   variant="light" 
                   inputSize="sm"
                   type="select" 
                   error={errors.department}
-                  options={[{ label: 'Tax', value: 'tax' }, { label: 'Civil', value: 'civil' }]} 
+                  options={[
+                    { label: 'Circular', value: 'circular' },
+                    { label: 'Corporate', value: 'corporate' },
+                    { label: 'General Order', value: 'general order' },
+                    { label: 'Judge Order', value: 'judge order' },
+                    { label: 'Letter', value: 'letter' },
+                    { label: 'Notification', value: 'notification' },
+                    { label: 'Other', value: 'other' }
+                  ]} 
                   {...register('department')}
                 />
               </FormField>
-              <FormField label="Chapter" className="col-span-1 md:col-span-3">
+              <FormField label="Chapter">
                 <Input 
                   variant="light" 
                   inputSize="sm" 
@@ -213,10 +221,10 @@ const AddStatuteForm = () => {
                       />
                     </FormField>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                       
                       {/* Left Column: Dates & Attachment */}
-                      <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-6">
+                      <div className="lg:col-span-3 xl:col-span-2.5 flex flex-col gap-4">
                         <FormField label="From Date">
                           <Controller
                             control={control}
@@ -226,6 +234,7 @@ const AddStatuteForm = () => {
                                 selectedDate={field.value} 
                                 onChange={field.onChange} 
                                 placeholder="mm/dd/yyyy"
+                                className="w-full max-w-[170px] h-[42px]"
                               />
                             )}
                           />
@@ -240,6 +249,7 @@ const AddStatuteForm = () => {
                                 selectedDate={field.value} 
                                 onChange={field.onChange} 
                                 placeholder="mm/dd/yyyy"
+                                className="w-full max-w-[170px] h-[42px]"
                               />
                             )}
                           />
@@ -253,6 +263,7 @@ const AddStatuteForm = () => {
                               <FileUpload 
                                 value={field.value}
                                 onChange={field.onChange}
+                                className="w-full h-[42px]"
                               />
                             )}
                           />
@@ -260,7 +271,7 @@ const AddStatuteForm = () => {
                       </div>
 
                       {/* Right Column: Editor */}
-                      <div className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-[350px]">
+                      <div className="lg:col-span-9 xl:col-span-9.5 flex flex-col min-h-[350px]">
                         <FormField label="Detail" className="flex-1 flex flex-col">
                           <div className="flex-1 h-full relative z-0">
                             <Controller

@@ -32,7 +32,7 @@ export const protect = async (req, res, next) => {
       });
     }
 
-    if (user.status !== 'active') {
+    if (user.status !== 'ACTIVE' && user.status !== 'active') {
       return res.status(403).json({
         success: false,
         message: `Access Denied: Your account is currently ${user.status}.`

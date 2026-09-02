@@ -139,6 +139,28 @@ const SignupForm = () => {
 
           <div className="sm:col-span-1">
             <Input
+              type="password"
+              placeholder="Password *"
+              icon={Lock}
+              variant="dark"
+              error={errors.password}
+              {...register('password')}
+            />
+          </div>
+
+          <div className="sm:col-span-1">
+            <Input
+              type="password"
+              placeholder="Confirm Password *"
+              icon={Lock}
+              variant="dark"
+              error={errors.confirmPassword}
+              {...register('confirmPassword')}
+            />
+          </div>
+
+          <div className="sm:col-span-1">
+            <Input
               type="tel"
               placeholder="Contact Number *"
               icon={Phone}
@@ -178,28 +200,6 @@ const SignupForm = () => {
               variant="dark"
               error={errors.address}
               {...register('address')}
-            />
-          </div>
-
-          <div className="sm:col-span-1">
-            <Input
-              type="password"
-              placeholder="Password *"
-              icon={Lock}
-              variant="dark"
-              error={errors.password}
-              {...register('password')}
-            />
-          </div>
-
-          <div className="sm:col-span-1">
-            <Input
-              type="password"
-              placeholder="Confirm Password *"
-              icon={Lock}
-              variant="dark"
-              error={errors.confirmPassword}
-              {...register('confirmPassword')}
             />
           </div>
         </div>

@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import PaymentSubmission from '../models/PaymentSubmission.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../config/jwt.js';
 import { sendAdminContactEmail } from '../../services/emailService.js';
 import logger from '../utils/logger.js';
@@ -118,7 +119,7 @@ export const register = async (req, res, next) => {
       verificationCode,
       verificationCodeExpires,
       isVerified: false,
-      status: 'active'
+      status: 'PENDING_APPROVAL'
     });
 
     await user.save();
@@ -180,15 +181,19 @@ export const verifyEmail = async (req, res, next) => {
       });
     }
 
-    // Mark verified
+    // Mark verified and set status to PENDING_APPROVAL
     user.isVerified = true;
+    user.status = 'PENDING_APPROVAL';
     user.verificationCode = null;
     user.verificationCodeExpires = null;
     await user.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Email address has been successfully verified. You can now login.'
+      message: 'Email address has been successfully verified. Please submit your payment proof to activate your account.',
+      status: 'PENDING_APPROVAL',
+      redirect: '/payment-instructions',
+      email: user.email
     });
   } catch (error) {
     next(error);
@@ -278,6 +283,37 @@ export const login = async (req, res, next) => {
         message: 'Your email address is not verified. Please verify first.',
         unverified: true,
         email: user.email
+      });
+    }
+
+    // Check account approval status
+    if (user.status === 'PENDING_APPROVAL') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is awaiting payment verification. Please wait for approval from the administrator.',
+        status: 'PENDING_APPROVAL',
+        redirect: '/payment-instructions',
+        email: user.email
+      });
+    }
+
+    if (user.status === 'REJECTED') {
+      const latestSubmission = await PaymentSubmission.findOne({ userId: user._id }).sort({ createdAt: -1 });
+      const reason = latestSubmission?.rejectionReason || latestSubmission?.rejection_reason || 'Invalid or unreadable payment proof';
+      return res.status(403).json({
+        success: false,
+        message: `Your payment proof was rejected.\n\nReason:\n${reason}`,
+        status: 'REJECTED',
+        rejectionReason: reason,
+        redirect: '/payment-instructions',
+        email: user.email
+      });
+    }
+
+    if (user.status !== 'ACTIVE' && user.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: `Access Denied: Your account is currently ${user.status}.`
       });
     }
 
@@ -569,7 +605,7 @@ export const googleLogin = async (req, res, next) => {
         avatarUrl: profile.picture || '',
         verificationCode,
         verificationCodeExpires,
-        status: 'active'
+        status: 'PENDING_APPROVAL'
       });
       await user.save();
       logger.info(`[Google Auto-Signup] Created unverified user ${user.username} from Google Login.`);
@@ -628,6 +664,37 @@ export const googleLogin = async (req, res, next) => {
         data: {
           ...(!hasSmtp ? { otpCode: verificationCode } : {})
         }
+      });
+    }
+
+    // Check account status for Google auth
+    if (user.status === 'PENDING_APPROVAL') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is awaiting payment verification. Please wait for approval from the administrator.',
+        status: 'PENDING_APPROVAL',
+        redirect: '/payment-instructions',
+        email: user.email
+      });
+    }
+
+    if (user.status === 'REJECTED') {
+      const latestSubmission = await PaymentSubmission.findOne({ userId: user._id }).sort({ createdAt: -1 });
+      const reason = latestSubmission?.rejectionReason || latestSubmission?.rejection_reason || 'Invalid or unreadable payment proof';
+      return res.status(403).json({
+        success: false,
+        message: `Your payment proof was rejected.\n\nReason:\n${reason}`,
+        status: 'REJECTED',
+        rejectionReason: reason,
+        redirect: '/payment-instructions',
+        email: user.email
+      });
+    }
+
+    if (user.status !== 'ACTIVE' && user.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: `Access Denied: Your account is currently ${user.status}.`
       });
     }
 
@@ -693,7 +760,7 @@ export const googleSignup = async (req, res, next) => {
       avatarUrl: profile.picture || '',
       verificationCode,
       verificationCodeExpires,
-      status: 'active'
+      status: 'PENDING_APPROVAL'
     });
 
     await user.save();
@@ -859,10 +926,10 @@ export const refreshToken = async (req, res, next) => {
     const decoded = verifyRefreshToken(token);
     const user = await User.findById(decoded.id);
 
-    if (!user || user.status !== 'active') {
+    if (!user || (user.status !== 'ACTIVE' && user.status !== 'active')) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid session user.'
+        message: 'Invalid session user or unapproved account.'
       });
     }
 

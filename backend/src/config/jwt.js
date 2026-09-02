@@ -1,4 +1,8 @@
+import 'dotenv/config';
 import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_sld_access_token_key_128_bits';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'super_secret_sld_refresh_token_key_512_bits';
 
 /**
  * Generates JWT Access Token
@@ -12,7 +16,7 @@ export const generateAccessToken = (user) => {
       email: user.email, 
       role: user.role 
     },
-    process.env.JWT_SECRET || 'fallback_access_secret_128@sld',
+    JWT_SECRET,
     { expiresIn: process.env.JWT_ACCESS_EXPIRES || '1h' }
   );
 };
@@ -24,7 +28,7 @@ export const generateAccessToken = (user) => {
 export const generateRefreshToken = (user) => {
   return jwt.sign(
     { id: user._id },
-    process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret_512@sld',
+    JWT_REFRESH_SECRET,
     { expiresIn: process.env.JWT_REFRESH_EXPIRES || '7d' }
   );
 };
@@ -34,7 +38,7 @@ export const generateRefreshToken = (user) => {
  * @param {string} token 
  */
 export const verifyAccessToken = (token) => {
-  return jwt.verify(token, process.env.JWT_SECRET || 'fallback_access_secret_128@sld');
+  return jwt.verify(token, JWT_SECRET);
 };
 
 /**
@@ -42,5 +46,5 @@ export const verifyAccessToken = (token) => {
  * @param {string} token 
  */
 export const verifyRefreshToken = (token) => {
-  return jwt.verify(token, process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret_512@sld');
+  return jwt.verify(token, JWT_REFRESH_SECRET);
 };

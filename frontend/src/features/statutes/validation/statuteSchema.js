@@ -9,9 +9,11 @@ export const statuteBlockSchema = z.object({
   attachments: z.array(z.any()).optional().default([]),
 });
 
+const validDepartments = ['circular', 'corporate', 'general order', 'judge order', 'letter', 'notification', 'other'];
+
 export const statuteSchema = z.object({
   srNumber: z.string().optional().default(''),
-  department: z.string().optional().default('tax'),
+  department: z.enum(validDepartments).default('notification'),
   chapter: z.string().optional().default(''),
 
 

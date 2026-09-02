@@ -5,8 +5,7 @@ const publicationSchema = new mongoose.Schema({
   year: { type: String, default: '' },
   vol: { type: String, default: '' },
   mag: { type: String, default: 'sld' },
-  page: { type: String, default: '' },
-  month: { type: String, default: 'may' }
+  page: { type: String, default: '' }
 });
 
 const lawReferenceSchema = new mongoose.Schema({
@@ -82,6 +81,10 @@ const caseSchema = new mongoose.Schema({
     default: '',
   },
   principleLaw: {
+    type: String,
+    default: '',
+  },
+  legalMaxim: {
     type: String,
     default: '',
   },

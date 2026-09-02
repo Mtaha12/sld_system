@@ -1,7 +1,7 @@
+import 'dotenv/config';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert';
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import dns from 'dns';
 import bcrypt from 'bcryptjs';
 
@@ -9,7 +9,6 @@ import User from '../src/models/User.js';
 import { forgotPassword, verifyResetOtp, resetPassword, login } from '../src/controllers/authController.js';
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
-dotenv.config({ override: true });
 
 const MONGODB_URI = process.env.MONGODB_URI;
 

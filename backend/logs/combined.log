@@ -581,3 +581,93 @@
 {"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-01 23:56:51"}
 {"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-01 23:56:52"}
 {"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-01 23:56:53"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 11:18:37"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 11:18:40"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 11:18:41"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 11:18:43"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 11:23:10"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 11:23:11"}
+{"level":"info","message":"[Login Success] User mtaha349 logged in.","service":"sld-backend-service","timestamp":"2026-09-02 11:23:13"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 11:23:14"}
+{"level":"info","message":"[Case Created] Case ID CASE-000399 (SLD #CASE-000399) added.","service":"sld-backend-service","timestamp":"2026-09-02 11:26:38"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-000399 soft-deleted.","service":"sld-backend-service","timestamp":"2026-09-02 11:27:10"}
+{"level":"info","message":"[Notification Updated] SR #163629 updated.","service":"sld-backend-service","timestamp":"2026-09-02 11:28:39"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 11:51:35"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 11:51:37"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 11:51:38"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 11:52:22"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 11:52:23"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 11:52:25"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 11:52:52"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 11:52:53"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 11:52:55"}
+{"level":"info","message":"[Case Created] Case ID CASE-000400 (SLD #CASE-000400) added.","service":"sld-backend-service","timestamp":"2026-09-02 12:08:44"}
+{"level":"info","message":"[Case Created] Case ID CASE-000401 (SLD #CASE-000401) added.","service":"sld-backend-service","timestamp":"2026-09-02 12:08:45"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:12:42"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:12:44"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:12:45"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:13:26"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:13:26"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:13:28"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:14:13"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:14:15"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:14:16"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:15:26"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:15:28"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:15:30"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:18:46"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:18:47"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:18:49"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:18:50"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:19:40"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:19:41"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:19:43"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:20:44"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:20:45"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:20:46"}
+{"level":"info","message":"[Case Created] Case ID CASE-000402 (SLD #CASE-000402) added.","service":"sld-backend-service","timestamp":"2026-09-02 12:21:38"}
+{"level":"info","message":"[Case Created] Case ID CASE-000403 (SLD #CASE-000403) added.","service":"sld-backend-service","timestamp":"2026-09-02 12:31:09"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:32:36"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:32:38"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:32:39"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:33:00"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:33:01"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:33:03"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:42:33"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:42:34"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:42:35"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 12:42:46"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 12:42:47"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 12:42:49"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 13:02:42"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 13:02:43"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 13:02:45"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 13:35:01"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 13:35:04"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 13:35:06"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 13:35:08"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to tahatrades.today@gmail.com","service":"sld-backend-service","timestamp":"2026-09-02 13:37:14"}
+{"level":"error","message":"POST /api/auth/signup - Error: Invalid greeting. response=421-4.4.5 Server busy, try again later. (smtp.gmail.com)\n421-4.4.5  For more information, go to\n421 4.4.5  https://support.google.com/a/answer/3221692 5b1f17b1804b1-49ce592b017sm17987665e9.2 - gsmtp: 421-4.4.5 Server busy, try again later. (smtp.gmail.com)\n421-4.4.5  For more information, go to\n421 4.4.5  https://support.google.com/a/answer/3221692 5b1f17b1804b1-49ce592b017sm17987665e9.2 - gsmtp","service":"sld-backend-service","stack":"Error: Invalid greeting. response=421-4.4.5 Server busy, try again later. (smtp.gmail.com)\n421-4.4.5  For more information, go to\n421 4.4.5  https://support.google.com/a/answer/3221692 5b1f17b1804b1-49ce592b017sm17987665e9.2 - gsmtp: 421-4.4.5 Server busy, try again later. (smtp.gmail.com)\n421-4.4.5  For more information, go to\n421 4.4.5  https://support.google.com/a/answer/3221692 5b1f17b1804b1-49ce592b017sm17987665e9.2 - gsmtp\n    at SMTPConnection._actionGreeting (C:\\Users\\HP\\Desktop\\Quirk\\sld\\sld_system\\backend\\node_modules\\nodemailer\\lib\\smtp-connection\\index.js:1251:27)\n    at SMTPConnection._processResponse (C:\\Users\\HP\\Desktop\\Quirk\\sld\\sld_system\\backend\\node_modules\\nodemailer\\lib\\smtp-connection\\index.js:993:20)\n    at SMTPConnection._onData (C:\\Users\\HP\\Desktop\\Quirk\\sld\\sld_system\\backend\\node_modules\\nodemailer\\lib\\smtp-connection\\index.js:774:14)\n    at SMTPConnection._onSocketData (C:\\Users\\HP\\Desktop\\Quirk\\sld\\sld_system\\backend\\node_modules\\nodemailer\\lib\\smtp-connection\\index.js:195:44)\n    at Socket.emit (node:events:509:28)\n    at addChunk (node:internal/streams/readable:563:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)\n    at Readable.push (node:internal/streams/readable:394:5)\n    at TCP.onStreamRead (node:internal/stream_base_commons:189:23)","timestamp":"2026-09-02 13:37:15"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to pay.tester.1.743623@testmail.com","service":"sld-backend-service","timestamp":"2026-09-02 14:12:57"}
+{"level":"info","message":"[Payment Upload Success] Proof submitted for pay.tester.1.743623@testmail.com (Submission: 6a97e89cd321064959629c26)","service":"sld-backend-service","timestamp":"2026-09-02 14:13:03"}
+{"level":"info","message":"[Payment Approved] User pay.tester.1.743623@testmail.com activated by owner email action.","service":"sld-backend-service","timestamp":"2026-09-02 14:13:07"}
+{"level":"info","message":"[Login Success] User pay_tester_1_743623 logged in.","service":"sld-backend-service","timestamp":"2026-09-02 14:13:08"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to pay.tester.2.607160@testmail.com","service":"sld-backend-service","timestamp":"2026-09-02 14:13:13"}
+{"level":"info","message":"[Payment Upload Success] Proof submitted for pay.tester.2.607160@testmail.com (Submission: 6a97e8a9d321064959629c2b)","service":"sld-backend-service","timestamp":"2026-09-02 14:13:18"}
+{"level":"info","message":"[Payment Rejected] User pay.tester.2.607160@testmail.com rejected by owner. Reason: Payment not found in bank statement. Amount PKR 15,000 missing.","service":"sld-backend-service","timestamp":"2026-09-02 14:13:21"}
+{"level":"info","message":"[Payment Upload Success] Proof submitted for pay.tester.2.607160@testmail.com (Submission: 6a97e8b3d321064959629c2f)","service":"sld-backend-service","timestamp":"2026-09-02 14:13:26"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-02 14:14:53"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-02 14:14:54"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-02 14:14:56"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to pay.tester.1.791122@testmail.com","service":"sld-backend-service","timestamp":"2026-09-02 14:15:47"}
+{"level":"info","message":"[Payment Upload Success] Proof submitted for pay.tester.1.791122@testmail.com (Submission: 6a97e947523caf12f2d9941a)","service":"sld-backend-service","timestamp":"2026-09-02 14:15:54"}
+{"level":"info","message":"[Payment Approved] User pay.tester.1.791122@testmail.com activated by owner email action.","service":"sld-backend-service","timestamp":"2026-09-02 14:16:00"}
+{"level":"info","message":"[Login Success] User pay_tester_1_791122 logged in.","service":"sld-backend-service","timestamp":"2026-09-02 14:16:03"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to pay.tester.2.160510@testmail.com","service":"sld-backend-service","timestamp":"2026-09-02 14:16:09"}
+{"level":"info","message":"[Payment Upload Success] Proof submitted for pay.tester.2.160510@testmail.com (Submission: 6a97e959523caf12f2d9941f)","service":"sld-backend-service","timestamp":"2026-09-02 14:16:13"}
+{"level":"info","message":"[Payment Rejected] User pay.tester.2.160510@testmail.com rejected by owner. Reason: Payment not found in bank statement. Amount PKR 15,000 missing.","service":"sld-backend-service","timestamp":"2026-09-02 14:16:17"}
+{"level":"info","message":"[Payment Upload Success] Proof submitted for pay.tester.2.160510@testmail.com (Submission: 6a97e963523caf12f2d99423)","service":"sld-backend-service","timestamp":"2026-09-02 14:16:22"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to i222544@nu.edu.pk","service":"sld-backend-service","timestamp":"2026-09-02 14:17:29"}
+{"level":"info","message":"[Payment Upload Success] Proof submitted for i222544@nu.edu.pk (Submission: 6a97e9fac285ee394497a480)","service":"sld-backend-service","timestamp":"2026-09-02 14:18:55"}
+{"level":"info","message":"[Payment Approved] User i222544@nu.edu.pk activated by owner email action.","service":"sld-backend-service","timestamp":"2026-09-02 14:19:46"}
+{"level":"info","message":"[Login Success] User ibbbi1234 logged in.","service":"sld-backend-service","timestamp":"2026-09-02 14:20:52"}

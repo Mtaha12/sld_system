@@ -88,8 +88,8 @@ const userSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'inactive', 'suspended'],
-    default: 'active',
+    enum: ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'active', 'inactive', 'suspended'],
+    default: 'PENDING_APPROVAL',
   },
   isDeleted: {
     type: Boolean,

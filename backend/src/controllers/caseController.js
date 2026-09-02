@@ -19,30 +19,55 @@ const stringToArray = (str) => {
     .filter(item => item.length > 0);
 };
 
+const buildMapYearPage = (publications = []) => {
+  const entries = [];
+
+  publications.forEach((pub) => {
+    if (!pub || (!pub.year && !pub.mag && !pub.page && !pub.vol)) return;
+
+    const magStr = (pub.mag || 'SLD').toUpperCase();
+    const yearStr = pub.year || '';
+    const volStr = pub.vol ? ` ${pub.vol}` : '';
+    const pageStr = pub.page || '';
+    const citation = `${magStr} ${yearStr}${volStr} ${pageStr}`.trim();
+
+    if (!citation) return;
+
+    const key = `${magStr}|${yearStr}|${pageStr}`.toLowerCase();
+    const existingIndex = entries.findIndex((entry) => {
+      const [entryMag, entryYear, entryPage] = entry.key.split('|');
+      return entryMag === magStr.toLowerCase() && entryYear === yearStr.toLowerCase() && entryPage === pageStr.toLowerCase();
+    });
+
+    if (existingIndex === -1) {
+      entries.push({ value: citation, key });
+      return;
+    }
+
+    const current = entries[existingIndex];
+    const currentHasVol = current.value.includes(' ') && /\d+\s+\d+$/.test(current.value) === false;
+    const nextHasVol = Boolean(pub.vol && String(pub.vol).trim());
+
+    if (nextHasVol && !currentHasVol) {
+      entries[existingIndex] = { value: citation, key };
+    }
+  });
+
+  return entries.map((entry) => entry.value);
+};
+
 /**
  * Helper to format case model for frontend compatibility
  */
 const formatCaseForFrontend = (c) => {
-  // If mapYearPage is empty, attempt to generate it from publications
-  let mapYearPage = c.mapYearPage || [];
-  if (mapYearPage.length === 0 && c.publications && c.publications.length > 0) {
-    mapYearPage = c.publications.map(pub => {
-      const magStr = (pub.mag || 'SLD').toUpperCase();
-      const volStr = pub.vol ? ` ${pub.vol}` : '';
-      return `${magStr} ${pub.year}${volStr} ${pub.page}`.trim();
-    });
-  }
+  let mapYearPage = Array.isArray(c.mapYearPage) ? c.mapYearPage.filter(Boolean) : [];
 
-  // Get month name from publications or dated
-  let month = 'May';
-  if (c.publications && c.publications[0] && c.publications[0].month) {
-    const m = c.publications[0].month;
-    month = m.charAt(0).toUpperCase() + m.slice(1);
-  } else if (c.dated) {
-    const d = new Date(c.dated);
-    if (!isNaN(d.getTime())) {
-      month = d.toLocaleString('en-US', { month: 'long' });
-    }
+  if (mapYearPage.length === 0 && c.publications && c.publications.length > 0) {
+    mapYearPage = buildMapYearPage(c.publications);
+  } else if (mapYearPage.length > 0 && c.publications && c.publications.length > 0) {
+    mapYearPage = buildMapYearPage(c.publications).length > 0
+      ? buildMapYearPage(c.publications)
+      : mapYearPage;
   }
 
   return {
@@ -60,13 +85,13 @@ const formatCaseForFrontend = (c) => {
     headNote: c.headNote || '',
     references: c.references || '',
     principleLaw: c.principleLaw || '',
+    legalMaxim: c.legalMaxim || '',
     judgment: c.judgment || '',
     publications: c.publications || [],
     laws: c.laws || [],
     attachments: c.attachments ? c.attachments.length : 0,
     attachmentsData: c.attachments || [],
-    mapYearPage,
-    month
+    mapYearPage
   };
 };
 
@@ -111,9 +136,7 @@ export const getCases = async (req, res, next) => {
       query.mapYearPage = new RegExp(magazine.trim(), 'i');
     }
 
-    // Retrieve all matches (Frontend paginates/filters locally, so we return all matches)
     const cases = await Case.find(query).sort({ createdAt: -1, sldNumber: -1 });
-
     const data = cases.map(formatCaseForFrontend);
 
     return res.status(200).json({
@@ -157,11 +180,14 @@ export const createCase = async (req, res, next) => {
     const { 
       srNumber, dated, department, court, 
       caseNumber, judges, petitioners, lawyers, 
-      headNote, references, principleLaw, judgment, 
+      headNote, references, principleLaw, legalMaxim, judgment, 
       publications, laws, attachments 
     } = req.body;
 
-    // Check unique SLD if user entered a specific SR #
+    const safeDepartment = typeof department === 'string' && department.trim().length > 0
+      ? department.trim().toLowerCase()
+      : 'tax';
+
     if (srNumber && typeof srNumber === 'string' && srNumber.trim().length > 0) {
       const exist = await Case.findOne({ sldNumber: srNumber.trim() });
       if (exist) {
@@ -172,18 +198,13 @@ export const createCase = async (req, res, next) => {
       }
     }
 
-    // Map publications to generate mapYearPage array
     const pubs = publications || [];
-    const mapYearPage = pubs.map(pub => {
-      const magStr = (pub.mag || 'SLD').toUpperCase();
-      const volStr = pub.vol ? ` ${pub.vol}` : '';
-      return `${magStr} ${pub.year}${volStr} ${pub.page}`.trim();
-    });
+    const mapYearPage = buildMapYearPage(pubs);
 
     const newCase = new Case({
       sldNumber: srNumber ? srNumber.trim() : undefined,
       dated: dated || null,
-      department: department || 'tax',
+      department: safeDepartment,
       court: court || '',
       caseNumber: stringToArray(caseNumber),
       judges: stringToArray(judges),
@@ -192,6 +213,7 @@ export const createCase = async (req, res, next) => {
       headNote: headNote || '',
       references: references || '',
       principleLaw: principleLaw || '',
+      legalMaxim: legalMaxim || '',
       judgment: judgment || '',
       publications: pubs,
       laws: laws || [],
@@ -236,9 +258,13 @@ export const updateCase = async (req, res, next) => {
     const { 
       srNumber, dated, department, court, 
       caseNumber, judges, petitioners, lawyers, 
-      headNote, references, principleLaw, judgment, 
+      headNote, references, principleLaw, legalMaxim, judgment, 
       publications, laws, attachments 
     } = req.body;
+
+    const safeDepartment = typeof department === 'string' && department.trim().length > 0
+      ? department.trim().toLowerCase()
+      : undefined;
 
     const c = await Case.findOne(query);
     if (!c) {
@@ -260,7 +286,7 @@ export const updateCase = async (req, res, next) => {
     }
 
     if (dated !== undefined) c.dated = dated;
-    if (department !== undefined) c.department = department;
+    if (department !== undefined) c.department = safeDepartment ?? c.department;
     if (court !== undefined) c.court = court;
     if (caseNumber !== undefined) c.caseNumber = stringToArray(caseNumber);
     if (judges !== undefined) c.judges = stringToArray(judges);
@@ -269,14 +295,11 @@ export const updateCase = async (req, res, next) => {
     if (headNote !== undefined) c.headNote = headNote;
     if (references !== undefined) c.references = references;
     if (principleLaw !== undefined) c.principleLaw = principleLaw;
+    if (legalMaxim !== undefined) c.legalMaxim = legalMaxim;
     if (judgment !== undefined) c.judgment = judgment;
     if (publications !== undefined) {
       c.publications = publications;
-      c.mapYearPage = publications.map(pub => {
-        const magStr = (pub.mag || 'SLD').toUpperCase();
-        const volStr = pub.vol ? ` ${pub.vol}` : '';
-        return `${magStr} ${pub.year}${volStr} ${pub.page}`.trim();
-      });
+      c.mapYearPage = buildMapYearPage(publications);
     }
     if (laws !== undefined) c.laws = laws;
     if (attachments !== undefined) c.attachments = attachments;

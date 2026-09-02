@@ -12,6 +12,9 @@ const SignupPage = lazy(() => import('./pages/SignupPage'))
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ContactPage = lazy(() => import('./pages/ContactPage'))
+const PaymentInstructionsPage = lazy(() => import('./pages/PaymentInstructionsPage'))
+const PaymentReviewApprovePage = lazy(() => import('./pages/PaymentReviewApprovePage'))
+const PaymentReviewRejectPage = lazy(() => import('./pages/PaymentReviewRejectPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const ManageCasesPage = lazy(() => import('./pages/ManageCasesPage'))
 const AddCaseLawPage = lazy(() => import('./pages/AddCaseLawPage'))
@@ -35,13 +38,16 @@ function App() {
         <BrowserRouter>
           <Suspense fallback={<div className="min-h-screen bg-brand-dark flex items-center justify-center"><Spinner size="lg" /></div>}>
             <Routes>
-            {/* Public Auth Routes */}
+            {/* Public Auth & Verification Routes */}
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/contact" element={<ContactPage />} />
+              <Route path="/payment-instructions" element={<PaymentInstructionsPage />} />
+              <Route path="/payment-review/approve/:token" element={<PaymentReviewApprovePage />} />
+              <Route path="/payment-review/reject/:token" element={<PaymentReviewRejectPage />} />
             </Route>
             
                         {/* Standalone Document Views */}

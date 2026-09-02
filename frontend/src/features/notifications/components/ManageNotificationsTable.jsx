@@ -291,11 +291,11 @@ const ManageNotificationsTable = ({
                     <td className="px-3 py-4 align-top text-theme-muted">{item.number}</td>
                     <td className="px-3 py-4 align-top text-theme-muted">{item.year}</td>
                     <td className="px-3 py-4 align-top text-theme-muted">{item.department}</td>
-                    <td className="px-3 py-4 align-top text-theme-main font-medium min-w-[200px]">{item.sroNumber}</td>
-                    <td className="px-3 py-4 align-top text-theme-muted min-w-[300px]">{item.subject}</td>
-                    <td className="px-3 py-4 align-top text-theme-muted">{item.lawDate || '-'}</td>
-                    <td className="px-3 py-4 align-top text-theme-muted">{item.lawStatute || '-'}</td>
-                    <td className="px-3 py-4 align-top text-theme-muted">{item.section || '-'}</td>
+                    <td className="px-3 py-4 align-top text-theme-main font-medium whitespace-normal break-words">{item.sroNumber}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted whitespace-normal break-words">{item.subject}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted whitespace-normal break-words">{item.lawDate || '-'}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted whitespace-normal break-words">{item.lawStatute || '-'}</td>
+                    <td className="px-3 py-4 align-top text-theme-muted whitespace-normal break-words">{item.section || '-'}</td>
                     <td className="px-3 py-4 align-top text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button 
