@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Ensure required environment variables are set
 const AI_CHATBOT_URL = process.env.AI_CHATBOT_URL || 'http://127.0.0.1:8000';
-const AI_CHATBOT_API_KEY = process.env.AI_CHATBOT_API_KEY;
+const AI_CHATBOT_API_KEY = process.env.AI_CHATBOT_API_KEY || 'testkey123';
 
 // Base configuration for forwarding requests
 const createFetchOptions = (method, req, body = null) => {

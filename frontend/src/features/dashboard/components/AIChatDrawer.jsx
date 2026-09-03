@@ -9,6 +9,21 @@ import { caseService } from '../../cases/services/caseService';
 import { notificationService } from '../../notifications/services/notificationService';
 import { statuteService } from '../../statutes/services/statuteService';
 
+const extractReference = (text) => {
+  const standardCitationMatch = text.match(/\b([a-z]+)\s+(\d{4})\s+(\d+)\b/i);
+  if (standardCitationMatch) {
+    return `${standardCitationMatch[1].toUpperCase()} ${standardCitationMatch[2]} ${standardCitationMatch[3]}`;
+  }
+
+  const reversedCitationMatch = text.match(/\b(\d{4})\s+([a-z]+)\s+(\d+)\b/i);
+  if (reversedCitationMatch) {
+    return `${reversedCitationMatch[2].toUpperCase()} ${reversedCitationMatch[1]} ${reversedCitationMatch[3]}`;
+  }
+
+  const idMatch = text.match(/(?:CASE-\d+|\b\d{4,8}\b)/i);
+  return idMatch ? idMatch[0].toUpperCase() : null;
+};
+
 const AIChatDrawer = ({ isOpen, onClose }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
@@ -158,11 +173,11 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
       setError(null);
 
       // Extract SLD number / CASE string / Notification ID / Statute ID
-      const sldMatch = userText.match(/(?:CASE-\d+|\b\d{4,8}\b)/i);
-      const detectedCaseNumber = sldMatch ? sldMatch[0].toUpperCase() : null;
+      const detectedCaseNumber = extractReference(userText);
 
       let targetCaseNumber = activeCaseNumber;
       let targetSessionId = sessionId;
+      let resolvedReference = null;
 
       // If a new reference is mentioned, validate it and switch context
       if (detectedCaseNumber && detectedCaseNumber !== activeCaseNumber) {
@@ -170,25 +185,54 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
         
         try {
           const caseData = await caseService.getCaseById(detectedCaseNumber);
-          if (caseData && (caseData.caseId || caseData.sldNumber)) isValid = true;
-        } catch (e) {}
+          if (caseData && (caseData.caseId || caseData.sldNumber)) {
+            isValid = true;
+            resolvedReference = caseData.sldNumber || caseData.caseId;
+          }
+        } catch (error) {
+          void error;
+        }
+
+        // Citation lookup can match mapYearPage even when it is not a case ID.
+        if (!isValid && /\s/.test(detectedCaseNumber)) {
+          try {
+            const searchResult = await caseService.searchCases({ subject: detectedCaseNumber });
+            const matchedCase = Array.isArray(searchResult) ? searchResult[0] : null;
+            if (matchedCase && (matchedCase.caseId || matchedCase.sldNumber)) {
+              isValid = true;
+              resolvedReference = matchedCase.sldNumber || matchedCase.caseId;
+            }
+          } catch (error) {
+            void error;
+          }
+        }
 
         if (!isValid) {
           try {
             const notifData = await notificationService.getNotificationById(detectedCaseNumber);
-            if (notifData && (notifData.notificationId || notifData.srNumber)) isValid = true;
-          } catch (e) {}
+            if (notifData && (notifData.notificationId || notifData.srNumber)) {
+              isValid = true;
+              resolvedReference = notifData.srNumber || notifData.notificationId;
+            }
+          } catch (error) {
+            void error;
+          }
         }
 
         if (!isValid) {
           try {
             const statData = await statuteService.getStatuteById(detectedCaseNumber);
-            if (statData && (statData.statuteId || statData.srNumber)) isValid = true;
-          } catch (e) {}
+            if (statData && (statData.statuteId || statData.srNumber)) {
+              isValid = true;
+              resolvedReference = statData.srNumber || statData.statuteId;
+            }
+          } catch (error) {
+            void error;
+          }
         }
 
         if (isValid) {
-          targetCaseNumber = detectedCaseNumber;
+          targetCaseNumber = resolvedReference || detectedCaseNumber;
           targetSessionId = null; // We need a new session for this new context
         } else {
           setMessages(prev => [...prev, { 
@@ -232,7 +276,7 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
       }
 
       // Check if the user's text was ONLY providing a reference number
-      const isJustCaseNumber = /^(case|sld|notification|statute|switch to)?\s*(?:CASE-\d+|\d{4,8})\s*\.?$/i.test(userText.trim());
+      const isJustCaseNumber = /^(case|sld|notification|statute|switch to)?\s*(?:CASE-\d+|\d{4,8}|(?:[a-z]+\s+)?\d{4}\s+[a-z]+\s+\d+|[a-z]+\s+\d{4}\s+\d+)\s*\.?$/i.test(userText.trim());
       
       if (isJustCaseNumber) {
         // If they just typed an ID, they probably just wanted to set the context.

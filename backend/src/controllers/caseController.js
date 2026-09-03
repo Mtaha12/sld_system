@@ -153,9 +153,28 @@ export const getCaseById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const query = mongoose.isValidObjectId(id) 
-      ? { _id: id } 
-      : { $or: [{ caseId: id }, { case_id: id }, { sldNumber: id }] };
+    const citationMatch = id.trim().match(/^(?:([A-Za-z]+)\s+(\d{4})\s+(\d+)|(\d{4})\s+([A-Za-z]+)\s+(\d+))$/i);
+    const citationMagazine = citationMatch?.[1] || citationMatch?.[5];
+    const citationYear = citationMatch?.[2] || citationMatch?.[4];
+    const citationPage = citationMatch?.[3] || citationMatch?.[6];
+    const query = mongoose.isValidObjectId(id)
+      ? { _id: id }
+      : citationMatch
+        ? {
+            $or: [
+              { mapYearPage: { $in: [id.trim(), id.trim().toUpperCase()] } },
+              {
+                publications: {
+                  $elemMatch: {
+                    mag: { $regex: `^${escapeRegex(citationMagazine)}$`, $options: 'i' },
+                    year: citationYear,
+                    page: citationPage
+                  }
+                }
+              }
+            ]
+          }
+        : { $or: [{ caseId: id }, { case_id: id }, { sldNumber: id }] };
 
     const c = await Case.findOne({ ...query, isDeleted: { $ne: true } });
 
@@ -405,6 +424,38 @@ export const searchCases = async (req, res, next) => {
     }
 
     let andConditions = [{ isDeleted: false }];
+
+    if (filters.subject) {
+      const subject = String(filters.subject).trim();
+      const citationMatch = subject.match(/^(?:([A-Za-z]+)\s+(\d{4})\s+(\d+)|(\d{4})\s+([A-Za-z]+)\s+(\d+))$/i);
+      if (citationMatch) {
+        const magazine = citationMatch[1] || citationMatch[5];
+        const year = citationMatch[2] || citationMatch[4];
+        const page = citationMatch[3] || citationMatch[6];
+        andConditions.push({
+          $or: [
+            { mapYearPage: { $regex: `^${escapeRegex(magazine)}\\s+${year}\\s+${page}$`, $options: 'i' } },
+            { publications: { $elemMatch: {
+              mag: { $regex: `^${escapeRegex(magazine)}$`, $options: 'i' },
+              year,
+              page
+            } } }
+          ]
+        });
+      } else {
+        const subjectRegex = new RegExp(escapeRegex(subject), 'i');
+        andConditions.push({
+          $or: [
+            { caseId: subjectRegex },
+            { case_id: subjectRegex },
+            { sldNumber: subjectRegex },
+            { mapYearPage: subjectRegex },
+            { caseNumber: subjectRegex },
+            { headNote: subjectRegex }
+          ]
+        });
+      }
+    }
 
         if (filters.yearVolume) {
       andConditions.push({

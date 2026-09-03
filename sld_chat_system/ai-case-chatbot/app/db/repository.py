@@ -48,12 +48,65 @@ def clean_objectid(data: Any) -> Any:
 class CaseRepository(BaseRepository[dict[str, Any]]):
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         super().__init__(db, "cases")
+
+    @staticmethod
+    def _normalize_reference_values(case_number: str) -> list[str | int]:
+        values: list[str | int] = []
+        if not case_number:
+            return values
+
+        cleaned = case_number.strip()
+        if not cleaned:
+            return values
+
+        values.append(cleaned)
+
+        normalized = cleaned.upper().replace("(", " ").replace(")", " ")
+        normalized = " ".join(normalized.split())
+        if normalized:
+            values.append(normalized)
+
+        if cleaned.isdigit():
+            values.append(int(cleaned))
+            values.append(cleaned)
+
+        # Support citation formats like 'SLD 2025 8335' or 'SLD 2025 8335' with extra spaces.
+        citation_match = __import__("re").search(r"(?:^|\s)([A-ZA-z]+)\s+(\d{4})\s+(\d+)$", cleaned)
+        if citation_match:
+            mag, year, page = citation_match.groups()
+            values.extend([mag, mag.upper(), year, page, f"{mag} {year} {page}", f"{mag.upper()} {year} {page}"])
+            values.append(int(page) if page.isdigit() else page)
+
+        # Deduplicate while preserving order.
+        seen: set[tuple[str, str]] = set()
+        deduped: list[str | int] = []
+        for value in values:
+            key = (type(value).__name__, str(value))
+            if key not in seen:
+                seen.add(key)
+                deduped.append(value)
+        return deduped
         
     def _build_lookup_query(self, case_number: str) -> dict[str, Any]:
         """Build a query that searches sldNumber (int or str) and excludes deleted cases."""
-        or_conds: list[dict[str, Any]] = [{"sldNumber": case_number}]
-        if case_number.isdigit():
-            or_conds.append({"sldNumber": int(case_number)})
+        lookup_values = self._normalize_reference_values(case_number)
+        or_conds: list[dict[str, Any]] = []
+        for lookup_value in lookup_values:
+            or_conds.append({"sldNumber": lookup_value})
+
+        # Match publication citation values stored as mapYearPage or publications entries.
+        citation_match = __import__("re").search(r"(?:^|\s)([A-Za-z]+)\s+(\d{4})\s+(\d+)$", case_number.strip())
+        if citation_match:
+            mag, year, page = citation_match.groups()
+            or_conds.extend([
+                {"mapYearPage": {"$in": [f"{mag.upper()} {year} {page}", f"{mag} {year} {page}"]}},
+                {"publications.mag": {"$regex": f"^{__import__('re').escape(mag)}$", "$options": "i"}},
+                {"publications.year": year},
+                {"publications.page": page},
+            ])
+
+        if not or_conds:
+            or_conds = [{"sldNumber": case_number}]
             
         return {
             "isDeleted": {"$ne": True},

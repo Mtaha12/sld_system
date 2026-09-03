@@ -133,3 +133,21 @@
 {"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:03:07"}
 {"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:03:16"}
 {"level":"error","message":"[AI Chatbot Proxy Error] Status: 500, Detail: Internal server error","service":"sld-backend-service","timestamp":"2026-09-02 23:03:20"}
+{"level":"error","message":"AI Chatbot API Key is not configured","service":"sld-backend-service","timestamp":"2026-09-03 01:42:15"}
+{"level":"error","message":"AI Chatbot API Key is not configured","service":"sld-backend-service","timestamp":"2026-09-03 01:42:29"}
+{"level":"error","message":"AI Chatbot API Key is not configured","service":"sld-backend-service","timestamp":"2026-09-03 01:43:08"}
+{"level":"error","message":"AI Chatbot API Key is not configured","service":"sld-backend-service","timestamp":"2026-09-03 01:43:56"}
+{"level":"error","message":"[Gemini API Error] Status: 404. Body: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash for the latest features and improvements. We recommend you to use the Interactions API.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n","service":"sld-backend-service","timestamp":"2026-09-03 06:11:37"}
+{"level":"error","message":"[Gemini API Error] Status: 404. Body: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash for the latest features and improvements. We recommend you to use the Interactions API.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n","service":"sld-backend-service","timestamp":"2026-09-03 06:11:55"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:18:18"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:18:39"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:19:02"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:19:37"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:19:56"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:20:15"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:20:34"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:20:53"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:21:11"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:21:37"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:21:54"}
+{"level":"error","message":"[Gemini API Request Error] This operation was aborted","service":"sld-backend-service","timestamp":"2026-09-03 06:22:12"}

@@ -7,7 +7,7 @@ const paymentConfigSchema = new mongoose.Schema({
   },
   amount: {
     type: String,
-    default: 'PKR 15,000 / Annual',
+    default: 'PKR 30,000 / Annual',
   },
   bankAccounts: [
     {
@@ -50,7 +50,7 @@ paymentConfigSchema.statics.getActiveConfig = async function () {
   if (!config) {
     config = await this.create({
       title: 'Supreme Court & High Court Law Reports Portal Access',
-      amount: 'PKR 15,000 / Annual Subscription',
+      amount: 'PKR 30,000 / Annual Subscription',
       bankAccounts: [
         {
           bankName: 'Meezan Bank Ltd.',
@@ -93,6 +93,9 @@ paymentConfigSchema.statics.getActiveConfig = async function () {
       },
       isActive: true
     });
+  } else if (config.amount !== 'PKR 30,000 / Annual Subscription') {
+    config.amount = 'PKR 30,000 / Annual Subscription';
+    await config.save();
   }
   return config;
 };

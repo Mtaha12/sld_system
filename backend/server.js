@@ -165,6 +165,30 @@ const chatCache = new Map();
 let chatMetricsCache = null;
 let chatMetricsCacheExpiresAt = 0;
 
+const extractCitation = (text) => {
+  const canonical = text.match(/\b([a-z]+)\s+(\d{4})\s+(\d+)\b/i);
+  if (canonical) {
+    return {
+      magazine: canonical[1].toLowerCase(),
+      year: canonical[2],
+      page: canonical[3],
+      value: `${canonical[1].toUpperCase()} ${canonical[2]} ${canonical[3]}`
+    };
+  }
+
+  const reversed = text.match(/\b(\d{4})\s+([a-z]+)\s+(\d+)\b/i);
+  if (reversed) {
+    return {
+      magazine: reversed[2].toLowerCase(),
+      year: reversed[1],
+      page: reversed[3],
+      value: `${reversed[2].toUpperCase()} ${reversed[1]} ${reversed[3]}`
+    };
+  }
+
+  return null;
+};
+
 // AI Support Chatbot Endpoint (Gemini Integration)
 app.post('/api/chat', async (req, res, next) => {
   try {
@@ -207,17 +231,30 @@ app.post('/api/chat', async (req, res, next) => {
     // 2. Perform a text search of Case and Statute models if querying legal information
     let searchContext = "";
     const cleanQuery = cacheKey.replace(/(find|search|cases|by|about|show|me|the|statutes|statute)/g, '').trim();
+    const citation = extractCitation(message);
+    const isCitationQuery = Boolean(citation);
     
-    if (cleanQuery.length > 2 && (cacheKey.includes('case') || cacheKey.includes('statute') || cacheKey.includes('judge') || cacheKey.includes('lawyer') || cacheKey.includes('find') || cacheKey.includes('search') || cacheKey.includes('rule') || cacheKey.includes('act'))) {
+    if (cleanQuery.length > 2 && (isCitationQuery || cacheKey.includes('case') || cacheKey.includes('statute') || cacheKey.includes('judge') || cacheKey.includes('lawyer') || cacheKey.includes('find') || cacheKey.includes('search') || cacheKey.includes('rule') || cacheKey.includes('act'))) {
       try {
+        const caseQuery = citation
+          ? {
+              isDeleted: { $ne: true },
+              $or: [
+                { mapYearPage: { $regex: `^${citation.magazine}\\s+${citation.year}\\s+${citation.page}$`, $options: 'i' } },
+                { publications: { $elemMatch: {
+                  mag: { $regex: `^${citation.magazine}$`, $options: 'i' },
+                  year: citation.year,
+                  page: citation.page
+                } } }
+              ]
+            }
+          : { $text: { $search: cleanQuery } };
+
         const [foundCases, foundStatutes] = await Promise.all([
-          Case.find(
-            { $text: { $search: cleanQuery } },
-            { score: { $meta: 'textScore' } }
-          )
-          .sort({ score: { $meta: 'textScore' } })
+          Case.find(caseQuery, citation ? {} : { score: { $meta: 'textScore' } })
+          .sort(citation ? { createdAt: -1 } : { score: { $meta: 'textScore' } })
           .limit(3)
-          .select('caseId sldNumber court caseNumber judges petitioners lawyers headNote principleLaw'),
+          .select('caseId sldNumber court caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications'),
           Statute.find(
             { $text: { $search: cleanQuery } }
           )
@@ -226,8 +263,8 @@ app.post('/api/chat', async (req, res, next) => {
         ]);
 
         if (foundCases && foundCases.length > 0) {
-          searchContext += `\nTop matching cases found in database for "${cleanQuery}":\n` + 
-            foundCases.map(c => `- ID: ${c.caseId}, SLD No: ${c.sldNumber || c.caseId}, Court: ${c.court || 'Supreme Court'}, Number: ${c.caseNumber?.join(', ') || 'N/A'}, Judges: ${c.judges?.join(', ') || 'N/A'}, Lawyers: ${c.lawyers?.join(', ') || 'N/A'}, Principle Law: ${c.principleLaw || 'N/A'}, Headnote excerpt: ${c.headNote?.substring(0, 200)}...`).join('\n');
+          searchContext += `\nTop matching cases found in database for "${citation?.value || cleanQuery}":\n` +
+            foundCases.map(c => `- ID: ${c.caseId}, SLD No: ${c.sldNumber || c.caseId}, Publications: ${c.mapYearPage?.join(', ') || c.publications?.map(p => `${p.mag} ${p.year} ${p.page}`).join(', ') || 'N/A'}, Court: ${c.court || 'Supreme Court'}, Number: ${c.caseNumber?.join(', ') || 'N/A'}, Judges: ${c.judges?.join(', ') || 'N/A'}, Lawyers: ${c.lawyers?.join(', ') || 'N/A'}, Principle Law: ${c.principleLaw || 'N/A'}, Headnote excerpt: ${c.headNote?.substring(0, 200) || 'N/A'}...`).join('\n');
         }
 
         if (foundStatutes && foundStatutes.length > 0) {
@@ -258,11 +295,7 @@ BOUNDARIES & SCOPE RESTRICTIONS:
 6. Do not explain obvious concepts or provide examples unless the user asks for them.
 7. If information is uncertain or unavailable, state that clearly instead of guessing.`;
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    const controller = new AbortController();
-    const timeoutMs = 15000;
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
+    const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
     let response;
     try {
       response = await fetch(
@@ -272,7 +305,6 @@ BOUNDARIES & SCOPE RESTRICTIONS:
           headers: {
             'Content-Type': 'application/json',
           },
-          signal: controller.signal,
           body: JSON.stringify({
             contents: [
               {
@@ -287,14 +319,11 @@ BOUNDARIES & SCOPE RESTRICTIONS:
         }
       );
     } catch (fetchError) {
-      clearTimeout(timer);
       logger.error(`[Gemini API Request Error] ${fetchError.message}`);
       return res.status(504).json({
         success: false,
         message: 'The assistant timed out while processing your request. Please try again.'
       });
-    } finally {
-      clearTimeout(timer);
     }
 
     if (!response.ok) {

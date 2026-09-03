@@ -60,10 +60,10 @@ async def get_all_sessions(
     conversation_service: Annotated[ConversationService, Depends(get_conversation_service)]
 ):
     try:
-        sessions = await conversation_service.session_repo.get_user_sessions(identity.owner_id)
+        sessions = await conversation_service.session_repo.get_user_sessions(identity.user_id)
         return sessions
     except Exception as e:
-        logger.error(f"Error fetching sessions for user {sanitize_for_log(identity.owner_id)}: {e}")
+        logger.error(f"Error fetching sessions for user {sanitize_for_log(identity.user_id)}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 

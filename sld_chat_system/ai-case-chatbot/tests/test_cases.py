@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
+from app.db.repository import CaseRepository
 from app.db.mongodb import get_database
 
 @pytest.fixture
@@ -88,3 +89,26 @@ async def test_get_case_documents(client, seed_data):
     data = response.json()
     assert len(data) == 2
     assert data[0]["document_id"] == "DOC-1"
+
+
+@pytest.mark.asyncio
+async def test_get_case_by_publication_citation(mock_db):
+    await mock_db.cases.insert_one({
+        "sldNumber": "8335",
+        "caseId": "CASE-2025-8335",
+        "case_id": "CASE-2025-8335",
+        "isDeleted": False,
+        "mapYearPage": ["SLD 2025 8335"],
+        "publications": [
+            {"mag": "SLD", "year": "2025", "page": "8335", "vol": ""}
+        ],
+        "court": "Supreme Court",
+        "judges": ["Justice A"],
+    })
+
+    repo = CaseRepository(mock_db)
+    case = await repo.get_case_by_case_number("SLD 2025 8335")
+
+    assert case is not None
+    assert case["sldNumber"] == "8335"
+    assert case["court"] == "Supreme Court"
