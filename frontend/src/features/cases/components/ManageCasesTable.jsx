@@ -88,9 +88,14 @@ const ManageCasesTable = ({
   setToastMessage: propSetToastMessage,
   currentPage: propCurrentPage,
   setCurrentPage: propSetCurrentPage,
+  totalItems: propTotalItems,
+  totalPages: propTotalPages,
+  sortConfig: propSortConfig,
+  onSort: propOnSort,
   highlightedId,
   onExportSelection,
-  isLoading = false
+  isLoading = false,
+  serverPaginated = false
 }) => {
   const navigate = useNavigate();
   const [internalCases, setInternalCases] = useState([]);
@@ -103,7 +108,7 @@ const ManageCasesTable = ({
     if (!propCases) {
       setInternalLoading(true);
       caseService.getCases()
-        .then(data => setInternalCases(data))
+        .then(response => setInternalCases(response.data || []))
         .finally(() => setInternalLoading(false));
     }
   }, [propCases]);
@@ -126,11 +131,14 @@ const ManageCasesTable = ({
   const [editConfirmationInput, setEditConfirmationInput] = useState('');
   const [editError, setEditError] = useState('');
   const [attachmentModalCase, setAttachmentModalCase] = useState(null);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const itemsPerPage = 10;
+  const [internalSortConfig, setInternalSortConfig] = useState({ key: null, direction: null });
+  const itemsPerPage = 25;
+
+  // Use parent-provided sort state when server-paginated, otherwise internal
+  const sortConfig = serverPaginated && propSortConfig ? propSortConfig : internalSortConfig;
   
-  const handleSort = (key) => {
-    setSortConfig(prev => {
+  const handleSort = serverPaginated && propOnSort ? propOnSort : (key) => {
+    setInternalSortConfig(prev => {
       if (prev.key === key) {
         if (prev.direction === 'asc') return { key, direction: 'desc' };
         if (prev.direction === 'desc') return { key: null, direction: null };
@@ -141,6 +149,8 @@ const ManageCasesTable = ({
   };
 
   const sortedCases = useMemo(() => {
+    // When server-paginated, data is already sorted by the server
+    if (serverPaginated) return cases;
     if (!sortConfig.key || !sortConfig.direction) return cases;
 
     const { key, direction } = sortConfig;
@@ -196,12 +206,13 @@ const ManageCasesTable = ({
       const result = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
       return isAsc ? result : -result;
     });
-  }, [cases, sortConfig]);
+  }, [cases, sortConfig, serverPaginated]);
 
-  const totalItems = sortedCases.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  // When server-paginated, the server provides totalItems/totalPages and cases IS the current page
+  const totalItems = serverPaginated ? (propTotalItems || 0) : sortedCases.length;
+  const totalPages = serverPaginated ? (propTotalPages || 0) : Math.ceil(totalItems / itemsPerPage);
   
-  const currentData = sortedCases.slice(
+  const currentData = serverPaginated ? sortedCases : sortedCases.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -580,7 +591,7 @@ const ManageCasesTable = ({
             </button>
             <button 
               onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === totalPages || totalPages === 0}
+              disabled={currentPage === 1 || totalPages === 0}
               className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Prev

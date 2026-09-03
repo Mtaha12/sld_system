@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Download, 
@@ -256,27 +256,14 @@ const ManageCasesPage = () => {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get('search') || '';
 
+  // Server-driven data state
   const [cases, setCases] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
-  // Fetch initial cases from caseService
-  useEffect(() => {
-    let isMounted = true;
-    setIsLoading(true);
-    caseService.getCases().then(data => {
-      if (isMounted) {
-        setCases(data);
-      }
-    }).finally(() => {
-      if (isMounted) {
-        setIsLoading(false);
-      }
-    });
-    return () => { isMounted = false; };
-  }, []);
-  
   // Search & Filter State
   const [filters, setFilters] = useState({
     subject: initialQuery,
@@ -285,6 +272,15 @@ const ManageCasesPage = () => {
     magazine: ''
   });
 
+  // Debounced subject for API calls
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+  const debounceTimerRef = useRef(null);
+
+  // State for currentPage, sort, and highlighted case
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  const [highlightedId, setHighlightedId] = useState(null);
+
   // Sync if URL search param updates
   useEffect(() => {
     const q = searchParams.get('search');
@@ -292,6 +288,69 @@ const ManageCasesPage = () => {
       setFilters(prev => ({ ...prev, subject: q }));
     }
   }, [searchParams]);
+
+  // Debounce filter changes (400ms for subject typing, immediate for other filters)
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedFilters(filters);
+      setCurrentPage(1); // Reset to page 1 on filter change
+    }, 400);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [filters]);
+
+  // Fetch data from server whenever page, debounced filters, or sort changes
+  const fetchRequestRef = useRef(0);
+  useEffect(() => {
+    const requestId = ++fetchRequestRef.current;
+    setIsLoading(true);
+
+    const params = {
+      page: currentPage,
+      limit: 25
+    };
+    if (debouncedFilters.subject) params.subject = debouncedFilters.subject;
+    if (debouncedFilters.fromDate) params.fromDate = debouncedFilters.fromDate;
+    if (debouncedFilters.toDate) params.toDate = debouncedFilters.toDate;
+    if (debouncedFilters.magazine) params.magazine = debouncedFilters.magazine;
+    if (sortConfig.key && sortConfig.direction) {
+      params.sortField = sortConfig.key;
+      params.sortOrder = sortConfig.direction;
+    }
+
+    caseService.getCases(params)
+      .then(response => {
+        if (requestId !== fetchRequestRef.current) return; // Stale request
+        setCases(response.data || []);
+        setTotalItems(response.pagination?.totalItems || 0);
+        setTotalPages(response.pagination?.totalPages || 0);
+      })
+      .catch(() => {
+        if (requestId !== fetchRequestRef.current) return;
+        setCases([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      })
+      .finally(() => {
+        if (requestId !== fetchRequestRef.current) return;
+        setIsLoading(false);
+      });
+  }, [currentPage, debouncedFilters, sortConfig]);
+
+  // Handle sort changes from the table
+  const handleSort = useCallback((key) => {
+    setSortConfig(prev => {
+      if (prev.key === key) {
+        if (prev.direction === 'asc') return { key, direction: 'desc' };
+        if (prev.direction === 'desc') return { key: null, direction: null };
+        return { key, direction: 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+    setCurrentPage(1);
+  }, []);
 
   // Export Modal State (when 0 cases are selected)
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -306,36 +365,6 @@ const ManageCasesPage = () => {
   const [caseIdResult, setCaseIdResult] = useState(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isFetchingCaseId, setIsFetchingCaseId] = useState(false);
-
-  // State for currentPage and highlighted case
-  const [currentPage, setCurrentPage] = useState(1);
-  const [highlightedId, setHighlightedId] = useState(null);
-
-  // Filtered cases based on search criteria
-  const filteredCases = useMemo(() => {
-    return cases.filter(item => {
-      if (filters.subject) {
-        const query = filters.subject.toLowerCase().trim();
-        const courtMatch = item.court?.toLowerCase().includes(query);
-        const sldMatch = item.sldNumber?.toLowerCase().includes(query);
-        const dateMatch = item.dated?.toLowerCase().includes(query);
-        const caseNumMatch = Array.isArray(item.caseNumber) && item.caseNumber.some(c => c.toLowerCase().includes(query));
-        const judgesMatch = Array.isArray(item.judges) && item.judges.some(j => j.toLowerCase().includes(query));
-        const lawyersMatch = Array.isArray(item.lawyers) && item.lawyers.some(l => l.toLowerCase().includes(query));
-        const petitionersMatch = Array.isArray(item.petitioners) && item.petitioners.some(p => p.toLowerCase().includes(query));
-        const citationMatch = Array.isArray(item.mapYearPage) && item.mapYearPage.some(m => m.toLowerCase().includes(query));
-        
-        if (!courtMatch && !sldMatch && !dateMatch && !caseNumMatch && !judgesMatch && !lawyersMatch && !petitionersMatch && !citationMatch) {
-          return false;
-        }
-      }
-      if (filters.magazine) {
-        const magMatch = item.mapYearPage?.some(m => m.toLowerCase().includes(filters.magazine.toLowerCase()));
-        if (!magMatch) return false;
-      }
-      return true;
-    });
-  }, [cases, filters]);
 
   // Main Export Handler
   const handleExport = (format = 'pdf') => {
@@ -475,20 +504,13 @@ const ManageCasesPage = () => {
           ? rawCaseNum.join(', ')
           : (rawCaseNum || 'N/A');
 
-        // Locate page in loaded cases list
-        const foundIndex = cases.findIndex(c => 
-          c.sldNumber?.toLowerCase() === cleanSld.toLowerCase() || 
-          c.id === target.id ||
-          c.caseId === uniqueCaseId
-        );
-        const targetPage = foundIndex !== -1 ? Math.floor(foundIndex / 10) + 1 : 1;
-
         setCaseIdResult({
           target,
           caseId: uniqueCaseId,
           caseNumbers,
-          targetPage,
-          isInList: foundIndex !== -1
+          targetPage: 1,
+          isInList: true,
+          sldSearchTerm: cleanSld
         });
         setIsCopied(false);
       } catch (err) {
@@ -552,7 +574,7 @@ const ManageCasesPage = () => {
 
       <div className="flex-1">
         <ManageCasesTable 
-          cases={filteredCases}
+          cases={cases}
           setCases={setCases}
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
@@ -560,9 +582,14 @@ const ManageCasesPage = () => {
           setToastMessage={setToastMessage}
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
+          totalItems={totalItems}
+          totalPages={totalPages}
+          sortConfig={sortConfig}
+          onSort={handleSort}
           highlightedId={highlightedId}
           onExportSelection={handleExport}
           isLoading={isLoading}
+          serverPaginated={true}
         />
       </div>
 
@@ -886,22 +913,21 @@ const ManageCasesPage = () => {
                 size="sm"
                 className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center justify-center gap-1.5 h-9 mt-1"
                 onClick={() => {
-                  const isVisibleInFilter = filteredCases.some(c => c.id === caseIdResult.target.id);
-                  if (!isVisibleInFilter) {
-                    setFilters({ subject: '', fromDate: null, toDate: null, magazine: '' });
-                  }
-                  setCurrentPage(caseIdResult.targetPage);
+                  // Search by SLD number to surface it via server-side filtering
+                  const sldTerm = caseIdResult.sldSearchTerm || caseIdResult.target.sldNumber || '';
+                  setFilters({ subject: sldTerm, fromDate: null, toDate: null, magazine: '' });
+                  setCurrentPage(1);
                   setHighlightedId(caseIdResult.target.id);
                   setActionModal(null);
                   setCaseIdResult(null);
-                  setToastMessage(`Located Case ${caseIdResult.caseId} (SLD #${caseIdResult.target.sldNumber}) on Page ${caseIdResult.targetPage}.`);
+                  setToastMessage(`Searching for Case ${caseIdResult.caseId} (SLD #${caseIdResult.target.sldNumber})...`);
 
                   setTimeout(() => {
                     const rowEl = document.getElementById(`case-row-${caseIdResult.target.id}`);
                     if (rowEl) {
                       rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
-                  }, 200);
+                  }, 800); // Wait for server response + render
 
                   setTimeout(() => {
                     setHighlightedId(null);

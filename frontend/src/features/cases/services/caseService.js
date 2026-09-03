@@ -2,12 +2,23 @@ import api from '../../../services/api.js';
 
 export const caseService = {
   /**
-   * Fetches all cases from backend
-   * @returns {Promise<Array>}
+   * Fetches paginated cases from backend
+   * @param {Object} params - { page, limit, subject, fromDate, toDate, magazine, sortField, sortOrder }
+   * @returns {Promise<{ data: Array, pagination: Object }>}
    */
-  getCases: async () => {
-    const response = await api.get('/api/cases');
-    return response.data.data;
+  getCases: async (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', params.page);
+    if (params.limit) query.set('limit', params.limit);
+    if (params.subject) query.set('subject', params.subject);
+    if (params.fromDate) query.set('fromDate', params.fromDate);
+    if (params.toDate) query.set('toDate', params.toDate);
+    if (params.magazine) query.set('magazine', params.magazine);
+    if (params.sortField) query.set('sortField', params.sortField);
+    if (params.sortOrder) query.set('sortOrder', params.sortOrder);
+    const qs = query.toString();
+    const response = await api.get(`/api/cases${qs ? `?${qs}` : ''}`);
+    return response.data;
   },
 
   /**

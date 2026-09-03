@@ -107,28 +107,30 @@ const formatCaseForFrontend = (c) => {
  */
 export const getCases = async (req, res, next) => {
   try {
-    const { subject, fromDate, toDate, magazine } = req.query;
+    const { subject, fromDate, toDate, magazine, page, limit, sortField, sortOrder } = req.query;
 
     const query = { isDeleted: { $ne: true } };
 
     // Apply filters
     if (subject) {
       const q = subject.trim();
-      const searchRegex = new RegExp(q, 'i');
-      query.$or = [
-        { caseId: searchRegex },
-        { case_id: searchRegex },
-        { sldNumber: searchRegex },
-        { court: searchRegex },
-        { headNote: searchRegex },
-        { references: searchRegex },
-        { principleLaw: searchRegex },
-        { caseNumber: searchRegex },
-        { judges: searchRegex },
-        { lawyers: searchRegex },
-        { petitioners: searchRegex },
-        { mapYearPage: searchRegex }
-      ];
+      if (q) {
+        const searchRegex = new RegExp(escapeRegex(q), 'i');
+        query.$or = [
+          { caseId: searchRegex },
+          { case_id: searchRegex },
+          { sldNumber: searchRegex },
+          { court: searchRegex },
+          { headNote: searchRegex },
+          { references: searchRegex },
+          { principleLaw: searchRegex },
+          { caseNumber: searchRegex },
+          { judges: searchRegex },
+          { lawyers: searchRegex },
+          { petitioners: searchRegex },
+          { mapYearPage: searchRegex }
+        ];
+      }
     }
 
     if (fromDate) {
@@ -140,19 +142,44 @@ export const getCases = async (req, res, next) => {
     }
 
     if (magazine) {
-      query.mapYearPage = new RegExp(magazine.trim(), 'i');
+      query.mapYearPage = new RegExp(escapeRegex(magazine.trim()), 'i');
     }
 
-    const cases = await Case.find(query)
-      .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments')
-      .sort({ sldNumber: -1 })
-      .lean();
+    // Pagination
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 25));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Sorting
+    const allowedSortFields = ['sldNumber', 'dated', 'court', 'caseNumber', 'mapYearPage'];
+    const safeSortField = allowedSortFields.includes(sortField) ? sortField : 'sldNumber';
+    const safeSortOrder = sortOrder === 'asc' ? 1 : -1;
+    const sortObj = { [safeSortField]: safeSortOrder };
+
+    // Execute count + paginated query in parallel
+    const [totalItems, cases] = await Promise.all([
+      Case.countDocuments(query),
+      Case.find(query)
+        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department')
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limitNum)
+        .lean()
+    ]);
+
     const data = cases.map(formatCaseForFrontend);
+    const totalPages = Math.ceil(totalItems / limitNum);
 
     return res.status(200).json({
       success: true,
       message: 'Cases retrieved successfully.',
-      data
+      data,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems,
+        totalPages
+      }
     });
   } catch (error) {
     next(error);
