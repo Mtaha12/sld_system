@@ -151,6 +151,7 @@ caseSchema.index({
   references: 'text',
   principleLaw: 'text',
 });
+caseSchema.index({ isDeleted: 1, sldNumber: -1 });
 
 // Soft delete query filter middleware
 caseSchema.pre(/^find/, function () {

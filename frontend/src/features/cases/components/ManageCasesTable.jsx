@@ -18,6 +18,33 @@ import {
   Upload, 
   FileDown
 } from 'lucide-react';
+
+const formatLawReferences = (laws = []) => {
+  const grouped = new Map();
+  (Array.isArray(laws) ? laws : []).forEach((law) => {
+    const name = String(law?.lawStatute || '').trim();
+    const section = String(law?.section || '').trim();
+    if (!name) return;
+    if (!grouped.has(name)) grouped.set(name, []);
+    if (section && !grouped.get(name).includes(section)) grouped.get(name).push(section);
+  });
+  return Array.from(grouped, ([name, sections]) => ({ name, sections }));
+};
+
+const getPaginationItems = (currentPage, totalPages) => {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+  const sortedPages = [...pages].filter((page) => page >= 1 && page <= totalPages).sort((a, b) => a - b);
+  const items = [];
+
+  sortedPages.forEach((page, index) => {
+    if (index > 0 && page - sortedPages[index - 1] > 1) items.push(`ellipsis-${page}`);
+    items.push(page);
+  });
+
+  return items;
+};
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import FileUpload from '../../../components/ui/FileUpload';
@@ -405,6 +432,7 @@ const ManageCasesTable = ({
                 <TableHeader title="Judges" widthClassName="w-[13%]" />
                 <TableHeader title="Lawyers" widthClassName="w-[12%]" />
                 <TableHeader title="Petitioners" widthClassName="w-[12%]" />
+                <TableHeader title="Law / Statute" widthClassName="w-[13%]" />
                 <TableHeader title="Attachment" widthClassName="w-[6%]" />
                 <th className="px-2 py-3 font-semibold text-theme-main align-top w-[8%]">Action</th>
               </tr>
@@ -484,6 +512,16 @@ const ManageCasesTable = ({
                         {item.petitionersMore && <span className="text-brand-orange font-medium mt-1">{item.petitionersMore}</span>}
                       </div>
                     </td>
+                    <td className="px-2 py-4 align-top text-theme-muted">
+                      <div className="flex flex-col gap-1">
+                        {formatLawReferences(item.laws).map((law) => (
+                          <span key={law.name} className="whitespace-normal break-words">
+                            <span className="font-medium text-theme-main">{law.name}</span>
+                            {law.sections.length > 0 ? `=${law.sections.join(',')}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-2 py-4 align-top">
                       <button 
                         type="button"
@@ -531,30 +569,53 @@ const ManageCasesTable = ({
         <div className="px-6 py-4 border-t border-theme-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-theme-surface">
           <span className="text-sm text-theme-muted">Showing {startIdx} to {endIdx} of <strong className="font-semibold text-theme-main">{totalItems}</strong> entries</span>
           
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {Array.from({ length: totalPages }).map((_, idx) => {
-              const page = idx + 1;
-              return (
-                <button 
-                  key={page}
-                  onClick={() => handlePageChange(page)}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => handlePageChange(1)}
+              disabled={currentPage === 1 || totalPages === 0}
+              className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="First page"
+            >
+              First
+            </button>
+            <button 
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Prev
+            </button>
+            {getPaginationItems(currentPage, totalPages).map((item) => (
+              typeof item === 'string' ? (
+                <span key={item} className="w-8 h-8 flex items-center justify-center text-sm text-theme-disabled">...</span>
+              ) : (
+                <button
+                  key={item}
+                  onClick={() => handlePageChange(item)}
                   className={`w-8 h-8 flex items-center justify-center rounded text-sm transition-colors ${
-                    currentPage === page 
-                      ? 'bg-[#641E16] text-white font-medium hover:bg-[#4A1610]' 
+                    currentPage === item
+                      ? 'bg-[#641E16] text-white font-medium hover:bg-[#4A1610]'
                       : 'text-theme-muted border border-theme-border hover:bg-theme-surface-alt'
                   }`}
                 >
-                  {page}
+                  {item}
                 </button>
-              );
-            })}
-            
-            <button 
+              )
+            ))}
+            <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages || totalPages === 0}
-              className="px-3 h-8 flex items-center justify-center rounded text-sm text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Next &rarr;
+              Next
+            </button>
+            <button
+              onClick={() => handlePageChange(totalPages)}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Last page"
+            >
+              Last
             </button>
           </div>
         </div>
@@ -603,6 +664,18 @@ const ManageCasesTable = ({
             <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
               <span className="block text-xs text-theme-muted mb-1 font-medium">Case Number</span>
               <p className="text-theme-main leading-relaxed whitespace-pre-line">{viewModalCase.caseNumber.join(' ')}</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
+              <span className="block text-xs text-theme-muted mb-1 font-medium">Law / Statute</span>
+              <div className="space-y-1 text-theme-main leading-relaxed">
+                {formatLawReferences(viewModalCase.laws).map((law) => (
+                  <p key={law.name}>
+                    <span className="font-semibold">{law.name}</span>
+                    {law.sections.length > 0 ? `=${law.sections.join(',')}` : ''}
+                  </p>
+                ))}
+              </div>
             </div>
 
             <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">

@@ -16,11 +16,35 @@ import FileUpload from '../../../components/ui/FileUpload';
 import FormFooter from '../../../components/ui/FormFooter';
 import { caseSchema } from '../validation/caseSchema';
 import { caseService } from '../services/caseService';
+import { LAW_OPTIONS } from '../../../data/laws';
+import { SECTION_OPTIONS } from '../../../data/sections';
+import { COURT_OPTIONS } from '../../../data/courts';
+
+const caseLawOptions = LAW_OPTIONS.some((option) => option.value === 'income_tax_2002')
+  ? LAW_OPTIONS
+  : [...LAW_OPTIONS, { label: 'Income Tax Rules, 2002', value: 'income_tax_2002' }];
 
 const AddCaseLawDetail = ({ onClose }) => {
   const location = useLocation();
   const editData = location.state?.caseData;
   const isEdit = Boolean(location.state?.isEdit || editData);
+  const existingSections = (editData?.laws || [])
+    .map((law) => String(law?.section || '').trim())
+    .filter(Boolean);
+  const sectionOptions = [
+    { label: 'Select Section', value: '' },
+    ...SECTION_OPTIONS,
+    ...[...new Set(existingSections)]
+      .filter((section) => !SECTION_OPTIONS.some((option) => option.value === section))
+      .map((section) => ({ label: section, value: section }))
+  ];
+  const courtOptions = [
+    { label: 'Select Court', value: '' },
+    ...COURT_OPTIONS,
+    ...(editData?.court && !COURT_OPTIONS.some((option) => option.value === editData.court)
+      ? [{ label: editData.court, value: editData.court }]
+      : [])
+  ];
   const [showSuccess, setShowSuccess] = useState(false);
   const [publicationVolumeOpen, setPublicationVolumeOpen] = useState(() => ({
     0: Boolean(editData?.publications?.[0]?.vol)
@@ -191,10 +215,11 @@ const AddCaseLawDetail = ({ onClose }) => {
             </div>
 
             <FormField label="Court" className="mb-4">
-              <Input 
+                <Input
                 variant="light" 
                 inputSize="sm"
-                placeholder="Enter court name"
+                  type="select"
+                  options={courtOptions}
                 error={errors.court}
                 {...register('court')}
               />
@@ -332,15 +357,16 @@ const AddCaseLawDetail = ({ onClose }) => {
                       variant="light" 
                       inputSize="sm" 
                       type="select" 
-                      options={[{ label: 'Income Tax Rules, 2002', value: 'income_tax_2002' }, { label: 'Select Law', value: '' }]} 
+                      options={caseLawOptions}
                       {...register(`laws.${idx}.lawStatute`)}
                     />
                   </FormField>
                   <FormField label="Sections" className="col-span-5">
-                    <Input 
+                    <Input
                       variant="light" 
                       inputSize="sm" 
-                      placeholder="Section" 
+                      type="select"
+                      options={sectionOptions}
                       {...register(`laws.${idx}.section`)}
                     />
                   </FormField>

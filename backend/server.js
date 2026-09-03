@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dns from 'dns';
 import morgan from 'morgan';
+import compression from 'compression';
 
 // Configure public DNS servers to resolve MongoDB Atlas SRV/TXT records securely
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -37,6 +38,7 @@ connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+app.use(compression());
 
 // Security & Hardening Middlewares
 app.use(helmet({

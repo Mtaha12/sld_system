@@ -19,6 +19,13 @@ const stringToArray = (str) => {
     .filter(item => item.length > 0);
 };
 
+const normalizeLawReferences = (laws = []) => (Array.isArray(laws) ? laws : [])
+  .map((law) => ({
+    lawStatute: String(law?.lawStatute || '').trim(),
+    section: String(law?.section || '').trim(),
+  }))
+  .filter((law) => law.lawStatute || law.section);
+
 const buildMapYearPage = (publications = []) => {
   const entries = [];
 
@@ -136,7 +143,10 @@ export const getCases = async (req, res, next) => {
       query.mapYearPage = new RegExp(magazine.trim(), 'i');
     }
 
-    const cases = await Case.find(query).sort({ createdAt: -1, sldNumber: -1 });
+    const cases = await Case.find(query)
+      .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments')
+      .sort({ sldNumber: -1 })
+      .lean();
     const data = cases.map(formatCaseForFrontend);
 
     return res.status(200).json({
@@ -235,7 +245,7 @@ export const createCase = async (req, res, next) => {
       legalMaxim: legalMaxim || '',
       judgment: judgment || '',
       publications: pubs,
-      laws: laws || [],
+      laws: normalizeLawReferences(laws),
       attachments: attachments || [],
       mapYearPage
     });
@@ -320,7 +330,7 @@ export const updateCase = async (req, res, next) => {
       c.publications = publications;
       c.mapYearPage = buildMapYearPage(publications);
     }
-    if (laws !== undefined) c.laws = laws;
+    if (laws !== undefined) c.laws = normalizeLawReferences(laws);
     if (attachments !== undefined) c.attachments = attachments;
 
     await c.save();
@@ -563,7 +573,7 @@ export const searchCases = async (req, res, next) => {
     const query = { $and: andConditions };
     
     // Also limit results for performance
-    const cases = await Case.find(query).sort({ createdAt: -1 }).limit(100);
+    const cases = await Case.find(query).sort({ sldNumber: -1 }).limit(100);
     const formattedCases = cases.map(c => formatCaseForFrontend(c));
 
     res.status(200).json({
