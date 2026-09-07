@@ -7,7 +7,7 @@ import ChatWidget from '../components/ui/ChatWidget';
 
 const AdminLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [chatOpenSignal, setChatOpenSignal] = useState(0);
 
   // Prevent background scrolling while mobile drawer is open
   useEffect(() => {
@@ -51,8 +51,7 @@ const AdminLayout = () => {
         {/* Shared Global Header */}
         <AdminHeader 
           onToggleMenu={() => setIsMobileMenuOpen(prev => !prev)} 
-          isAIChatOpen={isAIChatOpen} 
-          setIsAIChatOpen={setIsAIChatOpen} 
+          onOpenChat={() => setChatOpenSignal(s => s + 1)}
         />
         
         {/* Scrollable Page Content */}
@@ -64,7 +63,7 @@ const AdminLayout = () => {
       </div>
       
       {/* Global Floating Chat Widget */}
-      <ChatWidget isHidden={isAIChatOpen} />
+      <ChatWidget openSignal={chatOpenSignal} />
     </div>
   );
 };

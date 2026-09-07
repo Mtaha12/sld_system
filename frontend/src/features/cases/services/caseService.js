@@ -80,5 +80,17 @@ export const caseService = {
   deleteCases: async (ids) => {
     const response = await api.post('/api/cases/delete-multiple', { ids });
     return response.data;
+  },
+
+  /**
+   * Returns the highest page number for a given year + magazine combination.
+   * Used to auto-suggest the next page number when adding a publication.
+   * @param {string} year  e.g. "2026"
+   * @param {string} mag   e.g. "sld"
+   * @returns {Promise<number|null>}  the max page number, or null if none found
+   */
+  getMaxPage: async (year, mag) => {
+    const response = await api.get(`/api/cases/max-page?year=${encodeURIComponent(year)}&mag=${encodeURIComponent(mag)}`);
+    return response.data.maxPage ?? null;
   }
 };

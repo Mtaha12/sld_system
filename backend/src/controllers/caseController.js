@@ -186,6 +186,52 @@ export const getCases = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/cases/max-page?year=2026&mag=sld
+ * Returns the highest page number stored for a given year+magazine combination.
+ * Used by the Add/Edit form to auto-suggest the next page number.
+ */
+export const getMaxPage = async (req, res, next) => {
+  try {
+    const { year, mag } = req.query;
+
+    if (!year || !mag) {
+      return res.status(400).json({
+        success: false,
+        message: 'year and mag query parameters are required.'
+      });
+    }
+
+    const result = await Case.aggregate([
+      { $match: { isDeleted: { $ne: true } } },
+      { $unwind: '$publications' },
+      {
+        $match: {
+          'publications.year': String(year).trim(),
+          'publications.mag': { $regex: `^${escapeRegex(String(mag).trim())}$`, $options: 'i' }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          maxPage: { $max: { $toInt: '$publications.page' } }
+        }
+      }
+    ]);
+
+    const maxPage = result.length > 0 && result[0].maxPage != null
+      ? result[0].maxPage
+      : null;
+
+    return res.status(200).json({
+      success: true,
+      maxPage
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getCaseById = async (req, res, next) => {
   try {
     const { id } = req.params;

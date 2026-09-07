@@ -53,7 +53,7 @@ const PAGE_HEADERS = {
 
 import AIChatDrawer from './AIChatDrawer';
 
-const AdminHeader = ({ onToggleMenu, isAIChatOpen, setIsAIChatOpen }) => {
+const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -111,7 +111,7 @@ const AdminHeader = ({ onToggleMenu, isAIChatOpen, setIsAIChatOpen }) => {
       {/* AI Search Button - Centered */}
       <div className="hidden md:flex flex-1 max-w-2xl px-8 items-center justify-center">
         <button 
-          onClick={() => setIsAIChatOpen(true)}
+          onClick={() => onOpenChat?.()}
           className="w-full flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-[#1A1C23] border border-gray-200 dark:border-theme-border rounded-xl text-sm text-gray-500 hover:border-[#f15a24] hover:ring-1 hover:ring-[#f15a24] hover:text-gray-800 dark:hover:text-gray-200 transition-all group focus:outline-none shadow-sm cursor-text"
         >
           <Sparkles className="w-4 h-4 text-[#f15a24]" />
@@ -213,7 +213,7 @@ const AdminHeader = ({ onToggleMenu, isAIChatOpen, setIsAIChatOpen }) => {
           )}
         </div>
       </div>
-      <AIChatDrawer isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
+      <AIChatDrawer isOpen={false} onClose={() => {}} />
     </header>
   );
 };

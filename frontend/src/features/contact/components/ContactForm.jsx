@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { User, Mail, HelpCircle, MessageSquare, Send, CheckCircle2, ArrowLeft } from 'lucide-react';
 import Input from '../../../components/ui/Input';
 import Button from '../../../components/ui/Button';
-import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png';
+import logo from '../../../assets/branding/logo/SLD_Logo.jpeg';
 import { contactSchema } from '../validation/contactSchema';
 import { contactService } from '../services/contactService';
 

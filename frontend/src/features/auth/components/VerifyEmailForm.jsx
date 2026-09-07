@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Mail, ArrowLeft } from 'lucide-react'
 import Button from '../../../components/ui/Button'
-import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png'
+import logo from '../../../assets/branding/logo/SLD_Logo.jpeg'
 import { authService } from '../services/authService'
 import { useCountdown } from '../../../hooks/useCountdown'
 

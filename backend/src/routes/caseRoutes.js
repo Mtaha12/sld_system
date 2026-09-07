@@ -2,7 +2,7 @@ import express from 'express';
 import { 
   getCases, getCaseById, createCase, 
   updateCase, deleteCase, deleteMultiple,
-  searchCases
+  searchCases, getMaxPage
 } from '../controllers/caseController.js';
 import { protect, requireAdmin } from '../middleware/authMiddleware.js';
 
@@ -14,6 +14,7 @@ router.use(protect);
 // Read-only actions (Accessible to both standard Users and Administrators)
 router.get('/', getCases);
 router.post('/search', searchCases);
+router.get('/max-page', getMaxPage);   // must be before /:id
 router.get('/:id', getCaseById);
 
 // Write/Edit actions (Restricted strictly to Administrators)

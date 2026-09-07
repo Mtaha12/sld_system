@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Sparkles } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import api from '../../services/api.js';
 
-const ChatWidget = ({ isHidden }) => {
-  const [isOpen, setIsOpen] = useState(() => {
-    return sessionStorage.getItem('sld_chat_open') === 'true';
-  });
+const ChatWidget = ({ isHidden, openSignal }) => {
+  const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);  // always closed on mount — only opens on explicit click
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [chatHistory, setChatHistory] = useState(() => {
@@ -38,9 +38,17 @@ const ChatWidget = ({ isHidden }) => {
     sessionStorage.setItem('sld_chat_history', JSON.stringify(chatHistory));
   }, [chatHistory]);
 
+  // Open the widget whenever the parent signals it (e.g. header "Search with AI" click)
   useEffect(() => {
-    sessionStorage.setItem('sld_chat_open', isOpen);
-  }, [isOpen]);
+    if (openSignal && openSignal > 0) {
+      setIsOpen(true);
+    }
+  }, [openSignal]);
+
+  // Close the chat whenever the user navigates to a different page
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
 
   const handleSend = async (e) => {
     if (e) e.preventDefault();
@@ -99,36 +107,76 @@ const ChatWidget = ({ isHidden }) => {
 
   const formatMessageText = (text) => {
     if (!text) return '';
-    // Bold helper: replace **bold** with <strong>bold</strong>
+
+    // Bold: **text** → <strong>
     let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    // Bullet point helper: replace starting asterisk with bullet point
+    // Bullet: leading * → •
     formatted = formatted.replace(/^\*\s(.*)$/gm, '• $1');
-    
-    return formatted.split('\n').map((line, idx) => (
-      <React.Fragment key={idx}>
-        <span dangerouslySetInnerHTML={{ __html: line }} />
-        {idx < formatted.split('\n').length - 1 && <br />}
-      </React.Fragment>
-    ));
+
+    // Split into lines, detect [VIEW_CASE:id] markers, render as links
+    return formatted.split('\n').map((line, idx, arr) => {
+      const viewMatch = line.match(/^\[VIEW_CASE:([^\]]+)\]\s*$/);
+      if (viewMatch) {
+        const caseId = viewMatch[1].trim();
+        const href = `/cases/view/${caseId}`;
+        return (
+          <React.Fragment key={idx}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-brand-orange text-white text-xs font-semibold hover:bg-brand-orange-hover transition-colors no-underline"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              View Full Case Document ↗
+            </a>
+            {idx < arr.length - 1 && <br />}
+          </React.Fragment>
+        );
+      }
+
+      return (
+        <React.Fragment key={idx}>
+          <span dangerouslySetInnerHTML={{ __html: line }} />
+          {idx < arr.length - 1 && <br />}
+        </React.Fragment>
+      );
+    });
   };
 
   if (isHidden) return null;
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Action Button — "AI" badge */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 z-50 focus:outline-none focus:ring-4 focus:ring-brand-orange/30"
+          className="fixed bottom-6 right-6 w-24 h-24 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-full shadow-xl flex flex-col items-center justify-center transition-transform hover:scale-110 z-50 focus:outline-none focus:ring-4 focus:ring-brand-orange/30 gap-1"
+          title="AI Chatbot"
         >
-          <MessageSquare className="w-6 h-6" />
+          <span className="text-[22px] font-black tracking-widest leading-none">AI</span>
+          <span className="text-[13px] font-bold leading-none opacity-95 tracking-widest">CHAT</span>
         </button>
       )}
 
-      {/* Chat Window */}
+      {/* Blurred backdrop over the left half when chat is open */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-80 sm:w-96 bg-theme-surface rounded-2xl shadow-2xl border border-theme-border z-50 flex flex-col overflow-hidden animate-fade-in h-[500px] max-h-[80vh]">
+        <div
+          className="fixed top-0 left-0 w-1/2 h-screen z-40 backdrop-blur-sm bg-black/30 animate-fade-in"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Chat Window — half screen wide, full height, right side */}
+      {isOpen && (
+        <div className="fixed top-0 right-0 w-1/2 h-screen bg-theme-surface shadow-2xl border-l border-theme-border z-50 flex flex-col overflow-hidden animate-fade-in">
           
           {/* Header */}
           <div className="bg-brand-dark-surface text-white p-4 flex items-center justify-between shrink-0">

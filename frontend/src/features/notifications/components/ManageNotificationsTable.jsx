@@ -81,9 +81,6 @@ const ManageNotificationsTable = ({
   const [deleteModalItem, setDeleteModalItem] = useState(null);
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
-  const [editModalItem, setEditModalItem] = useState(null);
-  const [editConfirmationInput, setEditConfirmationInput] = useState('');
-  const [editError, setEditError] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const itemsPerPage = 10;
   
@@ -172,28 +169,7 @@ const ManageNotificationsTable = ({
   };
 
   const handleEdit = (item) => {
-    setEditModalItem(item);
-    setEditConfirmationInput('');
-    setEditError('');
-  };
-
-  const handleEditConfirm = (e) => {
-    e?.preventDefault();
-    if (!editModalItem) return;
-
-    const requiredKey = (editModalItem.notificationId || editModalItem.notification_id || `NOTIF-${String(editModalItem.srNumber).padStart(6, '0')}`).trim().toLowerCase();
-    const enteredInput = editConfirmationInput.trim().toLowerCase();
-
-    if (enteredInput !== requiredKey) {
-      setEditError('Invalid secret code. Please enter the correct secret code to proceed.');
-      return;
-    }
-
-    const targetItem = editModalItem;
-    setEditModalItem(null);
-    setEditConfirmationInput('');
-    setEditError('');
-    navigate('/manage-notifications/add', { state: { notificationData: targetItem, isEdit: true } });
+    navigate('/manage-notifications/add', { state: { notificationData: item, isEdit: true } });
   };
 
   const handleDeleteConfirm = async () => {
@@ -501,81 +477,6 @@ const ManageNotificationsTable = ({
                 <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete Record
               </Button>
             </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Edit Secret Code Confirmation Modal */}
-      <Modal
-        isOpen={Boolean(editModalItem)}
-        onClose={() => {
-          setEditModalItem(null);
-          setEditConfirmationInput('');
-          setEditError('');
-        }}
-        maxWidth="max-w-md"
-      >
-        {editModalItem && (
-          <div>
-            <div className="flex items-center gap-3.5 mb-4">
-              <div className="w-11 h-11 rounded-full bg-brand-orange/10 text-brand-orange flex items-center justify-center shrink-0 border border-brand-orange/20">
-                <Pencil className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-theme-main">Edit Notification Record</h3>
-                <p className="text-xs text-theme-muted">Enter the secret code to authorize editing.</p>
-              </div>
-            </div>
-
-            {editError && (
-              <div className="mb-4 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{editError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleEditConfirm}>
-              <div className="mb-5 space-y-2">
-                <label className="block text-xs font-semibold text-theme-main">
-                  To perform this action enter secret code:
-                </label>
-                <input
-                  type="text"
-                  value={editConfirmationInput}
-                  onChange={(e) => {
-                    setEditConfirmationInput(e.target.value);
-                    if (editError) setEditError('');
-                  }}
-                  placeholder="Enter secret code"
-                  className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-sm text-theme-main placeholder:text-theme-disabled focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors font-mono"
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-1">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  type="button"
-                  onClick={() => {
-                    setEditModalItem(null);
-                    setEditConfirmationInput('');
-                    setEditError('');
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  variant="primary" 
-                  size="sm"
-                  type="submit"
-                  disabled={editConfirmationInput.trim().toLowerCase() !== (editModalItem.notificationId || editModalItem.notification_id || `NOTIF-${String(editModalItem.srNumber).padStart(6, '0')}`).toLowerCase()}
-                  className="bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                >
-                  <Pencil className="w-3.5 h-3.5 mr-1.5" /> Proceed to Edit
-                </Button>
-              </div>
-            </form>
           </div>
         )}
       </Modal>

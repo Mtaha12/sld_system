@@ -1,18 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, FileText, Layers } from 'lucide-react';
+import { X, CheckCircle2, Layers, Paperclip } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import DatePicker from '../../../components/ui/DatePicker';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
-import FileUpload from '../../../components/ui/FileUpload';
 import FormFooter from '../../../components/ui/FormFooter';
 import { statuteSchema } from '../validation/statuteSchema';
 import { statuteService } from '../services/statuteService';
+
+/* ── Compact inline file-chooser, same height as the date picker ─────── */
+const CompactFileButton = ({ value, onChange }) => {
+  const ref = useRef(null);
+  const files = Array.isArray(value) ? value : (value ? [value] : []);
+  return (
+    <div className="flex flex-col gap-1">
+      <input
+        ref={ref}
+        type="file"
+        multiple
+        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
+        className="hidden"
+        onChange={(e) => {
+          const incoming = Array.from(e.target.files || []);
+          const merged = [
+            ...files,
+            ...incoming.filter(f => !files.some(x => x.name === f.name && x.size === f.size))
+          ];
+          onChange(merged);
+          e.target.value = '';
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        className="flex items-center gap-1.5 px-3 h-[38px] w-full rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-medium text-theme-main transition-colors"
+      >
+        <Paperclip className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+        <span className="truncate">{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Choose File'}</span>
+      </button>
+      {files.length > 0 && (
+        <div className="space-y-0.5 max-h-20 overflow-y-auto">
+          {files.map((f, i) => (
+            <div key={i} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded text-[10px] bg-theme-surface-alt border border-theme-border/60">
+              <span className="truncate text-theme-muted max-w-[110px]">{f.name || `File ${i + 1}`}</span>
+              <button
+                type="button"
+                onClick={() => onChange(files.filter((_, j) => j !== i))}
+                className="shrink-0 text-theme-disabled hover:text-red-500"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const AddStatuteForm = () => {
   const navigate = useNavigate();
@@ -102,7 +151,7 @@ const AddStatuteForm = () => {
   return (
     <div className="flex flex-col bg-theme-surface relative">
       
-      <div className="p-6">
+      <div className="p-4">
         
         {showSuccess && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl flex items-center justify-between text-green-700 dark:text-green-400 animate-fade-in">
@@ -118,26 +167,27 @@ const AddStatuteForm = () => {
           </div>
         )}
 
-        <form id="statute-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          
-          <FormSection title="Record Information" icon={FileText}>
-            
-            {/* Top row fields */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 items-end">
+        <form id="statute-form" onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+
+          {/* Record Information */}
+          <FormSection compact>
+
+            {/* Top row: SR # · Department · Chapter — all on one line */}
+            <div className="grid grid-cols-3 gap-3 items-end mb-3">
               <FormField label="SR #" required>
-                <Input 
-                  variant="light" 
-                  inputSize="sm" 
-                  placeholder="e.g. 9339" 
+                <Input
+                  variant="light"
+                  inputSize="sm"
+                  placeholder="e.g. 9339"
                   error={errors.srNumber}
                   {...register('srNumber')}
                 />
               </FormField>
               <FormField label="Department">
-                <Input 
-                  variant="light" 
+                <Input
+                  variant="light"
                   inputSize="sm"
-                  type="select" 
+                  type="select"
                   error={errors.department}
                   options={[
                     { label: 'Circular', value: 'circular' },
@@ -147,149 +197,148 @@ const AddStatuteForm = () => {
                     { label: 'Letter', value: 'letter' },
                     { label: 'Notification', value: 'notification' },
                     { label: 'Other', value: 'other' }
-                  ]} 
+                  ]}
                   {...register('department')}
                 />
               </FormField>
               <FormField label="Chapter">
-                <Input 
-                  variant="light" 
-                  inputSize="sm" 
-                  placeholder="e.g. CHAPTER-XIX" 
+                <Input
+                  variant="light"
+                  inputSize="sm"
+                  placeholder="e.g. CHAPTER-XIX"
                   error={errors.chapter}
                   {...register('chapter')}
                 />
               </FormField>
             </div>
 
-            {/* Middle row fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 items-end">
+            {/* Middle row: Law/Statute · Section */}
+            <div className="grid grid-cols-2 gap-3 items-end mb-3">
               <FormField label="Law/Statute">
-                <Input 
-                  variant="light" 
-                  inputSize="sm" 
+                <Input
+                  variant="light"
+                  inputSize="sm"
                   placeholder="Enter Law or Statute name..."
                   error={errors.law}
                   {...register('law')}
                 />
               </FormField>
               <FormField label="Section">
-                <Input 
-                  variant="light" 
-                  inputSize="sm" 
-                  placeholder="Enter section (e.g. 231CB)..." 
+                <Input
+                  variant="light"
+                  inputSize="sm"
+                  placeholder="Enter section (e.g. 231CB)..."
                   error={errors.section}
                   {...register('section')}
                 />
               </FormField>
             </div>
 
-            {/* Bottom row fields */}
-            <div className="grid grid-cols-1 gap-4 items-end">
+            {/* Bottom row: Heading — full width */}
+            <div>
               <FormField label="Heading">
-                <textarea 
+                <textarea
                   rows={3}
                   className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm resize-y text-theme-main bg-theme-surface"
                   placeholder="Enter heading..."
                   {...register('heading')}
-                ></textarea>
+                />
               </FormField>
             </div>
 
           </FormSection>
 
           {/* Repeatable Content Blocks */}
-          <FormSection title="Content Details" icon={Layers}>
-            <div className="space-y-8">
+          <FormSection compact>
+            <div className="text-brand-orange font-semibold text-sm mb-2 flex items-center gap-2">
+              <Layers className="w-4 h-4" /> Content Details
+            </div>
+            <div className="space-y-3">
               {blockFields.map((block, index) => (
-                <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-6 relative">
-                  
-                  {/* Block Number Badge */}
-                  <div className="absolute top-0 right-0 bg-theme-surface-hover border-b border-l border-theme-border text-theme-main px-3 py-1 rounded-bl-xl rounded-tr-xl text-xs font-bold tracking-wider">
+                <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-3 relative">
+
+                  {/* Block badge */}
+                  <div className="absolute top-0 right-0 bg-theme-surface-alt border-b border-l border-theme-border text-theme-muted px-2.5 py-0.5 rounded-bl-xl rounded-tr-xl text-[10px] font-bold tracking-wider">
                     BLOCK {index + 1}
                   </div>
-                  
-                  <div className="flex flex-col gap-6 pt-2">
-                    
+
+                  {/* Section Heading — full width above the split */}
+                  <div className="mb-2 pt-1">
                     <FormField label="Section Heading">
-                      <Input 
-                        variant="light" 
-                        inputSize="sm" 
-                        placeholder="Enter section heading..." 
+                      <Input
+                        variant="light"
+                        inputSize="sm"
+                        placeholder="Enter section heading..."
                         error={errors.blocks?.[index]?.sectionHeading}
                         {...register(`blocks.${index}.sectionHeading`)}
                       />
                     </FormField>
+                  </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                      
-                      {/* Left Column: Dates & Attachment */}
-                      <div className="lg:col-span-3 xl:col-span-2.5 flex flex-col gap-4">
-                        <FormField label="From Date">
-                          <Controller
-                            control={control}
-                            name={`blocks.${index}.fromDate`}
-                            render={({ field }) => (
-                              <DatePicker 
-                                selectedDate={field.value} 
-                                onChange={field.onChange} 
-                                placeholder="mm/dd/yyyy"
-                                className="w-full max-w-[170px] h-[42px]"
-                              />
-                            )}
-                          />
-                        </FormField>
+                  <div className="flex gap-3 items-start">
 
-                        <FormField label="To Date">
+                    {/* Left column — fixed narrow width matching date pickers */}
+                    <div className="flex flex-col gap-2 shrink-0" style={{ width: '158px' }}>
+                      <FormField label="From Date">
+                        <Controller
+                          control={control}
+                          name={`blocks.${index}.fromDate`}
+                          render={({ field }) => (
+                            <DatePicker
+                              selectedDate={field.value}
+                              onChange={field.onChange}
+                              placeholder="mm/dd/yyyy"
+                              className="w-full h-[38px]"
+                            />
+                          )}
+                        />
+                      </FormField>
+
+                      <FormField label="To Date">
+                        <Controller
+                          control={control}
+                          name={`blocks.${index}.toDate`}
+                          render={({ field }) => (
+                            <DatePicker
+                              selectedDate={field.value}
+                              onChange={field.onChange}
+                              placeholder="mm/dd/yyyy"
+                              className="w-full h-[38px]"
+                            />
+                          )}
+                        />
+                      </FormField>
+
+                      <FormField label="Attachment">
+                        <Controller
+                          control={control}
+                          name={`blocks.${index}.attachments`}
+                          render={({ field }) => (
+                            <CompactFileButton value={field.value} onChange={field.onChange} />
+                          )}
+                        />
+                      </FormField>
+                    </div>
+
+                    {/* Right column — editor fills remaining space */}
+                    <div className="flex-1 flex flex-col min-h-[240px]">
+                      <FormField label="Detail" className="flex-1 flex flex-col">
+                        <div className="flex-1 relative z-0">
                           <Controller
                             control={control}
-                            name={`blocks.${index}.toDate`}
+                            name={`blocks.${index}.detail`}
                             render={({ field }) => (
-                              <DatePicker 
-                                selectedDate={field.value} 
-                                onChange={field.onChange} 
-                                placeholder="mm/dd/yyyy"
-                                className="w-full max-w-[170px] h-[42px]"
-                              />
-                            )}
-                          />
-                        </FormField>
-                        
-                        <FormField label="Attachment" className="flex-1 flex flex-col">
-                          <Controller
-                            control={control}
-                            name={`blocks.${index}.attachments`}
-                            render={({ field }) => (
-                              <FileUpload 
+                              <RichTextEditor
                                 value={field.value}
                                 onChange={field.onChange}
-                                className="w-full h-[42px]"
+                                minHeight={220}
                               />
                             )}
                           />
-                        </FormField>
-                      </div>
-
-                      {/* Right Column: Editor */}
-                      <div className="lg:col-span-9 xl:col-span-9.5 flex flex-col min-h-[350px]">
-                        <FormField label="Detail" className="flex-1 flex flex-col">
-                          <div className="flex-1 h-full relative z-0">
-                            <Controller
-                              control={control}
-                              name={`blocks.${index}.detail`}
-                              render={({ field }) => (
-                                <RichTextEditor 
-                                  value={field.value} 
-                                  onChange={field.onChange}
-                                  minHeight={320}
-                                />
-                              )}
-                            />
-                          </div>
-                        </FormField>
-                      </div>
-
+                        </div>
+                      </FormField>
                     </div>
+
                   </div>
                 </div>
               ))}

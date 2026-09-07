@@ -12,7 +12,7 @@ import {
   X,
   Search
 } from 'lucide-react';
-import logo from '../../../assets/branding/logo/Logo_Dark_No_Bg.png';
+import logo from '../../../assets/branding/logo/SLD_Logo.jpeg';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },

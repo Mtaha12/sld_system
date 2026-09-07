@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { 
-  X, CheckCircle2, FileText, BookOpen, Users, Scale, Plus, Upload
+  X, CheckCircle2, Scale, Plus, Upload, FileText
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
@@ -12,7 +12,6 @@ import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import Textarea from '../../../components/ui/Textarea';
-import FileUpload from '../../../components/ui/FileUpload';
 import FormFooter from '../../../components/ui/FormFooter';
 import { caseSchema } from '../validation/caseSchema';
 import { caseService } from '../services/caseService';
@@ -88,29 +87,16 @@ const AddCaseLawDetail = ({ onClose }) => {
   const autofillPublicationPage = async (index) => {
     const publications = getValues('publications') || [];
     const currentPub = publications[index];
-
     if (!currentPub) return;
 
     const year = String(currentPub.year || '').trim();
-    const mag = String(currentPub.mag || '').trim().toLowerCase();
-
+    const mag  = String(currentPub.mag  || '').trim().toLowerCase();
     if (!year || !mag) return;
 
     try {
-      const cases = await caseService.getCases();
-      const matchingPages = cases
-        .flatMap((item) => item.publications || [])
-        .filter((entry) => {
-          const entryYear = String(entry?.year || '').trim();
-          const entryMag = String(entry?.mag || '').trim().toLowerCase();
-          return entryYear === year && entryMag === mag && entry?.page;
-        })
-        .map((entry) => Number(entry.page))
-        .filter((value) => Number.isFinite(value));
-
-      if (matchingPages.length > 0) {
-        const nextPage = String(Math.max(...matchingPages));
-        setValue(`publications.${index}.page`, nextPage, {
+      const maxPage = await caseService.getMaxPage(year, mag);
+      if (maxPage !== null) {
+        setValue(`publications.${index}.page`, String(maxPage), {
           shouldDirty: true,
           shouldTouch: true,
           shouldValidate: true,
@@ -167,7 +153,7 @@ const AddCaseLawDetail = ({ onClose }) => {
     <div className="flex flex-col bg-theme-surface relative">
       
       {/* Scrollable Content */}
-      <div className="p-6">
+      <div className="p-4">
         
         {/* Success Notification */}
         {showSuccess && (
@@ -184,11 +170,11 @@ const AddCaseLawDetail = ({ onClose }) => {
           </div>
         )}
 
-        <form id="case-law-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form id="case-law-form" onSubmit={handleSubmit(onSubmit)} className="space-y-3">
           
-          {/* Case Information */}
-          <FormSection title="Case Information" icon={FileText}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 items-end">
+          {/* Case Information — SR#, Date, Court all on one compact row */}
+          <FormSection compact>
+            <div className="grid grid-cols-3 gap-3 items-end">
               <FormField label="SR #" required>
                 <Input 
                   variant="light" 
@@ -212,40 +198,24 @@ const AddCaseLawDetail = ({ onClose }) => {
                   )}
                 />
               </FormField>
-            </div>
-
-            <FormField label="Court" className="mb-4">
+              <FormField label="Court">
                 <Input
-                variant="light" 
-                inputSize="sm"
+                  variant="light" 
+                  inputSize="sm"
                   type="select"
                   options={courtOptions}
-                error={errors.court}
-                {...register('court')}
-              />
-            </FormField>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField label="Case No.">
-                <Textarea 
-                  placeholder="Enter case numbers..." 
-                  {...register('caseNumber')}
-                />
-              </FormField>
-              <FormField label="Judges">
-                <Textarea 
-                  placeholder="Enter judges..." 
-                  {...register('judges')}
+                  error={errors.court}
+                  {...register('court')}
                 />
               </FormField>
             </div>
           </FormSection>
 
           {/* Publication Details */}
-          <FormSection title="Publication Details" icon={BookOpen}>
-            <div className="space-y-3">
+          <FormSection compact>
+            <div className="space-y-2">
               {publicationFields.map((pub, idx) => (
-                <div key={pub.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                <div key={pub.id} className="grid grid-cols-12 gap-2 items-end">
                   <FormField label="Year" className="col-span-2">
                     <Input 
                       variant="light" 
@@ -290,17 +260,17 @@ const AddCaseLawDetail = ({ onClose }) => {
                       type="button" 
                       variant="outline" 
                       size="sm"
-                      className="flex-1 text-amber-600 border-amber-200 hover:bg-amber-50 h-[38px]" 
+                      className="flex-1 text-amber-600 border-amber-200 hover:bg-amber-50 h-[34px] text-xs" 
                       onClick={() => handleAddVolume(idx)}
                     >
-                      Add Vol
+                      + Vol
                     </Button>
                     {idx === publicationFields.length - 1 ? (
                       <Button 
                         type="button" 
                         variant="outline" 
                         size="sm"
-                        className="flex-1 text-green-600 border-green-200 hover:bg-green-50 h-[38px]" 
+                        className="flex-1 text-green-600 border-green-200 hover:bg-green-50 h-[34px] text-xs" 
                         onClick={() => {
                           appendPublication({ year: '2026', vol: '', mag: 'sld', page: '' });
                           setPublicationVolumeOpen((prev) => ({
@@ -309,7 +279,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                           }));
                         }}
                       >
-                        Add New
+                        + New
                       </Button>
                     ) : (
                       <div className="flex-1" />
@@ -321,37 +291,78 @@ const AddCaseLawDetail = ({ onClose }) => {
           </FormSection>
 
           {/* Parties & References */}
-          <FormSection title="Parties & References" icon={Users}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <FormSection compact>
+
+            {/* Row 1: Case No. + Judges */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <FormField label="Case No.">
+                <Textarea 
+                  placeholder="Enter case numbers..." 
+                  minHeight="64px"
+                  className="text-sm"
+                  {...register('caseNumber')}
+                />
+              </FormField>
+              <FormField label="Judges">
+                <Textarea 
+                  placeholder="Enter judges..." 
+                  minHeight="64px"
+                  className="text-sm"
+                  {...register('judges')}
+                />
+              </FormField>
+            </div>
+
+            {/* Row 2: Petitioners + Lawyers */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
               <FormField label="Petitioners">
                 <Textarea 
                   placeholder="Enter petitioners..."
+                  minHeight="64px"
+                  className="text-sm"
                   {...register('petitioners')}
                 />
               </FormField>
               <FormField label="Lawyers">
                 <Textarea 
                   placeholder="Enter lawyers..."
+                  minHeight="64px"
+                  className="text-sm"
                   {...register('lawyers')}
-                />
-              </FormField>
-              <FormField label="Head Note">
-                <Textarea 
-                  placeholder="Enter head note..."
-                  {...register('headNote')}
-                />
-              </FormField>
-              <FormField label="References">
-                <Textarea 
-                  placeholder="Enter legal references..."
-                  {...register('references')}
                 />
               </FormField>
             </div>
 
-            <div className="space-y-3">
+            {/* Row 3: Head Note (70%) + References (30%) — equal height, Head Note is square */}
+            <div className="grid grid-cols-10 gap-3 mb-3 items-start">
+              <div className="col-span-7">
+                <FormField label="Head Note">
+                  <Textarea 
+                    placeholder="Enter head note..."
+                    minHeight="320px"
+                    className="text-sm"
+                    style={{ height: '320px', resize: 'vertical' }}
+                    {...register('headNote')}
+                  />
+                </FormField>
+              </div>
+              <div className="col-span-3">
+                <FormField label="References">
+                  <Textarea 
+                    placeholder="Enter references..."
+                    minHeight="320px"
+                    className="text-sm"
+                    style={{ height: '320px', resize: 'vertical' }}
+                    {...register('references')}
+                  />
+                </FormField>
+              </div>
+            </div>
+
+            {/* Law / Statutes rows */}
+            <div className="space-y-2">
               {lawFields.map((law, idx) => (
-                <div key={law.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                <div key={law.id} className="grid grid-cols-12 gap-2 items-end">
                   <FormField label="Law/Statutes" className="col-span-5">
                     <Input 
                       variant="light" 
@@ -370,16 +381,16 @@ const AddCaseLawDetail = ({ onClose }) => {
                       {...register(`laws.${idx}.section`)}
                     />
                   </FormField>
-                  <div className="col-span-2 h-[38px] flex items-center">
+                  <div className="col-span-2 h-[34px] flex items-center">
                     {idx === lawFields.length - 1 && (
                       <Button 
                         type="button" 
                         variant="outline" 
                         size="sm" 
-                        className="w-full text-green-600 border-green-200 hover:bg-green-50 h-full" 
+                        className="w-full text-green-600 border-green-200 hover:bg-green-50 h-full text-xs" 
                         onClick={() => appendLaw({ lawStatute: '', section: '' })}
                       >
-                        <Plus className="w-4 h-4" /> Add More
+                        <Plus className="w-3.5 h-3.5" /> Add
                       </Button>
                     )}
                   </div>
@@ -388,13 +399,13 @@ const AddCaseLawDetail = ({ onClose }) => {
             </div>
           </FormSection>
 
-          {/* Judgment & Attachment Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Judgment + Attachment side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             
-            {/* Judgment */}
+            {/* Judgment — takes 2/3 */}
             <div className="lg:col-span-2">
-              <FormSection title="Judgment" icon={Scale}>
-                <div className="flex-1 flex flex-col min-h-[250px] relative z-0">
+              <FormSection title="Judgment" icon={Scale} compact className="h-full">
+                <div className="flex-1 flex flex-col min-h-[220px] relative z-0">
                   <Controller
                     control={control}
                     name="judgment"
@@ -410,26 +421,89 @@ const AddCaseLawDetail = ({ onClose }) => {
               </FormSection>
             </div>
 
-            {/* Attachment */}
-            <div>
-              <FormSection title="Attachment" icon={Upload}>
+            {/* Right column: Attachment only */}
+            <div className="flex flex-col gap-3">
+
+              {/* Attachment — compact, tight around button */}
+              <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
+                <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
+                  <Upload className="w-4 h-4" />
+                  Attachment
+                </div>
                 <Controller
                   control={control}
                   name="attachments"
-                  render={({ field }) => (
-                    <FileUpload 
-                      value={field.value} 
-                      onChange={field.onChange} 
-                    />
-                  )}
+                  render={({ field }) => {
+                    const files = Array.isArray(field.value) ? field.value : (field.value ? [field.value] : []);
+                    return (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="cursor-pointer w-fit">
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
+                            className="hidden"
+                            onChange={(e) => {
+                              const newFiles = Array.from(e.target.files || []);
+                              const combined = [...files, ...newFiles.filter(nf => !files.some(ef => ef.name === nf.name && ef.size === nf.size))];
+                              field.onChange(combined);
+                              e.target.value = '';
+                            }}
+                          />
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-orange/40 bg-brand-orange/5 hover:bg-brand-orange/10 text-xs font-semibold text-brand-orange transition-colors cursor-pointer select-none">
+                            <Upload className="w-3.5 h-3.5" />
+                            Choose File
+                          </span>
+                        </label>
+                        {files.length > 0 && (
+                          <div className="mt-1 space-y-1 max-h-28 overflow-y-auto pr-0.5">
+                            {files.map((file, i) => (
+                              <div key={i} className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg border border-theme-border bg-theme-surface text-xs text-theme-muted">
+                                <span className="truncate max-w-[110px] font-medium text-theme-main">{file.name || `File ${i + 1}`}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => field.onChange(files.filter((_, j) => j !== i))}
+                                  className="shrink-0 text-theme-disabled hover:text-red-500 transition-colors"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {files.length === 0 && (
+                          <p className="text-[11px] text-theme-disabled mt-0.5">PDF, DOC, PNG, JPG — max 5 MB</p>
+                        )}
+                      </div>
+                    );
+                  }}
                 />
-              </FormSection>
-            </div>
+              </div>
 
+              {/* Case No. info card — only shown in edit mode */}
+              {isEdit && editData?.caseNumber && (
+                <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
+                  <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
+                    <FileText className="w-4 h-4" />
+                    Case No.
+                  </div>
+                  <div className="text-xs text-theme-main leading-relaxed whitespace-pre-line break-words">
+                    {Array.isArray(editData.caseNumber)
+                      ? editData.caseNumber.join('\n')
+                      : editData.caseNumber}
+                  </div>
+                </div>
+              )}
+
+            </div>
           </div>
 
-          {/* Principle Law */}
-          <FormSection title="Principle Law" icon={Scale}>
+          {/* Principle Law — full width */}
+          <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
+            <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
+              <Scale className="w-4 h-4" />
+              Principle Law
+            </div>
             <Input 
               variant="light" 
               inputSize="sm" 
@@ -437,9 +511,14 @@ const AddCaseLawDetail = ({ onClose }) => {
               error={errors.principleLaw}
               {...register('principleLaw')}
             />
-          </FormSection>
+          </div>
 
-          <FormSection title="Legal Maxim" icon={Scale}>
+          {/* Legal Maxim — full width */}
+          <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
+            <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
+              <Scale className="w-4 h-4" />
+              Legal Maxim
+            </div>
             <Input 
               variant="light" 
               inputSize="sm" 
@@ -447,7 +526,7 @@ const AddCaseLawDetail = ({ onClose }) => {
               error={errors.legalMaxim}
               {...register('legalMaxim')}
             />
-          </FormSection>
+          </div>
 
         </form>
       </div>

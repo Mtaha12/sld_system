@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { AlertTriangle, XCircle, ShieldAlert, FileText, ArrowRight, Check } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
-import logo from '../assets/branding/logo/Logo_Dark_No_Bg.png';
+import logo from '../assets/branding/logo/SLD_Logo.jpeg';
 import { paymentService } from '../services/paymentService';
 
 const PRESET_REASONS = [

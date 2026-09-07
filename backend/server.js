@@ -167,7 +167,10 @@ const chatCache = new Map();
 let chatMetricsCache = null;
 let chatMetricsCacheExpiresAt = 0;
 
+const escapeRegex = (str) => String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const extractCitation = (text) => {
+  // Standard: MAG YEAR PAGE  e.g. "PTD 1999 2421"
   const canonical = text.match(/\b([a-z]+)\s+(\d{4})\s+(\d+)\b/i);
   if (canonical) {
     return {
@@ -178,6 +181,7 @@ const extractCitation = (text) => {
     };
   }
 
+  // Reversed: YEAR MAG PAGE  e.g. "1999 PTD 2421"
   const reversed = text.match(/\b(\d{4})\s+([a-z]+)\s+(\d+)\b/i);
   if (reversed) {
     return {
@@ -185,6 +189,30 @@ const extractCitation = (text) => {
       year: reversed[1],
       page: reversed[3],
       value: `${reversed[2].toUpperCase()} ${reversed[1]} ${reversed[3]}`
+    };
+  }
+
+  // Volume-based (no year): MAG VOL PAGE  e.g. "103 TAX 253" or "TAX 103 253"
+  const volumeBased = text.match(/\b([a-z]+)\s+(\d{1,3})\s+(\d+)\b/i);
+  if (volumeBased) {
+    return {
+      magazine: volumeBased[1].toLowerCase(),
+      year: volumeBased[2],    // treated as vol when no 4-digit year present
+      page: volumeBased[3],
+      value: `${volumeBased[1].toUpperCase()} ${volumeBased[2]} ${volumeBased[3]}`,
+      isVolume: true
+    };
+  }
+
+  // Volume reversed: VOL MAG PAGE  e.g. "103 TAX 253"
+  const volumeReversed = text.match(/\b(\d{1,3})\s+([a-z]+)\s+(\d+)\b/i);
+  if (volumeReversed) {
+    return {
+      magazine: volumeReversed[2].toLowerCase(),
+      year: volumeReversed[1],
+      page: volumeReversed[3],
+      value: `${volumeReversed[2].toUpperCase()} ${volumeReversed[1]} ${volumeReversed[3]}`,
+      isVolume: true
     };
   }
 
@@ -236,18 +264,32 @@ app.post('/api/chat', async (req, res, next) => {
     const citation = extractCitation(message);
     const isCitationQuery = Boolean(citation);
     
-    if (cleanQuery.length > 2 && (isCitationQuery || cacheKey.includes('case') || cacheKey.includes('statute') || cacheKey.includes('judge') || cacheKey.includes('lawyer') || cacheKey.includes('find') || cacheKey.includes('search') || cacheKey.includes('rule') || cacheKey.includes('act'))) {
+    // Search DB whenever we detect a citation OR any legal keyword in the message
+    const shouldSearch = isCitationQuery
+      || cacheKey.includes('case') || cacheKey.includes('statute')
+      || cacheKey.includes('judge') || cacheKey.includes('lawyer')
+      || cacheKey.includes('find') || cacheKey.includes('search')
+      || cacheKey.includes('rule') || cacheKey.includes('act')
+      || cacheKey.includes('explain') || cacheKey.includes('tell me')
+      || cacheKey.includes('what is') || cacheKey.includes('about');
+
+    if (cleanQuery.length > 0 && shouldSearch) {
       try {
         const caseQuery = citation
           ? {
               isDeleted: { $ne: true },
               $or: [
-                { mapYearPage: { $regex: `^${citation.magazine}\\s+${citation.year}\\s+${citation.page}$`, $options: 'i' } },
+                { mapYearPage: { $regex: `${escapeRegex(citation.magazine)}\\s+${escapeRegex(citation.year)}\\s+${escapeRegex(citation.page)}`, $options: 'i' } },
                 { publications: { $elemMatch: {
-                  mag: { $regex: `^${citation.magazine}$`, $options: 'i' },
+                  mag: { $regex: `^${escapeRegex(citation.magazine)}$`, $options: 'i' },
                   year: citation.year,
                   page: citation.page
-                } } }
+                } } },
+                ...(citation.isVolume ? [{ publications: { $elemMatch: {
+                  mag: { $regex: `^${escapeRegex(citation.magazine)}$`, $options: 'i' },
+                  vol: citation.year,
+                  page: citation.page
+                } } }] : [])
               ]
             }
           : { $text: { $search: cleanQuery } };
@@ -256,7 +298,7 @@ app.post('/api/chat', async (req, res, next) => {
           Case.find(caseQuery, citation ? {} : { score: { $meta: 'textScore' } })
           .sort(citation ? { createdAt: -1 } : { score: { $meta: 'textScore' } })
           .limit(3)
-          .select('caseId sldNumber court caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications'),
+          .select('_id caseId sldNumber court caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications'),
           Statute.find(
             { $text: { $search: cleanQuery } }
           )
@@ -266,7 +308,10 @@ app.post('/api/chat', async (req, res, next) => {
 
         if (foundCases && foundCases.length > 0) {
           searchContext += `\nTop matching cases found in database for "${citation?.value || cleanQuery}":\n` +
-            foundCases.map(c => `- ID: ${c.caseId}, SLD No: ${c.sldNumber || c.caseId}, Publications: ${c.mapYearPage?.join(', ') || c.publications?.map(p => `${p.mag} ${p.year} ${p.page}`).join(', ') || 'N/A'}, Court: ${c.court || 'Supreme Court'}, Number: ${c.caseNumber?.join(', ') || 'N/A'}, Judges: ${c.judges?.join(', ') || 'N/A'}, Lawyers: ${c.lawyers?.join(', ') || 'N/A'}, Principle Law: ${c.principleLaw || 'N/A'}, Headnote excerpt: ${c.headNote?.substring(0, 200) || 'N/A'}...`).join('\n');
+            foundCases.map(c => {
+              const docId = c._id?.toString() || c.caseId;
+              return `- DOC_ID: ${docId}, SLD No: ${c.sldNumber || c.caseId}, Publications: ${c.mapYearPage?.join(', ') || c.publications?.map(p => `${p.mag} ${p.year} ${p.page}`).join(', ') || 'N/A'}, Court: ${c.court || 'Supreme Court'}, Number: ${c.caseNumber?.join(', ') || 'N/A'}, Judges: ${c.judges?.join(', ') || 'N/A'}, Lawyers: ${c.lawyers?.join(', ') || 'N/A'}, Principle Law: ${c.principleLaw || 'N/A'}, Headnote excerpt: ${c.headNote?.substring(0, 300) || 'N/A'}`;
+            }).join('\n');
         }
 
         if (foundStatutes && foundStatutes.length > 0) {
@@ -278,24 +323,43 @@ app.post('/api/chat', async (req, res, next) => {
       }
     }
 
-    const systemPrompt = `You are the official AI Support Assistant for the SLD System (Supreme Court & High Court Law Reports Portal).
-Your primary role is to assist users with portal questions, cases, statutes, law reports, notifications, legal search tips, and account settings.
+    const systemPrompt = `You are the official AI Legal Assistant for the SLD System (Supreme Court & High Court Law Reports Portal of Pakistan).
+
+Your role is to help users understand case law, statutes, and legal documents from the SLD database. When case or statute data is provided to you from the database, your job is to explain it in clear, plain language — like a legal expert explaining to a non-lawyer.
 
 CURRENT SYSTEM METRICS:
 - Total Law Report Cases: ${caseCount}
 - Total Statutes: ${statuteCount}
 - Total Announcements/Notifications: ${notificationCount}
 
-${searchContext ? `RELEVANT SEARCH RESULTS FROM DATABASE:\n${searchContext}\n(Note: Please use these real records to answer the user's specific query. Cite the case ID/SLD Number or Statute ID when referencing them.)` : ''}
+${searchContext ? `CASE/STATUTE DATA FROM DATABASE:\n${searchContext}\n` : ''}
 
-BOUNDARIES & SCOPE RESTRICTIONS:
-1. You MUST ONLY answer questions related to the SLD System website, legal documents, case law records, statutes, notifications, legal portal features, and account/support issues.
-2. If a user asks a general question that is not relevant to the website (such as "what is the weather outside?", "tell me a joke", "who is the president?", "how do I cook pasta?", etc.), you MUST politely decline to answer, stating that your scope is limited strictly to assisting with the SLD System legal portal.
-3. Keep your answers concise, professional, helpful, and direct.
-4. Prioritize fast responses and provide the answer immediately without introductions, filler, or repeated questions.
-5. Use only the information required to answer accurately. Use short bullet points only when they improve clarity.
-6. Do not explain obvious concepts or provide examples unless the user asks for them.
-7. If information is uncertain or unavailable, state that clearly instead of guessing.`;
+RESPONSE RULES — follow these strictly:
+
+1. WHEN DATABASE DATA IS PROVIDED above:
+   - ALWAYS write a proper explanation. Never just list raw fields.
+   - Start with the citation and court, then explain what the case is about in 2-3 plain sentences.
+   - Then cover: the legal question at the heart of the case, what the court decided and why, and what principle of law it establishes.
+   - Use natural flowing paragraphs. You may use a short bullet list only for key facts (parties, date, judge). The main explanation must be in prose.
+   - Write as if explaining to a lawyer who wants to quickly understand the case's significance.
+   - IMPORTANT: At the very end of your explanation for each case, on its own line, include exactly this marker so the user can open the full document: [VIEW_CASE:DOC_ID] — replace DOC_ID with the actual DOC_ID value from the database data above. Do not add any text after this marker on the same line.
+
+2. WHEN A CITATION IS GIVEN BUT NO DATA IS FOUND:
+   - Say clearly that this citation was not found in the SLD database.
+   - Do NOT give instructions on how to search the portal. The user is already using it.
+   - Offer to help with a related query.
+
+3. WHEN THE USER SENDS JUST A NUMBER OR SHORT CITATION (e.g. "103 tax 253", "PTD 1999 2421"):
+   - Treat it as a case lookup request automatically. Explain the case if found.
+   - Never ask the user what they want — assume they want an explanation.
+
+4. PORTAL HELP QUESTIONS (navigation, features, account):
+   - Answer directly and helpfully in a few sentences.
+
+5. OUT OF SCOPE:
+   - Politely decline anything unrelated to law, legal documents, or this portal.
+
+6. TONE: Professional, clear, helpful. No filler phrases. No "Great question!". No "I hope this helps!".`;
 
     const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
     let response;
