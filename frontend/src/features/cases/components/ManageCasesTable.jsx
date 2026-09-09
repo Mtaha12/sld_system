@@ -163,10 +163,10 @@ const ManageCasesTable = ({
       } else if (key === 'mapYearPage') {
         valA = Array.isArray(a.mapYearPage) && a.mapYearPage.length 
           ? a.mapYearPage.join(', ') 
-          : (a.publications?.map(p => `${p.mag || 'SLD'} ${p.year || ''} ${p.page || ''}`).join(', ') || '');
+          : (a.publications?.map(p => `${p.year || ''} ${p.mag || 'SLD'} ${p.page || ''}`.trim()).join(', ') || '');
         valB = Array.isArray(b.mapYearPage) && b.mapYearPage.length 
           ? b.mapYearPage.join(', ') 
-          : (b.publications?.map(p => `${p.mag || 'SLD'} ${p.year || ''} ${p.page || ''}`).join(', ') || '');
+          : (b.publications?.map(p => `${p.year || ''} ${p.mag || 'SLD'} ${p.page || ''}`.trim()).join(', ') || '');
       } else if (key === 'month') {
         valA = a.dated ? new Date(a.dated).getMonth() : -1;
         valB = b.dated ? new Date(b.dated).getMonth() : -1;
@@ -522,13 +522,15 @@ const ManageCasesTable = ({
                     </td>
                     <td className="px-2 py-4 align-top">
                       <div className="flex items-center gap-1.5">
-                        <button 
-                          onClick={() => setViewModalCase(item)}
-                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors" 
-                          title="View"
+                        <a 
+                          href={`/cases/view/${item.id || item.sldNumber}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors inline-flex items-center justify-center" 
+                          title="View in new tab"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                        </button>
+                        </a>
                         <button 
                           onClick={() => handleEdit(item)}
                           className="p-1.5 text-theme-muted hover:text-blue-500 border border-theme-border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" 

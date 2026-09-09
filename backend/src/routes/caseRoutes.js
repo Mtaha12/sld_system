@@ -1,6 +1,6 @@
 import express from 'express';
 import { 
-  getCases, getCaseById, createCase, 
+  getCases, getCaseById, getCaseBySld, createCase, 
   updateCase, deleteCase, deleteMultiple,
   searchCases, getMaxPage
 } from '../controllers/caseController.js';
@@ -15,6 +15,7 @@ router.use(protect);
 router.get('/', getCases);
 router.post('/search', searchCases);
 router.get('/max-page', getMaxPage);   // must be before /:id
+router.get('/sld/:sld', getCaseBySld); // direct lookup by SLD number
 router.get('/:id', getCaseById);
 
 // Write/Edit actions (Restricted strictly to Administrators)

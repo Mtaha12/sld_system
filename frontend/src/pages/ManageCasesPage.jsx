@@ -410,7 +410,7 @@ const ManageCasesPage = () => {
       judges: ['Honorable Bench'],
       lawyers: ['Advocates of Supreme Court'],
       petitioners: ['Petitioner vs. Respondent'],
-      mapYearPage: [`SLD 2025 ${cleanInput}`],
+      mapYearPage: [`2025 SLD ${cleanInput}`],
       status: 'Active'
     };
 

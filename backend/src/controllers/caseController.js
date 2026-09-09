@@ -34,17 +34,23 @@ const buildMapYearPage = (publications = []) => {
 
     const magStr = (pub.mag || 'SLD').toUpperCase();
     const yearStr = pub.year || '';
-    const volStr = pub.vol ? ` ${pub.vol}` : '';
+    const volStr = pub.vol ? `${pub.vol} ` : '';
     const pageStr = pub.page || '';
-    const citation = `${magStr} ${yearStr}${volStr} ${pageStr}`.trim();
+
+    // Format: Year Mag Page e.g. "2026 SLD 8325" or "(2005) 92 TAX 141"
+    let citation = '';
+    if (pub.vol) {
+      citation = `(${yearStr}) ${volStr}${magStr} ${pageStr}`.trim();
+    } else if (yearStr) {
+      citation = `${yearStr} ${magStr} ${pageStr}`.trim();
+    } else {
+      citation = `${magStr} ${pageStr}`.trim();
+    }
 
     if (!citation) return;
 
-    const key = `${magStr}|${yearStr}|${pageStr}`.toLowerCase();
-    const existingIndex = entries.findIndex((entry) => {
-      const [entryMag, entryYear, entryPage] = entry.key.split('|');
-      return entryMag === magStr.toLowerCase() && entryYear === yearStr.toLowerCase() && entryPage === pageStr.toLowerCase();
-    });
+    const key = `${yearStr}|${magStr}|${pageStr}`.toLowerCase();
+    const existingIndex = entries.findIndex((entry) => entry.key === key);
 
     if (existingIndex === -1) {
       entries.push({ value: citation, key });
@@ -52,7 +58,7 @@ const buildMapYearPage = (publications = []) => {
     }
 
     const current = entries[existingIndex];
-    const currentHasVol = current.value.includes(' ') && /\d+\s+\d+$/.test(current.value) === false;
+    const currentHasVol = current.value.includes('(') || /\(\d{4}\)/.test(current.value);
     const nextHasVol = Boolean(pub.vol && String(pub.vol).trim());
 
     if (nextHasVol && !currentHasVol) {
@@ -71,10 +77,6 @@ const formatCaseForFrontend = (c) => {
 
   if (mapYearPage.length === 0 && c.publications && c.publications.length > 0) {
     mapYearPage = buildMapYearPage(c.publications);
-  } else if (mapYearPage.length > 0 && c.publications && c.publications.length > 0) {
-    mapYearPage = buildMapYearPage(c.publications).length > 0
-      ? buildMapYearPage(c.publications)
-      : mapYearPage;
   }
 
   return {
@@ -153,14 +155,15 @@ export const getCases = async (req, res, next) => {
     // Sorting
     const allowedSortFields = ['sldNumber', 'dated', 'court', 'caseNumber', 'mapYearPage'];
     const safeSortField = allowedSortFields.includes(sortField) ? sortField : 'sldNumber';
-    const safeSortOrder = sortOrder === 'asc' ? 1 : -1;
+    const safeSortOrder = sortOrder === 'desc' ? -1 : 1;
     const sortObj = { [safeSortField]: safeSortOrder };
 
     // Execute count + paginated query in parallel
     const [totalItems, cases] = await Promise.all([
       Case.countDocuments(query),
       Case.find(query)
-        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department')
+        .collation({ locale: 'en_US', numericOrdering: true })
+        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department judgment')
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
@@ -226,6 +229,48 @@ export const getMaxPage = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       maxPage
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/cases/sld/:sld
+ * Directly fetches case by SLD number (or caseId)
+ */
+export const getCaseBySld = async (req, res, next) => {
+  try {
+    const { sld } = req.params;
+    if (!sld || !sld.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'SLD Number parameter is required.'
+      });
+    }
+
+    const cleanSld = sld.trim();
+    const c = await Case.findOne({
+      $or: [
+        { sldNumber: cleanSld },
+        { caseId: cleanSld },
+        { case_id: cleanSld },
+        { caseId: `CASE-IMPORT-${cleanSld}` }
+      ],
+      isDeleted: { $ne: true }
+    });
+
+    if (!c) {
+      return res.status(404).json({
+        success: false,
+        message: `Case law with SLD #${cleanSld} was not found.`
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Case retrieved successfully.',
+      data: formatCaseForFrontend(c)
     });
   } catch (error) {
     next(error);

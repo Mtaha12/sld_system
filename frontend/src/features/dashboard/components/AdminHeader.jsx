@@ -76,6 +76,18 @@ const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
+  // Global keyboard shortcut: Ctrl+K or Cmd+K opens AI Legal Assistant Studio
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        navigate('/ai-assistant');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
+
   const { user, logoutUser } = useUser();
 
   const handleLogout = () => {
@@ -108,15 +120,17 @@ const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
         </div>
       </div>
 
-      {/* AI Search Button - Centered */}
+      {/* AI Search Button - Centered for Desktop */}
       <div className="hidden md:flex flex-1 max-w-2xl px-8 items-center justify-center">
         <button 
-          onClick={() => onOpenChat?.()}
-          className="w-full flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-[#1A1C23] border border-gray-200 dark:border-theme-border rounded-xl text-sm text-gray-500 hover:border-[#f15a24] hover:ring-1 hover:ring-[#f15a24] hover:text-gray-800 dark:hover:text-gray-200 transition-all group focus:outline-none shadow-sm cursor-text"
+          onClick={() => navigate('/ai-assistant')}
+          className="w-full flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-[#1A1C23] border border-gray-200 dark:border-theme-border rounded-xl text-sm text-gray-500 hover:border-[#f15a24] hover:ring-1 hover:ring-[#f15a24] hover:text-gray-800 dark:hover:text-gray-200 transition-all group focus:outline-none shadow-sm cursor-pointer"
+          title="Open AI Legal Assistant Studio with Orbital Spin Wheel (Ctrl+K)"
         >
           <Sparkles className="w-4 h-4 text-[#f15a24]" />
           <span>Search with the help of AI...</span>
           <div className="ml-auto flex items-center gap-1">
+            <span className="text-[11px] text-[#f15a24] font-medium mr-1 bg-[#f15a24]/10 px-2 py-0.5 rounded group-hover:bg-[#f15a24]/20 transition-colors">Spin Wheel Studio ↗</span>
             <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-400 bg-white dark:bg-[#14151A] border border-gray-200 dark:border-[#262833] rounded">
               <span className="text-xs">⌘</span> K
             </kbd>
@@ -124,7 +138,16 @@ const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
         </button>
       </div>
 
-      <div className="flex items-center gap-4 sm:gap-6 shrink-0">
+      <div className="flex items-center gap-3 sm:gap-6 shrink-0">
+        {/* Mobile AI Search Icon Button */}
+        <button
+          onClick={() => navigate('/ai-assistant')}
+          className="md:hidden p-2 rounded-xl text-[#f15a24] bg-[#f15a24]/10 hover:bg-[#f15a24]/20 transition-colors cursor-pointer flex items-center gap-1.5"
+          title="Search with AI Legal Assistant"
+        >
+          <Sparkles className="w-5 h-5" />
+          <span className="text-xs font-semibold">AI Search</span>
+        </button>
         
         <div className="relative" ref={notificationsRef}>
           <button 
@@ -213,7 +236,6 @@ const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
           )}
         </div>
       </div>
-      <AIChatDrawer isOpen={false} onClose={() => {}} />
     </header>
   );
 };

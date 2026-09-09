@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { 
-  X, CheckCircle2, Scale, Plus, Upload, FileText
+  X, CheckCircle2, Scale, Plus, Upload, FileText,
+  Search, Loader2, ChevronLeft, ChevronRight, Check
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
@@ -23,54 +24,105 @@ const caseLawOptions = LAW_OPTIONS.some((option) => option.value === 'income_tax
   ? LAW_OPTIONS
   : [...LAW_OPTIONS, { label: 'Income Tax Rules, 2002', value: 'income_tax_2002' }];
 
+/**
+ * Maps raw case data from API or navigation state into clean form values.
+ * Strictly avoids hardcoding dummy text.
+ */
+const getInitialValues = (data = null) => {
+  if (!data) {
+    return {
+      srNumber: '',
+      dated: null,
+      department: 'tax',
+      court: 'Appellate Tribunal Inland Revenue',
+      caseNumber: '',
+      judges: '',
+      petitioners: '',
+      lawyers: '',
+      headNote: '',
+      references: '',
+      principleLaw: '',
+      legalMaxim: '',
+      judgment: '',
+      publications: [
+        { id: 1, year: '2026', vol: '', mag: 'sld', page: '' }
+      ],
+      laws: [
+        { id: 1, lawStatute: '', section: '' }
+      ],
+      attachments: []
+    };
+  }
+
+  const pubs = Array.isArray(data.publications) && data.publications.length > 0
+    ? data.publications.map((p, idx) => ({
+        id: idx + 1,
+        year: String(p.year || ''),
+        vol: String(p.vol || ''),
+        mag: String(p.mag || 'sld'),
+        page: String(p.page || '')
+      }))
+    : [{ id: 1, year: '', vol: '', mag: 'sld', page: '' }];
+
+  const laws = Array.isArray(data.laws) && data.laws.length > 0
+    ? data.laws.map((l, idx) => ({
+        id: idx + 1,
+        lawStatute: String(l.lawStatute || ''),
+        section: String(l.section || '')
+      }))
+    : [{ id: 1, lawStatute: '', section: '' }];
+
+  return {
+    srNumber: String(data.sldNumber ?? ''),
+    dated: data.dated ? new Date(data.dated) : null,
+    department: data.department || 'tax',
+    court: data.court || '',
+    caseNumber: Array.isArray(data.caseNumber) ? data.caseNumber.join('\n') : String(data.caseNumber || ''),
+    judges: Array.isArray(data.judges) ? data.judges.join('\n') : String(data.judges || ''),
+    petitioners: Array.isArray(data.petitioners) ? data.petitioners.join('\n') : String(data.petitioners || ''),
+    lawyers: Array.isArray(data.lawyers) ? data.lawyers.join('\n') : String(data.lawyers || ''),
+    headNote: String(data.headNote || ''),
+    references: String(data.references || ''),
+    principleLaw: String(data.principleLaw || ''),
+    legalMaxim: String(data.legalMaxim || ''),
+    judgment: String(data.judgment || ''),
+    publications: pubs,
+    laws: laws,
+    attachments: Array.isArray(data.attachments) ? data.attachments : []
+  };
+};
+
 const AddCaseLawDetail = ({ onClose }) => {
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const editData = location.state?.caseData;
-  const isEdit = Boolean(location.state?.isEdit || editData);
-  const existingSections = (editData?.laws || [])
-    .map((law) => String(law?.section || '').trim())
-    .filter(Boolean);
-  const sectionOptions = [
-    { label: 'Select Section', value: '' },
-    ...SECTION_OPTIONS,
-    ...[...new Set(existingSections)]
-      .filter((section) => !SECTION_OPTIONS.some((option) => option.value === section))
-      .map((section) => ({ label: section, value: section }))
-  ];
-  const courtOptions = [
-    { label: 'Select Court', value: '' },
-    ...COURT_OPTIONS,
-    ...(editData?.court && !COURT_OPTIONS.some((option) => option.value === editData.court)
-      ? [{ label: editData.court, value: editData.court }]
-      : [])
-  ];
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [publicationVolumeOpen, setPublicationVolumeOpen] = useState(() => ({
-    0: Boolean(editData?.publications?.[0]?.vol)
-  }));
 
-  const defaultValues = {
-    srNumber: editData?.sldNumber || '',
-    dated: editData?.dated ? new Date(editData.dated) : null,
-    department: editData?.department || 'tax',
-    court: editData?.court || 'Federal Constitutional Court of Pakistan',
-    caseNumber: Array.isArray(editData?.caseNumber) ? editData.caseNumber.join(' ') : (editData?.caseNumber || ''),
-    judges: Array.isArray(editData?.judges) ? editData.judges.join(' ') : (editData?.judges || ''),
-    petitioners: Array.isArray(editData?.petitioners) ? editData.petitioners.join(' ') : (editData?.petitioners || ''),
-    lawyers: Array.isArray(editData?.lawyers) ? editData.lawyers.join(' ') : (editData?.lawyers || ''),
-    headNote: editData?.headNote || (isEdit ? 'Constitutional review on statutory mandate under Article 199 and relevant procedural codes.' : ''),
-    references: editData?.references || (isEdit ? '2019 CLC 551, (2025) Tax 304 139' : ''),
-    principleLaw: editData?.principleLaw || (isEdit ? 'Income Tax Rules, 2002 - Section 231CB' : ''),
-    legalMaxim: editData?.legalMaxim || '',
-    judgment: editData?.judgment || (isEdit ? '<p><strong>IN THE FEDERAL CONSTITUTIONAL COURT OF PAKISTAN</strong></p><p>Upon extensive deliberation and review of arguments presented by counsel for the petitioner and state respondents, the Court observed that the statutory provisions must be interpreted in alignment with natural justice and constitutional guarantees.</p>' : ''),
-    publications: [
-      { id: 1, year: isEdit ? '2025' : '2026', vol: '', mag: 'sld', page: isEdit ? '8335' : '' }
-    ],
-    laws: [
-      { id: 1, lawStatute: 'income_tax_2002', section: isEdit ? 'Section 231CB' : '' }
-    ],
-    attachments: []
-  };
+  const [currentCaseId, setCurrentCaseId] = useState(editData?.id || null);
+  const [loadingCase, setLoadingCase] = useState(false);
+  const [loadFeedback, setLoadFeedback] = useState(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [publicationVolumeOpen, setPublicationVolumeOpen] = useState({});
+
+  // Dynamic dropdown options that adjust when cases with new courts/sections/laws load
+  const [courtOptions, setCourtOptions] = useState(() => {
+    const list = [{ label: 'Select Court', value: '' }, ...COURT_OPTIONS];
+    if (editData?.court && !COURT_OPTIONS.some(o => o.value === editData.court)) {
+      list.push({ label: editData.court, value: editData.court });
+    }
+    return list;
+  });
+
+  const [sectionOptions, setSectionOptions] = useState(() => {
+    const existing = (editData?.laws || []).map(l => String(l?.section || '').trim()).filter(Boolean);
+    return [
+      { label: 'Select Section', value: '' },
+      ...SECTION_OPTIONS,
+      ...[...new Set(existing)]
+        .filter(s => !SECTION_OPTIONS.some(o => o.value === s))
+        .map(s => ({ label: s, value: s }))
+    ];
+  });
 
   const {
     register,
@@ -78,11 +130,130 @@ const AddCaseLawDetail = ({ onClose }) => {
     handleSubmit,
     setValue,
     getValues,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(caseSchema),
-    defaultValues,
+    defaultValues: getInitialValues(editData),
   });
+
+  const {
+    fields: publicationFields,
+    append: appendPublication
+  } = useFieldArray({
+    control,
+    name: 'publications'
+  });
+
+  const {
+    fields: lawFields,
+    append: appendLaw
+  } = useFieldArray({
+    control,
+    name: 'laws'
+  });
+
+  /**
+   * Applies case data to form, volume toggles, and dropdown options
+   */
+  const applyCaseToForm = useCallback((caseData) => {
+    if (!caseData) return;
+
+    setCurrentCaseId(caseData.id || caseData._id || null);
+    const formVals = getInitialValues(caseData);
+    reset(formVals);
+
+    // Track which publications have volume open
+    const volMap = {};
+    formVals.publications.forEach((p, idx) => {
+      if (p.vol) volMap[idx] = true;
+    });
+    setPublicationVolumeOpen(volMap);
+
+    // Ensure court is in options
+    if (caseData.court) {
+      setCourtOptions(prev => {
+        if (!prev.some(o => o.value === caseData.court)) {
+          return [...prev, { label: caseData.court, value: caseData.court }];
+        }
+        return prev;
+      });
+    }
+
+    // Ensure sections are in options
+    if (Array.isArray(caseData.laws) && caseData.laws.length > 0) {
+      const newSecs = caseData.laws.map(l => String(l?.section || '').trim()).filter(Boolean);
+      if (newSecs.length > 0) {
+        setSectionOptions(prev => {
+          const missing = newSecs.filter(s => !prev.some(o => o.value === s));
+          if (missing.length > 0) {
+            return [...prev, ...missing.map(s => ({ label: s, value: s }))];
+          }
+          return prev;
+        });
+      }
+    }
+  }, [reset]);
+
+  /**
+   * Loads case directly by SLD number from API without moving back
+   */
+  const loadCaseBySld = useCallback(async (targetSld) => {
+    const cleanSld = String(targetSld ?? getValues('srNumber') ?? '').trim();
+    if (!cleanSld) return;
+
+    setLoadingCase(true);
+    setLoadFeedback(null);
+
+    try {
+      const caseData = await caseService.getCaseBySld(cleanSld);
+      if (caseData) {
+        applyCaseToForm(caseData);
+        setSearchParams({ sld: cleanSld }, { replace: true });
+        setLoadFeedback({
+          type: 'success',
+          message: `SLD #${cleanSld} loaded: ${caseData.court || 'Case Record'}`
+        });
+      }
+    } catch (err) {
+      console.warn(`[Case Load] SLD #${cleanSld} lookup notice:`, err?.response?.data?.message || err.message);
+      // Not found in database — keep the SLD # and clear other fields to allow creating new record
+      setCurrentCaseId(null);
+      reset({
+        ...getInitialValues(null),
+        srNumber: cleanSld
+      });
+      setSearchParams({ sld: cleanSld }, { replace: true });
+      setLoadFeedback({
+        type: 'notFound',
+        message: `SLD #${cleanSld} not found in database. Ready to create a new case record.`
+      });
+    } finally {
+      setLoadingCase(false);
+      setTimeout(() => setLoadFeedback(null), 6000);
+    }
+  }, [getValues, applyCaseToForm, reset, setSearchParams]);
+
+  /**
+   * Step to previous or next SLD number
+   */
+  const handleStepSld = (delta) => {
+    const rawVal = getValues('srNumber');
+    const currentNum = parseInt(rawVal || '1', 10);
+    const nextNum = Math.max(1, (isNaN(currentNum) ? 1 : currentNum) + delta);
+    setValue('srNumber', String(nextNum));
+    loadCaseBySld(nextNum);
+  };
+
+  // Initial load: from URL query param ?sld=... or navigation editData
+  useEffect(() => {
+    const sldQuery = searchParams.get('sld');
+    if (sldQuery) {
+      loadCaseBySld(sldQuery);
+    } else if (editData?.sldNumber) {
+      loadCaseBySld(editData.sldNumber);
+    }
+  }, [searchParams]);
 
   const autofillPublicationPage = async (index) => {
     const publications = getValues('publications') || [];
@@ -120,34 +291,27 @@ const AddCaseLawDetail = ({ onClose }) => {
     }));
   };
 
-  const {
-    fields: publicationFields,
-    append: appendPublication
-  } = useFieldArray({
-    control,
-    name: 'publications'
-  });
-
-  const {
-    fields: lawFields,
-    append: appendLaw
-  } = useFieldArray({
-    control,
-    name: 'laws'
-  });
-
   const onSubmit = async (data) => {
-    if (isEdit && editData?.id) {
-      await caseService.updateCase(editData.id, data);
-    } else {
-      await caseService.createCase(data);
+    try {
+      if (currentCaseId) {
+        await caseService.updateCase(currentCaseId, data);
+        setSuccessMessage(`SLD #${data.srNumber || currentCaseId} updated successfully.`);
+      } else {
+        const created = await caseService.createCase(data);
+        if (created?.data?.id) {
+          setCurrentCaseId(created.data.id);
+        }
+        setSuccessMessage(`SLD #${data.srNumber} created successfully.`);
+      }
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3500);
+    } catch (error) {
+      console.error('[Case Submit Error]', error);
+      alert(error.response?.data?.message || 'Failed to save case law record.');
     }
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      onClose?.();
-    }, 2500);
   };
+
+  const isEdit = Boolean(currentCaseId);
 
   return (
     <div className="flex flex-col bg-theme-surface relative">
@@ -157,11 +321,11 @@ const AddCaseLawDetail = ({ onClose }) => {
         
         {/* Success Notification */}
         {showSuccess && (
-          <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl flex items-center justify-between text-green-700 dark:text-green-400 animate-fade-in">
+          <div className="mb-4 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl flex items-center justify-between text-green-700 dark:text-green-400 animate-fade-in">
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5" />
-              <span className="font-medium">
-                SUCCESS: {isEdit ? 'Record updated successfully.' : 'Record added successfully.'}
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+              <span className="font-medium text-sm">
+                SUCCESS: {successMessage || 'Case record saved successfully.'}
               </span>
             </div>
             <button type="button" onClick={() => setShowSuccess(false)}>
@@ -172,42 +336,114 @@ const AddCaseLawDetail = ({ onClose }) => {
 
         <form id="case-law-form" onSubmit={handleSubmit(onSubmit)} className="space-y-3">
           
-          {/* Case Information — SR#, Date, Court all on one compact row */}
+          {/* Case Information — SLD#, Date, Court with Quick-Change Controls */}
           <FormSection compact>
-            <div className="grid grid-cols-3 gap-3 items-end">
-              <FormField label="SR #" required>
-                <Input 
-                  variant="light" 
-                  inputSize="sm" 
-                  placeholder="163629" 
-                  error={errors.srNumber}
-                  {...register('srNumber')}
-                />
-              </FormField>
-              <FormField label="Date">
-                <Controller
-                  control={control}
-                  name="dated"
-                  render={({ field }) => (
-                    <DatePicker 
-                      selectedDate={field.value} 
-                      onChange={field.onChange} 
-                      placeholder="2024-09-26" 
-                      className="w-full" 
-                    />
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+              
+              {/* SLD # with Fast Lookup & Stepper */}
+              <div className="md:col-span-4">
+                <FormField label="SLD #" required>
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <Input 
+                        variant="light" 
+                        inputSize="sm" 
+                        placeholder="e.g. 1" 
+                        error={errors.srNumber}
+                        {...register('srNumber')}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            loadCaseBySld(e.currentTarget.value);
+                          }
+                        }}
+                      />
+                      {loadingCase && (
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center">
+                          <Loader2 className="w-4 h-4 animate-spin text-brand-orange" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Step & Fetch Buttons */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        title="Previous SLD"
+                        onClick={() => handleStepSld(-1)}
+                        disabled={loadingCase}
+                        className="p-1.5 h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Next SLD"
+                        onClick={() => handleStepSld(1)}
+                        disabled={loadingCase}
+                        className="p-1.5 h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => loadCaseBySld()}
+                        disabled={loadingCase}
+                        className="h-[34px] text-xs px-2.5 border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 font-semibold"
+                      >
+                        {loadingCase ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Load'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Status Feedback */}
+                  {loadFeedback && (
+                    <div className={`mt-1.5 text-[11px] font-medium flex items-center gap-1.5 transition-all animate-fade-in ${
+                      loadFeedback.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                      loadFeedback.type === 'notFound' ? 'text-amber-600 dark:text-amber-400' :
+                      'text-red-500'
+                    }`}>
+                      {loadFeedback.type === 'success' && <Check className="w-3.5 h-3.5" />}
+                      <span>{loadFeedback.message}</span>
+                    </div>
                   )}
-                />
-              </FormField>
-              <FormField label="Court">
-                <Input
-                  variant="light" 
-                  inputSize="sm"
-                  type="select"
-                  options={courtOptions}
-                  error={errors.court}
-                  {...register('court')}
-                />
-              </FormField>
+                </FormField>
+              </div>
+
+              {/* Date */}
+              <div className="md:col-span-3">
+                <FormField label="Date">
+                  <Controller
+                    control={control}
+                    name="dated"
+                    render={({ field }) => (
+                      <DatePicker 
+                        selectedDate={field.value} 
+                        onChange={field.onChange} 
+                        placeholder="YYYY-MM-DD" 
+                        className="w-full" 
+                      />
+                    )}
+                  />
+                </FormField>
+              </div>
+
+              {/* Court */}
+              <div className="md:col-span-5">
+                <FormField label="Court">
+                  <Input
+                    variant="light" 
+                    inputSize="sm" 
+                    type="select" 
+                    options={courtOptions} 
+                    error={errors.court}
+                    {...register('court')}
+                  />
+                </FormField>
+              </div>
+
             </div>
           </FormSection>
 
@@ -231,7 +467,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                       variant="light" 
                       inputSize="sm" 
                       type="select" 
-                      options={[{ label: 'SLD', value: 'sld' }]} 
+                      options={[{ label: 'SLD', value: 'sld' }, { label: 'PTD', value: 'ptd' }, { label: 'TAX', value: 'tax' }, { label: 'PTCL', value: 'ptcl' }, { label: 'PLD', value: 'pld' }, { label: 'PTR', value: 'ptr' }]} 
                       {...register(`publications.${idx}.mag`, {
                         onChange: () => autofillPublicationPage(idx),
                       })}
@@ -294,7 +530,7 @@ const AddCaseLawDetail = ({ onClose }) => {
           <FormSection compact>
 
             {/* Row 1: Case No. + Judges */}
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               <FormField label="Case No.">
                 <Textarea 
                   placeholder="Enter case numbers..." 
@@ -314,7 +550,7 @@ const AddCaseLawDetail = ({ onClose }) => {
             </div>
 
             {/* Row 2: Petitioners + Lawyers */}
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               <FormField label="Petitioners">
                 <Textarea 
                   placeholder="Enter petitioners..."
@@ -333,26 +569,26 @@ const AddCaseLawDetail = ({ onClose }) => {
               </FormField>
             </div>
 
-            {/* Row 3: Head Note (70%) + References (30%) — equal height, Head Note is square */}
-            <div className="grid grid-cols-10 gap-3 mb-3 items-start">
-              <div className="col-span-7">
+            {/* Row 3: Head Note (70%) + References (30%) */}
+            <div className="grid grid-cols-1 md:grid-cols-10 gap-3 mb-3 items-start">
+              <div className="md:col-span-7">
                 <FormField label="Head Note">
                   <Textarea 
                     placeholder="Enter head note..."
-                    minHeight="320px"
+                    minHeight="280px"
                     className="text-sm"
-                    style={{ height: '320px', resize: 'vertical' }}
+                    style={{ height: '280px', resize: 'vertical' }}
                     {...register('headNote')}
                   />
                 </FormField>
               </div>
-              <div className="col-span-3">
+              <div className="md:col-span-3">
                 <FormField label="References">
                   <Textarea 
                     placeholder="Enter references..."
-                    minHeight="320px"
+                    minHeight="280px"
                     className="text-sm"
-                    style={{ height: '320px', resize: 'vertical' }}
+                    style={{ height: '280px', resize: 'vertical' }}
                     {...register('references')}
                   />
                 </FormField>
@@ -376,7 +612,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                     <Input
                       variant="light" 
                       inputSize="sm" 
-                      type="select"
+                      type="select" 
                       options={sectionOptions}
                       {...register(`laws.${idx}.section`)}
                     />
@@ -404,8 +640,8 @@ const AddCaseLawDetail = ({ onClose }) => {
             
             {/* Judgment — takes 2/3 */}
             <div className="lg:col-span-2">
-              <FormSection title="Judgment" icon={Scale} compact className="h-full">
-                <div className="flex-1 flex flex-col min-h-[220px] relative z-0">
+              <FormSection title="Judgment Order" icon={Scale} compact className="h-full">
+                <div className="flex-1 flex flex-col min-h-[260px] relative z-0">
                   <Controller
                     control={control}
                     name="judgment"
@@ -413,7 +649,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                       <RichTextEditor 
                         value={field.value} 
                         onChange={field.onChange} 
-                        placeholder="Enter judgment details..."
+                        placeholder="Judgment text appears here..."
                       />
                     )}
                   />
@@ -421,10 +657,10 @@ const AddCaseLawDetail = ({ onClose }) => {
               </FormSection>
             </div>
 
-            {/* Right column: Attachment only */}
+            {/* Right column: Attachment & Details */}
             <div className="flex flex-col gap-3">
 
-              {/* Attachment — compact, tight around button */}
+              {/* Attachment */}
               <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
                 <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
                   <Upload className="w-4 h-4" />
@@ -480,52 +716,37 @@ const AddCaseLawDetail = ({ onClose }) => {
                 />
               </div>
 
-              {/* Case No. info card — only shown in edit mode */}
-              {isEdit && editData?.caseNumber && (
-                <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
-                  <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
-                    <FileText className="w-4 h-4" />
-                    Case No.
-                  </div>
-                  <div className="text-xs text-theme-main leading-relaxed whitespace-pre-line break-words">
-                    {Array.isArray(editData.caseNumber)
-                      ? editData.caseNumber.join('\n')
-                      : editData.caseNumber}
-                  </div>
+              {/* Principle Law */}
+              <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
+                <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
+                  <Scale className="w-4 h-4" />
+                  Principle Law
                 </div>
-              )}
+                <Input 
+                  variant="light" 
+                  inputSize="sm" 
+                  placeholder="Enter principle law..." 
+                  error={errors.principleLaw}
+                  {...register('principleLaw')}
+                />
+              </div>
+
+              {/* Legal Maxim */}
+              <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
+                <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
+                  <Scale className="w-4 h-4" />
+                  Legal Maxim
+                </div>
+                <Input 
+                  variant="light" 
+                  inputSize="sm" 
+                  placeholder="Enter legal maxim..." 
+                  error={errors.legalMaxim}
+                  {...register('legalMaxim')}
+                />
+              </div>
 
             </div>
-          </div>
-
-          {/* Principle Law — full width */}
-          <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
-            <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
-              <Scale className="w-4 h-4" />
-              Principle Law
-            </div>
-            <Input 
-              variant="light" 
-              inputSize="sm" 
-              placeholder="Enter principle law..." 
-              error={errors.principleLaw}
-              {...register('principleLaw')}
-            />
-          </div>
-
-          {/* Legal Maxim — full width */}
-          <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
-            <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
-              <Scale className="w-4 h-4" />
-              Legal Maxim
-            </div>
-            <Input 
-              variant="light" 
-              inputSize="sm" 
-              placeholder="Enter legal maxim..." 
-              error={errors.legalMaxim}
-              {...register('legalMaxim')}
-            />
           </div>
 
         </form>
@@ -535,7 +756,7 @@ const AddCaseLawDetail = ({ onClose }) => {
         formId="case-law-form"
         onCancel={onClose}
         isSubmitting={isSubmitting}
-        submitText={isEdit ? "Update Record" : "Add Record"}
+        submitText={isEdit ? "Update Case Record" : "Create Case Record"}
       />
 
     </div>
@@ -543,4 +764,3 @@ const AddCaseLawDetail = ({ onClose }) => {
 };
 
 export default AddCaseLawDetail;
-

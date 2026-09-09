@@ -1,8 +1,8 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { caseService } from '../features/cases/services/caseService';
 import Spinner from '../components/ui/Spinner';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft, Printer, Scale, ExternalLink } from 'lucide-react';
 
 const CaseViewPage = () => {
   const { id } = useParams();
@@ -25,96 +25,134 @@ const CaseViewPage = () => {
     fetchCase();
   }, [id]);
 
-  if (loading) return <div className="min-h-screen bg-white flex items-center justify-center"><Spinner size="lg" /></div>;
-  if (error || !caseData) return <div className="min-h-screen bg-white flex items-center justify-center text-red-500">{error || 'Case not found'}</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-white flex items-center justify-center">
+      <Spinner size="lg" />
+    </div>
+  );
+
+  if (error || !caseData) return (
+    <div className="min-h-screen bg-white flex items-center justify-center text-red-500 font-sans">
+      {error || 'Case not found'}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-white text-black p-8 font-serif max-w-5xl mx-auto relative">
-      
-      {/* Non-printable controls */}
-      <div className="print:hidden flex justify-between items-center mb-8 pb-4 border-b border-gray-200">
-        <button 
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-brand-orange transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Search
-        </button>
-        <button 
-          onClick={() => window.print()}
-          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm font-sans"
-        >
-          <Printer className="w-4 h-4" /> Print This Page
-        </button>
-      </div>
+    <div className="h-screen w-full bg-[#faf9f6] text-[#1a1a1a] overflow-y-auto print:h-auto print:bg-white print:overflow-visible">
+      <div className="p-4 sm:p-8 pb-16 font-serif max-w-5xl mx-auto min-h-full">
+        
+        {/* Top non-printable toolbar */}
+        <div className="print:hidden flex justify-between items-center mb-8 pb-4 border-b border-gray-300 font-sans">
+          <button 
+            onClick={() => window.close() || navigate(-1)}
+            className="flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors shadow-sm cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" /> Close / Back
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-2.5 py-1 bg-amber-100 text-amber-800 rounded-md border border-amber-200">
+              SLD #{caseData.sldNumber || caseData.caseId}
+            </span>
+            <button 
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-3.5 py-1.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 text-sm font-medium text-gray-800 shadow-sm transition-colors cursor-pointer"
+            >
+              <Printer className="w-4 h-4" /> Print Document
+            </button>
+          </div>
+        </div>
 
       {/* Printable Document Area */}
-      <div className="space-y-6">
+      <div className="bg-white p-8 sm:p-12 shadow-sm rounded-xl border border-gray-200 print:border-none print:shadow-none space-y-6">
         
         {/* Header Section */}
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-3 pb-6 border-b border-gray-200">
+          
+          <div className="inline-block px-3 py-1 bg-blue-50 text-[#1e3a5a] border border-blue-100 rounded text-xs font-sans font-bold tracking-wide">
+            SLD #{caseData.sldNumber || caseData.caseId}
+          </div>
+
           {caseData.mapYearPage && caseData.mapYearPage.length > 0 && (
-            <div className="font-bold">
-              Citation(s): {caseData.mapYearPage.join(' = ')}
+            <div className="font-bold text-base text-gray-800 tracking-wide">
+              {caseData.mapYearPage.join('  =  ')}
             </div>
           )}
           
-          <h1 className="text-xl font-bold uppercase">{caseData.court}</h1>
+          <h1 className="text-2xl font-bold uppercase text-gray-900 tracking-wider pt-2">
+            {caseData.court || 'Court of Record'}
+          </h1>
           
-          <div className="font-bold">
+          <div className="font-semibold text-gray-700 text-sm">
             {caseData.caseNumber && caseData.caseNumber.length > 0 && (
               <span>{caseData.caseNumber.join(', ')}</span>
             )}
             {caseData.dated && (
-               <span>, decided on {caseData.dated}</span>
+              <span>, Decision Dated: {String(caseData.dated).split('T')[0]}</span>
             )}
           </div>
 
           {caseData.judges && caseData.judges.length > 0 && (
-            <div className="font-bold uppercase mt-4">
-              PRESENT: {caseData.judges.join(', ')}
+            <div className="font-bold uppercase mt-4 text-xs text-gray-600 tracking-wider">
+              {caseData.judges.join(' ')}
             </div>
           )}
 
           {/* Petitioners and Respondents */}
-          <div className="font-bold uppercase mt-6 space-y-2">
-            {caseData.petitioners && caseData.petitioners.length > 0 && (
-              <div>{caseData.petitioners.join(', ')}---PETITIONER</div>
-            )}
-            <div className="text-sm">VS</div>
-            {/* The DB schema doesn't explicitly have 'respondents' in the top-level but maybe it's in petitioners or we just leave it if missing */}
-            {/* Typically respondents are in the judgment body or a respondents field. I will check the schema. Assuming it's in petitioners if it has a format. */}
-          </div>
+          {caseData.petitioners && caseData.petitioners.length > 0 && (
+            <div className="font-bold uppercase mt-6 text-sm text-gray-800 leading-relaxed whitespace-pre-line">
+              {caseData.petitioners.join('\n')}
+            </div>
+          )}
           
           {caseData.lawyers && caseData.lawyers.length > 0 && (
-            <div className="font-bold mt-4">
-              {caseData.lawyers.join(', ')}
+            <div className="font-medium text-xs text-gray-600 mt-4 italic">
+              {caseData.lawyers.join(' | ')}
             </div>
           )}
         </div>
 
-        {/* Laws Section */}
+        {/* Laws & Statutes Section */}
         {(caseData.principleLaw || (caseData.laws && caseData.laws.length > 0)) && (
-          <div className="border-t border-b border-black py-2 my-6 font-bold">
+          <div className="border-t border-b border-gray-300 py-3 font-sans text-xs text-gray-700 bg-gray-50/60 rounded px-4">
+            <span className="font-bold text-gray-900 uppercase block mb-1">Applicable Statutes & Sections:</span>
             {caseData.principleLaw && (
-              <div>Law: {caseData.principleLaw}</div>
+              <div className="mb-1"><strong className="text-gray-900">Principle:</strong> {caseData.principleLaw}</div>
             )}
             {caseData.laws && caseData.laws.map((law, idx) => (
-              <div key={idx}>
-                Law: {law.lawStatute} <br/>
-                Section: {law.section}
+              <div key={idx} className="inline-block mr-3 mb-1">
+                <span className="font-semibold text-gray-900">{law.lawStatute}</span>
+                {law.section && <span className="text-gray-600"> (S. {law.section})</span>}
               </div>
             ))}
           </div>
         )}
 
-        {/* Judgment Content */}
-        <div 
-          className="text-justify leading-relaxed text-[15px]"
-          dangerouslySetInnerHTML={{ __html: caseData.judgment || caseData.headNote || 'No judgment text available.' }}
-        />
+        {/* Headnote if available */}
+        {caseData.headNote && (
+          <div className="p-4 bg-amber-50/40 rounded-lg border border-amber-200/60 font-sans text-xs text-gray-800 leading-relaxed">
+            <span className="font-bold text-amber-900 block mb-1 uppercase tracking-wider text-[11px]">Head Note</span>
+            <p className="whitespace-pre-line">{caseData.headNote}</p>
+          </div>
+        )}
+
+        {/* Judgment / Order Content */}
+        <div className="pt-4">
+          <h2 className="text-base font-bold uppercase tracking-wider text-gray-900 mb-4 pb-2 border-b border-gray-200 font-sans flex items-center gap-2">
+            <Scale className="w-4 h-4 text-brand-orange" /> Judgment / Order
+          </h2>
+          <div 
+            className="text-justify leading-relaxed text-[15px] whitespace-pre-line font-serif text-gray-900"
+            dangerouslySetInnerHTML={{ 
+              __html: caseData.judgment 
+                ? (caseData.judgment.includes('<p>') ? caseData.judgment : caseData.judgment.replace(/\n/g, '<br />'))
+                : (caseData.headNote ? caseData.headNote.replace(/\n/g, '<br />') : 'No judgment order text available for this case.') 
+            }}
+          />
+        </div>
 
       </div>
     </div>
+  </div>
   );
 };
 

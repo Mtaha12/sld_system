@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   FileText, Calendar, Building2, MapPin, Mail, Phone, 
-  Info, BookOpen, MessageSquare, Video, Play, MessageCircle, ArrowRight, Check, Copy, User, Building, Download
+  Info, BookOpen, MessageSquare, Video, Play, MessageCircle, ArrowRight, Check, Copy, User, Building, Download, Globe, ExternalLink
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import whatsappLogo from '../../../assets/branding/dashboard/whatsapp.png';
@@ -9,6 +9,44 @@ import youtubeLogo from '../../../assets/branding/dashboard/youtube.png';
 import sldBroucher from '../../../assets/branding/dashboard/sld_broucher.png';
 import Modal from '../../../components/ui/Modal';
 import AboutUsModal from './AboutUsModal';
+import { whatsappService } from '../../whatsapp/services/whatsappService';
+import { youtubeService } from '../../youtube/services/youtubeService';
+import { updateService } from '../../updates/services/updateService';
+
+const getYoutubeThumbnail = (url, photo) => {
+  if (photo && (photo.startsWith('http') || photo.startsWith('data:image'))) {
+    return photo;
+  }
+  if (url) {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2] && match[2].length === 11) {
+      return `https://img.youtube.com/vi/${match[2]}/hqdefault.jpg`;
+    }
+  }
+  return 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&q=80&w=800';
+};
+
+const fallbackWhatsappList = [
+  { id: 1, heading: '1. Overview of the evolution of corporate law in Pakistan by Mr. Rahat Aziz', dated: '2026-06-17', attachmentName: 'Corporate_Law_Overview.pdf' },
+  { id: 2, heading: '2. Ultimate Beneficial Ownership (UBO) requirements by Mr. Kashif Mahmood (SECP)', dated: '2026-06-17', attachmentName: 'UBO_Requirements_SECP.pdf' },
+  { id: 3, heading: 'Anomalies & Recommendations By Razi Ahsan dt 17th June 2026', dated: '2026-06-17', attachmentName: 'Recommendations_Razi.pdf' },
+  { id: 4, heading: '3. Conversion of physical shares into book-entry form by Mr. Farooq Ahmed (CDC)', dated: '2026-06-17', attachmentName: 'CDC_Share_Conversion.pdf' }
+];
+
+const fallbackWebsiteList = [
+  { id: 1, heading: 'FBR Portal System Upgrade: Digital Tax Filing Version 4.2', dated: '2026-09-08', url: 'https://iris.fbr.gov.pk' },
+  { id: 2, heading: 'Securities and Exchange Commission Online Services Portal Revision', dated: '2026-09-07', url: 'https://eservices.secp.gov.pk' },
+  { id: 3, heading: 'Sindh Revenue Board: Electronic Sales Tax Invoicing Guideline', dated: '2026-09-05', url: 'https://srb.gos.pk' },
+  { id: 4, heading: 'State Bank of Pakistan Foreign Exchange Manual 2026 Amendment', dated: '2026-09-02', url: 'https://sbp.org.pk' }
+];
+
+const fallbackYoutube = {
+  caption: 'Lahore Tax Bar Annual Dinner 2026 | Election Result, Asif Rana Team Victory',
+  dated: '2026-03-27',
+  url: 'https://www.youtube.com/watch?v=T9sAnLmEJFA',
+  photo: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&q=80&w=800'
+};
 
 const CopyableDetail = ({ icon: Icon, label, value }) => {
   const [copied, setCopied] = useState(false);
@@ -74,25 +112,59 @@ const AccountRow = ({ b, isLast }) => {
   );
 };
 
-const whatsappUpdatesList = [
-  { id: 1, title: 'Shifa Tameer e Millat ITA No. 790-IB-2026', date: 'Jun 17, 2026' },
-  { id: 2, title: 'Tax Newsletter 17.06.2026', date: 'Jun 17, 2026' },
-  { id: 3, title: 'Punjab Finance Bill, 2026', date: 'Jun 17, 2026' },
-  { id: 4, title: '3. Conversion of physical shares into book-entry form by Mr. Farooq Ahmed (CDC)', date: 'Jun 17, 2026' }
-];
-
 const InfoWidgets = () => {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isAboutUsModalOpen, setIsAboutUsModalOpen] = useState(false);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
+
+  // Live data states
+  const [whatsappUpdates, setWhatsappUpdates] = useState([]);
+  const [youtubeUpdates, setYoutubeUpdates] = useState([]);
+  const [websiteUpdates, setWebsiteUpdates] = useState([]);
+  const [activeUpdatesTab, setActiveUpdatesTab] = useState('whatsapp'); // 'whatsapp' | 'website'
   const [currentUpdateIndex, setCurrentUpdateIndex] = useState(0);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentUpdateIndex((prev) => (prev + 1) % whatsappUpdatesList.length);
-    }, 3000);
-    return () => clearInterval(timer);
+    let isMounted = true;
+    const loadDashboardData = async () => {
+      try {
+        const [waRes, ytRes, webRes] = await Promise.allSettled([
+          whatsappService.getUpdates(),
+          youtubeService.getYoutubeUpdates(),
+          updateService.getUpdates()
+        ]);
+        if (!isMounted) return;
+        if (waRes.status === 'fulfilled' && Array.isArray(waRes.value) && waRes.value.length > 0) {
+          setWhatsappUpdates(waRes.value);
+        }
+        if (ytRes.status === 'fulfilled' && Array.isArray(ytRes.value) && ytRes.value.length > 0) {
+          setYoutubeUpdates(ytRes.value);
+        }
+        if (webRes.status === 'fulfilled' && Array.isArray(webRes.value) && webRes.value.length > 0) {
+          setWebsiteUpdates(webRes.value);
+        }
+      } catch (err) {
+        console.error('[InfoWidgets] Error loading updates:', err);
+      }
+    };
+    loadDashboardData();
+    return () => { isMounted = false; };
   }, []);
+
+  const currentList = activeUpdatesTab === 'whatsapp'
+    ? (whatsappUpdates.length > 0 ? whatsappUpdates : fallbackWhatsappList)
+    : (websiteUpdates.length > 0 ? websiteUpdates : fallbackWebsiteList);
+
+  useEffect(() => {
+    if (currentList.length === 0) return;
+    const timer = setInterval(() => {
+      setCurrentUpdateIndex((prev) => (prev + 1) % currentList.length);
+    }, 3800);
+    return () => clearInterval(timer);
+  }, [currentList.length]);
+
+  const latestVideo = youtubeUpdates.length > 0 ? youtubeUpdates[0] : fallbackYoutube;
+  const youtubeThumbnail = getYoutubeThumbnail(latestVideo.url, latestVideo.photo);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
@@ -259,42 +331,87 @@ const InfoWidgets = () => {
         </div>
       </div>
 
-      {/* Right Column (Updates & Youtube) */}
+      {/* Right Column (Live Updates & Youtube) */}
       <div className="flex flex-col gap-6">
         
-        {/* Whatsapp Updates */}
+        {/* Updates Card (Whatsapp Updates & Manage Updates) */}
         <div className="bg-[#f2fcf5] dark:bg-[#f2fcf5]/5 border border-green-100 dark:border-green-900/30 rounded-xl overflow-hidden shadow-sm p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center">
-                <img src={whatsappLogo} alt="Whatsapp" className="w-8 h-8 object-contain" />
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+                {activeUpdatesTab === 'whatsapp' ? (
+                  <img src={whatsappLogo} alt="Whatsapp" className="w-7 h-7 object-contain" />
+                ) : (
+                  <Globe className="w-6 h-6 text-emerald-600" />
+                )}
               </div>
-              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">Whatsapp Updates</h2>
+              
+              {/* Tab Selector: WhatsApp vs Website Updates */}
+              <div className="flex items-center bg-white dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded-lg p-0.5 shadow-xs">
+                <button
+                  onClick={() => { setActiveUpdatesTab('whatsapp'); setCurrentUpdateIndex(0); }}
+                  className={`px-2.5 py-1 text-xs font-bold rounded cursor-pointer transition-colors ${
+                    activeUpdatesTab === 'whatsapp'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-emerald-600'
+                  }`}
+                >
+                  WhatsApp
+                </button>
+                <button
+                  onClick={() => { setActiveUpdatesTab('website'); setCurrentUpdateIndex(0); }}
+                  className={`px-2.5 py-1 text-xs font-bold rounded cursor-pointer transition-colors ${
+                    activeUpdatesTab === 'website'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-emerald-600'
+                  }`}
+                >
+                  Manage Updates
+                </button>
+              </div>
             </div>
+
             <Link 
-              to="/whatsapp-updates"
-              className="px-3 py-1 bg-white dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded text-xs font-bold text-green-700 flex items-center gap-1 hover:bg-green-50 transition-colors"
+              to={activeUpdatesTab === 'whatsapp' ? '/whatsapp-updates' : '/manage-updates'}
+              className="px-2.5 py-1 bg-white dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-1 hover:bg-green-50 transition-colors shrink-0"
             >
               See All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           
-          <div className="relative overflow-hidden h-[60px] mt-2 w-full">
-            {whatsappUpdatesList.map((update, idx) => (
+          {/* Animated Slider of Live Records */}
+          <div className="relative overflow-hidden h-[66px] w-full mt-1">
+            {currentList.map((update, idx) => (
               <div 
-                key={update.id}
+                key={update.mongoId || update.id || idx}
                 className="absolute inset-0 flex items-start gap-3 transition-transform duration-500 ease-in-out w-full"
                 style={{ transform: `translateX(${(idx - currentUpdateIndex) * 100}%)` }}
               >
-                <div className="w-6 h-6 rounded bg-green-100 flex items-center justify-center text-green-600 shrink-0 mt-0.5">
-                  <FileText className="w-3.5 h-3.5" />
+                <div className="w-6 h-6 rounded bg-green-100 dark:bg-green-950/40 flex items-center justify-center text-green-600 shrink-0 mt-0.5">
+                  {activeUpdatesTab === 'whatsapp' ? <FileText className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 leading-snug line-clamp-2">
-                    {update.title}
+                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 leading-snug line-clamp-2">
+                    {update.heading || update.title || update.caption}
                   </p>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Calendar className="w-3 h-3" /> {update.date}
+                  <div className="flex items-center gap-2 text-[11px] text-gray-500 flex-wrap">
+                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {update.dated || update.date}</span>
+                    {update.attachmentName && (
+                      <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-[150px]">
+                        📎 {update.attachmentName}
+                      </span>
+                    )}
+                    {update.url && (
+                      <a 
+                        href={update.url} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-blue-600 hover:underline inline-flex items-center gap-0.5 text-[10px] font-semibold"
+                      >
+                        Visit Link ↗
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>
@@ -306,34 +423,55 @@ const InfoWidgets = () => {
         <div className="bg-[#fff1f2] dark:bg-[#fff1f2]/5 border border-red-100 dark:border-red-900/30 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col">
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0">
                 <img src={youtubeLogo} alt="Youtube" className="w-8 h-8 object-contain" />
               </div>
-              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">Youtube Channel</h2>
+              <div>
+                <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">Youtube Channel</h2>
+                {latestVideo.dated && (
+                  <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
+                    <Calendar className="w-3 h-3" /> {latestVideo.dated}
+                  </p>
+                )}
+              </div>
             </div>
-            <button className="px-3 py-1 bg-white dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded text-xs font-bold text-red-600 flex items-center gap-1 hover:bg-red-50">
+            <Link 
+              to="/youtube-updates"
+              className="px-3 py-1 bg-white dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded text-xs font-bold text-red-600 flex items-center gap-1 hover:bg-red-50 transition-colors"
+            >
               See All <ArrowRight className="w-3 h-3" />
-            </button>
+            </Link>
           </div>
           
           <div className="p-4 pt-0 flex-1 flex flex-col">
-            <div className="relative w-full flex-1 rounded-xl overflow-hidden group cursor-pointer min-h-[180px]">
+            <a 
+              href={latestVideo.url || 'https://www.youtube.com'} 
+              target="_blank" 
+              rel="noreferrer"
+              className="relative w-full flex-1 rounded-xl overflow-hidden group cursor-pointer min-h-[180px] block"
+              title="Click to watch on YouTube"
+            >
               <img 
-                src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&q=80&w=800" 
-                alt="Youtube Thumbnail" 
+                src={youtubeThumbnail} 
+                alt={latestVideo.caption || "Youtube Thumbnail"} 
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-4">
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center text-white">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent flex flex-col justify-end p-4">
+                <div className="absolute inset-0 flex items-center justify-center opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all">
+                  <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg">
                     <Play className="w-5 h-5 fill-current ml-1" />
                   </div>
                 </div>
-                <p className="text-white font-medium text-sm leading-snug relative z-10">
-                  Lahore Tax Bar Annual Dinner 2026 | Election Result, Asif Rana Team Victory
-                </p>
+                <div className="relative z-10">
+                  <p className="text-white font-semibold text-sm leading-snug line-clamp-2 drop-shadow-sm">
+                    {latestVideo.caption}
+                  </p>
+                  <span className="text-[11px] text-gray-300 mt-1 inline-flex items-center gap-1">
+                    Watch on YouTube ↗
+                  </span>
+                </div>
               </div>
-            </div>
+            </a>
           </div>
         </div>
         

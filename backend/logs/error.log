@@ -128,3 +128,4 @@
 {"level":"error","message":"[AI Chatbot Proxy Exception] fetch failed","service":"sld-backend-service","timestamp":"2026-09-04 13:58:00"}
 {"level":"error","message":"[AI Chatbot Proxy Exception] fetch failed","service":"sld-backend-service","timestamp":"2026-09-04 13:58:00"}
 {"level":"error","message":"[AI Chatbot Proxy Exception] fetch failed","service":"sld-backend-service","timestamp":"2026-09-04 13:58:59"}
+{"level":"error","message":"[Gemini API Error] Status: 503. Body: {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n","service":"sld-backend-service","timestamp":"2026-09-09 16:27:44"}

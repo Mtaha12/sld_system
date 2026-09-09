@@ -10,16 +10,29 @@ import {
   Sun,
   Moon,
   X,
-  Search
+  Search,
+  Newspaper,
+  MessageSquare,
+  Globe,
+  Download,
+  Video,
+  Bot,
+  Sparkles
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/SLD_Logo.jpeg';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { label: 'AI Legal Core', path: '/ai-assistant', icon: Bot, isHighlight: true },
   { label: 'Search Case Law', path: '/search-case-law', icon: Search },
   { label: 'Manage Cases Law', path: '/manage-cases', icon: Scale },
   { label: 'Manage Notifications', path: '/manage-notifications', icon: Bell },
   { label: 'Manage Statutes Forms', path: '/manage-statutes', icon: FileText },
+  { label: 'Manage News', path: '/news', icon: Newspaper },
+  { label: 'Whatsapp Updates', path: '/whatsapp-updates', icon: MessageSquare },
+  { label: 'Manage Updates', path: '/manage-updates', icon: Globe },
+  { label: 'Manage Downloads', path: '/manage-downloads', icon: Download },
+  { label: 'Youtube Updates', path: '/youtube-updates', icon: Video },
 ];
 
 const AdminSidebar = ({ className = '', isMobile = false, onItemClick, onClose }) => {

@@ -8,6 +8,11 @@ export const DEFAULT_ENTITY_CONFIGS = {
   case: { prefix: 'CASE', padLength: 6, field: 'caseId', aliases: ['case_id'] },
   notification: { prefix: 'NOTIF', padLength: 6, field: 'notificationId', aliases: ['notification_id'] },
   statute: { prefix: 'STAT', padLength: 6, field: 'statuteId', aliases: ['statute_id'] },
+  news: { prefix: 'NEWS', padLength: 6, field: 'newsId', aliases: ['news_id'] },
+  whatsapp: { prefix: 'WA', padLength: 6, field: 'whatsappId', aliases: ['whatsapp_id'] },
+  update: { prefix: 'UPD', padLength: 6, field: 'updateId', aliases: ['update_id'] },
+  download: { prefix: 'DWN', padLength: 6, field: 'downloadId', aliases: ['download_id'] },
+  youtube: { prefix: 'YT', padLength: 6, field: 'youtubeId', aliases: ['youtube_id'] },
   user: { prefix: 'USER', padLength: 6, field: 'userId', aliases: ['user_id'] },
   default: { prefix: 'REC', padLength: 6, field: 'recordId', aliases: ['record_id'] }
 };

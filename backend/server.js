@@ -23,6 +23,11 @@ import notificationRoutes from './src/routes/notificationRoutes.js';
 import dashboardRoutes from './src/routes/dashboardRoutes.js';
 import paymentRoutes from './src/routes/paymentRoutes.js';
 import aiChatRoutes from './src/routes/aiChatRoutes.js';
+import newsRoutes from './src/routes/newsRoutes.js';
+import whatsappRoutes from './src/routes/whatsappRoutes.js';
+import updateRoutes from './src/routes/updateRoutes.js';
+import downloadRoutes from './src/routes/downloadRoutes.js';
+import youtubeRoutes from './src/routes/youtubeRoutes.js';
 
 // Models
 import mongoose from 'mongoose';
@@ -101,6 +106,11 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/ai-chat', aiChatRoutes);
+app.use('/api/news', newsRoutes);
+app.use('/api/whatsapp-updates', whatsappRoutes);
+app.use('/api/updates', updateRoutes);
+app.use('/api/downloads', downloadRoutes);
+app.use('/api/youtube-updates', youtubeRoutes);
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

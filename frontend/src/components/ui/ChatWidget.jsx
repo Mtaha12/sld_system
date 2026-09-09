@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Sparkles } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { MessageSquare, X, Send, Sparkles, Maximize2 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../services/api.js';
 
 const ChatWidget = ({ isHidden, openSignal }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);  // always closed on mount — only opens on explicit click
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -191,12 +192,26 @@ const ChatWidget = ({ isHidden, openSignal }) => {
                 <p className="text-xs text-theme-disabled">Superfast replies in seconds</p>
               </div>
             </div>
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="text-theme-disabled hover:text-white transition-colors p-1 rounded-md hover:bg-theme-surface/10"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button 
+                onClick={() => {
+                  setIsOpen(false);
+                  navigate('/ai-assistant');
+                }}
+                className="text-xs text-orange-400 hover:text-white bg-orange-500/20 hover:bg-orange-500/40 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 font-medium border border-orange-500/30"
+                title="Launch Full Screen Orbital Spin Wheel Studio"
+              >
+                <Maximize2 className="w-3.5 h-3.5 text-orange-400" />
+                <span>Full Studio</span>
+              </button>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="text-theme-disabled hover:text-white transition-colors p-1 rounded-md hover:bg-theme-surface/10"
+                title="Close chat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Messages Area */}

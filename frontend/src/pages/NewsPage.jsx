@@ -1,97 +1,159 @@
-import { Search, Eye } from 'lucide-react';
-import { useState } from 'react';
-
-const newsData = [
-  { id: 1, date: '2026-08-31', heading: 'Sec 7E, Super tax under Sec 4C: FBR yet to devise mechanism for refunding taxes: Butt' },
-  { id: 2, date: '2026-08-31', heading: 'IDEAS Expo Centre revenue loss: AGP settles audit para of TDAP' },
-  { id: 3, date: '2026-08-31', heading: 'President rejects FBR presentation against FTO order' },
-  { id: 4, date: '2026-08-31', heading: 'FBR explains amortisation deductions for intangibles in Tax Year 2027' },
-  { id: 5, date: '2026-08-31', heading: 'FBR explains tax deduction for scientific research in Tax Year 2027' },
-  { id: 6, date: '2026-08-31', heading: 'FBR allows employee training tax deductions for Tax Year 2027' },
-  { id: 7, date: '2026-08-31', heading: 'Indus Motor crosses Rs1 trillion in cumulative tax contributions' },
-  { id: 8, date: '2026-08-30', heading: 'RTO Hyderabad intercepts poultry feed over missing digital invoice' },
-  { id: 9, date: '2026-08-30', heading: 'FBR lists business expenses not deductible for Tax Year 2027' },
-  { id: 10, date: '2026-08-30', heading: 'FBR sets depreciation rules for Tax Year 2027' },
-  { id: 11, date: '2026-08-30', heading: 'FBR sets eligibility rules for initial allowance in Tax Year 2027' },
-  { id: 12, date: '2026-08-30', heading: 'Pakistan Customs tightens EFS checks over fabric misdeclaration' },
-  { id: 13, date: '2026-08-30', heading: 'RTO-II Karachi seals illegal cigarette factory in Malir' },
-];
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Plus, List, Newspaper, X } from 'lucide-react';
+import Button from '../components/ui/Button';
+import AddNewsForm from '../features/news/components/AddNewsForm';
+import ManageNewsTable from '../features/news/components/ManageNewsTable';
+import AdminFooter from '../features/dashboard/components/AdminFooter';
+import { newsService } from '../features/news/services/newsService';
 
 const NewsPage = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [newsList, setNewsList] = useState([]);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [toastMessage, setToastMessage] = useState('');
 
-  const filteredNews = newsData.filter(item => 
-    item.heading.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+
+  const fetchNews = useCallback(async (query = '') => {
+    setIsLoading(true);
+    try {
+      const data = await newsService.getNews(query);
+      setNewsList(data);
+    } catch (err) {
+      console.error('[NewsPage] Fetch error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNews();
+  }, [fetchNews]);
+
+  const handleSearchSubmit = (e) => {
+    e?.preventDefault();
+    fetchNews(searchKeyword);
+  };
+
+  const handleShowAll = () => {
+    setSearchKeyword('');
+    fetchNews('');
+  };
+
+  const handleOpenAddForm = () => {
+    setEditingItem(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEditItem = (item) => {
+    setEditingItem(item);
+    setIsFormOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFormSuccess = (savedItem, message) => {
+    setToastMessage(message || 'Success');
+    setIsFormOpen(false);
+    setEditingItem(null);
+    fetchNews(searchKeyword);
+  };
+
+  const handleItemDeleted = (deletedId) => {
+    setNewsList(prev => prev.filter(item => 
+      item.id !== deletedId && 
+      item.mongoId !== deletedId && 
+      item.newsId !== deletedId
+    ));
+  };
 
   return (
-    <div className="flex flex-col h-full animate-fade-in space-y-6 pb-12 w-full">
-      <div className="bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-sm overflow-hidden flex flex-col">
-        {/* Search Bar Area */}
-        <div className="p-5 border-b border-theme-border bg-gray-50/50 dark:bg-black/10 flex flex-col sm:flex-row gap-4 items-center">
-          <div className="relative flex-1 w-full">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search news..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 dark:border-theme-border rounded-lg leading-5 bg-white dark:bg-theme-surface placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#f15a24] focus:border-[#f15a24] transition-colors sm:text-sm text-theme-main"
-            />
+    <div className="flex flex-col w-full animate-fade-in gap-3 pb-8">
+      
+      {/* Compact Top Action Bar */}
+      <div className="bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-sm p-3">
+        <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-center gap-2">
+          
+          <div className="flex items-center gap-2 mr-2">
+            <Newspaper className="w-4 h-4 text-brand-orange" />
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Manage News</span>
           </div>
-          <button className="w-full sm:w-auto px-6 py-2.5 bg-[#f15a24] text-white font-semibold rounded-lg shadow-sm hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f15a24] transition-colors flex items-center justify-center">
-            Search
-          </button>
-        </div>
 
-        {/* Table Area */}
-        <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-theme-surface-hover border-b border-theme-border text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-                <th className="px-6 py-4 w-20 text-center">Sr #</th>
-                <th className="px-6 py-4 w-32">Date</th>
-                <th className="px-6 py-4">Heading</th>
-                <th className="px-6 py-4 w-28 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-theme-border">
-              {filteredNews.length > 0 ? (
-                filteredNews.map((news, index) => (
-                  <tr key={news.id} className="hover:bg-gray-50/80 dark:hover:bg-theme-surface-hover/50 transition-colors group">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-300 text-center">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {news.date}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 font-medium">
-                      {news.heading}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/30 transition-colors">
-                        <Eye className="w-4 h-4" />
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Search className="w-8 h-8 text-gray-300 dark:text-gray-600" />
-                      <p>No news found matching your search.</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+          <div className="flex-1 min-w-[200px]">
+            <div className="relative w-full">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-theme-disabled" />
+              <input
+                type="text"
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                placeholder="Title, Keyword..."
+                className="w-full pl-9 pr-3 py-1.5 bg-theme-surface border border-theme-border rounded-lg text-xs focus:outline-none focus:border-brand-orange text-theme-main transition-colors"
+              />
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            size="sm"
+            className="bg-[#00bcd4] hover:bg-[#00acc1] text-white border-transparent h-[34px] px-4 text-xs font-medium"
+          >
+            <Search className="w-3.5 h-3.5 mr-1" /> Search
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleShowAll}
+            className="bg-[#673ab7] hover:bg-[#5e35b1] text-white border-transparent h-[34px] px-4 text-xs font-medium"
+          >
+            <List className="w-3.5 h-3.5 mr-1" /> All
+          </Button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (isFormOpen && !editingItem) setIsFormOpen(false);
+              else handleOpenAddForm();
+            }}
+            className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
+          >
+            {isFormOpen && !editingItem ? (
+              <>
+                <X className="w-3.5 h-3.5" /> Close
+              </>
+            ) : (
+              <>
+                <Plus className="w-3.5 h-3.5" /> + Add News
+              </>
+            )}
+          </button>
+
+        </form>
       </div>
+
+      {/* Form (when open) */}
+      {isFormOpen && (
+        <AddNewsForm
+          editData={editingItem}
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditingItem(null);
+          }}
+          onSuccess={handleFormSuccess}
+        />
+      )}
+
+      {/* Table */}
+      <ManageNewsTable
+        newsList={newsList}
+        onEdit={handleEditItem}
+        onDeleted={handleItemDeleted}
+        toastMessage={toastMessage}
+        setToastMessage={setToastMessage}
+        isLoading={isLoading}
+      />
+
+      <AdminFooter />
     </div>
   );
 };

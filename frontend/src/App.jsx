@@ -27,6 +27,10 @@ const AddStatutePage = lazy(() => import('./pages/AddStatutePage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const NewsPage = lazy(() => import('./pages/NewsPage'))
 const WhatsappUpdatesPage = lazy(() => import('./pages/WhatsappUpdatesPage'))
+const UpdatesPage = lazy(() => import('./pages/UpdatesPage'))
+const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
+const YoutubeUpdatesPage = lazy(() => import('./pages/YoutubeUpdatesPage'))
+const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'))
 const SearchCaseLawPage = lazy(() => import('./pages/SearchCaseLawPage'))
 const CaseViewPage = lazy(() => import('./pages/CaseViewPage'))
 
@@ -59,8 +63,18 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<AdminLayout />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/ai-assistant" element={<AIAssistantPage />} />
+                <Route path="/ai-chat" element={<AIAssistantPage />} />
                 <Route path="/news" element={<NewsPage />} />
+                <Route path="/manage-news" element={<NewsPage />} />
                 <Route path="/whatsapp-updates" element={<WhatsappUpdatesPage />} />
+                <Route path="/manage-whatsapp" element={<WhatsappUpdatesPage />} />
+                <Route path="/updates" element={<UpdatesPage />} />
+                <Route path="/manage-updates" element={<UpdatesPage />} />
+                <Route path="/downloads" element={<DownloadsPage />} />
+                <Route path="/manage-downloads" element={<DownloadsPage />} />
+                <Route path="/youtube-updates" element={<YoutubeUpdatesPage />} />
+                <Route path="/manage-youtube" element={<YoutubeUpdatesPage />} />
                 <Route path="/search-case-law" element={<SearchCaseLawPage />} />
                 <Route path="/manage-cases" element={<ManageCasesPage />} />
                 <Route path="/manage-cases/add" element={<AddCaseLawPage />} />

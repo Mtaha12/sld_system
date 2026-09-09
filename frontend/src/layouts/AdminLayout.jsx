@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import AdminSidebar from '../features/dashboard/components/AdminSidebar';
 import AdminHeader from '../features/dashboard/components/AdminHeader';
 import PageTransition from '../components/ui/PageTransition';
-import ChatWidget from '../components/ui/ChatWidget';
 
 const AdminLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [chatOpenSignal, setChatOpenSignal] = useState(0);
+  const navigate = useNavigate();
 
   // Prevent background scrolling while mobile drawer is open
   useEffect(() => {
@@ -51,7 +50,7 @@ const AdminLayout = () => {
         {/* Shared Global Header */}
         <AdminHeader 
           onToggleMenu={() => setIsMobileMenuOpen(prev => !prev)} 
-          onOpenChat={() => setChatOpenSignal(s => s + 1)}
+          onOpenChat={() => navigate('/ai-assistant')}
         />
         
         {/* Scrollable Page Content */}
@@ -61,9 +60,6 @@ const AdminLayout = () => {
           </PageTransition>
         </main>
       </div>
-      
-      {/* Global Floating Chat Widget */}
-      <ChatWidget openSignal={chatOpenSignal} />
     </div>
   );
 };

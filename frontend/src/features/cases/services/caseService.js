@@ -32,6 +32,16 @@ export const caseService = {
   },
 
   /**
+   * Fetches single case directly by SLD Number
+   * @param {string|number} sldNumber 
+   * @returns {Promise<Object|null>}
+   */
+  getCaseBySld: async (sldNumber) => {
+    const response = await api.get(`/api/cases/sld/${encodeURIComponent(sldNumber)}`);
+    return response.data.data;
+  },
+
+  /**
    * Searches and filters cases using query parameters
    * @param {Object} filters { subject, fromDate, toDate, magazine }
    * @returns {Promise<Array>}

@@ -5,7 +5,14 @@
 html, body, #root {
   height: 100%;
   margin: 0;
-  overflow: hidden;
+}
+
+@media print {
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
 }
 
 @layer base {
