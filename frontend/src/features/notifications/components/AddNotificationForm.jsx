@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +12,7 @@ import FormField from '../../../components/ui/FormField';
 import FormFooter from '../../../components/ui/FormFooter';
 import { notificationSchema } from '../validation/notificationSchema';
 import { notificationService } from '../services/notificationService';
+import { settingService } from '../../../services/settingService';
 
 /* ── Compact inline file-chooser, same height as the date picker ─────── */
 const CompactFileButton = ({ value, onChange }) => {
@@ -69,6 +70,21 @@ const AddNotificationForm = () => {
   const editData = location.state?.notificationData;
   const isEdit = Boolean(location.state?.isEdit || editData);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [lawOptions, setLawOptions] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    settingService.getLaws({ status: 'active', limit: 1000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data)) {
+          setLawOptions(res.data.map(l => l.name));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic laws for AddNotificationForm:', err);
+      });
+    return () => { isMounted = false; };
+  }, []);
 
   const defaultValues = {
     srNumber: editData?.srNumber?.toString() || '',
@@ -258,10 +274,16 @@ const AddNotificationForm = () => {
                 <Input
                   variant="light"
                   inputSize="sm"
-                  placeholder="Enter Law or Statute name..."
+                  placeholder="Select or enter Law/Statute..."
+                  list="notification-laws-list"
                   error={errors.lawStatute}
                   {...register('lawStatute')}
                 />
+                <datalist id="notification-laws-list">
+                  {lawOptions.map((lawName, idx) => (
+                    <option key={idx} value={lawName} />
+                  ))}
+                </datalist>
               </FormField>
               <FormField label="Section 1">
                 <Input

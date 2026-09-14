@@ -33,6 +33,9 @@ const YoutubeUpdatesPage = lazy(() => import('./pages/YoutubeUpdatesPage'))
 const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'))
 const SearchCaseLawPage = lazy(() => import('./pages/SearchCaseLawPage'))
 const CaseViewPage = lazy(() => import('./pages/CaseViewPage'))
+const ManageCitiesPage = lazy(() => import('./pages/setting/ManageCitiesPage'))
+const ManagePrincipleOfLawsPage = lazy(() => import('./pages/setting/ManagePrincipleOfLawsPage'))
+const ManageLawsPage = lazy(() => import('./pages/setting/ManageLawsPage'))
 
 
 function App() {
@@ -86,6 +89,12 @@ function App() {
                 <Route path="/manage-statutes/add" element={<AddStatutePage />} />
                 <Route path="/statutes/new" element={<Navigate to="/manage-statutes/add" replace />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/setting/cities" element={<ManageCitiesPage />} />
+                <Route path="/settings/cities" element={<Navigate to="/setting/cities" replace />} />
+                <Route path="/setting/principles" element={<ManagePrincipleOfLawsPage />} />
+                <Route path="/settings/principles" element={<Navigate to="/setting/principles" replace />} />
+                <Route path="/setting/laws" element={<ManageLawsPage />} />
+                <Route path="/settings/laws" element={<Navigate to="/setting/laws" replace />} />
               </Route>
             </Route>
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +12,7 @@ import FormField from '../../../components/ui/FormField';
 import FormFooter from '../../../components/ui/FormFooter';
 import { statuteSchema } from '../validation/statuteSchema';
 import { statuteService } from '../services/statuteService';
+import { settingService } from '../../../services/settingService';
 
 /* ── Compact inline file-chooser, same height as the date picker ─────── */
 const CompactFileButton = ({ value, onChange }) => {
@@ -69,6 +70,21 @@ const AddStatuteForm = () => {
   const editData = location.state?.statuteData;
   const isEdit = Boolean(location.state?.isEdit || editData);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [lawOptions, setLawOptions] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    settingService.getLaws({ status: 'active', limit: 1000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data)) {
+          setLawOptions(res.data.map(l => l.name));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic laws for AddStatuteForm:', err);
+      });
+    return () => { isMounted = false; };
+  }, []);
 
   const defaultValues = {
     srNumber: editData?.srNumber?.toString() || editData?.id?.toString() || '',
@@ -218,10 +234,16 @@ const AddStatuteForm = () => {
                 <Input
                   variant="light"
                   inputSize="sm"
-                  placeholder="Enter Law or Statute name..."
+                  placeholder="Select or enter Law/Statute..."
+                  list="statute-laws-list"
                   error={errors.law}
                   {...register('law')}
                 />
+                <datalist id="statute-laws-list">
+                  {lawOptions.map((lawName, idx) => (
+                    <option key={idx} value={lawName} />
+                  ))}
+                </datalist>
               </FormField>
               <FormField label="Section">
                 <Input

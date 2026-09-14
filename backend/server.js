@@ -28,6 +28,7 @@ import whatsappRoutes from './src/routes/whatsappRoutes.js';
 import updateRoutes from './src/routes/updateRoutes.js';
 import downloadRoutes from './src/routes/downloadRoutes.js';
 import youtubeRoutes from './src/routes/youtubeRoutes.js';
+import settingRoutes from './src/routes/settingRoutes.js';
 
 // Models
 import mongoose from 'mongoose';
@@ -111,6 +112,7 @@ app.use('/api/whatsapp-updates', whatsappRoutes);
 app.use('/api/updates', updateRoutes);
 app.use('/api/downloads', downloadRoutes);
 app.use('/api/youtube-updates', youtubeRoutes);
+app.use('/api/settings', settingRoutes);
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

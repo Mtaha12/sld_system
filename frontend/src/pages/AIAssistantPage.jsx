@@ -8,7 +8,7 @@ const AIAssistantPage = () => {
   const [messages, setMessages] = useState([
     {
       sender: 'assistant',
-      text: '### ⚖️ SLD AI Legal Neural Engine Initialized\n\n' +
+      text: '### SLD AI Legal Neural Engine Initialized\n\n' +
         'I am trained directly on **15,000 cases** in the SLD database. You can:\n' +
         '• **Paste a line from any judgment** — I will locate where it appears, cite the case, and explain the ruling.\n' +
         '• **Enter an SLD # or Citation** (e.g., `2006 SLD 282`, `2006 PTD 2726`).\n' +
@@ -20,7 +20,7 @@ const AIAssistantPage = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [activeReferences, setActiveReferences] = useState([
-    'judgments', 'headnotes', 'citations', 'courts', 'statutes', 'judges', 'parties', 'case_numbers'
+    'case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'
   ]);
   const [focusedNode, setFocusedNode] = useState(null);
   const [lastMatchedCase, setLastMatchedCase] = useState(null);
@@ -112,7 +112,7 @@ const AIAssistantPage = () => {
     ]);
     setLastMatchedCase(null);
     setFocusedNode(null);
-    setActiveReferences(['judgments', 'headnotes', 'citations', 'courts', 'statutes', 'judges', 'parties', 'case_numbers']);
+    setActiveReferences(['case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations']);
   };
 
   const handleNodeClick = (nodeId) => {
@@ -120,16 +120,16 @@ const AIAssistantPage = () => {
       setFocusedNode(null);
     } else {
       setFocusedNode(nodeId);
-      // High-precision legal queries grounded in the 15,000 cases database
+      // High-precision legal queries strictly for the 8 Case Law fields
       const sectorQueries = {
-        judgments: 'The intention of the legislature is gathered from the language of the statute',
-        headnotes: 'Interpretation of Statutes strict construction rule',
         case_numbers: 'Special Sales Tax Appeal No.192 to 196',
-        courts: 'Sindh High Court tax appeal determinations',
-        judges: 'Rulings authored by Justice Anwar Zaheer Jamali',
-        citations: '2006 SLD 282',
-        statutes: 'Sales Tax Act 1990 Section 3 and exemptions',
-        parties: 'Nishat Mills Ltd vs Collector of Customs'
+        judgments: 'The intention of the legislature is gathered from the language of the statute',
+        judges: 'Shahid Jamil Khan Judicial Member',
+        petitioners: 'Messrs Nishat Mills Ltd',
+        headnotes: 'Sales tax penalty generic non speaking order invalid',
+        legal_maxim: 'Lex non cogit ad impossibilia',
+        principle_law: 'Refund is an Amanah and cannot be refused on grounds of limitation',
+        citations: '(2011) 104 TAX 78'
       };
 
       if (sectorQueries[nodeId]) {
@@ -174,23 +174,23 @@ const AIAssistantPage = () => {
         </div>
       </div>
 
-      {/* Main Full-Screen Layout: Left Orbital Spin Wheel (45%) | Right Dialogue Panel (55%) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0 overflow-hidden">
+      {/* Main Full-Screen Layout: Left Orbital Spin Wheel (30%) | Right Dialogue Panel (70%) */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-hidden">
         
-        {/* LEFT COLUMN: Orbital Spin Wheel (5 Cols on Large) */}
-        <div className="lg:col-span-5 bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-md p-4 flex flex-col items-center justify-between overflow-hidden relative">
+        {/* LEFT COLUMN: Orbital Spin Wheel (30% Width on Large Screens) */}
+        <div className="w-full lg:w-[30%] shrink-0 bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-md p-3.5 flex flex-col items-center justify-between overflow-hidden relative">
           
-          <div className="w-full flex items-center justify-between pb-2 border-b border-theme-border/60 text-xs">
+          <div className="w-full flex items-center justify-between pb-2 border-b border-theme-border/60 text-xs shrink-0">
             <span className="font-bold text-theme-main text-xs uppercase tracking-wider flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-brand-orange" />
-              <span>Orbital Reference Spin Wheel</span>
+              <span>Orbital Reference Wheel</span>
             </span>
             <span className="text-[10px] text-theme-muted">
               Click node to filter
             </span>
           </div>
 
-          <div className="flex-1 w-full flex items-center justify-center my-auto">
+          <div className="flex-1 w-full flex items-center justify-center my-auto min-h-0 overflow-hidden">
             <OrbitalSpinWheel
               isSearching={isLoading}
               activeReferences={activeReferences}
@@ -200,14 +200,14 @@ const AIAssistantPage = () => {
             />
           </div>
 
-          <div className="w-full pt-2 border-t border-theme-border/60 flex items-center justify-between text-[11px] text-theme-muted">
+          <div className="w-full pt-2 border-t border-theme-border/60 flex items-center justify-between text-[11px] text-theme-muted shrink-0">
             <span>Center: <strong>Neural Bot</strong></span>
-            <span>Orbital: <strong>8 Judicial Reference Engines</strong></span>
+            <span>Orbital: <strong>8 Case Law Fields</strong></span>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: AI Legal Research & Dialogue Panel (7 Cols on Large) */}
-        <div className="lg:col-span-7 h-full min-h-0">
+        {/* RIGHT COLUMN: AI Legal Research & Dialogue Panel (70% Width on Large Screens) */}
+        <div className="w-full lg:w-[70%] flex-1 min-w-0 h-full">
           <AIChatPanel
             messages={messages}
             onSendMessage={handleSendMessage}

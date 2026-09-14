@@ -19,6 +19,7 @@ import { caseService } from '../services/caseService';
 import { LAW_OPTIONS } from '../../../data/laws';
 import { SECTION_OPTIONS } from '../../../data/sections';
 import { COURT_OPTIONS } from '../../../data/courts';
+import { settingService } from '../../../services/settingService';
 
 const caseLawOptions = LAW_OPTIONS.some((option) => option.value === 'income_tax_2002')
   ? LAW_OPTIONS
@@ -123,6 +124,55 @@ const AddCaseLawDetail = ({ onClose }) => {
         .map(s => ({ label: s, value: s }))
     ];
   });
+
+  const [dynamicLawOptions, setDynamicLawOptions] = useState(() => caseLawOptions);
+  const [principleOptions, setPrincipleOptions] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    settingService.getLaws({ status: 'active', limit: 1000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const fetched = res.data.map(l => ({ label: l.name, value: l.name }));
+          const seen = new Set();
+          const merged = [{ label: 'Choose a law', value: '' }];
+          seen.add('');
+
+          fetched.forEach(item => {
+            const key = item.value.toLowerCase().trim();
+            if (!seen.has(key)) {
+              seen.add(key);
+              merged.push(item);
+            }
+          });
+
+          caseLawOptions.forEach(item => {
+            const key = item.value.toLowerCase().trim();
+            if (key && !seen.has(key)) {
+              seen.add(key);
+              merged.push(item);
+            }
+          });
+
+          setDynamicLawOptions(merged);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic laws for AddCaseLawDetail:', err);
+      });
+
+    settingService.getPrinciples({ status: 'active', limit: 1000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data)) {
+          setPrincipleOptions(res.data.map(p => p.name));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic principles for AddCaseLawDetail:', err);
+      });
+
+    return () => { isMounted = false; };
+  }, []);
 
   const {
     register,
@@ -604,7 +654,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                       variant="light" 
                       inputSize="sm" 
                       type="select" 
-                      options={caseLawOptions}
+                      options={dynamicLawOptions}
                       {...register(`laws.${idx}.lawStatute`)}
                     />
                   </FormField>
@@ -726,9 +776,15 @@ const AddCaseLawDetail = ({ onClose }) => {
                   variant="light" 
                   inputSize="sm" 
                   placeholder="Enter principle law..." 
+                  list="principle-law-datalist"
                   error={errors.principleLaw}
                   {...register('principleLaw')}
                 />
+                <datalist id="principle-law-datalist">
+                  {principleOptions.map((pName, pIdx) => (
+                    <option key={pIdx} value={pName} />
+                  ))}
+                </datalist>
               </div>
 
               {/* Legal Maxim */}

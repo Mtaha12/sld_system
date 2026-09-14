@@ -17,7 +17,10 @@ import {
   Download,
   Video,
   Bot,
-  Sparkles
+  Sparkles,
+  Building2,
+  BookOpen,
+  Library
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/SLD_Logo.jpeg';
 
@@ -33,6 +36,9 @@ const NAV_ITEMS = [
   { label: 'Manage Updates', path: '/manage-updates', icon: Globe },
   { label: 'Manage Downloads', path: '/manage-downloads', icon: Download },
   { label: 'Youtube Updates', path: '/youtube-updates', icon: Video },
+  { label: 'Manage Cities', path: '/setting/cities', icon: Building2 },
+  { label: 'Manage Principle of Laws', path: '/setting/principles', icon: BookOpen },
+  { label: 'Manage Laws / Statutes', path: '/setting/laws', icon: Library },
 ];
 
 const AdminSidebar = ({ className = '', isMobile = false, onItemClick, onClose }) => {

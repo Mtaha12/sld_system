@@ -165,49 +165,114 @@ export const extractCitationDetails = (text) => {
 };
 
 /**
- * AI Legal Core Analysis Engine
- * Grounded 100% in the 15,000 cases database to prevent hallucination
+ * Flexible Multi-word regex for legal fields (handles acronyms, periods, numbers)
+ */
+const makeFlexibleRegex = (str) => {
+  if (!str) return null;
+  const words = str.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+  const pattern = words.map(w => {
+    // If it's a 2-5 letter uppercase acronym like CTR, STA, WP, ITA, CA, CP
+    if (/^[a-zA-Z]{2,5}$/.test(w) && w === w.toUpperCase()) {
+      return w.split('').map(char => escapeRegex(char)).join('\\.?');
+    }
+    let escaped = escapeRegex(w).replace(/\\\./g, '\\.?');
+    if (/^\d+$/.test(w)) {
+      return `\\b${escaped}\\b`;
+    }
+    return escaped;
+  }).join('\\s*');
+  return new RegExp(pattern, 'i');
+};
+
+/**
+ * Strips conversational intros from user queries
+ */
+const cleanUserQuery = (raw) => {
+  let q = (raw || '').trim().replace(/^["'“‘]+|["'”’]+$/g, '').trim();
+  q = q.replace(/^(?:show\s+me|find|search\s+for|search|give\s+me|lookup|look\s+up|tell\s+me\s+about|get\s+me|what\s+is\s+the\s+case|who\s+was\s+judge\s+in)\s+(?:all\s+)?(?:the\s+)?/i, '');
+  q = q.replace(/^(?:cases\s+(?:by|of|for|on)|judgments\s+(?:by|of|for|on))\s+/i, '');
+  return q.trim();
+};
+
+/**
+ * Formats parties/petitioners array cleanly
+ */
+const cleanParties = (petitioners) => {
+  if (!petitioners || petitioners.length === 0) return 'N/A';
+  return petitioners
+    .map(p => String(p || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim())
+    .join(' | ');
+};
+
+/**
+ * Formats lawyer and counsel appearances cleanly
+ */
+const cleanLawyers = (lawyers) => {
+  if (!lawyers || lawyers.length === 0) return 'N/A';
+  return lawyers
+    .map(l => String(l || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim())
+    .join(' | ');
+};
+
+const VALID_CASE_LAW_FIELDS = new Set([
+  'case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'
+]);
+const FIELD_REMAP = {
+  courts: 'judges',
+  statutes: 'principle_law',
+  parties: 'petitioners',
+  lawyers: 'petitioners'
+};
+
+const sanitizeReferences = (refs) => {
+  if (!Array.isArray(refs)) {
+    return ['case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'];
+  }
+  const mapped = refs.map(r => FIELD_REMAP[r] || r).filter(r => VALID_CASE_LAW_FIELDS.has(r));
+  return mapped.length > 0 ? Array.from(new Set(mapped)) : ['case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'];
+};
+
+/**
+ * SLD Core Legal AI Intelligence Engine
+ * Grounded 100% in the 15,000 cases database across all fields
  */
 export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) => {
-  const cleanQuery = (userQuery || '').trim();
-  if (!cleanQuery) {
+  const rawClean = (userQuery || '').trim();
+  if (!rawClean) {
     return {
-      text: "Please provide a line from a judgment, case citation (e.g. 2001 SLD 1, 2011 104 TAX 78), statute, or legal question to begin.",
+      text: "Please provide a case number, judge name, petitioner/litigant, citation (e.g. 2001 SLD 1), legal maxim, principle of law, or judgment excerpt to begin.",
       legalAnalysis: null
     };
   }
 
-  // Normalize leading zero on 4-digit years in queries (e.g. "02001 sld 1" -> "2001 sld 1")
+  // 1. Clean conversational wrappers and normalize leading zeros on 4-digit years
+  const cleanQuery = cleanUserQuery(rawClean);
   const normalizedQuery = cleanQuery.replace(/\b0+(\d{4})\b/g, '$1').trim();
-
-  // 1. Check for detailed Citation pattern
-  const citationDetails = extractCitationDetails(normalizedQuery);
-  // 2. Check for explicit SLD number pattern (SLD #123, SLD No 123, #123, or standalone SLD 123)
-  const sldMatch = !citationDetails && (
-    normalizedQuery.match(/(?:^|\b)(?:sld\s*#|case\s*#|sld\s*no\.?)\s*(\d+)\b/i) || 
-    normalizedQuery.match(/^sld\s*(\d+)$/i) || 
-    normalizedQuery.match(/^#(\d+)$/)
-  );
-  const appealMatch = normalizedQuery.match(/\b(?:appeal|petition|suit|c\.?p\.?|ita|ptcl)\s*(?:no\.?|#)?\s*([0-9\/\-\sto]+)/i);
-  const sectionMatch = normalizedQuery.match(/\b(?:section|sec\.?|s\.)\s*([0-9a-z\-]+)/i);
 
   let targetCase = null;
   let matchingCitationCases = [];
+  let matchingCaseNumberCases = [];
+  let matchingJudgeCases = [];
+  let matchingPartyCases = [];
+  let matchingLawyerCases = [];
+  let matchingCourtCases = [];
   let matchingJudgmentCases = [];
   let matchingTopicCases = [];
   let matchType = 'general';
+  let matchedFieldDisplay = '';
   let exactMatchedLine = '';
   let surroundingContext = '';
-  let activeReferences = ['judgments', 'headnotes', 'citations', 'courts', 'statutes'];
+  let activeReferences = ['case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'];
   let confidence = 85;
 
-  // PRIORITY A: Multi-Case Citation Lookup (e.g. "02001 sld 1", "2001 SLD 1", "(2011) 104 TAX 78", "2011 PTD 770")
+  // PRIORITY 1: Publication Citation Lookup (e.g. "(2011) 104 TAX 78", "2001 SLD 1", "02001 sld 1", "2011 PTD 770")
+  const citationDetails = extractCitationDetails(normalizedQuery);
   if (citationDetails) {
     const y = citationDetails.year;
     const m = escapeRegex(citationDetails.mag);
     const p = citationDetails.page;
     const pNum = parseInt(p, 10);
-    // Strict page boundary regex: matches page number and ensures no further digits follow
     const pagePat = `(?:0*${pNum})(?![0-9])`;
 
     const orConditions = [];
@@ -216,11 +281,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       orConditions.push({ mapYearPage: new RegExp(`\\b${citationDetails.vol}\\s+${m}\\s+${pagePat}`, 'i') });
     }
     if (y && m && p) {
-      // 1. "2001 SLD 1" or "(2001) SLD 1" or "2001 [vol] SLD 1"
       orConditions.push({ mapYearPage: new RegExp(`\\b\\(?${y}\\)?\\s*(?:\\d+\\s+)?${m}\\s+${pagePat}`, 'i') });
-      // 2. "SLD 2001 1"
       orConditions.push({ mapYearPage: new RegExp(`\\b${m}\\s+\\(?${y}\\)?\\s+${pagePat}`, 'i') });
-      // 3. Exact compact match
       orConditions.push({ mapYearPage: new RegExp(`\\b${y}\\s*${m}\\s*${pagePat}`, 'i') });
     }
     if (citationDetails.formatted) {
@@ -232,7 +294,6 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       isDeleted: { $ne: true }
     }).sort({ sldNumber: -1 }).limit(20);
 
-    // Fallback: check in headNote / title / principleLaw if not indexed in mapYearPage
     if (matchingCitationCases.length === 0 && y && m && p) {
       matchingCitationCases = await Case.find({
         $or: [
@@ -252,18 +313,179 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     }
   }
 
-  // PRIORITY B: Direct SLD Record Lookup (e.g. SLD #9862)
-  if (!targetCase && sldMatch) {
-    const sldNum = sldMatch[1];
-    targetCase = await Case.findOne({ sldNumber: sldNum, isDeleted: { $ne: true } });
-    if (targetCase) {
-      matchType = 'citation';
-      confidence = 100;
-      activeReferences = ['citations', 'case_numbers', 'courts', 'judgments'];
+  // PRIORITY 2: Direct SLD Record Lookup (e.g. SLD #9862, SLD 1, #1, CASE-IMPORT-1)
+  if (!targetCase) {
+    const sldMatch = normalizedQuery.match(/(?:^|\b)(?:sld\s*#|case\s*#|sld\s*no\.?)\s*(\d+)\b/i) || 
+      normalizedQuery.match(/^sld\s*(\d+)$/i) || 
+      normalizedQuery.match(/^#(\d+)$/);
+    if (sldMatch) {
+      const sldNum = sldMatch[1];
+      targetCase = await Case.findOne({ sldNumber: sldNum, isDeleted: { $ne: true } });
+      if (targetCase) {
+        matchType = 'citation';
+        confidence = 100;
+        activeReferences = ['citations', 'case_numbers', 'courts', 'judgments'];
+      }
     }
   }
 
-  // PRIORITY C: Multi-Case Judgment Line / Sentence Search across backend
+  // PRIORITY 3: Case Number / Appeal / Petition Search
+  // (e.g. "S.T.A. No.1903/LB of 2009", "case no 1173 of 1978", "C.T.R. No. 50 of 1995", "843/LB")
+  if (!targetCase) {
+    const caseNoPrefixMatch = normalizedQuery.match(/^(?:case|appeal|petition|writ\s*petition|suit|c\.?p\.?|c\.?a\.?|w\.?p\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?t\.?r\.?|civil\s*revision|ptcl)\s*(?:no\.?|#|nos\.?)?\s*[:\-]?\s*(.+)$/i);
+    const coreCaseNo = caseNoPrefixMatch ? caseNoPrefixMatch[1].trim() : normalizedQuery;
+
+    const isCaseNumberPattern = Boolean(caseNoPrefixMatch) || 
+      /\b(?:of\s*\d{4}|\d+\s*\/\s*[a-zA-Z]+|\d+\s*\/\s*\d{4})\b/i.test(normalizedQuery) ||
+      /\b(?:w\.?p\.?|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?a\.?|c\.?p\.?|civil\s*revision|writ\s*petition)\b/i.test(normalizedQuery);
+
+    if (isCaseNumberPattern && coreCaseNo.length >= 2) {
+      const caseRegex = makeFlexibleRegex(coreCaseNo);
+      if (caseRegex) {
+        matchingCaseNumberCases = await Case.find({
+          caseNumber: caseRegex,
+          isDeleted: { $ne: true }
+        }).sort({ sldNumber: -1 }).limit(15);
+
+        if (matchingCaseNumberCases.length > 0) {
+          matchType = 'case_number';
+          targetCase = matchingCaseNumberCases[0];
+          matchedFieldDisplay = coreCaseNo;
+          confidence = 98;
+          activeReferences = ['case_numbers', 'courts', 'judges', 'citations', 'parties'];
+        }
+      }
+    }
+  }
+
+  // PRIORITY 4: Judge / Bench Name Search
+  // (e.g. "judge Yahya Afridi", "Justice Ejaz Afzal Khan", "Shahid Jamil Khan", "Jawwad S Khawaja", "Mian Saqib Nisar")
+  if (!targetCase) {
+    const judgePrefixMatch = normalizedQuery.match(/^(?:judge|justice|chief\s*justice|mr\.?\s*justice|hon['’]?ble\s*justice|bench|author)\s*[:\-]?\s*(.+)$/i);
+    const judgeQueryName = judgePrefixMatch ? judgePrefixMatch[1].trim() : normalizedQuery;
+
+    if (judgeQueryName.length >= 3) {
+      const judgeRegex = makeFlexibleRegex(judgeQueryName);
+      if (judgeRegex) {
+        // If explicit prefix or length >= 4, check judges collection
+        matchingJudgeCases = await Case.find({
+          judges: judgeRegex,
+          isDeleted: { $ne: true }
+        }).sort({ sldNumber: -1 }).limit(15);
+
+        if (matchingJudgeCases.length > 0) {
+          matchType = 'judge_bench';
+          targetCase = matchingJudgeCases[0];
+          matchedFieldDisplay = judgeQueryName;
+          confidence = 98;
+          activeReferences = ['judges', 'courts', 'citations', 'headnotes'];
+        }
+      }
+    }
+  }
+
+  // PRIORITY 5: Petitioner / Litigant / Party Search
+  // (e.g. "petitioner Delta CNG", "Sui Northern Gas", "Sargroh Oil", "Al Karam CNG", "Prosperity Weaving Mills")
+  if (!targetCase) {
+    const partyPrefixMatch = normalizedQuery.match(/^(?:petitioner|respondent|party|parties|applicant|litigant)\s*[:\-]?\s*(.+)$/i);
+    const partyQueryName = partyPrefixMatch ? partyPrefixMatch[1].trim() : normalizedQuery;
+
+    if (partyQueryName.length >= 3) {
+      const partyRegex = makeFlexibleRegex(partyQueryName);
+      if (partyRegex) {
+        matchingPartyCases = await Case.find({
+          petitioners: partyRegex,
+          isDeleted: { $ne: true }
+        }).sort({ sldNumber: -1 }).limit(15);
+
+        if (matchingPartyCases.length > 0) {
+          matchType = 'petitioner_party';
+          targetCase = matchingPartyCases[0];
+          matchedFieldDisplay = partyQueryName;
+          confidence = 98;
+          activeReferences = ['parties', 'courts', 'citations', 'judgments'];
+        }
+      }
+    }
+  }
+
+  // PRIORITY 6: Lawyer / Legal Counsel Search
+  // (e.g. "lawyer Saeed Chaudhry", "Aitzaz Ahsan", "Malik Muhammad Qayyum")
+  if (!targetCase) {
+    const lawyerPrefixMatch = normalizedQuery.match(/^(?:lawyer|advocate|counsel|barrister|fca)\s*[:\-]?\s*(.+)$/i);
+    const lawyerQueryName = lawyerPrefixMatch ? lawyerPrefixMatch[1].trim() : normalizedQuery;
+
+    if (lawyerQueryName.length >= 3) {
+      const lawyerRegex = makeFlexibleRegex(lawyerQueryName);
+      if (lawyerRegex) {
+        matchingLawyerCases = await Case.find({
+          lawyers: lawyerRegex,
+          isDeleted: { $ne: true }
+        }).sort({ sldNumber: -1 }).limit(15);
+
+        if (matchingLawyerCases.length > 0) {
+          matchType = 'lawyer_counsel';
+          targetCase = matchingLawyerCases[0];
+          matchedFieldDisplay = lawyerQueryName;
+          confidence = 96;
+          activeReferences = ['parties', 'courts', 'judges', 'citations'];
+        }
+      }
+    }
+  }
+
+  // PRIORITY 7: Court / Judicial Forum Search
+  // (e.g. "court: Peshawar High Court", "Appellate Tribunal Inland Revenue", "Supreme Court of Pakistan")
+  if (!targetCase) {
+    const courtPrefixMatch = normalizedQuery.match(/^(?:court|forum|tribunal)\s*[:\-]?\s*(.+)$/i);
+    const courtQueryName = courtPrefixMatch ? courtPrefixMatch[1].trim() : normalizedQuery;
+    const isCourtPattern = Boolean(courtPrefixMatch) || 
+      /\b(?:high\s*court|supreme\s*court|appellate\s*tribunal|tax\s*ombudsman|federal\s*tax\s*ombudsman)\b/i.test(courtQueryName);
+
+    if (isCourtPattern && courtQueryName.length >= 4) {
+      const courtRegex = makeFlexibleRegex(courtQueryName);
+      if (courtRegex) {
+        matchingCourtCases = await Case.find({
+          court: courtRegex,
+          isDeleted: { $ne: true }
+        }).sort({ sldNumber: -1 }).limit(15);
+
+        if (matchingCourtCases.length > 0) {
+          matchType = 'court_forum';
+          targetCase = matchingCourtCases[0];
+          matchedFieldDisplay = courtQueryName;
+          confidence = 95;
+          activeReferences = ['courts', 'judges', 'citations', 'case_numbers'];
+        }
+      }
+    }
+  }
+
+  // PRIORITY 8: Section or Statute Search
+  // (e.g. "section 170", "sec 7e", "section 4c", "sales tax act")
+  if (!targetCase) {
+    const sectionMatch = normalizedQuery.match(/\b(?:section|sec\.?|s\.)\s*([0-9a-z\-]+)/i);
+    if (sectionMatch) {
+      const secNum = sectionMatch[1].trim();
+      const statuteCases = await Case.find({
+        $or: [
+          { 'laws.section': new RegExp(`^${escapeRegex(secNum)}$`, 'i') },
+          { headNote: new RegExp(`section\\s*${escapeRegex(secNum)}`, 'i') }
+        ],
+        isDeleted: { $ne: true }
+      }).sort({ sldNumber: -1 }).limit(15);
+
+      if (statuteCases.length > 0) {
+        matchType = 'statute';
+        targetCase = statuteCases[0];
+        matchingTopicCases = statuteCases;
+        confidence = 94;
+        activeReferences = ['statutes', 'headnotes', 'citations', 'judgments'];
+      }
+    }
+  }
+
+  // PRIORITY 9: Verbatim Sentence / Judgment Line Search across backend
   // When writing a line or sentence, check MongoDB and show ALL related cases
   if (!targetCase && normalizedQuery.length >= 8) {
     const searchPhrase = normalizedQuery.replace(/^["'“‘]+|["'”’]+$/g, '').trim();
@@ -271,7 +493,6 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     if (searchPhrase.length >= 8) {
       const phraseRegex = new RegExp(escapeRegex(searchPhrase), 'i');
       
-      // Search across judgment, headNote, principleLaw, and caseDescription
       matchingJudgmentCases = await Case.find({
         $or: [
           { judgment: phraseRegex },
@@ -282,7 +503,6 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         isDeleted: { $ne: true }
       }).sort({ sldNumber: -1 }).limit(15);
 
-      // If no exact match on full sentence, search by multi-word proximity across judgments
       if (matchingJudgmentCases.length === 0 && searchPhrase.length > 15) {
         const words = searchPhrase
           .replace(/[^a-zA-Z0-9\s]/g, ' ')
@@ -314,40 +534,9 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     }
   }
 
-  // PRIORITY D: Case Appeal Number Search
-  if (!targetCase && appealMatch) {
-    const appealStr = appealMatch[0].trim();
-    const appealRegex = new RegExp(escapeRegex(appealStr), 'i');
-    targetCase = await Case.findOne({ caseNumber: appealRegex, isDeleted: { $ne: true } });
-    if (targetCase) {
-      matchType = 'case_number';
-      confidence = 96;
-      activeReferences = ['case_numbers', 'courts', 'judges', 'judgments'];
-    }
-  }
-
-  // PRIORITY E: Section or Statute Search
-  if (!targetCase && sectionMatch) {
-    const secNum = sectionMatch[1].trim();
-    targetCase = await Case.findOne({
-      $or: [
-        { 'laws.section': new RegExp(`^${escapeRegex(secNum)}$`, 'i') },
-        { headNote: new RegExp(`section\\s*${escapeRegex(secNum)}`, 'i') }
-      ],
-      isDeleted: { $ne: true }
-    });
-    if (targetCase) {
-      matchType = 'statute';
-      confidence = 92;
-      activeReferences = ['statutes', 'headnotes', 'citations', 'judgments'];
-    }
-  }
-
-  // PRIORITY F: Multi-Concept Legal Proposition & Compound Query Matching
+  // PRIORITY 10: Legal Concept / Principle (e.g. Refund vs Time-bar)
   if (!targetCase) {
-    const cleanLower = cleanQuery.toLowerCase();
-    
-    // 1. Specifically handle Refund vs Time-bar / Limitation query
+    const cleanLower = normalizedQuery.toLowerCase();
     const isRefundLimitation = cleanLower.includes('refund') && (
       cleanLower.includes('time') || cleanLower.includes('bar') || cleanLower.includes('limit')
     );
@@ -389,74 +578,52 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         }
       }
     }
+  }
 
-    // 2. Generalized Multi-Keyword AND Matching
-    if (!targetCase) {
-      const rawWords = cleanLower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
-      const stopWords = new Set(['is', 'are', 'was', 'were', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'about', 'and', 'or', 'that', 'this', 'it', 'be', 'cannot', 'can', 'not', 'have', 'has', 'had']);
-      const filteredTerms = rawWords.filter(w => !stopWords.has(w));
+  // PRIORITY 11: Multi-Keyword AND Matching across full text
+  if (!targetCase) {
+    const rawWords = normalizedQuery.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+    const stopWords = new Set(['is', 'are', 'was', 'were', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'about', 'and', 'or', 'that', 'this', 'it', 'be', 'cannot', 'can', 'not', 'have', 'has', 'had']);
+    const filteredTerms = rawWords.filter(w => !stopWords.has(w));
 
-      if (filteredTerms.length >= 2) {
-        const andFilters = filteredTerms.slice(0, 4).map(term => ({
-          $or: [
-            { headNote: new RegExp(escapeRegex(term), 'i') },
-            { principleLaw: new RegExp(escapeRegex(term), 'i') },
-            { judgment: new RegExp(escapeRegex(term), 'i') }
-          ]
-        }));
+    if (filteredTerms.length >= 2) {
+      const andFilters = filteredTerms.slice(0, 4).map(term => ({
+        $or: [
+          { headNote: new RegExp(escapeRegex(term), 'i') },
+          { principleLaw: new RegExp(escapeRegex(term), 'i') },
+          { judgment: new RegExp(escapeRegex(term), 'i') }
+        ]
+      }));
 
-        const candidates = await Case.find({
-          $and: andFilters,
-          isDeleted: { $ne: true }
-        }).limit(20);
+      const candidates = await Case.find({
+        $and: andFilters,
+        isDeleted: { $ne: true }
+      }).limit(20);
 
-        if (candidates.length > 0) {
-          const ranked = candidates.map(c => {
-            let score = 0;
-            const hn = (c.headNote || '').toLowerCase();
-            const jg = (c.judgment || '').toLowerCase();
-            filteredTerms.forEach(t => {
-              if (hn.includes(t)) score += 20;
-              if (jg.includes(t)) score += 10;
-            });
-            return { c, score };
-          }).sort((a, b) => b.score - a.score);
+      if (candidates.length > 0) {
+        const ranked = candidates.map(c => {
+          let score = 0;
+          const hn = (c.headNote || '').toLowerCase();
+          const jg = (c.judgment || '').toLowerCase();
+          filteredTerms.forEach(t => {
+            if (hn.includes(t)) score += 20;
+            if (jg.includes(t)) score += 10;
+          });
+          return { c, score };
+        }).sort((a, b) => b.score - a.score);
 
-          matchingTopicCases = ranked.filter(r => r.score > 0).slice(0, 10).map(r => r.c);
-          if (matchingTopicCases.length > 0) {
-            targetCase = matchingTopicCases[0];
-            matchType = 'topic_multi';
-            confidence = 90;
-            activeReferences = ['headnotes', 'statutes', 'courts', 'citations'];
-          }
-        }
-      }
-    }
-
-    // 3. Fallback to broad regex if still not found
-    if (!targetCase) {
-      const keyTerms = cleanQuery.split(/\s+/).filter(w => w.length > 3).slice(0, 4);
-      if (keyTerms.length > 0) {
-        const combinedRegex = new RegExp(keyTerms.map(w => escapeRegex(w)).join('|'), 'i');
-        matchingTopicCases = await Case.find({
-          $or: [
-            { headNote: combinedRegex },
-            { principleLaw: combinedRegex },
-            { judgment: combinedRegex }
-          ],
-          isDeleted: { $ne: true }
-        }).limit(10);
+        matchingTopicCases = ranked.filter(r => r.score > 0).slice(0, 10).map(r => r.c);
         if (matchingTopicCases.length > 0) {
           targetCase = matchingTopicCases[0];
           matchType = 'topic_multi';
-          confidence = 80;
-          activeReferences = ['headnotes', 'courts', 'statutes'];
+          confidence = 90;
+          activeReferences = ['headnotes', 'statutes', 'courts', 'citations'];
         }
       }
     }
   }
 
-  // --- BUILD THE AUTHORITATIVE, EASY-TO-UNDERSTAND EXPLANATION ---
+  // --- BUILD THE AUTHORITATIVE EXPLANATION ---
   if (targetCase) {
     const citationsStr = (targetCase.mapYearPage && targetCase.mapYearPage.length > 0)
       ? targetCase.mapYearPage.join('  =  ')
@@ -464,18 +631,212 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     
     const courtName = targetCase.court || 'Appellate Authority / High Court';
     const datedStr = targetCase.dated ? `Decision Dated: ${String(targetCase.dated).split('T')[0]}` : '';
-    const benchStr = (targetCase.judges && targetCase.judges.length > 0) ? targetCase.judges.join(', ') : 'Judicial Division Bench';
-    const partiesStr = (targetCase.petitioners && targetCase.petitioners.length > 0) ? targetCase.petitioners.join('  vs  ') : '';
+    const benchStr = (targetCase.judges && targetCase.judges.length > 0) ? cleanBenchList(targetCase.judges) : 'Judicial Division Bench';
+    const partiesStr = cleanParties(targetCase.petitioners);
     const caseNumbers = (targetCase.caseNumber && targetCase.caseNumber.length > 0) ? targetCase.caseNumber.join(', ') : '';
     
     const lawsList = (targetCase.laws && targetCase.laws.length > 0)
       ? targetCase.laws.map(l => `${l.lawStatute}${l.section ? ` (S. ${l.section})` : ''}`).join(' • ')
-      : (targetCase.principleLaw || 'Section 170, Income Tax Ordinance, 2001');
+      : (targetCase.principleLaw || 'Income Tax Ordinance / Relevant Statutes');
 
     let responseText = '';
 
-    // Special crystal-clear plain English breakdown for Refund vs Time-bar
-    if (matchType === 'legal_principle_refund') {
+    // FORMAT A: Case Number Match
+    if (matchType === 'case_number' && matchingCaseNumberCases.length > 0) {
+      const countWord = matchingCaseNumberCases.length === 1 ? 'One matching judgment was' :
+        matchingCaseNumberCases.length === 2 ? 'Two matching judgments were' :
+        `${matchingCaseNumberCases.length} matching judgments were`;
+
+      responseText = `${countWord} found in the SLD database matching Case / Appeal Number **${matchedFieldDisplay || cleanQuery}**:\n\n`;
+
+      for (let i = 0; i < matchingCaseNumberCases.length; i++) {
+        const c = matchingCaseNumberCases[i];
+        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber.join('; ') : 'N/A';
+        const dateFormatted = formatDate(c);
+        const benchClean = cleanBenchList(c.judges);
+        const partiesClean = cleanParties(c.petitioners);
+        const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+        const lawyersClean = cleanLawyers(c.lawyers);
+
+        let overviewText = '';
+        if (c.headNote) {
+          overviewText = c.headNote.trim();
+        } else if (c.judgment) {
+          overviewText = c.judgment.slice(0, 450).trim() + '...';
+        }
+
+        responseText += `---\n\n` +
+          `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
+          `Key Case Details:\n` +
+          `• Citation: ${citeLine}\n` +
+          `• Court: ${c.court || 'High Court of Record'}\n` +
+          `• Case Number: ${caseNumStr}\n` +
+          `• Decision Date: ${dateFormatted}\n` +
+          `• Bench: ${benchClean}\n` +
+          `• Parties: ${partiesClean}\n` +
+          (lawyersClean !== 'N/A' ? `• Counsel: ${lawyersClean}\n` : '') +
+          `\n#### Overview & Significance\n` +
+          `${overviewText}\n\n` +
+          (c.principleLaw ? `Principle of Law Established: ${c.principleLaw}\n\n` : '') +
+          `[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+      }
+    }
+    // FORMAT B: Judge / Bench Match
+    else if (matchType === 'judge_bench' && matchingJudgeCases.length > 0) {
+      const countWord = matchingJudgeCases.length === 1 ? 'One landmark judgment was' :
+        matchingJudgeCases.length === 2 ? 'Two landmark judgments were' :
+        `${matchingJudgeCases.length} landmark judgments were`;
+
+      responseText = `${countWord} found in the SLD database authored or decided by Hon'ble Justice **${matchedFieldDisplay || cleanQuery}**:\n\n`;
+
+      for (let i = 0; i < matchingJudgeCases.length; i++) {
+        const c = matchingJudgeCases[i];
+        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber[0] : 'N/A';
+        const dateFormatted = formatDate(c);
+        const benchClean = cleanBenchList(c.judges);
+        const partiesClean = cleanParties(c.petitioners);
+        const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+
+        let overviewText = '';
+        if (c.headNote) {
+          overviewText = c.headNote.trim();
+        } else if (c.judgment) {
+          overviewText = c.judgment.slice(0, 450).trim() + '...';
+        }
+
+        responseText += `---\n\n` +
+          `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
+          `Key Case Details:\n` +
+          `• Citation: ${citeLine}\n` +
+          `• Court: ${c.court || 'High Court of Record'}\n` +
+          `• Case Number: ${caseNumStr}\n` +
+          `• Decision Date: ${dateFormatted}\n` +
+          `• Bench: ${benchClean}\n` +
+          (partiesClean !== 'N/A' ? `• Parties: ${partiesClean}\n` : '') +
+          `\n#### Overview & Significance\n` +
+          `${overviewText}\n\n` +
+          (c.principleLaw ? `Principle of Law Established: ${c.principleLaw}\n\n` : '') +
+          `[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+      }
+    }
+    // FORMAT C: Petitioner / Party Match
+    else if (matchType === 'petitioner_party' && matchingPartyCases.length > 0) {
+      const countWord = matchingPartyCases.length === 1 ? 'One case was' :
+        matchingPartyCases.length === 2 ? 'Two cases were' :
+        `${matchingPartyCases.length} cases were`;
+
+      responseText = `${countWord} found in the SLD database involving party / litigant **"${matchedFieldDisplay || cleanQuery}"**:\n\n`;
+
+      for (let i = 0; i < matchingPartyCases.length; i++) {
+        const c = matchingPartyCases[i];
+        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber[0] : 'N/A';
+        const dateFormatted = formatDate(c);
+        const benchClean = cleanBenchList(c.judges);
+        const partiesClean = cleanParties(c.petitioners);
+        const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+
+        let overviewText = '';
+        if (c.headNote) {
+          overviewText = c.headNote.trim();
+        } else if (c.judgment) {
+          overviewText = c.judgment.slice(0, 450).trim() + '...';
+        }
+
+        responseText += `---\n\n` +
+          `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
+          `Key Case Details:\n` +
+          `• Citation: ${citeLine}\n` +
+          `• Parties: ${partiesClean}\n` +
+          `• Court: ${c.court || 'High Court of Record'}\n` +
+          `• Case Number: ${caseNumStr}\n` +
+          `• Decision Date: ${dateFormatted}\n` +
+          `• Bench: ${benchClean}\n` +
+          `\n#### Overview & Significance\n` +
+          `${overviewText}\n\n` +
+          (c.principleLaw ? `Principle of Law Established: ${c.principleLaw}\n\n` : '') +
+          `[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+      }
+    }
+    // FORMAT D: Lawyer / Counsel Match
+    else if (matchType === 'lawyer_counsel' && matchingLawyerCases.length > 0) {
+      const countWord = matchingLawyerCases.length === 1 ? 'One judgment was' :
+        matchingLawyerCases.length === 2 ? 'Two judgments were' :
+        `${matchingLawyerCases.length} judgments were`;
+
+      responseText = `${countWord} found in the SLD database where **${matchedFieldDisplay || cleanQuery}** represented appearing parties:\n\n`;
+
+      for (let i = 0; i < matchingLawyerCases.length; i++) {
+        const c = matchingLawyerCases[i];
+        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber[0] : 'N/A';
+        const dateFormatted = formatDate(c);
+        const benchClean = cleanBenchList(c.judges);
+        const partiesClean = cleanParties(c.petitioners);
+        const lawyersClean = cleanLawyers(c.lawyers);
+        const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+
+        let overviewText = '';
+        if (c.headNote) {
+          overviewText = c.headNote.trim();
+        } else if (c.judgment) {
+          overviewText = c.judgment.slice(0, 450).trim() + '...';
+        }
+
+        responseText += `---\n\n` +
+          `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
+          `Key Case Details:\n` +
+          `• Citation: ${citeLine}\n` +
+          `• Counsel: ${lawyersClean}\n` +
+          `• Parties: ${partiesClean}\n` +
+          `• Court: ${c.court || 'High Court of Record'}\n` +
+          `• Case Number: ${caseNumStr}\n` +
+          `• Decision Date: ${dateFormatted}\n` +
+          `• Bench: ${benchClean}\n` +
+          `\n#### Overview & Significance\n` +
+          `${overviewText}\n\n` +
+          (c.principleLaw ? `Principle of Law Established: ${c.principleLaw}\n\n` : '') +
+          `[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+      }
+    }
+    // FORMAT E: Court / Forum Match
+    else if (matchType === 'court_forum' && matchingCourtCases.length > 0) {
+      const countWord = matchingCourtCases.length === 1 ? 'One authoritative judgment was' :
+        matchingCourtCases.length === 2 ? 'Two authoritative judgments were' :
+        `${matchingCourtCases.length} authoritative judgments were`;
+
+      responseText = `${countWord} found in the SLD database from **${matchedFieldDisplay || cleanQuery}**:\n\n`;
+
+      for (let i = 0; i < matchingCourtCases.length; i++) {
+        const c = matchingCourtCases[i];
+        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber[0] : 'N/A';
+        const dateFormatted = formatDate(c);
+        const benchClean = cleanBenchList(c.judges);
+        const partiesClean = cleanParties(c.petitioners);
+        const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+
+        let overviewText = '';
+        if (c.headNote) {
+          overviewText = c.headNote.trim();
+        } else if (c.judgment) {
+          overviewText = c.judgment.slice(0, 450).trim() + '...';
+        }
+
+        responseText += `---\n\n` +
+          `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
+          `Key Case Details:\n` +
+          `• Citation: ${citeLine}\n` +
+          `• Court: ${c.court || 'High Court of Record'}\n` +
+          `• Case Number: ${caseNumStr}\n` +
+          `• Decision Date: ${dateFormatted}\n` +
+          `• Bench: ${benchClean}\n` +
+          (partiesClean !== 'N/A' ? `• Parties: ${partiesClean}\n` : '') +
+          `\n#### Overview & Significance\n` +
+          `${overviewText}\n\n` +
+          (c.principleLaw ? `Principle of Law Established: ${c.principleLaw}\n\n` : '') +
+          `[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+      }
+    }
+    // FORMAT F: Refund vs Time-bar
+    else if (matchType === 'legal_principle_refund') {
       responseText = `### ⚖️ Legal Determination: Can a Tax Refund Be Time-Barred?\n\n` +
         `**Direct Answer:**  \n` +
         `**NO — A genuine, verifiable tax refund CANNOT be refused or denied merely on the grounds of time limitation or technical procedural delays.**\n\n` +
@@ -498,7 +859,9 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         `**Court**: ${courtName}  \n` +
         `**Bench**: ${benchStr}  \n` +
         `**Applicable Law**: ${lawsList}`;
-    } else if (matchType === 'exact_judgment_line_multi' && matchingJudgmentCases && matchingJudgmentCases.length > 0) {
+    }
+    // FORMAT G: Verbatim Sentence / Judgment Line
+    else if (matchType === 'exact_judgment_line_multi' && matchingJudgmentCases && matchingJudgmentCases.length > 0) {
       const countWord = matchingJudgmentCases.length === 1 ? 'One matching judgment was' :
         matchingJudgmentCases.length === 2 ? 'Two matching judgments were' :
         `${matchingJudgmentCases.length} matching judgments were`;
@@ -549,21 +912,9 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
           (c.principleLaw ? `Principle of Law Established: ${c.principleLaw}\n\n` : '') +
           `[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
-    } else if (matchType === 'exact_judgment_line') {
-      responseText = `### 🎯 Exact Judgment Line Verified\n\n` +
-        `The quoted line was verified in **SLD #${targetCase.sldNumber}** (*${citationsStr}*).\n\n` +
-        `**Court**: ${courtName}  \n` +
-        `**Bench**: ${benchStr}  \n` +
-        (caseNumbers ? `**Case / Appeal**: ${caseNumbers}  \n` : '') +
-        (datedStr ? `**Date of Order**: ${datedStr}  \n` : '') +
-        (partiesStr ? `**Parties**: ${partiesStr}  \n\n` : '\n') +
-        `#### 📜 Exact Excerpt from Judicial Order:\n` +
-        `> "${surroundingContext || exactMatchedLine}"\n\n` +
-        `#### ⚖️ Legal Explanation & Ratio Decidendi (In Plain Words):\n` +
-        `${targetCase.principleLaw ? `**Core Principle**: ${targetCase.principleLaw}\n\n` : ''}` +
-        (targetCase.headNote ? `${targetCase.headNote.slice(0, 500)}...\n\n` : '') +
-        `**Applicable Statutes**: ${lawsList}`;
-    } else if ((matchType === 'citation_multi' || matchType === 'citation') && matchingCitationCases && matchingCitationCases.length > 0) {
+    }
+    // FORMAT H: Citation Multi-case
+    else if ((matchType === 'citation_multi' || matchType === 'citation') && matchingCitationCases && matchingCitationCases.length > 0) {
       const countWord = matchingCitationCases.length === 1 ? 'One matching judgment was' :
         matchingCitationCases.length === 2 ? 'Two matching judgments were' :
         `${matchingCitationCases.length} matching judgments were`;
@@ -578,7 +929,6 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         const benchClean = cleanBenchList(c.judges);
         const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
 
-        // Overview & Significance
         let overviewText = '';
         if (c.headNote) {
           overviewText = c.headNote.trim();
@@ -599,7 +949,9 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
           (c.principleLaw ? `Principle of Law Established: ${c.principleLaw}\n\n` : '') +
           `[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
-    } else if (matchType === 'topic_multi' && matchingTopicCases && matchingTopicCases.length > 0) {
+    }
+    // FORMAT I: General Topic Multi-case
+    else if (matchType === 'topic_multi' && matchingTopicCases && matchingTopicCases.length > 0) {
       const countWord = matchingTopicCases.length === 1 ? 'One matching judgment was' :
         matchingTopicCases.length === 2 ? 'Two matching judgments were' :
         `${matchingTopicCases.length} matching judgments were`;
@@ -633,28 +985,30 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
           (c.principleLaw ? `Principle of Law Established: ${c.principleLaw}\n\n` : '') +
           `[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
-    } else if (matchType === 'citation') {
-      responseText = `### 📖 Authority Citation Analysis\n\n` +
-        `Found report record for **SLD #${targetCase.sldNumber}** (*${citationsStr}*).\n\n` +
-        `**Court**: ${courtName}  \n` +
-        `**Bench**: ${benchStr}  \n` +
-        (datedStr ? `**Date**: ${datedStr}  \n` : '') +
-        (partiesStr ? `**Parties**: ${partiesStr}  \n\n` : '\n') +
-        `#### ⚖️ Easy Case Summary & Key Legal Principles:\n` +
-        `${targetCase.headNote ? targetCase.headNote : (targetCase.judgment ? targetCase.judgment.slice(0, 450) + '...' : 'Full judgment text is available in repository.')}\n\n` +
-        `[View Full Case Document ↗](/cases/view/${targetCase._id})\n\n` +
-        `**Applicable Statutes**: ${lawsList}`;
-    } else {
-      // General legal proposition query
-      responseText = `### ⚖️ Legal Precedent & Ruling Breakdown\n\n` +
+    }
+    // FORMAT J: Default Single Case Overview
+    else {
+      responseText = `### Legal Precedent & Ruling Breakdown\n\n` +
         `The governing legal precedent on this issue is **SLD #${targetCase.sldNumber}** (*${citationsStr}*).\n\n` +
         `**Court**: ${courtName} | **Bench**: ${benchStr}  \n` +
-        (partiesStr ? `**Parties**: ${partiesStr}  \n\n` : '\n') +
+        (partiesStr !== 'N/A' ? `**Parties**: ${partiesStr}  \n\n` : '\n') +
         `#### 💡 What the Case Establishes (Easy Explanation):\n` +
         `${targetCase.headNote ? targetCase.headNote.slice(0, 500) + '...' : (targetCase.principleLaw || 'Legal principles as established under the relevant statutory provisions.')}\n\n` +
         `[View Full Case Document ↗](/cases/view/${targetCase._id})\n\n` +
         `**Relevant Statutory Provisions**: ${lawsList}`;
     }
+
+    const allMatchedCasesList = (
+      (matchingCitationCases && matchingCitationCases.length > 0 ? matchingCitationCases : null) ||
+      (matchingCaseNumberCases && matchingCaseNumberCases.length > 0 ? matchingCaseNumberCases : null) ||
+      (matchingJudgeCases && matchingJudgeCases.length > 0 ? matchingJudgeCases : null) ||
+      (matchingPartyCases && matchingPartyCases.length > 0 ? matchingPartyCases : null) ||
+      (matchingLawyerCases && matchingLawyerCases.length > 0 ? matchingLawyerCases : null) ||
+      (matchingCourtCases && matchingCourtCases.length > 0 ? matchingCourtCases : null) ||
+      (matchingJudgmentCases && matchingJudgmentCases.length > 0 ? matchingJudgmentCases : null) ||
+      (matchingTopicCases && matchingTopicCases.length > 0 ? matchingTopicCases : null) ||
+      [targetCase]
+    );
 
     return {
       text: responseText,
@@ -674,47 +1028,19 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
           principleLaw: targetCase.principleLaw || '',
           laws: targetCase.laws || []
         },
-        matchedCases: (matchingCitationCases && matchingCitationCases.length > 0)
-          ? matchingCitationCases.map(c => ({
-              id: c._id.toString(),
-              _id: c._id.toString(),
-              sldNumber: c.sldNumber,
-              court: c.court,
-              citations: c.mapYearPage,
-              caseNumber: c.caseNumber,
-              dated: c.dated
-            }))
-          : (matchingJudgmentCases && matchingJudgmentCases.length > 0)
-          ? matchingJudgmentCases.map(c => ({
-              id: c._id.toString(),
-              _id: c._id.toString(),
-              sldNumber: c.sldNumber,
-              court: c.court,
-              citations: c.mapYearPage,
-              caseNumber: c.caseNumber,
-              dated: c.dated
-            }))
-          : (matchingTopicCases && matchingTopicCases.length > 0)
-          ? matchingTopicCases.map(c => ({
-              id: c._id.toString(),
-              _id: c._id.toString(),
-              sldNumber: c.sldNumber,
-              court: c.court,
-              citations: c.mapYearPage,
-              caseNumber: c.caseNumber,
-              dated: c.dated
-            }))
-          : undefined,
-        sourcesFound: (matchingCitationCases && matchingCitationCases.length > 0)
-          ? matchingCitationCases.length
-          : (matchingJudgmentCases && matchingJudgmentCases.length > 0)
-          ? matchingJudgmentCases.length
-          : (matchingTopicCases && matchingTopicCases.length > 0)
-          ? matchingTopicCases.length
-          : 1,
+        matchedCases: allMatchedCasesList.map(c => ({
+          id: c._id.toString(),
+          _id: c._id.toString(),
+          sldNumber: c.sldNumber,
+          court: c.court,
+          citations: c.mapYearPage,
+          caseNumber: c.caseNumber,
+          dated: c.dated
+        })),
+        sourcesFound: allMatchedCasesList.length,
         matchType: matchType,
         confidence: confidence,
-        activeReferences: activeReferences,
+        activeReferences: sanitizeReferences(activeReferences),
         exactQuote: {
           matchedLine: exactMatchedLine || cleanQuery,
           surroundingContext: surroundingContext,
@@ -726,23 +1052,25 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
 
   // If no direct case was matched in database
   return {
-    text: `### 🔍 Legal Inquiry Analysis\n\n` +
-      `I cross-referenced the SLD database across all 15,000 cases, judgments, citations, and headnotes, but found no direct verbatim match for: *"**${cleanQuery}**"*.\n\n` +
-      `**Suggested Research Steps**:\n` +
-      `1. Try searching with a specific keyword (e.g. *Sales Tax*, *Section 7E*, *Super Tax*, *Income Tax Rules*).\n` +
-      `2. Search by publication citation such as \`2006 SLD 282\` or \`2006 PTD 2726\`.\n` +
-      `3. Search by SLD number directly like \`SLD #1\` or \`SLD #9862\`.\n` +
-      `4. Enter a 5-10 word quote directly from the operative paragraphs of the judgment order.`,
+    text: `### Legal Inquiry Analysis\n\n` +
+      `I cross-referenced the SLD database across all 15,000 cases, judgments, citations, judges, case numbers, and petitioners, but found no direct record for: *"**${cleanQuery}**"*.\n\n` +
+      `**Suggested Inquiries**:\n` +
+      `1. **Case Number**: Search by appeal/suit number like \`1173 of 1978\`, \`C.T.R. No. 50 of 1995\`, or \`S.T.A. No.1903/LB of 2009\`.\n` +
+      `2. **Judge Name**: Search by judge like \`Yahya Afridi\`, \`Ejaz Afzal Khan\`, or \`Mian Saqib Nisar\`.\n` +
+      `3. **Petitioner / Party**: Search by company or party like \`Delta CNG\`, \`Sui Northern Gas\`, or \`Sargroh Oil\`.\n` +
+      `4. **Citation**: Search by publication report like \`2001 SLD 1\`, \`(2011) 104 TAX 78\`, or \`2011 PTD 770\`.\n` +
+      `5. **Verbatim Excerpt**: Quote a sentence from the operative text of any judgment.`,
     legalAnalysis: {
       matchedCase: null,
       exactQuote: null,
       matchType: 'none',
       confidence: 0,
-      activeReferences: ['judgments', 'headnotes'],
+      activeReferences: ['case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'],
       sourcesFound: 0
     }
   };
 };
+
 
 /**
  * Controller Endpoints

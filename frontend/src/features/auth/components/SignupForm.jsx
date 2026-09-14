@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Mail, Lock, User, AtSign, Building, Phone, MapPin, Building2, CheckCircle2, ChevronRight } from 'lucide-react'
@@ -10,10 +10,33 @@ import logo from '../../../assets/branding/logo/SLD_Logo.jpeg'
 import { PAKISTAN_CITIES } from '../../../constants/cities'
 import { signupSchema } from '../validation/authSchema'
 import { authService } from '../services/authService'
+import { settingService } from '../../../services/settingService'
 
 const SignupForm = () => {
   const navigate = useNavigate()
   const [googleStatus, setGoogleStatus] = useState('')
+  const [cityOptions, setCityOptions] = useState(PAKISTAN_CITIES)
+
+  useEffect(() => {
+    let isMounted = true
+    settingService.getCities({ status: 'active', limit: 1000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const fetchedCities = res.data.map(c => ({
+            value: c.name,
+            label: c.name
+          }))
+          setCityOptions([
+            { value: '', label: 'Select City *' },
+            ...fetchedCities
+          ])
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic cities, falling back to static list:', err)
+      })
+    return () => { isMounted = false }
+  }, [])
   const {
     register,
     handleSubmit,
@@ -176,7 +199,7 @@ const SignupForm = () => {
               icon={Building2}
               variant="dark"
               error={errors.city}
-              options={PAKISTAN_CITIES}
+              options={cityOptions}
               {...register('city')}
             />
           </div>
