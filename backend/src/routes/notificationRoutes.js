@@ -3,11 +3,11 @@ import {
   getNotifications, getNotificationById, createNotification, 
   updateNotification, deleteNotification 
 } from '../controllers/notificationController.js';
-import { protect, requireAdmin } from '../middleware/authMiddleware.js';
+import { protect, requireAdmin, checkNotificationAccess } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, checkNotificationAccess);
 
 router.get('/', getNotifications);
 router.get('/:id', getNotificationById);

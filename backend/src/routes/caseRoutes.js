@@ -4,12 +4,12 @@ import {
   updateCase, deleteCase, deleteMultiple,
   searchCases, getMaxPage
 } from '../controllers/caseController.js';
-import { protect, requireAdmin } from '../middleware/authMiddleware.js';
+import { protect, requireAdmin, checkCaseAccess } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// All case actions require the user to be logged in
-router.use(protect);
+// All case actions require the user to be logged in and authorized for cases
+router.use(protect, checkCaseAccess);
 
 // Read-only actions (Accessible to both standard Users and Administrators)
 router.get('/', getCases);

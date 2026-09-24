@@ -10,7 +10,9 @@ const publicationSchema = new mongoose.Schema({
 
 const lawReferenceSchema = new mongoose.Schema({
   lawStatute: { type: String, default: '' },
-  section: { type: String, default: '' }
+  section: { type: String, default: '' },
+  date: { type: String, default: null },
+  dated: { type: String, default: null }
 });
 
 const attachmentSchema = new mongoose.Schema({

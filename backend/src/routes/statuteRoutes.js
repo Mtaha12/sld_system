@@ -3,11 +3,11 @@ import {
   getStatutes, getStatuteById, createStatute, 
   updateStatute, deleteStatute 
 } from '../controllers/statuteController.js';
-import { protect, requireAdmin } from '../middleware/authMiddleware.js';
+import { protect, requireAdmin, checkStatuteAccess } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, checkStatuteAccess);
 
 router.get('/', getStatutes);
 router.get('/:id', getStatuteById);

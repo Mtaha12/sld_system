@@ -74,7 +74,7 @@ const AddStatuteForm = () => {
 
   useEffect(() => {
     let isMounted = true;
-    settingService.getLaws({ status: 'active', limit: 1000 })
+    settingService.getLaws({ status: 'active', limit: 5000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data)) {
           setLawOptions(res.data.map(l => l.name));

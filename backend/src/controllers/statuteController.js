@@ -1,4 +1,6 @@
 import Statute from '../models/Statute.js';
+import UserActivity from '../models/UserActivity.js';
+import { spoofStatute } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 
@@ -69,7 +71,8 @@ export const getStatutes = async (req, res, next) => {
     }
 
     const statutes = await Statute.find(filter).sort({ createdAt: -1, srNumber: -1 });
-    const data = statutes.map(formatStatuteForFrontend);
+    const isSpammer = req.user?.isSpammer === true;
+    const data = (isSpammer ? statutes.map(spoofStatute) : statutes).map(formatStatuteForFrontend);
 
     return res.status(200).json({
       success: true,
@@ -105,9 +108,27 @@ export const getStatuteById = async (req, res, next) => {
       });
     }
 
+    if (req.user) {
+      const clientIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '127.0.0.1').split(',')[0].trim().replace(/^::ffff:/, '');
+      UserActivity.create({
+        activityType: 'statute',
+        userId: req.user._id,
+        loginId: req.user.loginId || req.user.username || req.user.email,
+        fullName: req.user.fullName || req.user.username,
+        agency: req.user.agencyName || 'General',
+        documentId: s.statuteId || s.srNumber,
+        documentNumber: s.section || s.statuteId || s.srNumber,
+        documentTitle: s.heading || s.law || 'Statute Section',
+        ipAddress: clientIp,
+        dated: new Date(),
+      }).catch(() => {});
+    }
+
+    const payload = req.user?.isSpammer === true ? spoofStatute(s) : s;
+
     return res.status(200).json({
       success: true,
-      data: formatStatuteForFrontend(s)
+      data: formatStatuteForFrontend(payload)
     });
   } catch (error) {
     next(error);

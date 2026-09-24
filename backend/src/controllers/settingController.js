@@ -1,6 +1,104 @@
 import City from '../models/City.js';
 import PrincipleOfLaw from '../models/PrincipleOfLaw.js';
 import LawSetting from '../models/LawSetting.js';
+import Case from '../models/Case.js';
+import Statute from '../models/Statute.js';
+import Notification from '../models/Notification.js';
+import logger from '../utils/logger.js';
+
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+const formatDateForCase = (dateInput) => {
+  if (!dateInput) return null;
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
+    return dateInput.trim();
+  }
+  if (typeof dateInput === 'string' && dateInput.includes('T')) {
+    const datePart = dateInput.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+      return datePart;
+    }
+  }
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+  return d.toISOString().split('T')[0];
+};
+
+/**
+ * Propagates updated law date and name across all law cases in the database
+ * where this law is referenced, ensuring the whole backend stays consistent.
+ */
+const syncLawToCases = async ({ oldName, newName, date }) => {
+  try {
+    const formattedDate = formatDateForCase(date);
+    const targetNames = [oldName, newName].filter(Boolean).map(n => n.trim());
+    const uniqueNames = [...new Set(targetNames)];
+
+    if (uniqueNames.length === 0) return 0;
+
+    // Build flexible matching pattern:
+    // Matches exact name case-insensitively, or with optional commas and flexible whitespace
+    const patternParts = uniqueNames.map(n => {
+      const flex = escapeRegex(n).replace(/\\,/g, '[,]?').replace(/\s+/g, '\\s+');
+      return `(?:^${flex}$)`;
+    });
+    const combinedRegex = new RegExp(patternParts.join('|'), 'i');
+
+    const caseQuery = {
+      $or: [
+        { 'laws.lawStatute': combinedRegex },
+        { principleLaw: combinedRegex }
+      ],
+      isDeleted: { $ne: true }
+    };
+
+    let modifiedCases = 0;
+
+    // 1. Update Case documents at the root level (c.dated)
+    if (formattedDate) {
+      const caseUpdateRes = await Case.updateMany(caseQuery, {
+        $set: { dated: formattedDate }
+      });
+      modifiedCases = caseUpdateRes.modifiedCount || 0;
+    }
+
+    // 2. Also update specific array elements inside laws: [ { lawStatute, section, dated, date } ]
+    const arraySetFields = {};
+    if (formattedDate) {
+      arraySetFields['laws.$[elem].dated'] = formattedDate;
+      arraySetFields['laws.$[elem].date'] = formattedDate;
+    }
+    if (newName && newName.trim() && oldName && oldName.trim() !== newName.trim()) {
+      arraySetFields['laws.$[elem].lawStatute'] = newName.trim();
+    }
+
+    if (Object.keys(arraySetFields).length > 0) {
+      await Case.updateMany(
+        { 'laws.lawStatute': combinedRegex, isDeleted: { $ne: true } },
+        { $set: arraySetFields },
+        { arrayFilters: [{ 'elem.lawStatute': combinedRegex }] }
+      );
+    }
+
+    // 3. If law was renamed, keep Statute and Notification models synchronized as well
+    if (newName && newName.trim() && oldName && oldName.trim() !== newName.trim()) {
+      await Promise.allSettled([
+        Statute.updateMany({ law: combinedRegex }, { $set: { law: newName.trim() } }),
+        Notification.updateMany({ lawStatute: combinedRegex }, { $set: { lawStatute: newName.trim() } })
+      ]);
+    }
+
+    logger.info(`[Law Sync] Successfully synced law "${newName || oldName}" to ${modifiedCases} case(s). Date set to: ${formattedDate}`);
+    return modifiedCases;
+  } catch (err) {
+    logger.error(`[Law Sync Error] Failed to sync law to cases: ${err.message}`);
+    return 0;
+  }
+};
+
 
 // Predefined Provinces in Pakistan
 export const PROVINCES = [
@@ -493,6 +591,9 @@ export const getLaws = async (req, res, next) => {
       const p = Math.max(1, parseInt(page, 10) || 1);
       const l = Math.max(1, parseInt(limit, 10) || 20);
       query = query.skip((p - 1) * l).limit(l);
+    } else if (limit) {
+      const l = Math.max(1, parseInt(limit, 10) || 5000);
+      query = query.limit(l);
     }
 
     const laws = await query;
@@ -509,7 +610,7 @@ export const getLaws = async (req, res, next) => {
 
 export const createLaw = async (req, res, next) => {
   try {
-    const { name, ordering, date, court, status } = req.body;
+    const { name, ordering, date, court, status, swapWithId } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Law / Statute Name is required.' });
@@ -520,18 +621,39 @@ export const createLaw = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'This Law / Statute already exists.' });
     }
 
+    const targetOrder = Number(ordering) || 1;
+
+    if (swapWithId) {
+      const conflictingLaw = await LawSetting.findById(swapWithId);
+      if (conflictingLaw) {
+        const highestLaw = await LawSetting.findOne().sort({ ordering: -1 });
+        conflictingLaw.ordering = (highestLaw && highestLaw.ordering ? highestLaw.ordering : targetOrder) + 1;
+        await conflictingLaw.save();
+      }
+    }
+
     const law = await LawSetting.create({
       name: name.trim(),
-      ordering: Number(ordering) || 1,
+      ordering: targetOrder,
       date: date ? new Date(date) : new Date(),
       court: court ? court.trim() : '',
       status: status === 'inactive' ? 'inactive' : 'active',
     });
 
+    let casesUpdated = 0;
+    if (law.date) {
+      casesUpdated = await syncLawToCases({
+        oldName: law.name,
+        newName: law.name,
+        date: law.date,
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Law / Statute created successfully',
       data: law,
+      casesUpdated,
     });
   } catch (err) {
     next(err);
@@ -541,12 +663,15 @@ export const createLaw = async (req, res, next) => {
 export const updateLaw = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, ordering, date, court, status } = req.body;
+    const { name, ordering, date, court, status, swapWithId } = req.body;
 
     const law = await LawSetting.findById(id);
     if (!law) {
       return res.status(404).json({ success: false, message: 'Law / Statute not found' });
     }
+
+    const oldName = law.name;
+    const oldDate = law.date;
 
     if (name && name.trim()) {
       const existing = await LawSetting.findOne({ 
@@ -557,6 +682,15 @@ export const updateLaw = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'This Law / Statute already exists.' });
       }
       law.name = name.trim();
+    }
+
+    if (swapWithId) {
+      const conflictingLaw = await LawSetting.findById(swapWithId);
+      if (conflictingLaw) {
+        const oldOrdering = law.ordering;
+        conflictingLaw.ordering = oldOrdering;
+        await conflictingLaw.save();
+      }
     }
 
     if (ordering !== undefined) {
@@ -574,10 +708,21 @@ export const updateLaw = async (req, res, next) => {
 
     await law.save();
 
+    // Propagate date (and name if changed) to all law cases where this law is used
+    let casesUpdated = 0;
+    if (date !== undefined || (name && name.trim() !== oldName)) {
+      casesUpdated = await syncLawToCases({
+        oldName,
+        newName: law.name,
+        date: law.date,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Law / Statute updated successfully',
       data: law,
+      casesUpdated,
     });
   } catch (err) {
     next(err);
@@ -596,6 +741,35 @@ export const deleteLaw = async (req, res, next) => {
       success: true,
       message: 'Law / Statute deleted successfully',
       data: { id },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const swapLawOrdering = async (req, res, next) => {
+  try {
+    const { lawId1, lawId2 } = req.body;
+    if (!lawId1 || !lawId2) {
+      return res.status(400).json({ success: false, message: 'Both law IDs are required to swap ordering.' });
+    }
+
+    const law1 = await LawSetting.findById(lawId1);
+    const law2 = await LawSetting.findById(lawId2);
+    if (!law1 || !law2) {
+      return res.status(404).json({ success: false, message: 'One or both laws not found.' });
+    }
+
+    const temp = law1.ordering;
+    law1.ordering = law2.ordering;
+    law2.ordering = temp;
+    await law1.save();
+    await law2.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully swapped ordering between "${law1.name}" (now ${law1.ordering}) and "${law2.name}" (now ${law2.ordering}).`,
+      data: { law1, law2 }
     });
   } catch (err) {
     next(err);

@@ -29,6 +29,13 @@ import updateRoutes from './src/routes/updateRoutes.js';
 import downloadRoutes from './src/routes/downloadRoutes.js';
 import youtubeRoutes from './src/routes/youtubeRoutes.js';
 import settingRoutes from './src/routes/settingRoutes.js';
+import userRoutes from './src/routes/userRoutes.js';
+import activityRoutes from './src/routes/activityRoutes.js';
+import magazineRoutes from './src/routes/magazineRoutes.js';
+import courtRoutes from './src/routes/courtRoutes.js';
+import ipBlockRoutes from './src/routes/ipBlockRoutes.js';
+import replacementRoutes from './src/routes/replacementRoutes.js';
+import adminRoutes from './src/routes/adminRoutes.js';
 
 // Models
 import mongoose from 'mongoose';
@@ -113,6 +120,13 @@ app.use('/api/updates', updateRoutes);
 app.use('/api/downloads', downloadRoutes);
 app.use('/api/youtube-updates', youtubeRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/activities', activityRoutes);
+app.use('/api/magazines', magazineRoutes);
+app.use('/api/courts', courtRoutes);
+app.use('/api/ip-blocks', ipBlockRoutes);
+app.use('/api/replacement', replacementRoutes);
+app.use('/api/admins', adminRoutes);
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

@@ -38,6 +38,13 @@ const ManageLawsPage = () => {
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Ordering Conflict Modal State (Prompt requested popup notification)
+  const [conflictModal, setConflictModal] = useState({
+    isOpen: false,
+    conflictingLaw: null,
+    pendingPayload: null
+  });
+
   // Feedback Toast
   const [toast, setToast] = useState(null);
 
@@ -111,23 +118,79 @@ const ManageLawsPage = () => {
       return;
     }
 
+    const targetOrder = Number(modalForm.ordering) || 1;
+    const currentLawId = editingLaw ? (editingLaw._id || editingLaw.id) : null;
+    const conflictingLaw = laws.find(l => 
+      Number(l.ordering) === targetOrder && 
+      (currentLawId ? String(l._id || l.id) !== String(currentLawId) : true)
+    );
+
+    // If an existing law already has this order, trigger popup notification to allow replacing
+    if (conflictingLaw) {
+      setConflictModal({
+        isOpen: true,
+        conflictingLaw,
+        pendingPayload: { ...modalForm }
+      });
+      return;
+    }
+
+    await saveLaw(modalForm);
+  };
+
+  const saveLaw = async (payload, swapWithId = null) => {
     setSubmitting(true);
     setModalError('');
 
     try {
+      const dataToSend = swapWithId ? { ...payload, swapWithId } : payload;
       if (editingLaw) {
-        await settingService.updateLaw(editingLaw._id || editingLaw.id, modalForm);
-        showToast('success', 'Law / Statute updated successfully.');
+        const res = await settingService.updateLaw(editingLaw._id || editingLaw.id, dataToSend);
+        const count = res?.casesUpdated;
+        showToast('success', swapWithId 
+          ? `Order updated! Replaced and swapped ordering with "${conflictModal.conflictingLaw?.name}".`
+          : (count > 0 
+              ? `Law / Statute updated! Date synchronized across ${count} associated law case(s).`
+              : 'Law / Statute updated successfully.')
+        );
       } else {
-        await settingService.createLaw(modalForm);
-        showToast('success', 'Law / Statute added successfully.');
+        const res = await settingService.createLaw(dataToSend);
+        const count = res?.casesUpdated;
+        showToast('success', swapWithId
+          ? `Law added! Replaced ordering at #${payload.ordering}.`
+          : (count > 0
+              ? `Law / Statute added! Date synchronized across ${count} associated law case(s).`
+              : 'Law / Statute added successfully.')
+        );
       }
       setIsModalOpen(false);
+      setConflictModal({ isOpen: false, conflictingLaw: null, pendingPayload: null });
       fetchLaws();
     } catch (err) {
       setModalError(err.response?.data?.message || 'Failed to save Law / Statute.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleConfirmReplace = async () => {
+    if (!conflictModal.conflictingLaw || !conflictModal.pendingPayload) return;
+    await saveLaw(conflictModal.pendingPayload, conflictModal.conflictingLaw._id || conflictModal.conflictingLaw.id);
+  };
+
+  const handleQuickReorder = async (law, direction) => {
+    const currentIndex = sortedLaws.findIndex(l => (l._id || l.id) === (law._id || law.id));
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= sortedLaws.length) return;
+    const otherLaw = sortedLaws[targetIndex];
+
+    try {
+      await settingService.swapLaws(law._id || law.id, otherLaw._id || otherLaw.id);
+      showToast('success', `Moved "${law.name}" to order ${otherLaw.ordering}.`);
+      fetchLaws();
+    } catch (err) {
+      showToast('error', err.response?.data?.message || 'Failed to change ordering.');
     }
   };
 
@@ -309,7 +372,29 @@ const ManageLawsPage = () => {
                       {idx + 1}
                     </td>
                     <td className="py-2.5 px-4 text-center font-bold text-theme-main border-r border-theme-border/60">
-                      {item.ordering || idx + 1}
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="w-5 text-center">{item.ordering || idx + 1}</span>
+                        <div className="flex flex-col -space-y-1">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => handleQuickReorder(item, 'up')}
+                            className={`p-0.5 rounded hover:bg-gray-200 dark:hover:bg-theme-surface text-theme-muted hover:text-theme-main transition-colors ${idx === 0 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
+                            title="Move Order Up"
+                          >
+                            <ChevronUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === sortedLaws.length - 1}
+                            onClick={() => handleQuickReorder(item, 'down')}
+                            className={`p-0.5 rounded hover:bg-gray-200 dark:hover:bg-theme-surface text-theme-muted hover:text-theme-main transition-colors ${idx === sortedLaws.length - 1 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
+                            title="Move Order Down"
+                          >
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                     </td>
                     <td className="py-2.5 px-4 font-semibold text-theme-main border-r border-theme-border/60">
                       {item.name}
@@ -437,6 +522,51 @@ const ManageLawsPage = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Ordering Conflict Popup Notification Modal (Prompt Requirement) */}
+      <Modal
+        isOpen={conflictModal.isOpen}
+        onClose={() => setConflictModal({ isOpen: false, conflictingLaw: null, pendingPayload: null })}
+        title="Ordering Number Notice"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4 pt-1">
+          <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1.5">
+              <p className="font-bold text-sm">Law Already Exists at Order #{conflictModal.conflictingLaw?.ordering}</p>
+              <p>
+                At order number <span className="font-bold text-amber-950 dark:text-white">#{conflictModal.conflictingLaw?.ordering}</span>, you currently have:
+              </p>
+              <div className="p-2.5 bg-white dark:bg-theme-surface rounded-lg border border-amber-200 dark:border-amber-900 font-semibold text-theme-main">
+                {conflictModal.conflictingLaw?.name}
+              </div>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                You can replace it and swap orders without contradiction, ensuring all dropdowns and lists update cleanly in the database.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-theme-border">
+            <button
+              type="button"
+              onClick={() => setConflictModal({ isOpen: false, conflictingLaw: null, pendingPayload: null })}
+              className="px-4 py-1.5 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-semibold text-theme-main cursor-pointer"
+            >
+              Change Order #
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={handleConfirmReplace}
+              className="px-4 py-1.5 rounded-lg bg-[#2E7D32] hover:bg-[#256628] text-white text-xs font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>{submitting ? 'Updating...' : 'Replace & Swap Order'}</span>
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <AdminFooter />

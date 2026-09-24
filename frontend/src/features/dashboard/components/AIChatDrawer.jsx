@@ -10,6 +10,8 @@ import { notificationService } from '../../notifications/services/notificationSe
 import { statuteService } from '../../statutes/services/statuteService';
 
 const extractReference = (text) => {
+  if (!text) return null;
+  // Citation matches: "2011 104 TAX 78", "(2011) 104 TAX 78", "2001 SLD 1", "SLD 2001 1"
   const standardCitationMatch = text.match(/\b([a-z]+)\s+(\d{4})\s+(\d+)\b/i);
   if (standardCitationMatch) {
     return `${standardCitationMatch[1].toUpperCase()} ${standardCitationMatch[2]} ${standardCitationMatch[3]}`;
@@ -20,7 +22,20 @@ const extractReference = (text) => {
     return `${reversedCitationMatch[2].toUpperCase()} ${reversedCitationMatch[1]} ${reversedCitationMatch[3]}`;
   }
 
-  const idMatch = text.match(/(?:CASE-\d+|\b\d{4,8}\b)/i);
+  // Explicit CASE / NOTIF / STAT ID: CASE-000001, CASE-1, NOTIF-000001, STAT-000001
+  const prefixedMatch = text.match(/\b((?:CASE|NOTIF|STAT)-[A-Za-z0-9_\-]+)\b/i);
+  if (prefixedMatch) {
+    return prefixedMatch[1].toUpperCase();
+  }
+
+  // "case 1629482", "case id: 1", "sld #9862", "case# 123"
+  const idWithPrefixMatch = text.match(/\b(?:case|sld|notif|statute)\s*(?:id|no\.?|#)?\s*[:\-]?\s*([A-Za-z0-9_\-]+)\b/i);
+  if (idWithPrefixMatch) {
+    return idWithPrefixMatch[1].trim();
+  }
+
+  // Standard multi-digit or standalone ID
+  const idMatch = text.match(/(?:CASE-[A-Za-z0-9_\-]+|\b\d{1,8}\b)/i);
   return idMatch ? idMatch[0].toUpperCase() : null;
 };
 
@@ -237,7 +252,7 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
         } else {
           setMessages(prev => [...prev, { 
             role: 'assistant', 
-            content: `Reference ${detectedCaseNumber} could not be found in Cases, Notifications, or Statutes.` 
+            content: `Case ${detectedCaseNumber} could not be found in the available records.` 
           }]);
           setIsLoading(false);
           return;
@@ -248,7 +263,7 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
       if (!targetCaseNumber) {
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: "Please provide the Case SLD, Notification ID, or Statute ID you want me to analyze." 
+          content: "Please provide the SLD/case number you want me to analyze." 
         }]);
         setIsLoading(false);
         return;
@@ -275,21 +290,10 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
         }
       }
 
-      // Check if the user's text was ONLY providing a reference number
-      const isJustCaseNumber = /^(case|sld|notification|statute|switch to)?\s*(?:CASE-\d+|\d{4,8}|(?:[a-z]+\s+)?\d{4}\s+[a-z]+\s+\d+|[a-z]+\s+\d{4}\s+\d+)\s*\.?$/i.test(userText.trim());
-      
-      if (isJustCaseNumber) {
-        // If they just typed an ID, they probably just wanted to set the context.
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `I am now focused on reference ${targetCaseNumber}. What specific legal information or analysis would you like to know about it?`
-        }]);
-        setIsLoading(false);
-        return;
-      }
-
       const response = await aiChatService.sendMessage(targetSessionId, userText);
-      setMessages(prev => [...prev, { role: 'assistant', content: response.answer, sources: response.sources }]);
+      const answerContent = response?.answer || response?.reply?.text || response?.text || (typeof response === 'string' ? response : '');
+      const sourceList = response?.sources || (response?.reply?.legalAnalysis?.matchedCases || []);
+      setMessages(prev => [...prev, { role: 'assistant', content: answerContent, sources: sourceList }]);
     } catch (err) {
       setError(err.message || "Failed to send message.");
     } finally {

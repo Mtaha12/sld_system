@@ -70,3 +70,43 @@ export const authorize = (...roles) => {
  * Shorthand middleware to require Administrator role
  */
 export const requireAdmin = authorize('Administrator');
+
+/**
+ * Validates whether user is allowed to access Notifications
+ */
+export const checkNotificationAccess = (req, res, next) => {
+  if (req.user && req.user.role !== 'Administrator' && req.user.displayNotification === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access Denied: You do not have permission to view Notifications.'
+    });
+  }
+  next();
+};
+
+/**
+ * Validates whether user is allowed to access Statutes
+ */
+export const checkStatuteAccess = (req, res, next) => {
+  if (req.user && req.user.role !== 'Administrator' && req.user.displayStatute === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access Denied: You do not have permission to view Statutes.'
+    });
+  }
+  next();
+};
+
+/**
+ * Validates whether user is allowed to access Case Law
+ */
+export const checkCaseAccess = (req, res, next) => {
+  if (req.user && req.user.role !== 'Administrator' && req.user.displayCase === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access Denied: You do not have permission to view Case Law.'
+    });
+  }
+  next();
+};
+

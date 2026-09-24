@@ -36,6 +36,15 @@ const CaseViewPage = lazy(() => import('./pages/CaseViewPage'))
 const ManageCitiesPage = lazy(() => import('./pages/setting/ManageCitiesPage'))
 const ManagePrincipleOfLawsPage = lazy(() => import('./pages/setting/ManagePrincipleOfLawsPage'))
 const ManageLawsPage = lazy(() => import('./pages/setting/ManageLawsPage'))
+const ManageUsersPage = lazy(() => import('./pages/ManageUsersPage'))
+const CaseActivityPage = lazy(() => import('./pages/activity/CaseActivityPage'))
+const NotificationActivityPage = lazy(() => import('./pages/activity/NotificationActivityPage'))
+const StatuteActivityPage = lazy(() => import('./pages/activity/StatuteActivityPage'))
+const ManageMagazinesPage = lazy(() => import('./pages/setting/ManageMagazinesPage'))
+const ManageCourtsPage = lazy(() => import('./pages/setting/ManageCourtsPage'))
+const ManageIpBlockPage = lazy(() => import('./pages/setting/ManageIpBlockPage'))
+const ReplacementPage = lazy(() => import('./pages/ReplacementPage'))
+const ManageAdminsPage = lazy(() => import('./pages/ManageAdminsPage'))
 
 
 function App() {
@@ -95,6 +104,25 @@ function App() {
                 <Route path="/settings/principles" element={<Navigate to="/setting/principles" replace />} />
                 <Route path="/setting/laws" element={<ManageLawsPage />} />
                 <Route path="/settings/laws" element={<Navigate to="/setting/laws" replace />} />
+                <Route path="/manage-users" element={<ManageUsersPage />} />
+                <Route path="/users" element={<Navigate to="/manage-users" replace />} />
+                <Route path="/activity/cases" element={<CaseActivityPage />} />
+                <Route path="/activity/notifications" element={<NotificationActivityPage />} />
+                <Route path="/activity/statutes" element={<StatuteActivityPage />} />
+                <Route path="/users-activity" element={<Navigate to="/activity/cases" replace />} />
+                <Route path="/users-activity/cases" element={<Navigate to="/activity/cases" replace />} />
+                <Route path="/users-activity/notifications" element={<Navigate to="/activity/notifications" replace />} />
+                <Route path="/users-activity/statutes" element={<Navigate to="/activity/statutes" replace />} />
+                <Route path="/setting/magazines" element={<ManageMagazinesPage />} />
+                <Route path="/manage-magazines" element={<Navigate to="/setting/magazines" replace />} />
+                <Route path="/setting/courts" element={<ManageCourtsPage />} />
+                <Route path="/manage-courts" element={<Navigate to="/setting/courts" replace />} />
+                <Route path="/setting/ip-blocks" element={<ManageIpBlockPage />} />
+                <Route path="/manage-ip-blocks" element={<Navigate to="/setting/ip-blocks" replace />} />
+                <Route path="/replacement" element={<ReplacementPage />} />
+                <Route path="/manage-replacement" element={<Navigate to="/replacement" replace />} />
+                <Route path="/manage-admins" element={<ManageAdminsPage />} />
+                <Route path="/admins" element={<Navigate to="/manage-admins" replace />} />
               </Route>
             </Route>
 

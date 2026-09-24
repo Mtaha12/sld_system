@@ -15,6 +15,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
+import { courtService } from '../../../services/adminSettingsServices';
 import { MOCK_CASES } from '../../cases/data/casesMockData';
 import { MOCK_NOTIFICATIONS } from '../../notifications/data/notificationsMockData';
 import { MOCK_STATUTES } from '../../statutes/data/statutesMockData';
@@ -24,16 +25,6 @@ const RECORD_TYPES = [
   { id: 'case', label: 'Case Law', icon: Briefcase },
   { id: 'statute', label: 'Statutes', icon: FileText },
   { id: 'notification', label: 'Notifications', icon: Bell }
-];
-
-const COURTS = [
-  { value: 'all', label: 'All Courts & Jurisdictions' },
-  { value: 'Federal Constitutional Court of Pakistan', label: 'Federal Constitutional Court' },
-  { value: 'Supreme Court of Pakistan', label: 'Supreme Court of Pakistan' },
-  { value: 'High Court of Sindh', label: 'High Court of Sindh' },
-  { value: 'Lahore High Court', label: 'Lahore High Court' },
-  { value: 'Islamabad High Court', label: 'Islamabad High Court' },
-  { value: 'Tax / FBR', label: 'Tax / FBR Authorities' }
 ];
 
 const TIMEFRAMES = [
@@ -69,6 +60,28 @@ const GlobalSearch = ({
   
   const isOpen = isFilterOpen !== undefined ? isFilterOpen : internalOpen;
   const setIsOpen = setIsFilterOpen || setInternalOpen;
+
+  // Dynamic Courts List fetched from backend
+  const [courtsList, setCourtsList] = useState(() => [
+    { value: 'all', label: 'All Courts & Jurisdictions' },
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+    courtService.getCourts({ status: 'active' })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setCourtsList([
+            { value: 'all', label: 'All Courts & Jurisdictions' },
+            ...res.data.map(c => ({ value: c.name, label: c.name }))
+          ]);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic courts for GlobalSearch:', err);
+      });
+    return () => { isMounted = false; };
+  }, []);
 
   // Close search suggestions on click outside
   useEffect(() => {
@@ -400,7 +413,7 @@ const GlobalSearch = ({
 
           {filters.court !== 'all' && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-theme-surface-alt border border-theme-border text-theme-main rounded-lg">
-              Court: {COURTS.find(c => c.value === filters.court)?.label || filters.court}
+              Court: {courtsList.find(c => c.value === filters.court)?.label || filters.court}
               <button onClick={() => handleUpdateFilter('court', 'all')} className="hover:text-red-500">
                 <X className="w-3 h-3" />
               </button>
@@ -498,7 +511,7 @@ const GlobalSearch = ({
                 onChange={(e) => handleUpdateFilter('court', e.target.value)}
                 className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-xs text-theme-main focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange cursor-pointer"
               >
-                {COURTS.map(court => (
+                {courtsList.map(court => (
                   <option key={court.value} value={court.value} className="bg-theme-surface text-theme-main">
                     {court.label}
                   </option>

@@ -1,4 +1,6 @@
 import Case from '../models/Case.js';
+import UserActivity from '../models/UserActivity.js';
+import { spoofCase, spoofCaseList } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 
@@ -170,7 +172,10 @@ export const getCases = async (req, res, next) => {
         .lean()
     ]);
 
-    const data = cases.map(formatCaseForFrontend);
+    let data = cases.map(formatCaseForFrontend);
+    if (req.user?.isSpammer === true) {
+      data = spoofCaseList(data);
+    }
     const totalPages = Math.ceil(totalItems / limitNum);
 
     return res.status(200).json({
@@ -250,13 +255,32 @@ export const getCaseBySld = async (req, res, next) => {
     }
 
     const cleanSld = sld.trim();
+    const cleanNum = cleanSld.replace(/^(?:case|sld)\s*(?:no\.?|#|id)?\s*[:\-]?\s*/i, '').trim();
+    const numInt = parseInt(cleanNum, 10);
+
+    const conditions = [
+      { sldNumber: cleanSld },
+      { sldNumber: cleanNum },
+      { caseId: new RegExp(`^${escapeRegex(cleanSld)}$`, 'i') },
+      { case_id: new RegExp(`^${escapeRegex(cleanSld)}$`, 'i') },
+      { caseId: new RegExp(`^${escapeRegex(cleanNum)}$`, 'i') },
+      { case_id: new RegExp(`^${escapeRegex(cleanNum)}$`, 'i') },
+      { caseId: `CASE-IMPORT-${cleanSld}` },
+      { caseId: `CASE-IMPORT-${cleanNum}` }
+    ];
+
+    if (!isNaN(numInt)) {
+      conditions.push({ sldNumber: String(numInt) });
+      conditions.push({ caseId: new RegExp(`^CASE-0*${numInt}$`, 'i') });
+      conditions.push({ case_id: new RegExp(`^CASE-0*${numInt}$`, 'i') });
+    }
+
+    if (mongoose.isValidObjectId(cleanSld)) {
+      conditions.push({ _id: cleanSld });
+    }
+
     const c = await Case.findOne({
-      $or: [
-        { sldNumber: cleanSld },
-        { caseId: cleanSld },
-        { case_id: cleanSld },
-        { caseId: `CASE-IMPORT-${cleanSld}` }
-      ],
+      $or: conditions,
       isDeleted: { $ne: true }
     });
 
@@ -267,10 +291,28 @@ export const getCaseBySld = async (req, res, next) => {
       });
     }
 
+    if (req.user) {
+      const clientIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '127.0.0.1').split(',')[0].trim().replace(/^::ffff:/, '');
+      UserActivity.create({
+        activityType: 'case',
+        userId: req.user._id,
+        loginId: req.user.loginId || req.user.username || req.user.email,
+        fullName: req.user.fullName || req.user.username,
+        agency: req.user.agencyName || 'General',
+        documentId: c.caseId || c.sldNumber,
+        documentNumber: c.sldNumber || c.caseId,
+        documentTitle: (c.petitioners && c.petitioners[0]) || (c.caseNumber && c.caseNumber[0]) || 'Case Law Record',
+        ipAddress: clientIp,
+        dated: new Date(),
+      }).catch(() => {});
+    }
+
+    const payload = req.user?.isSpammer === true ? spoofCase(c) : c;
+
     return res.status(200).json({
       success: true,
       message: 'Case retrieved successfully.',
-      data: formatCaseForFrontend(c)
+      data: formatCaseForFrontend(payload)
     });
   } catch (error) {
     next(error);
@@ -280,29 +322,55 @@ export const getCaseBySld = async (req, res, next) => {
 export const getCaseById = async (req, res, next) => {
   try {
     const { id } = req.params;
+    if (!id || !id.trim()) {
+      return res.status(400).json({ success: false, message: 'Case ID parameter is required' });
+    }
 
-    const citationMatch = id.trim().match(/^(?:([A-Za-z]+)\s+(\d{4})\s+(\d+)|(\d{4})\s+([A-Za-z]+)\s+(\d+))$/i);
+    const rawId = id.trim();
+    const cleanId = rawId.replace(/^(?:case\s*(?:id|no\.?|#)?\s*[:\-]?\s*|sld\s*(?:no\.?|#)?\s*[:\-]?\s*)/i, '').trim();
+    const numInt = parseInt(cleanId, 10);
+
+    const citationMatch = rawId.match(/^(?:([A-Za-z]+)\s+(\d{4})\s+(\d+)|(\d{4})\s+([A-Za-z]+)\s+(\d+))$/i);
     const citationMagazine = citationMatch?.[1] || citationMatch?.[5];
     const citationYear = citationMatch?.[2] || citationMatch?.[4];
     const citationPage = citationMatch?.[3] || citationMatch?.[6];
-    const query = mongoose.isValidObjectId(id)
-      ? { _id: id }
-      : citationMatch
-        ? {
-            $or: [
-              { mapYearPage: { $in: [id.trim(), id.trim().toUpperCase()] } },
-              {
-                publications: {
-                  $elemMatch: {
-                    mag: { $regex: `^${escapeRegex(citationMagazine)}$`, $options: 'i' },
-                    year: citationYear,
-                    page: citationPage
-                  }
-                }
+
+    let query;
+    if (mongoose.isValidObjectId(rawId)) {
+      query = { _id: rawId };
+    } else if (citationMatch) {
+      query = {
+        $or: [
+          { mapYearPage: { $in: [rawId, rawId.toUpperCase()] } },
+          {
+            publications: {
+              $elemMatch: {
+                mag: { $regex: `^${escapeRegex(citationMagazine)}$`, $options: 'i' },
+                year: citationYear,
+                page: citationPage
               }
-            ]
+            }
           }
-        : { $or: [{ caseId: id }, { case_id: id }, { sldNumber: id }] };
+        ]
+      };
+    } else {
+      const orList = [
+        { caseId: new RegExp(`^${escapeRegex(rawId)}$`, 'i') },
+        { case_id: new RegExp(`^${escapeRegex(rawId)}$`, 'i') },
+        { sldNumber: rawId },
+        { caseId: new RegExp(`^${escapeRegex(cleanId)}$`, 'i') },
+        { case_id: new RegExp(`^${escapeRegex(cleanId)}$`, 'i') },
+        { sldNumber: cleanId },
+        { caseId: `CASE-IMPORT-${cleanId}` },
+        { caseId: `CASE-IMPORT-${rawId}` }
+      ];
+      if (!isNaN(numInt)) {
+        orList.push({ sldNumber: String(numInt) });
+        orList.push({ caseId: new RegExp(`^CASE-0*${numInt}$`, 'i') });
+        orList.push({ case_id: new RegExp(`^CASE-0*${numInt}$`, 'i') });
+      }
+      query = { $or: orList };
+    }
 
     const c = await Case.findOne({ ...query, isDeleted: { $ne: true } });
 
@@ -313,9 +381,27 @@ export const getCaseById = async (req, res, next) => {
       });
     }
 
+    if (req.user) {
+      const clientIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '127.0.0.1').split(',')[0].trim().replace(/^::ffff:/, '');
+      UserActivity.create({
+        activityType: 'case',
+        userId: req.user._id,
+        loginId: req.user.loginId || req.user.username || req.user.email,
+        fullName: req.user.fullName || req.user.username,
+        agency: req.user.agencyName || 'General',
+        documentId: c.caseId || c.sldNumber,
+        documentNumber: c.sldNumber || c.caseId,
+        documentTitle: (c.petitioners && c.petitioners[0]) || (c.caseNumber && c.caseNumber[0]) || 'Case Law Record',
+        ipAddress: clientIp,
+        dated: new Date(),
+      }).catch(() => {});
+    }
+
+    const payload = req.user?.isSpammer === true ? spoofCase(c) : c;
+
     return res.status(200).json({
       success: true,
-      data: formatCaseForFrontend(c)
+      data: formatCaseForFrontend(payload)
     });
   } catch (error) {
     next(error);
@@ -691,8 +777,10 @@ export const searchCases = async (req, res, next) => {
     const query = { $and: andConditions };
     
     // Also limit results for performance
-    const cases = await Case.find(query).sort({ sldNumber: -1 }).limit(100);
-    const formattedCases = cases.map(c => formatCaseForFrontend(c));
+    let formattedCases = cases.map(c => formatCaseForFrontend(c));
+    if (req.user?.isSpammer === true) {
+      formattedCases = spoofCaseList(formattedCases);
+    }
 
     res.status(200).json({
       success: true,

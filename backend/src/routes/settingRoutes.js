@@ -12,6 +12,7 @@ import {
   createLaw,
   updateLaw,
   deleteLaw,
+  swapLawOrdering,
 } from '../controllers/settingController.js';
 import { protect, requireAdmin } from '../middleware/authMiddleware.js';
 
@@ -38,6 +39,7 @@ router.delete('/principles/:id', protect, requireAdmin, deletePrinciple);
 // 3. LAWS / STATUTES ROUTES
 // ==============================
 router.get('/laws', getLaws);
+router.post('/laws/swap', protect, requireAdmin, swapLawOrdering);
 router.post('/laws', protect, requireAdmin, createLaw);
 router.put('/laws/:id', protect, requireAdmin, updateLaw);
 router.delete('/laws/:id', protect, requireAdmin, deleteLaw);

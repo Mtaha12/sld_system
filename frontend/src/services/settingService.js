@@ -69,6 +69,11 @@ export const settingService = {
     const response = await api.delete(`/api/settings/laws/${id}`);
     return response.data;
   },
+
+  swapLaws: async (lawId1, lawId2) => {
+    const response = await api.post('/api/settings/laws/swap', { lawId1, lawId2 });
+    return response.data;
+  },
 };
 
 export default settingService;

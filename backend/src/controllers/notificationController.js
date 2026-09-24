@@ -1,4 +1,6 @@
 import Notification from '../models/Notification.js';
+import UserActivity from '../models/UserActivity.js';
+import { spoofNotification } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 
@@ -68,7 +70,8 @@ export const getNotifications = async (req, res, next) => {
     }
 
     const notifications = await Notification.find(filter).sort({ createdAt: -1, srNumber: -1 });
-    const data = notifications.map(formatNotificationForFrontend);
+    const isSpammer = req.user?.isSpammer === true;
+    const data = (isSpammer ? notifications.map(spoofNotification) : notifications).map(formatNotificationForFrontend);
 
     return res.status(200).json({
       success: true,
@@ -104,9 +107,27 @@ export const getNotificationById = async (req, res, next) => {
       });
     }
 
+    if (req.user) {
+      const clientIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '127.0.0.1').split(',')[0].trim().replace(/^::ffff:/, '');
+      UserActivity.create({
+        activityType: 'notification',
+        userId: req.user._id,
+        loginId: req.user.loginId || req.user.username || req.user.email,
+        fullName: req.user.fullName || req.user.username,
+        agency: req.user.agencyName || 'General',
+        documentId: n.notificationId || n.srNumber,
+        documentNumber: n.sroNumber || n.srNumber || n.notificationId,
+        documentTitle: n.subject || 'Notification SRO',
+        ipAddress: clientIp,
+        dated: new Date(),
+      }).catch(() => {});
+    }
+
+    const payload = req.user?.isSpammer === true ? spoofNotification(n) : n;
+
     return res.status(200).json({
       success: true,
-      data: formatNotificationForFrontend(n)
+      data: formatNotificationForFrontend(payload)
     });
   } catch (error) {
     next(error);

@@ -16,14 +16,9 @@ import Textarea from '../../../components/ui/Textarea';
 import FormFooter from '../../../components/ui/FormFooter';
 import { caseSchema } from '../validation/caseSchema';
 import { caseService } from '../services/caseService';
-import { LAW_OPTIONS } from '../../../data/laws';
 import { SECTION_OPTIONS } from '../../../data/sections';
-import { COURT_OPTIONS } from '../../../data/courts';
 import { settingService } from '../../../services/settingService';
-
-const caseLawOptions = LAW_OPTIONS.some((option) => option.value === 'income_tax_2002')
-  ? LAW_OPTIONS
-  : [...LAW_OPTIONS, { label: 'Income Tax Rules, 2002', value: 'income_tax_2002' }];
+import { courtService, magazineService } from '../../../services/adminSettingsServices';
 
 /**
  * Maps raw case data from API or navigation state into clean form values.
@@ -107,9 +102,22 @@ const AddCaseLawDetail = ({ onClose }) => {
 
   // Dynamic dropdown options that adjust when cases with new courts/sections/laws load
   const [courtOptions, setCourtOptions] = useState(() => {
-    const list = [{ label: 'Select Court', value: '' }, ...COURT_OPTIONS];
-    if (editData?.court && !COURT_OPTIONS.some(o => o.value === editData.court)) {
+    const list = [{ label: 'Select Court', value: '' }];
+    if (editData?.court) {
       list.push({ label: editData.court, value: editData.court });
+    }
+    return list;
+  });
+
+  const [magazineOptions, setMagazineOptions] = useState(() => {
+    const list = [];
+    if (Array.isArray(editData?.publications)) {
+      editData.publications.forEach(p => {
+        const val = String(p?.mag || '').trim().toLowerCase();
+        if (val && !list.some(o => o.value === val)) {
+          list.push({ label: val.toUpperCase(), value: val });
+        }
+      });
     }
     return list;
   });
@@ -125,12 +133,66 @@ const AddCaseLawDetail = ({ onClose }) => {
     ];
   });
 
-  const [dynamicLawOptions, setDynamicLawOptions] = useState(() => caseLawOptions);
+  const [dynamicLawOptions, setDynamicLawOptions] = useState(() => {
+    const list = [{ label: 'Choose a law', value: '' }];
+    if (Array.isArray(editData?.laws)) {
+      editData.laws.forEach(l => {
+        const val = String(l?.law || '').trim();
+        if (val && !list.some(o => o.value === val)) {
+          list.push({ label: val, value: val });
+        }
+      });
+    }
+    return list;
+  });
   const [principleOptions, setPrincipleOptions] = useState([]);
 
   useEffect(() => {
     let isMounted = true;
-    settingService.getLaws({ status: 'active', limit: 1000 })
+
+    // Fetch dynamic Courts from backend
+    courtService.getCourts({ status: 'active' })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const courts = res.data.map(c => ({ label: c.name, value: c.name }));
+          setCourtOptions(prev => {
+            const list = [{ label: 'Select Court', value: '' }, ...courts];
+            const currentCourt = getValues('court') || editData?.court;
+            if (currentCourt && !list.some(o => o.value === currentCourt)) {
+              list.push({ label: currentCourt, value: currentCourt });
+            }
+            return list;
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic courts for AddCaseLawDetail:', err);
+      });
+
+    // Fetch dynamic Magazines from backend
+    magazineService.getMagazines({ status: 'active' })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const mags = res.data.map(m => ({ label: m.name.toUpperCase(), value: m.name.toLowerCase() }));
+          setMagazineOptions(prev => {
+            const list = [...mags];
+            const currentPubs = getValues('publications') || editData?.publications || [];
+            currentPubs.forEach(p => {
+              const val = String(p?.mag || '').trim().toLowerCase();
+              if (val && !list.some(o => o.value === val)) {
+                list.push({ label: val.toUpperCase(), value: val });
+              }
+            });
+            return list;
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic magazines for AddCaseLawDetail:', err);
+      });
+
+    // Fetch dynamic Laws from backend
+    settingService.getLaws({ status: 'active', limit: 5000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const fetched = res.data.map(l => ({ label: l.name, value: l.name }));
@@ -146,11 +208,14 @@ const AddCaseLawDetail = ({ onClose }) => {
             }
           });
 
-          caseLawOptions.forEach(item => {
-            const key = item.value.toLowerCase().trim();
-            if (key && !seen.has(key)) {
+          // Retain any law currently on the case
+          const currentLaws = getValues('laws') || editData?.laws || [];
+          currentLaws.forEach(l => {
+            const val = String(l?.law || '').trim();
+            const key = val.toLowerCase();
+            if (val && !seen.has(key)) {
               seen.add(key);
-              merged.push(item);
+              merged.push({ label: val, value: val });
             }
           });
 
@@ -517,7 +582,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                       variant="light" 
                       inputSize="sm" 
                       type="select" 
-                      options={[{ label: 'SLD', value: 'sld' }, { label: 'PTD', value: 'ptd' }, { label: 'TAX', value: 'tax' }, { label: 'PTCL', value: 'ptcl' }, { label: 'PLD', value: 'pld' }, { label: 'PTR', value: 'ptr' }]} 
+                      options={magazineOptions} 
                       {...register(`publications.${idx}.mag`, {
                         onChange: () => autofillPublicationPage(idx),
                       })}

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Case from '../models/Case.js';
 import ChatSession from '../models/ChatSession.js';
 import logger from '../utils/logger.js';
@@ -233,6 +234,124 @@ const sanitizeReferences = (refs) => {
   return mapped.length > 0 ? Array.from(new Set(mapped)) : ['case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'];
 };
 
+// Validation helpers for strict field accuracy across every chatbot search
+const extractSearchTokens = (str, minLen = 2) => {
+  const stopWords = new Set([
+    'the', 'and', 'for', 'with', 'from', 'about', 'case', 'appeal', 'petition',
+    'hon', 'justice', 'judge', 'mr', 'dated', 'order', 'court', 'high', 'supreme',
+    'versus', 'vs', 'under', 'all', 'any', 'that', 'this', 'who', 'was', 'what'
+  ]);
+  return (str || '')
+    .toLowerCase()
+    .split(/[\s,./\\;:\-()"'“”‘’\[\]]+/)
+    .map(t => t.replace(/[^a-z0-9]/g, ''))
+    .filter(t => t.length >= minLen && !stopWords.has(t));
+};
+
+const validateCitationKeywords = (c, citationDetails) => {
+  if (!citationDetails) return true;
+  const { year, vol, mag, page } = citationDetails;
+  const magUpper = mag ? mag.toUpperCase() : '';
+  const pageNum = page ? parseInt(page, 10) : null;
+  const pageRegex = pageNum !== null ? new RegExp(`(?:^|[^0-9])0*${pageNum}(?:[^0-9]|$)`) : null;
+
+  // 1. Publications match
+  if (Array.isArray(c.publications) && c.publications.length > 0) {
+    const hasPub = c.publications.some(pub => {
+      const pMag = (pub.mag || '').toUpperCase();
+      const pPage = parseInt(pub.page, 10);
+      const pYear = String(pub.year || '').trim();
+      const pVol = String(pub.vol || '').trim();
+
+      const magOk = !magUpper || pMag === magUpper || pMag.includes(magUpper);
+      const pageOk = pageNum === null || pPage === pageNum;
+      const yearOk = !year || pYear === year;
+      const volOk = !vol || pVol === vol;
+      return magOk && pageOk && (yearOk || volOk);
+    });
+    if (hasPub) return true;
+  }
+
+  // 2. MapYearPage match
+  if (Array.isArray(c.mapYearPage) && c.mapYearPage.length > 0) {
+    const hasMap = c.mapYearPage.some(entry => {
+      const s = String(entry).toUpperCase();
+      if (magUpper && !s.includes(magUpper)) return false;
+      if (pageRegex && !pageRegex.test(s)) return false;
+      if (year && !s.includes(year) && !vol) return false;
+      if (vol && !new RegExp(`(?:^|[^0-9])0*${vol}(?:[^0-9]|$)`).test(s) && !year) return false;
+      return true;
+    });
+    if (hasMap) return true;
+  }
+
+  // 3. Fallback to headNote or principleLaw only if strict citation pattern is present
+  if (magUpper && pageNum !== null) {
+    const combined = `${c.headNote || ''} ${c.principleLaw || ''}`.toUpperCase();
+    if (combined.includes(magUpper) && pageRegex && pageRegex.test(combined)) {
+      if (!year || combined.includes(year)) return true;
+    }
+  }
+
+  return false;
+};
+
+const validateCaseNumberKeywords = (c, query) => {
+  const tokens = extractSearchTokens(query, 2);
+  if (tokens.length === 0) return true;
+  const caseNumbersStr = (Array.isArray(c.caseNumber) ? c.caseNumber.join(' ') : String(c.caseNumber || '')).toLowerCase();
+  return tokens.every(token => caseNumbersStr.includes(token));
+};
+
+const validateJudgeKeywords = (c, query) => {
+  const tokens = extractSearchTokens(query, 3);
+  if (tokens.length === 0) return true;
+  const judgesStr = (Array.isArray(c.judges) ? c.judges.join(' ') : String(c.judges || '')).toLowerCase();
+  return tokens.every(token => judgesStr.includes(token));
+};
+
+const validatePetitionerKeywords = (c, query) => {
+  const tokens = extractSearchTokens(query, 3);
+  if (tokens.length === 0) return true;
+  const petitionersStr = (Array.isArray(c.petitioners) ? c.petitioners.join(' ') : String(c.petitioners || '')).toLowerCase();
+  return tokens.every(token => petitionersStr.includes(token));
+};
+
+const validateLawyerKeywords = (c, query) => {
+  const tokens = extractSearchTokens(query, 3);
+  if (tokens.length === 0) return true;
+  const lawyersStr = (Array.isArray(c.lawyers) ? c.lawyers.join(' ') : String(c.lawyers || '')).toLowerCase();
+  return tokens.every(token => lawyersStr.includes(token));
+};
+
+const validateCourtKeywords = (c, query) => {
+  const tokens = extractSearchTokens(query, 3);
+  if (tokens.length === 0) return true;
+  const courtStr = String(c.court || '').toLowerCase();
+  return tokens.every(token => courtStr.includes(token));
+};
+
+const validateStatuteKeywords = (c, secNum) => {
+  if (!secNum) return true;
+  const secClean = secNum.toLowerCase();
+  const hasLawSec = Array.isArray(c.laws) && c.laws.some(l => (l.section || '').toLowerCase() === secClean);
+  if (hasLawSec) return true;
+  const hn = (c.headNote || '').toLowerCase();
+  const pl = (c.principleLaw || '').toLowerCase();
+  return new RegExp(`section\\s*${escapeRegex(secClean)}\\b`, 'i').test(hn) ||
+         new RegExp(`section\\s*${escapeRegex(secClean)}\\b`, 'i').test(pl);
+};
+
+const validateTextKeywords = (c, phraseOrWords) => {
+  const fullText = `${c.judgment || ''} ${c.headNote || ''} ${c.principleLaw || ''}`.toLowerCase();
+  if (typeof phraseOrWords === 'string' && phraseOrWords.length > 10) {
+    if (fullText.includes(phraseOrWords.toLowerCase())) return true;
+  }
+  const tokens = Array.isArray(phraseOrWords) ? phraseOrWords : extractSearchTokens(phraseOrWords, 3);
+  if (tokens.length === 0) return true;
+  return tokens.every(token => fullText.includes(token.toLowerCase()));
+};
+
 /**
  * SLD Core Legal AI Intelligence Engine
  * Grounded 100% in the 15,000 cases database across all fields
@@ -266,65 +385,85 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
   let activeReferences = ['case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'];
   let confidence = 85;
 
-  // PRIORITY 1: Publication Citation Lookup (e.g. "(2011) 104 TAX 78", "2001 SLD 1", "02001 sld 1", "2011 PTD 770")
-  const citationDetails = extractCitationDetails(normalizedQuery);
-  if (citationDetails) {
-    const y = citationDetails.year;
-    const m = escapeRegex(citationDetails.mag);
-    const p = citationDetails.page;
-    const pNum = parseInt(p, 10);
-    const pagePat = `(?:0*${pNum})(?![0-9])`;
+  // PRIORITY 1: Direct Case ID / Record Lookup (e.g. CASE-000001, case 1, case id: 1, SLD 9862, #9862, 123)
+  const explicitIdMatch = normalizedQuery.match(/^(?:case\s*(?:id|#)?\s*[:\-]?\s*|sld\s*(?:no\.?|#)?\s*[:\-]?\s*|#)?\s*(CASE-[A-Za-z0-9_\-]+|\b\d{1,8}\b)$/i) ||
+    normalizedQuery.match(/\b(CASE-[A-Za-z0-9_\-]+)\b/i) ||
+    normalizedQuery.match(/\b(?:case\s*id|case\s*#|sld\s*#|sld\s*no\.?)\s*[:\-]?\s*([A-Za-z0-9_\-]+)\b/i);
 
-    const orConditions = [];
-    if (citationDetails.vol && m && p) {
-      orConditions.push({ mapYearPage: new RegExp(`\\b(?:\\(${y || '\\d{4}'}\\)\\s*)?${citationDetails.vol}\\s+${m}\\s+${pagePat}`, 'i') });
-      orConditions.push({ mapYearPage: new RegExp(`\\b${citationDetails.vol}\\s+${m}\\s+${pagePat}`, 'i') });
+  if (explicitIdMatch) {
+    const cleanId = (explicitIdMatch[1] || explicitIdMatch[0]).trim();
+    const numInt = parseInt(cleanId, 10);
+    const idConditions = [
+      { caseId: new RegExp(`^${escapeRegex(cleanId)}$`, 'i') },
+      { case_id: new RegExp(`^${escapeRegex(cleanId)}$`, 'i') },
+      { sldNumber: cleanId },
+      { caseId: `CASE-IMPORT-${cleanId}` }
+    ];
+    if (!isNaN(numInt)) {
+      idConditions.push({ sldNumber: String(numInt) });
+      idConditions.push({ caseId: new RegExp(`^CASE-0*${numInt}$`, 'i') });
+      idConditions.push({ case_id: new RegExp(`^CASE-0*${numInt}$`, 'i') });
     }
-    if (y && m && p) {
-      orConditions.push({ mapYearPage: new RegExp(`\\b\\(?${y}\\)?\\s*(?:\\d+\\s+)?${m}\\s+${pagePat}`, 'i') });
-      orConditions.push({ mapYearPage: new RegExp(`\\b${m}\\s+\\(?${y}\\)?\\s+${pagePat}`, 'i') });
-      orConditions.push({ mapYearPage: new RegExp(`\\b${y}\\s*${m}\\s*${pagePat}`, 'i') });
-    }
-    if (citationDetails.formatted) {
-      orConditions.push({ mapYearPage: new RegExp(`\\b${escapeRegex(citationDetails.formatted)}(?![0-9])`, 'i') });
-    }
-
-    matchingCitationCases = await Case.find({
-      $or: orConditions,
-      isDeleted: { $ne: true }
-    }).sort({ sldNumber: -1 }).limit(20);
-
-    if (matchingCitationCases.length === 0 && y && m && p) {
-      matchingCitationCases = await Case.find({
-        $or: [
-          { headNote: new RegExp(`\\b\\(?${y}\\)?\\s*${m}\\s+${pagePat}`, 'i') },
-          { title: new RegExp(`\\b\\(?${y}\\)?\\s*${m}\\s+${pagePat}`, 'i') },
-          { principleLaw: new RegExp(`\\b\\(?${y}\\)?\\s*${m}\\s+${pagePat}`, 'i') }
-        ],
-        isDeleted: { $ne: true }
-      }).sort({ sldNumber: -1 }).limit(20);
+    if (mongoose.isValidObjectId(cleanId)) {
+      idConditions.push({ _id: cleanId });
     }
 
-    if (matchingCitationCases.length > 0) {
-      matchType = 'citation_multi';
-      targetCase = matchingCitationCases[0];
+    targetCase = await Case.findOne({ $or: idConditions, isDeleted: { $ne: true } });
+    if (targetCase) {
+      matchType = 'case_id';
       confidence = 100;
-      activeReferences = ['citations', 'courts', 'judges', 'headnotes'];
+      matchedFieldDisplay = targetCase.caseId || `CASE-${targetCase.sldNumber}`;
+      activeReferences = ['case_numbers', 'courts', 'judges', 'citations', 'headnotes', 'judgments'];
     }
   }
 
-  // PRIORITY 2: Direct SLD Record Lookup (e.g. SLD #9862, SLD 1, #1, CASE-IMPORT-1)
+  // PRIORITY 2: Publication Citation Lookup (e.g. "(2011) 104 TAX 78", "2001 SLD 1", "02001 sld 1", "2011 PTD 770")
   if (!targetCase) {
-    const sldMatch = normalizedQuery.match(/(?:^|\b)(?:sld\s*#|case\s*#|sld\s*no\.?)\s*(\d+)\b/i) || 
-      normalizedQuery.match(/^sld\s*(\d+)$/i) || 
-      normalizedQuery.match(/^#(\d+)$/);
-    if (sldMatch) {
-      const sldNum = sldMatch[1];
-      targetCase = await Case.findOne({ sldNumber: sldNum, isDeleted: { $ne: true } });
-      if (targetCase) {
-        matchType = 'citation';
+    const citationDetails = extractCitationDetails(normalizedQuery);
+    if (citationDetails) {
+      const y = citationDetails.year;
+      const m = escapeRegex(citationDetails.mag);
+      const p = citationDetails.page;
+      const pNum = parseInt(p, 10);
+      const pagePat = `(?:0*${pNum})(?![0-9])`;
+
+      const orConditions = [];
+      if (citationDetails.vol && m && p) {
+        orConditions.push({ mapYearPage: new RegExp(`\\b(?:\\(${y || '\\d{4}'}\\)\\s*)?${citationDetails.vol}\\s+${m}\\s+${pagePat}`, 'i') });
+        orConditions.push({ mapYearPage: new RegExp(`\\b${citationDetails.vol}\\s+${m}\\s+${pagePat}`, 'i') });
+      }
+      if (y && m && p) {
+        orConditions.push({ mapYearPage: new RegExp(`\\b\\(?${y}\\)?\\s*(?:\\d+\\s+)?${m}\\s+${pagePat}`, 'i') });
+        orConditions.push({ mapYearPage: new RegExp(`\\b${m}\\s+\\(?${y}\\)?\\s+${pagePat}`, 'i') });
+        orConditions.push({ mapYearPage: new RegExp(`\\b${y}\\s*${m}\\s*${pagePat}`, 'i') });
+      }
+      if (citationDetails.formatted) {
+        orConditions.push({ mapYearPage: new RegExp(`\\b${escapeRegex(citationDetails.formatted)}(?![0-9])`, 'i') });
+      }
+
+      let rawCitationCases = await Case.find({
+        $or: orConditions,
+        isDeleted: { $ne: true }
+      }).sort({ sldNumber: -1 }).limit(20);
+
+      if (rawCitationCases.length === 0 && y && m && p) {
+        rawCitationCases = await Case.find({
+          $or: [
+            { headNote: new RegExp(`\\b\\(?${y}\\)?\\s*${m}\\s+${pagePat}`, 'i') },
+            { principleLaw: new RegExp(`\\b\\(?${y}\\)?\\s*${m}\\s+${pagePat}`, 'i') }
+          ],
+          isDeleted: { $ne: true }
+        }).sort({ sldNumber: -1 }).limit(20);
+      }
+
+      // STRICT VALIDATION: Ensure returned cases genuinely contain the queried citation
+      matchingCitationCases = rawCitationCases.filter(c => validateCitationKeywords(c, citationDetails));
+
+      if (matchingCitationCases.length > 0) {
+        matchType = matchingCitationCases.length === 1 ? 'citation_single' : 'citation_multi';
+        targetCase = matchingCitationCases[0];
         confidence = 100;
-        activeReferences = ['citations', 'case_numbers', 'courts', 'judgments'];
+        activeReferences = ['citations', 'courts', 'judges', 'headnotes'];
       }
     }
   }
@@ -342,10 +481,13 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     if (isCaseNumberPattern && coreCaseNo.length >= 2) {
       const caseRegex = makeFlexibleRegex(coreCaseNo);
       if (caseRegex) {
-        matchingCaseNumberCases = await Case.find({
+        const rawCaseNumberCases = await Case.find({
           caseNumber: caseRegex,
           isDeleted: { $ne: true }
         }).sort({ sldNumber: -1 }).limit(15);
+
+        // STRICT VALIDATION: Check that candidates contain all core search tokens
+        matchingCaseNumberCases = rawCaseNumberCases.filter(c => validateCaseNumberKeywords(c, coreCaseNo));
 
         if (matchingCaseNumberCases.length > 0) {
           matchType = 'case_number';
@@ -367,11 +509,13 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     if (judgeQueryName.length >= 3) {
       const judgeRegex = makeFlexibleRegex(judgeQueryName);
       if (judgeRegex) {
-        // If explicit prefix or length >= 4, check judges collection
-        matchingJudgeCases = await Case.find({
+        const rawJudgeCases = await Case.find({
           judges: judgeRegex,
           isDeleted: { $ne: true }
         }).sort({ sldNumber: -1 }).limit(15);
+
+        // STRICT VALIDATION: Filter out any cases that do not contain the judge's key name tokens
+        matchingJudgeCases = rawJudgeCases.filter(c => validateJudgeKeywords(c, judgeQueryName));
 
         if (matchingJudgeCases.length > 0) {
           matchType = 'judge_bench';
@@ -393,10 +537,13 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     if (partyQueryName.length >= 3) {
       const partyRegex = makeFlexibleRegex(partyQueryName);
       if (partyRegex) {
-        matchingPartyCases = await Case.find({
+        const rawPartyCases = await Case.find({
           petitioners: partyRegex,
           isDeleted: { $ne: true }
         }).sort({ sldNumber: -1 }).limit(15);
+
+        // STRICT VALIDATION: Check that candidate cases genuinely contain all petitioner search tokens
+        matchingPartyCases = rawPartyCases.filter(c => validatePetitionerKeywords(c, partyQueryName));
 
         if (matchingPartyCases.length > 0) {
           matchType = 'petitioner_party';
@@ -418,10 +565,13 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     if (lawyerQueryName.length >= 3) {
       const lawyerRegex = makeFlexibleRegex(lawyerQueryName);
       if (lawyerRegex) {
-        matchingLawyerCases = await Case.find({
+        const rawLawyerCases = await Case.find({
           lawyers: lawyerRegex,
           isDeleted: { $ne: true }
         }).sort({ sldNumber: -1 }).limit(15);
+
+        // STRICT VALIDATION: Filter out any cases not containing lawyer keywords
+        matchingLawyerCases = rawLawyerCases.filter(c => validateLawyerKeywords(c, lawyerQueryName));
 
         if (matchingLawyerCases.length > 0) {
           matchType = 'lawyer_counsel';
@@ -445,10 +595,13 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     if (isCourtPattern && courtQueryName.length >= 4) {
       const courtRegex = makeFlexibleRegex(courtQueryName);
       if (courtRegex) {
-        matchingCourtCases = await Case.find({
+        const rawCourtCases = await Case.find({
           court: courtRegex,
           isDeleted: { $ne: true }
         }).sort({ sldNumber: -1 }).limit(15);
+
+        // STRICT VALIDATION: Filter out any cases not containing court keywords
+        matchingCourtCases = rawCourtCases.filter(c => validateCourtKeywords(c, courtQueryName));
 
         if (matchingCourtCases.length > 0) {
           matchType = 'court_forum';
@@ -475,10 +628,12 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         isDeleted: { $ne: true }
       }).sort({ sldNumber: -1 }).limit(15);
 
-      if (statuteCases.length > 0) {
+      // STRICT VALIDATION: Filter out any cases not containing statute keywords
+      matchingTopicCases = statuteCases.filter(c => validateStatuteKeywords(c, secNum));
+
+      if (matchingTopicCases.length > 0) {
         matchType = 'statute';
-        targetCase = statuteCases[0];
-        matchingTopicCases = statuteCases;
+        targetCase = matchingTopicCases[0];
         confidence = 94;
         activeReferences = ['statutes', 'headnotes', 'citations', 'judgments'];
       }
@@ -493,7 +648,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     if (searchPhrase.length >= 8) {
       const phraseRegex = new RegExp(escapeRegex(searchPhrase), 'i');
       
-      matchingJudgmentCases = await Case.find({
+      let rawJudgmentCases = await Case.find({
         $or: [
           { judgment: phraseRegex },
           { headNote: phraseRegex },
@@ -503,7 +658,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         isDeleted: { $ne: true }
       }).sort({ sldNumber: -1 }).limit(15);
 
-      if (matchingJudgmentCases.length === 0 && searchPhrase.length > 15) {
+      if (rawJudgmentCases.length === 0 && searchPhrase.length > 15) {
         const words = searchPhrase
           .replace(/[^a-zA-Z0-9\s]/g, ' ')
           .split(/\s+/)
@@ -512,7 +667,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
 
         if (words.length >= 3) {
           const clusterRegex = new RegExp(words.map(w => escapeRegex(w)).join('.*?'), 'i');
-          matchingJudgmentCases = await Case.find({
+          rawJudgmentCases = await Case.find({
             $or: [
               { judgment: clusterRegex },
               { headNote: clusterRegex },
@@ -522,6 +677,9 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
           }).sort({ sldNumber: -1 }).limit(15);
         }
       }
+
+      // STRICT VALIDATION: Ensure candidate cases genuinely contain the search phrase or core words
+      matchingJudgmentCases = rawJudgmentCases.filter(c => validateTextKeywords(c, searchPhrase));
 
       if (matchingJudgmentCases.length > 0) {
         matchType = 'exact_judgment_line_multi';
@@ -601,23 +759,28 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       }).limit(20);
 
       if (candidates.length > 0) {
-        const ranked = candidates.map(c => {
-          let score = 0;
-          const hn = (c.headNote || '').toLowerCase();
-          const jg = (c.judgment || '').toLowerCase();
-          filteredTerms.forEach(t => {
-            if (hn.includes(t)) score += 20;
-            if (jg.includes(t)) score += 10;
-          });
-          return { c, score };
-        }).sort((a, b) => b.score - a.score);
+        // STRICT VALIDATION: Only keep cases containing all filtered search keywords
+        const validatedCases = candidates.filter(c => validateTextKeywords(c, filteredTerms));
 
-        matchingTopicCases = ranked.filter(r => r.score > 0).slice(0, 10).map(r => r.c);
-        if (matchingTopicCases.length > 0) {
-          targetCase = matchingTopicCases[0];
-          matchType = 'topic_multi';
-          confidence = 90;
-          activeReferences = ['headnotes', 'statutes', 'courts', 'citations'];
+        if (validatedCases.length > 0) {
+          const ranked = validatedCases.map(c => {
+            let score = 0;
+            const hn = (c.headNote || '').toLowerCase();
+            const jg = (c.judgment || '').toLowerCase();
+            filteredTerms.forEach(t => {
+              if (hn.includes(t)) score += 20;
+              if (jg.includes(t)) score += 10;
+            });
+            return { c, score };
+          }).sort((a, b) => b.score - a.score);
+
+          matchingTopicCases = ranked.filter(r => r.score > 0).slice(0, 10).map(r => r.c);
+          if (matchingTopicCases.length > 0) {
+            targetCase = matchingTopicCases[0];
+            matchType = 'topic_multi';
+            confidence = 90;
+            activeReferences = ['headnotes', 'statutes', 'courts', 'citations'];
+          }
         }
       }
     }
@@ -641,8 +804,29 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
 
     let responseText = '';
 
+    // FORMAT 0: Direct Case ID Match or Single Citation Match
+    if (matchType === 'case_id' || matchType === 'citation_single') {
+      const citeLine = (targetCase.mapYearPage && targetCase.mapYearPage.length > 0) ? targetCase.mapYearPage.join(' | ') : `SLD #${targetCase.sldNumber || targetCase.caseId}`;
+      const lawyersClean = cleanLawyers(targetCase.lawyers);
+      const overviewText = targetCase.headNote ? targetCase.headNote.trim() : (targetCase.judgment ? targetCase.judgment.slice(0, 500).trim() + '...' : 'Full judgment text available on record.');
+
+      responseText = `### 📋 Case Record Verified: **${targetCase.caseId || `CASE-${targetCase.sldNumber}`}** (SLD #${targetCase.sldNumber})\n\n` +
+        `**Key Case Details:**\n` +
+        `• **Citation**: ${citeLine}\n` +
+        `• **Court**: ${courtName}\n` +
+        (caseNumbers ? `• **Case Number**: ${caseNumbers}\n` : '') +
+        (datedStr ? `• **${datedStr}**\n` : '') +
+        `• **Bench**: ${benchStr}\n` +
+        (partiesStr !== 'N/A' ? `• **Parties**: ${partiesStr}\n` : '') +
+        (lawyersClean !== 'N/A' ? `• **Counsel**: ${lawyersClean}\n` : '') +
+        `\n#### Overview & Significance\n` +
+        `${overviewText}\n\n` +
+        (targetCase.principleLaw ? `**Principle of Law Established:**\n${targetCase.principleLaw}\n\n` : '') +
+        `**Applicable Statutory Provisions:**\n${lawsList}\n\n` +
+        `[View Full Case Document ↗](/cases/view/${targetCase._id})\n`;
+    }
     // FORMAT A: Case Number Match
-    if (matchType === 'case_number' && matchingCaseNumberCases.length > 0) {
+    else if (matchType === 'case_number' && matchingCaseNumberCases.length > 0) {
       const countWord = matchingCaseNumberCases.length === 1 ? 'One matching judgment was' :
         matchingCaseNumberCases.length === 2 ? 'Two matching judgments were' :
         `${matchingCaseNumberCases.length} matching judgments were`;

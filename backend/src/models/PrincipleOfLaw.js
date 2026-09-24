@@ -19,7 +19,6 @@ const principleOfLawSchema = new mongoose.Schema(
   }
 );
 
-principleOfLawSchema.index({ name: 1 });
 principleOfLawSchema.index({ status: 1 });
 
 const PrincipleOfLaw = mongoose.model('PrincipleOfLaw', principleOfLawSchema);

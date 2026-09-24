@@ -1,77 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye } from 'lucide-react';
 import { caseService } from '../features/cases/services/caseService';
-import { LAW_OPTIONS } from '../data/laws';
+import { settingService } from '../services/settingService';
+import { magazineService, courtService } from '../services/adminSettingsServices';
 import CaseDocumentModal from '../components/ui/CaseDocumentModal';
-
-/* ── Magazine options ─────────────────────────────────────────────────── */
-const MAGAZINE_OPTIONS = [
-  { value: '', label: 'Select Magazine' },
-  { value: 'SLD', label: 'SLD' },
-  { value: 'PTD', label: 'PTD' },
-  { value: 'TAX', label: 'TAX' },
-  { value: 'PTCL', label: 'PTCL' },
-  { value: 'SCMR', label: 'SCMR' },
-  { value: 'CLD', label: 'CLD' },
-  { value: 'PLD', label: 'PLD' },
-  { value: 'PLC', label: 'PLC' },
-  { value: 'PCRLJ', label: 'PCRLJ' },
-  { value: 'MLD', label: 'MLD' },
-  { value: 'CLC', label: 'CLC' },
-  { value: 'PLJ', label: 'PLJ' },
-  { value: 'ITR', label: 'ITR' },
-  { value: 'AIR', label: 'AIR' },
-  { value: 'SCC', label: 'SCC' },
-  { value: 'YLR', label: 'YLR' },
-  { value: 'NLR', label: 'NLR' },
-  { value: 'KLR', label: 'KLR' },
-  { value: 'TAXMAN', label: 'TAXMAN' },
-  { value: 'SBLR', label: 'SBLR' },
-];
-
-/* ── Court options ────────────────────────────────────────────────────── */
-const COURT_OPTIONS = [
-  { value: '', label: 'Select Court' },
-  { value: 'Supreme Court of Pakistan', label: 'Supreme Court of Pakistan' },
-  { value: 'Federal Constitutional Court of Pakistan', label: 'Federal Constitutional Court of Pakistan' },
-  { value: 'Lahore High Court', label: 'Lahore High Court' },
-  { value: 'Sindh High Court', label: 'Sindh High Court' },
-  { value: 'Peshawar High Court', label: 'Peshawar High Court' },
-  { value: 'Islamabad High Court', label: 'Islamabad High Court' },
-  { value: 'Balochistan High Court', label: 'Balochistan High Court' },
-  { value: 'Federal Shariat Court', label: 'Federal Shariat Court' },
-  { value: 'Appellate Tribunal Inland Revenue', label: 'Appellate Tribunal Inland Revenue' },
-  { value: 'Appellate Tribunal Inland Revenue, Islamabad', label: 'Appellate Tribunal Inland Revenue, Islamabad' },
-  { value: 'Appellate Tribunal Inland Revenue, Karachi', label: 'Appellate Tribunal Inland Revenue, Karachi' },
-  { value: 'Appellate Tribunal Inland Revenue, Lahore', label: 'Appellate Tribunal Inland Revenue, Lahore' },
-  { value: 'Appellate Tribunal Inland Revenue, Peshawar', label: 'Appellate Tribunal Inland Revenue, Peshawar' },
-  { value: 'Income Tax Appellate Tribunal', label: 'Income Tax Appellate Tribunal' },
-  { value: 'Income Tax Appellate Tribunal, Karachi', label: 'Income Tax Appellate Tribunal, Karachi' },
-  { value: 'Income Tax Appellate Tribunal, Lahore', label: 'Income Tax Appellate Tribunal, Lahore' },
-  { value: 'Income Tax Appellate Tribunal, Islamabad', label: 'Income Tax Appellate Tribunal, Islamabad' },
-  { value: 'Customs Appellate Tribunal', label: 'Customs Appellate Tribunal' },
-  { value: 'Federal Tax Ombudsman', label: 'Federal Tax Ombudsman' },
-  { value: 'Federal Service Tribunal, Islamabad', label: 'Federal Service Tribunal, Islamabad' },
-  { value: 'Lahore High Court, Multan Bench, Multan', label: 'Lahore High Court, Multan Bench, Multan' },
-  { value: 'Lahore High Court, Rawalpindi Bench, Rawalpindi', label: 'Lahore High Court, Rawalpindi Bench, Rawalpindi' },
-  { value: 'Sindh High Court, Hyderabad Bench', label: 'Sindh High Court, Hyderabad Bench' },
-  { value: 'Peshawar High Court, Abbottabad Bench', label: 'Peshawar High Court, Abbottabad Bench' },
-  { value: 'High Court (AJ&K)', label: 'High Court (AJ&K)' },
-  { value: 'Supreme Court (AJ&K)', label: 'Supreme Court (AJ&K)' },
-  { value: 'Gilgit Baltistan Chief Court', label: 'Gilgit Baltistan Chief Court' },
-  { value: 'Competition Commission of Pakistan', label: 'Competition Commission of Pakistan' },
-  { value: 'House of Lord', label: 'House of Lord' },
-  { value: 'Privy Council', label: 'Privy Council' },
-  { value: 'Supreme Court of India', label: 'Supreme Court of India' },
-  { value: 'Supreme Court of the United States', label: 'Supreme Court of the United States' },
-  { value: 'High Court of Australia', label: 'High Court of Australia' },
-];
-
-/* ── Principle Law options ────────────────────────────────────────────── */
-const PRINCIPLE_OPTIONS = [
-  { value: '', label: 'Select Principle Law' },
-  ...LAW_OPTIONS.filter(o => o.value !== ''),
-];
 
 /* ── Shared styles ────────────────────────────────────────────────────── */
 const inp =
@@ -82,21 +14,27 @@ const sel =
   'w-full bg-white text-gray-700 text-sm px-3 py-2 rounded-md ' +
   'border-0 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#4a7a9b]/40 h-[38px]';
 
-const SelectField = ({ value, onChange, options }) => (
-  <div className="relative w-full">
-    <select className={sel} value={value} onChange={onChange}>
-      {options.map(o => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-        <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8"
-          strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    </span>
-  </div>
-);
+const SelectField = ({ value, onChange, options = [] }) => {
+  const allOptions = [...options];
+  if (value && !allOptions.some(o => o.value === value)) {
+    allOptions.push({ value, label: value });
+  }
+  return (
+    <div className="relative w-full">
+      <select className={sel} value={value} onChange={onChange}>
+        {allOptions.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8"
+            strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </span>
+    </div>
+  );
+};
 
 /* ─────────────────────────────────────────────────────────────────────── */
 
@@ -115,6 +53,66 @@ const SearchCaseLawPage = () => {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [viewId, setViewId]     = useState(null);
+
+  // Dynamic dropdown options fetched entirely from backend
+  const [magazineOptions, setMagazineOptions] = useState([{ value: '', label: 'Select Magazine' }]);
+  const [courtOptions, setCourtOptions] = useState([{ value: '', label: 'Select Court' }]);
+  const [lawOptions, setLawOptions] = useState([{ value: '', label: 'Select Law' }]);
+  const [principleOptions, setPrincipleOptions] = useState([{ value: '', label: 'Select Principle Law' }]);
+
+  // Dynamically load all dropdown options from backend collections
+  useEffect(() => {
+    let isMounted = true;
+
+    // 1. Fetch Magazines from backend
+    magazineService.getMagazines({ status: 'active' })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setMagazineOptions([
+            { value: '', label: 'Select Magazine' },
+            ...res.data.map(m => ({ value: m.name, label: m.name }))
+          ]);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic magazines for SearchCaseLawPage:', err);
+      });
+
+    // 2. Fetch Courts from backend
+    courtService.getCourts({ status: 'active' })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setCourtOptions([
+            { value: '', label: 'Select Court' },
+            ...res.data.map(c => ({ value: c.name, label: c.name }))
+          ]);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic courts for SearchCaseLawPage:', err);
+      });
+
+    // 3. Fetch Laws from backend
+    settingService.getLaws({ status: 'active', limit: 5000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const fetchedLaws = res.data.map(l => ({ value: l.name, label: l.name }));
+          setLawOptions([
+            { value: '', label: 'Select Law' },
+            ...fetchedLaws
+          ]);
+          setPrincipleOptions([
+            { value: '', label: 'Select Principle Law' },
+            ...fetchedLaws
+          ]);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic laws for SearchCaseLawPage:', err);
+      });
+
+    return () => { isMounted = false; };
+  }, []);
 
   const set = field => e => setF(p => ({ ...p, [field]: e.target.value }));
 
@@ -192,7 +190,7 @@ const SearchCaseLawPage = () => {
               <input className={inp} placeholder="Year/vol" value={f.yearVolume} onChange={set('yearVolume')} />
             </div>
           </div>
-          <SelectField value={f.magazine} onChange={set('magazine')} options={MAGAZINE_OPTIONS} />
+          <SelectField value={f.magazine} onChange={set('magazine')} options={magazineOptions} />
           <div className="flex justify-center">
             <div className="w-[75%]">
               <input className={inp} placeholder="Page" value={f.page} onChange={set('page')} />
@@ -203,7 +201,7 @@ const SearchCaseLawPage = () => {
         {/* ── Row 2: Select Law (wide) · Enter Section · Enter Section 2 ─ */}
         <div className="flex gap-4 mb-3 items-center">
           <div className="w-[58%]">
-            <SelectField value={f.selectLaw} onChange={set('selectLaw')} options={[{ value: '', label: 'Select Law' }, ...LAW_OPTIONS.filter(o => o.value !== '')]} />
+            <SelectField value={f.selectLaw} onChange={set('selectLaw')} options={lawOptions} />
           </div>
           <div className="flex-1">
             <input className={inp} placeholder="Enter Section" value={f.section} onChange={set('section')} />
@@ -216,7 +214,7 @@ const SearchCaseLawPage = () => {
         {/* ── Row 3: Select Court (wide) · Enter Case # · Enter Date ────── */}
         <div className="flex gap-4 mb-3 items-center">
           <div className="w-[58%]">
-            <SelectField value={f.court} onChange={set('court')} options={COURT_OPTIONS} />
+            <SelectField value={f.court} onChange={set('court')} options={courtOptions} />
           </div>
           <div className="flex-1">
             <input className={inp} placeholder="Enter Case #" value={f.caseNumber} onChange={set('caseNumber')} />
@@ -243,7 +241,7 @@ const SearchCaseLawPage = () => {
         {/* ── Row 6: Select Principle Law — centered wide ───────────────── */}
         <div className="flex justify-center mb-5">
           <div className="w-[66%]">
-            <SelectField value={f.principleLaw} onChange={set('principleLaw')} options={PRINCIPLE_OPTIONS} />
+            <SelectField value={f.principleLaw} onChange={set('principleLaw')} options={principleOptions} />
           </div>
         </div>
 

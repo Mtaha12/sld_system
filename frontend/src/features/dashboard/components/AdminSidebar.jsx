@@ -20,7 +20,16 @@ import {
   Sparkles,
   Building2,
   BookOpen,
-  Library
+  Library,
+  Users,
+  Activity,
+  BellRing,
+  FileSpreadsheet,
+  ShieldCheck,
+  ShieldBan,
+  BookMarked,
+  Gavel,
+  Replace
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/SLD_Logo.jpeg';
 
@@ -31,6 +40,15 @@ const NAV_ITEMS = [
   { label: 'Manage Cases Law', path: '/manage-cases', icon: Scale },
   { label: 'Manage Notifications', path: '/manage-notifications', icon: Bell },
   { label: 'Manage Statutes Forms', path: '/manage-statutes', icon: FileText },
+  { label: 'Manage Users', path: '/manage-users', icon: Users },
+  { label: 'Manage Admins', path: '/manage-admins', icon: ShieldCheck },
+  { label: 'Batch Replacement', path: '/replacement', icon: Replace },
+  { label: 'Cases Activity', path: '/activity/cases', icon: Activity },
+  { label: 'Notification Activity', path: '/activity/notifications', icon: BellRing },
+  { label: 'Statute Activity', path: '/activity/statutes', icon: FileSpreadsheet },
+  { label: 'Manage Magazines', path: '/setting/magazines', icon: BookMarked },
+  { label: 'Manage Courts', path: '/setting/courts', icon: Gavel },
+  { label: 'Manage Ip Block List', path: '/setting/ip-blocks', icon: ShieldBan },
   { label: 'Manage News', path: '/news', icon: Newspaper },
   { label: 'Whatsapp Updates', path: '/whatsapp-updates', icon: MessageSquare },
   { label: 'Manage Updates', path: '/manage-updates', icon: Globe },

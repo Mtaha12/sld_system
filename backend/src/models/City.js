@@ -25,7 +25,6 @@ const citySchema = new mongoose.Schema(
   }
 );
 
-citySchema.index({ name: 1 });
 citySchema.index({ province: 1 });
 citySchema.index({ status: 1 });
 

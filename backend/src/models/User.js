@@ -62,6 +62,57 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  loginId: {
+    type: String,
+    trim: true,
+  },
+  agencyName: {
+    type: String,
+    default: 'General',
+    trim: true,
+  },
+  userType: {
+    type: String,
+    enum: ['Special', 'Regular', 'Corporate'],
+    default: 'Special',
+  },
+  aiAssistant: {
+    type: Boolean,
+    default: true,
+  },
+  alreadyLogin: {
+    type: Boolean,
+    default: false,
+  },
+  isSpammer: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  ipRestriction: {
+    type: Boolean,
+    default: false,
+  },
+  displayStatute: {
+    type: Boolean,
+    default: true,
+  },
+  displayNotification: {
+    type: Boolean,
+    default: true,
+  },
+  displayCase: {
+    type: Boolean,
+    default: true,
+  },
+  activeDate: {
+    type: Date,
+    default: Date.now,
+  },
+  inactiveDate: {
+    type: Date,
+    default: null,
+  },
   avatarUrl: {
     type: String,
     default: '',
