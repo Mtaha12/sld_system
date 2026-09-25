@@ -266,23 +266,23 @@ const OrbitalSpinWheel = ({
   }, []);
 
   return (
-    <div className={`relative flex flex-col items-center justify-center p-1 select-none w-full max-w-[480px] mx-auto ${className}`}>
+    <div className={`relative flex flex-col items-center justify-center select-none w-full h-full max-w-[560px] mx-auto ${className}`}>
       
-      {/* Top Telemetry Header - No play/pause buttons, completely clean */}
-      <div className="w-full flex items-center justify-between px-2 py-1 mb-1 z-20 gap-1">
+      {/* Top Telemetry Header */}
+      <div className="w-full flex items-center justify-between px-2 py-1 mb-1 z-20 gap-1 shrink-0">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className={`w-2 h-2 rounded-full shrink-0 ${
             isSearching 
               ? 'bg-brand-orange animate-ping' 
               : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
           }`} />
-          <span className="text-[11px] font-black uppercase tracking-wider text-theme-main truncate">
+          <span className="text-xs font-black uppercase tracking-wider text-theme-main truncate">
             {isSearching ? 'Scanning 15,000 Cases...' : 'SLD Legal Wheel'}
           </span>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[9px] font-semibold text-brand-orange bg-brand-orange/10 px-2 py-0.5 rounded-full border border-brand-orange/20 whitespace-nowrap">
+          <span className="text-[10px] font-bold text-brand-orange bg-brand-orange/10 px-2.5 py-0.5 rounded-full border border-brand-orange/20 whitespace-nowrap">
             {isSearching ? 'Active Scan' : '8 Reference Engines'}
           </span>
         </div>
@@ -291,16 +291,18 @@ const OrbitalSpinWheel = ({
       {/* Main SVG Infographic Wheel with GPU-Accelerated CSS Auto-Spin */}
       <div className="relative w-full aspect-square flex items-center justify-center">
         
-        {/* Ambient Radial Aura */}
+        {/* Subtle Ambient Radial Aura */}
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className={`w-[85%] h-[85%] rounded-full bg-gradient-to-tr from-brand-orange/20 via-cyan-500/15 to-purple-500/20 blur-3xl transition-opacity duration-700 ${
-            isSearching ? 'opacity-90 animate-pulse' : 'opacity-60'
+          <div className={`w-[75%] h-[75%] rounded-full bg-gradient-to-tr from-brand-orange/10 via-amber-500/5 to-cyan-500/10 blur-xl transition-opacity duration-500 ${
+            isSearching ? 'opacity-80' : 'opacity-30'
           }`} />
         </div>
 
         <svg
           viewBox="0 0 800 800"
-          className="w-full h-full drop-shadow-xl overflow-visible"
+          shapeRendering="geometricPrecision"
+          textRendering="geometricPrecision"
+          className="w-full h-full overflow-visible"
         >
           <defs>
             {/* GPU CSS Keyframe Animations inside SVG */}
@@ -312,36 +314,34 @@ const OrbitalSpinWheel = ({
               .wheel-scanning-spin {
                 transform-origin: 400px 400px;
                 animation: wheelAutoScanSpin 3.2s linear infinite;
-                will-change: transform;
               }
               .wheel-idle-settled {
                 transform-origin: 400px 400px;
                 transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-                will-change: transform;
               }
             `}</style>
 
-            {/* Soft 3D Drop Shadow for Wedge Cards */}
-            <filter id="cardShadow" x="-15%" y="-15%" width="130%" height="130%">
-              <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor="#000" floodOpacity="0.20" />
+            {/* Crisp 3D Drop Shadow for Wedge Cards */}
+            <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.10" />
             </filter>
 
             {/* Elevated Shadow on Hover / Active */}
-            <filter id="cardElevatedShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="#f15a24" floodOpacity="0.35" />
+            <filter id="cardElevatedShadow" x="-15%" y="-15%" width="130%" height="130%">
+              <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#f15a24" floodOpacity="0.25" />
             </filter>
 
             {/* Gear 3D Shadow */}
-            <filter id="gearShadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.30" />
+            <filter id="gearShadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.12" />
             </filter>
 
-            {/* Text Path Arc for curved outer banners (radius 342) */}
+            {/* Text Path Arc for curved outer banners (radius 340) */}
             <path
               id="bannerTextPath"
               d={`
-                M ${cx + 342 * Math.cos((-16 * Math.PI) / 180)} ${cy + 342 * Math.sin((-16 * Math.PI) / 180)}
-                A 342 342 0 0 1 ${cx + 342 * Math.cos((16 * Math.PI) / 180)} ${cy + 342 * Math.sin((16 * Math.PI) / 180)}
+                M ${cx + 340 * Math.cos((-17 * Math.PI) / 180)} ${cy + 340 * Math.sin((-17 * Math.PI) / 180)}
+                A 340 340 0 0 1 ${cx + 340 * Math.cos((17 * Math.PI) / 180)} ${cy + 340 * Math.sin((17 * Math.PI) / 180)}
               `}
             />
 
@@ -413,9 +413,15 @@ const OrbitalSpinWheel = ({
                       {/* Outer Tag Curved Text */}
                       <text
                         fill="#FFFFFF"
-                        fontSize={sector.tag.length > 12 ? "10.5" : sector.tag.length > 9 ? "12" : "13.5"}
+                        fontSize={
+                          sector.tag === 'PRINCIPLE OF LAW' ? "15.5" :
+                          sector.tag.length > 9 ? "18" : "20"
+                        }
                         fontWeight="900"
-                        letterSpacing={sector.tag.length > 12 ? "1.2" : "2"}
+                        letterSpacing={
+                          sector.tag === 'PRINCIPLE OF LAW' ? "1.2" :
+                          sector.tag.length > 9 ? "1.8" : "2.2"
+                        }
                         textAnchor="middle"
                         className="select-none tracking-widest drop-shadow-sm font-sans"
                       >
@@ -479,11 +485,12 @@ const OrbitalSpinWheel = ({
                           {/* Title */}
                           <text
                             x="0"
-                            y="-10"
+                            y="-16"
                             textAnchor="middle"
-                            fill="currentColor"
-                            className={`font-bold text-[13px] tracking-tight select-none font-sans transition-colors ${
-                              isHovered ? 'text-brand-orange dark:text-brand-orange font-extrabold' : 'text-slate-900 dark:text-slate-100'
+                            fontSize={sector.title.length > 15 ? "18" : "20"}
+                            fontWeight="900"
+                            className={`select-none font-sans transition-colors ${
+                              isHovered ? 'fill-brand-orange font-black' : 'fill-slate-900 dark:fill-slate-100 font-bold'
                             }`}
                           >
                             {sector.title}
@@ -494,33 +501,34 @@ const OrbitalSpinWheel = ({
                             x="0"
                             y="6"
                             textAnchor="middle"
-                            fill="currentColor"
-                            className="text-slate-500 dark:text-slate-400 font-medium text-[9.5px] select-none font-sans"
+                            fontSize="14.5"
+                            fontWeight="700"
+                            className="fill-slate-600 dark:fill-slate-300 select-none font-sans"
                           >
                             {sector.sub}
                           </text>
 
                           {/* Status Pill Badge */}
-                          <g transform="translate(0, 19)">
+                          <g transform="translate(0, 27)">
                             <rect
-                              x="-32"
-                              y="-6.5"
-                              width="64"
-                              height="13"
-                              rx="6.5"
+                              x="-42"
+                              y="-9.5"
+                              width="84"
+                              height="19"
+                              rx="9.5"
                               fill={sector.color}
                               fillOpacity={isActive || isHovered ? "0.95" : "0.15"}
                               stroke={sector.color}
-                              strokeWidth="0.8"
+                              strokeWidth="1.2"
                             />
                             <text
                               x="0"
-                              y="2.5"
+                              y="4"
                               textAnchor="middle"
                               fill={isActive || isHovered ? "#FFFFFF" : sector.color}
-                              fontSize="8"
-                              fontWeight="800"
-                              letterSpacing="0.8"
+                              fontSize="11.5"
+                              fontWeight="900"
+                              letterSpacing="1"
                               className="select-none font-sans"
                             >
                               {isActive ? 'GROUNDED' : isHovered ? 'FILTER' : 'EXPLORE'}
@@ -610,9 +618,9 @@ const OrbitalSpinWheel = ({
 
             <text
               fill="#F97316"
-              fontSize="8.5"
+              fontSize="11.5"
               fontWeight="900"
-              letterSpacing="1.5"
+              letterSpacing="2"
               className="select-none font-sans"
             >
               <textPath href="#gearHubTextTop" startOffset="50%" textAnchor="middle">
@@ -622,9 +630,9 @@ const OrbitalSpinWheel = ({
 
             <text
               fill="#64748B"
-              fontSize="7.5"
+              fontSize="10"
               fontWeight="800"
-              letterSpacing="1.2"
+              letterSpacing="1.5"
               className="select-none font-sans"
             >
               <textPath href="#gearHubTextBottom" startOffset="50%" textAnchor="middle">
@@ -658,7 +666,7 @@ const OrbitalSpinWheel = ({
 
           </g>
 
-          {/* Interactive AI Bot Icon & Status inside Center Hub */}
+          {/* Interactive AI Bot Icon & Dynamic Hover Inspection in Center Hub */}
           <foreignObject
             x={cx - 45}
             y={cy - 45}
@@ -666,52 +674,74 @@ const OrbitalSpinWheel = ({
             height={90}
             className="pointer-events-none"
           >
-            <div className="w-full h-full flex flex-col items-center justify-center text-white">
-              <div className="relative">
-                {isSearching ? (
-                  <Zap className="w-7 h-7 text-brand-orange animate-bounce drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]" />
-                ) : (
-                  <Bot className="w-7 h-7 text-brand-orange drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
-                )}
-              </div>
-              <span className="text-[9px] font-black uppercase tracking-wider text-white mt-0.5">
-                AI BOT
-              </span>
-              <span className="text-[7.5px] font-bold text-cyan-400 leading-none">
-                {isSearching ? 'SCANNING' : 'ONLINE'}
-              </span>
-            </div>
+            {(() => {
+              const activeHovered = hoveredSector ? REFERENCE_SECTORS.find(s => s.id === hoveredSector) : null;
+              if (activeHovered) {
+                const HoverIcon = activeHovered.icon;
+                return (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-white animate-fade-in">
+                    <HoverIcon className="w-6 h-6 drop-shadow-md" style={{ color: activeHovered.color }} />
+                    <span className="text-[8.5px] font-black uppercase tracking-wider text-white mt-0.5 truncate max-w-[80px]">
+                      {activeHovered.tag}
+                    </span>
+                    <span className="text-[7.5px] font-extrabold text-amber-400 leading-none tracking-wider">
+                      INSPECT
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <div className="w-full h-full flex flex-col items-center justify-center text-white">
+                  <div className="relative">
+                    {isSearching ? (
+                      <Zap className="w-7 h-7 text-brand-orange animate-bounce drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]" />
+                    ) : (
+                      <Bot className="w-7 h-7 text-brand-orange drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
+                    )}
+                  </div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-white mt-0.5">
+                    AI BOT
+                  </span>
+                  <span className="text-[9px] font-bold text-cyan-400 leading-none">
+                    {isSearching ? 'SCANNING' : 'ONLINE'}
+                  </span>
+                </div>
+              );
+            })()}
           </foreignObject>
 
         </svg>
 
       </div>
 
-      {/* Dynamic Hover Tooltip / Detail Card with Fixed Height Container (Prevents Layout Shifts & Flickering) */}
-      <div className="mt-2 w-full h-[52px] flex items-center justify-center shrink-0">
+      {/* Dynamic Hover Detail / Live Field Inspection Card */}
+      <div className="w-full mt-2 min-h-[66px] flex items-center justify-center shrink-0">
         {hoveredSector ? (
           (() => {
             const sec = REFERENCE_SECTORS.find(s => s.id === hoveredSector);
             if (!sec) return null;
             const Icon = sec.icon;
             return (
-              <div className="w-full h-full px-3.5 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-md flex items-center gap-3 animate-fade-in">
+              <div 
+                className="w-full p-2.5 bg-white dark:bg-theme-surface border rounded-xl shadow-md flex items-center gap-3 animate-fade-in transition-all"
+                style={{ borderColor: `${sec.color}60` }}
+              >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm"
                   style={{ backgroundColor: sec.color }}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-theme-main">
-                      {sec.tag}: {sec.title}
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-black truncate" style={{ color: sec.color }}>
+                      {sec.tag} • {sec.title}
                     </span>
-                    <span className="text-[10px] font-semibold text-brand-orange">
-                      Click to query
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand-orange/10 text-brand-orange whitespace-nowrap">
+                      Click to Query
                     </span>
                   </div>
-                  <p className="text-[11px] text-theme-muted truncate">
+                  <p className="text-[11px] text-theme-main font-medium leading-snug truncate mt-0.5">
                     {sec.fullDesc}
                   </p>
                 </div>
@@ -719,11 +749,11 @@ const OrbitalSpinWheel = ({
             );
           })()
         ) : lastMatchedCase ? (
-          <div className="w-full h-full px-3.5 py-1.5 bg-brand-orange/10 border border-brand-orange/30 rounded-xl shadow-sm flex items-center justify-between gap-2 text-xs animate-fade-in">
+          <div className="w-full p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl shadow-sm flex items-center justify-between gap-2 text-xs animate-fade-in">
             <div className="flex items-center gap-2 truncate">
-              <Sparkles className="w-3.5 h-3.5 text-brand-orange shrink-0" />
-              <span className="text-[11px] text-theme-main font-semibold truncate">
-                Active Grounding: <strong>SLD #{lastMatchedCase.sldNumber || lastMatchedCase.id}</strong> ({lastMatchedCase.court})
+              <Sparkles className="w-4 h-4 text-brand-orange shrink-0" />
+              <span className="text-xs text-theme-main font-bold truncate">
+                Grounded: SLD #{lastMatchedCase.sldNumber || lastMatchedCase.id} ({lastMatchedCase.court})
               </span>
             </div>
             <span className="text-[10px] font-bold text-brand-orange bg-brand-orange/20 px-2 py-0.5 rounded-full shrink-0">
@@ -731,16 +761,17 @@ const OrbitalSpinWheel = ({
             </span>
           </div>
         ) : (
-          <div className="w-full h-full px-3.5 py-1.5 bg-theme-surface-alt/40 border border-theme-border/60 rounded-xl flex items-center justify-between gap-2 text-xs text-theme-muted">
+          <div className="w-full p-2.5 bg-gray-50/80 dark:bg-theme-surface-alt/40 border border-theme-border/60 rounded-xl flex items-center justify-between gap-2 text-xs text-theme-muted">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
-              <span className="text-[11px]">8 Direct Case Law Fields Active</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)] animate-pulse" />
+              <span className="text-[11px] font-medium">Hover over any sector to inspect law fields</span>
             </div>
-            <span className="text-[10px] text-brand-orange font-semibold">Hover to inspect</span>
+            <span className="text-[10px] text-brand-orange font-bold uppercase tracking-wider">
+              8 Fields
+            </span>
           </div>
         )}
       </div>
-
     </div>
   );
 };

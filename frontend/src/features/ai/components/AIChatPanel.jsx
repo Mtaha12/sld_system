@@ -1,16 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Send, Bot, User, Sparkles, Scale, ExternalLink, 
-  Copy, Check, FileText, AlertCircle, RefreshCw, Layers
+  Send, User, Scale, ExternalLink, 
+  Copy, Check, FileText, RefreshCw,
+  MessageSquare, Plus, X, Sparkles 
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 
 const AIChatPanel = ({
+  sessions = [],
+  activeSessionId,
+  onSelectSession,
+  onNewSession,
+  onCloseSession,
   messages = [],
   onSendMessage,
   isLoading = false,
-  onClearChat,
-  onSuggestionClick,
   className = ""
 }) => {
   const [inputText, setInputText] = useState('');
@@ -79,14 +83,6 @@ const AIChatPanel = ({
     setCopiedCitation(id);
     setTimeout(() => setCopiedCitation(null), 2500);
   };
-
-  const suggestions = [
-    { label: 'Parallel Citation (2 Cases)', text: '(2011) 104 TAX 78' },
-    { label: 'Refund Time-Bar Rule', text: 'refund is cannot be time barred' },
-    { label: 'Exact Judgment Quote', text: 'The intention of the legislature is gathered from the language of the statute' },
-    { label: 'SLD Citation', text: '2006 SLD 282' },
-    { label: 'Statute Query', text: 'Section 7E Capital Value Tax rulings' }
-  ];
 
   const renderFormattedText = (text) => {
     if (!text) return null;
@@ -180,35 +176,61 @@ const AIChatPanel = ({
   return (
     <div className={`flex flex-col h-full bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-lg overflow-hidden ${className}`}>
       
-      {/* Header */}
-      <div className="px-5 py-3.5 border-b border-theme-border flex items-center justify-between bg-gray-50/70 dark:bg-theme-surface-alt/40 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-brand-orange/10 text-brand-orange border border-brand-orange/20">
-            <Sparkles className="w-4.5 h-4.5" />
-          </div>
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-theme-main leading-tight">
-              SLD Legal Research Dialogue
-            </h2>
-            <span className="text-xs text-theme-muted mt-0.5 block">
-              Grounded in 15,000 cases • Exact Line Search & Verification
-            </span>
-          </div>
+      {/* Executive Multi-Tab Session Bar */}
+      <div className="px-3 pt-2 pb-0 border-b border-theme-border bg-gray-50/80 dark:bg-theme-surface-alt/30 flex items-center justify-between gap-2 shrink-0 overflow-hidden">
+        
+        {/* Horizontal Scrollable Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 py-1">
+          {sessions.map((sess) => {
+            const isActive = sess.id === activeSessionId;
+            return (
+              <div
+                key={sess.id}
+                onClick={() => onSelectSession?.(sess.id)}
+                className={`group relative flex items-center gap-2 px-3.5 py-1.5 rounded-t-xl text-xs font-semibold cursor-pointer transition-all border-t border-x shrink-0 select-none ${
+                  isActive
+                    ? 'bg-white dark:bg-theme-surface text-brand-orange border-theme-border shadow-sm border-b-2 border-b-brand-orange z-10 font-bold'
+                    : 'bg-transparent text-theme-muted hover:text-theme-main hover:bg-gray-200/50 dark:hover:bg-theme-surface-alt/60 border-transparent'
+                }`}
+                title={sess.title}
+              >
+                <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-brand-orange' : 'text-theme-muted group-hover:text-theme-main'}`} />
+                <span className="truncate max-w-[120px] sm:max-w-[160px]">
+                  {sess.title || 'Legal Inquiry'}
+                </span>
+                
+                {/* Close Tab Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCloseSession?.(sess.id, e);
+                  }}
+                  className={`rounded p-0.5 transition-all text-theme-muted hover:text-red-500 hover:bg-red-500/10 cursor-pointer ${
+                    isActive ? 'opacity-70 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                  title="Close tab"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="flex items-center gap-2">
-          {onClearChat && (
-            <button
-              type="button"
-              onClick={onClearChat}
-              className="px-3 py-1.5 rounded-lg text-theme-muted hover:text-theme-main hover:bg-theme-surface-alt transition-colors text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer font-medium"
-              title="Clear Session"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span className="hidden sm:inline">Reset</span>
-            </button>
-          )}
+        {/* Action Controls: New Chat Button */}
+        <div className="flex items-center gap-2 pb-1 shrink-0">
+          <button
+            type="button"
+            onClick={onNewSession}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-brand-orange to-amber-500 hover:from-brand-orange-hover hover:to-amber-600 text-white text-xs font-bold transition-all shadow-sm hover:shadow-md cursor-pointer whitespace-nowrap active:scale-95"
+            title="Start a new chat session"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Chat</span>
+          </button>
         </div>
+
       </div>
 
       {/* Messages Scroll Stream */}
@@ -227,11 +249,6 @@ const AIChatPanel = ({
               ref={isLastMessage ? lastMessageRef : null}
               className={`flex gap-3.5 animate-fade-in ${isUser ? 'justify-end' : 'justify-start'}`}
             >
-              {!isUser && (
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-brand-orange to-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                  <Bot className="w-5 h-5" />
-                </div>
-              )}
 
               <div className={`max-w-[92%] space-y-3 ${isUser ? 'items-end' : 'items-start'}`}>
                 
@@ -366,49 +383,38 @@ const AIChatPanel = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggestions Strip */}
-      <div className="px-4 py-2.5 bg-gray-50/50 dark:bg-theme-surface-alt/20 border-t border-theme-border flex flex-wrap items-center gap-2 shrink-0">
-        <span className="text-xs text-theme-muted font-bold uppercase tracking-wider mr-1">
-          Try:
-        </span>
-        {suggestions.map((s, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onClick={() => {
-              if (onSuggestionClick) onSuggestionClick(s.text);
-              else setInputText(s.text);
-            }}
-            className="px-3 py-1 rounded-full bg-theme-surface hover:bg-brand-orange/10 hover:border-brand-orange/40 hover:text-brand-orange border border-theme-border text-xs sm:text-sm text-theme-main font-medium transition-colors cursor-pointer truncate max-w-[240px]"
-            title={s.text}
+      {/* Executive Input Bar */}
+      <div className="p-3 bg-white dark:bg-theme-surface border-t border-theme-border shrink-0 space-y-1.5">
+        <form onSubmit={handleSubmit} className="flex items-center gap-2.5">
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="Paste a line from judgment, citation (e.g. 2006 SLD 282), case number, judge, or legal issue..."
+            disabled={isLoading}
+            className="flex-1 px-4 py-3 bg-theme-surface border border-theme-border rounded-xl text-sm sm:text-base focus:outline-none focus:border-brand-orange text-theme-main shadow-inner transition-colors"
+          />
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            disabled={!inputText.trim() || isLoading}
+            className="bg-brand-orange hover:bg-brand-orange-hover text-white h-[46px] px-5 rounded-xl flex items-center gap-2 shadow-sm font-bold text-sm sm:text-base"
           >
-            {s.label}
-          </button>
-        ))}
+            <Send className="w-4 h-4" />
+            <span>Analyze</span>
+          </Button>
+        </form>
+
+        <div className="flex items-center justify-between text-[11px] text-theme-muted px-1.5">
+          <span>Press Enter ↵ to search • Shift + Enter for multiline</span>
+          <span className="text-brand-orange font-semibold flex items-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            <span>15,000 Verified Judicial Records</span>
+          </span>
+        </div>
       </div>
-
-      {/* Input Bar */}
-      <form onSubmit={handleSubmit} className="p-3.5 bg-white dark:bg-theme-surface border-t border-theme-border flex items-center gap-2.5 shrink-0">
-        <input
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="Paste a line from judgment, citation (e.g. 2006 SLD 282), case number, judge, or legal issue..."
-          disabled={isLoading}
-          className="flex-1 px-4 py-3 bg-theme-surface border border-theme-border rounded-xl text-sm sm:text-base focus:outline-none focus:border-brand-orange text-theme-main shadow-inner transition-colors"
-        />
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="sm"
-          disabled={!inputText.trim() || isLoading}
-          className="bg-brand-orange hover:bg-brand-orange-hover text-white h-[46px] px-5 rounded-xl flex items-center gap-2 shadow-sm font-bold text-sm sm:text-base"
-        >
-          <Send className="w-4 h-4" />
-          <span>Analyze</span>
-        </Button>
-      </form>
 
     </div>
   );
