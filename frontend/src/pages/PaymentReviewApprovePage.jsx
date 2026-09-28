@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, ShieldCheck, User, Mail, Calendar, FileText, ArrowRight } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
-import logo from '../assets/branding/logo/SLD_Logo.jpeg';
+import logo from '../assets/branding/logo/SLD_Logo.png';
 import { paymentService } from '../services/paymentService';
 
 const PaymentReviewApprovePage = () => {

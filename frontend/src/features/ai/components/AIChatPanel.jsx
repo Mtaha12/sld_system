@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Send, User, Scale, ExternalLink, 
   Copy, Check, FileText, RefreshCw,
-  MessageSquare, Plus, X, Sparkles 
+  MessageSquare, Plus, X, Sparkles,
+  Paperclip, Image as ImageIcon, FileUp, XCircle,
+  PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 
@@ -15,14 +17,19 @@ const AIChatPanel = ({
   messages = [],
   onSendMessage,
   isLoading = false,
+  showWheel = true,
+  onToggleWheel,
   className = ""
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedCitation, setCopiedCitation] = useState(null);
+  const [attachments, setAttachments] = useState([]);   // [{ file, previewUrl, type }]
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const lastMessageRef = useRef(null);
   const prevMessagesCount = useRef(messages.length);
+  const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
 
   // Precision Scroll Management:
   // When assistant gives a response, keep the user at the BEGINNING / TOP of the response
@@ -76,6 +83,7 @@ const AIChatPanel = ({
     if (!inputText.trim() || isLoading) return;
     onSendMessage(inputText.trim());
     setInputText('');
+    setAttachments([]);
   };
 
   const handleCopy = (citation, id) => {
@@ -83,6 +91,48 @@ const AIChatPanel = ({
     setCopiedCitation(id);
     setTimeout(() => setCopiedCitation(null), 2500);
   };
+
+  /**
+   * Handle files chosen via the hidden file inputs.
+   * Supports images (preview thumbnail) and documents (name only).
+   * Does NOT affect the send/chat logic — attachments are UI-only for reference.
+   */
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const newItems = files.map(file => {
+      const isImage = file.type.startsWith('image/');
+      return {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        name: file.name,
+        size: file.size,
+        isImage,
+        previewUrl: isImage ? URL.createObjectURL(file) : null
+      };
+    });
+
+    setAttachments(prev => [...prev, ...newItems]);
+    // Reset input so the same file can be re-selected if removed
+    e.target.value = '';
+  };
+
+  const removeAttachment = (id) => {
+    setAttachments(prev => {
+      const item = prev.find(a => a.id === id);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter(a => a.id !== id);
+    });
+  };
+
+  // Revoke all blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      attachments.forEach(a => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const renderFormattedText = (text) => {
     if (!text) return null;
@@ -218,8 +268,33 @@ const AIChatPanel = ({
           })}
         </div>
 
-        {/* Action Controls: New Chat Button */}
+        {/* Action Controls: Wheel Toggle & New Chat Button */}
         <div className="flex items-center gap-2 pb-1 shrink-0">
+          {onToggleWheel && (
+            <button
+              type="button"
+              onClick={onToggleWheel}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-sm cursor-pointer whitespace-nowrap active:scale-95 ${
+                showWheel
+                  ? 'border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main'
+                  : 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange hover:text-white font-bold'
+              }`}
+              title={showWheel ? "Hide Reference Wheel to expand chat" : "Show Reference Wheel"}
+            >
+              {showWheel ? (
+                <>
+                  <PanelLeftClose className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Hide Wheel</span>
+                </>
+              ) : (
+                <>
+                  <PanelLeftOpen className="w-3.5 h-3.5 text-brand-orange" />
+                  <span>Show Wheel</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onNewSession}
@@ -376,7 +451,7 @@ const AIChatPanel = ({
             <div className="w-7 h-7 rounded-full bg-brand-orange/20 text-brand-orange flex items-center justify-center">
               <Sparkles className="w-4 h-4 animate-spin" />
             </div>
-            <span>Deep scanning 15,000 cases, judgment texts, and citations...</span>
+            <span>Deep scanning 27,500+ cases, judgment texts, and citations...</span>
           </div>
         )}
 
@@ -385,7 +460,81 @@ const AIChatPanel = ({
 
       {/* Executive Input Bar */}
       <div className="p-3 bg-white dark:bg-theme-surface border-t border-theme-border shrink-0 space-y-1.5">
-        <form onSubmit={handleSubmit} className="flex items-center gap-2.5">
+
+        {/* Hidden file inputs — triggered by buttons */}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.csv,.ppt,.pptx"
+          multiple
+          className="hidden"
+          onChange={handleFileChange}
+        />
+
+        {/* Attachment preview strip — only visible when files are queued */}
+        {attachments.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap px-1 pb-1">
+            {attachments.map(att => (
+              <div
+                key={att.id}
+                className="relative flex items-center gap-1.5 bg-theme-surface-alt border border-theme-border rounded-lg px-2 py-1 text-xs text-theme-main max-w-[160px] group"
+              >
+                {att.isImage ? (
+                  <img
+                    src={att.previewUrl}
+                    alt={att.name}
+                    className="w-8 h-8 object-cover rounded shrink-0"
+                  />
+                ) : (
+                  <FileUp className="w-4 h-4 text-brand-orange shrink-0" />
+                )}
+                <span className="truncate max-w-[90px] font-medium">{att.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(att.id)}
+                  className="ml-0.5 shrink-0 text-theme-muted hover:text-red-500 transition-colors cursor-pointer"
+                  title="Remove attachment"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+
+          {/* Attach image button */}
+          <button
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={isLoading}
+            title="Attach image"
+            className="w-9 h-[46px] flex items-center justify-center rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-brand-orange transition-colors cursor-pointer shrink-0 disabled:opacity-40"
+          >
+            <ImageIcon className="w-4.5 h-4.5" />
+          </button>
+
+          {/* Attach document button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            title="Attach document"
+            className="w-9 h-[46px] flex items-center justify-center rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-brand-orange transition-colors cursor-pointer shrink-0 disabled:opacity-40"
+          >
+            <Paperclip className="w-4.5 h-4.5" />
+          </button>
+
+          {/* Text input */}
           <input
             type="text"
             value={inputText}
@@ -395,11 +544,12 @@ const AIChatPanel = ({
             className="flex-1 px-4 py-3 bg-theme-surface border border-theme-border rounded-xl text-sm sm:text-base focus:outline-none focus:border-brand-orange text-theme-main shadow-inner transition-colors"
           />
 
+          {/* Send button */}
           <Button
             type="submit"
             variant="primary"
             size="sm"
-            disabled={!inputText.trim() || isLoading}
+            disabled={(!inputText.trim() && attachments.length === 0) || isLoading}
             className="bg-brand-orange hover:bg-brand-orange-hover text-white h-[46px] px-5 rounded-xl flex items-center gap-2 shadow-sm font-bold text-sm sm:text-base"
           >
             <Send className="w-4 h-4" />
@@ -411,7 +561,7 @@ const AIChatPanel = ({
           <span>Press Enter ↵ to search • Shift + Enter for multiline</span>
           <span className="text-brand-orange font-semibold flex items-center gap-1">
             <Sparkles className="w-3 h-3" />
-            <span>15,000 Verified Judicial Records</span>
+            <span>27,500+ Verified Judicial Records</span>
           </span>
         </div>
       </div>

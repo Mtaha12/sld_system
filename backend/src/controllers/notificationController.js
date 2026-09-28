@@ -69,7 +69,7 @@ export const getNotifications = async (req, res, next) => {
       ];
     }
 
-    const notifications = await Notification.find(filter).sort({ createdAt: -1, srNumber: -1 });
+    const notifications = await Notification.find(filter).sort({ createdAt: -1, srNumber: -1 }).lean();
     const isSpammer = req.user?.isSpammer === true;
     const data = (isSpammer ? notifications.map(spoofNotification) : notifications).map(formatNotificationForFrontend);
 
@@ -98,7 +98,7 @@ export const getNotificationById = async (req, res, next) => {
       isDeleted: { $ne: true }
     };
 
-    const n = await Notification.findOne(query);
+    const n = await Notification.findOne(query).lean();
 
     if (!n) {
       return res.status(404).json({

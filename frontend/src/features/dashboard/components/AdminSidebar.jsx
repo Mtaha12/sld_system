@@ -31,7 +31,7 @@ import {
   Gavel,
   Replace
 } from 'lucide-react';
-import logo from '../../../assets/branding/logo/SLD_Logo.jpeg';
+import logo from '../../../assets/branding/logo/SLD_Logo.png';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },

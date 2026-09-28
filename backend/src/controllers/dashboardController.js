@@ -27,34 +27,51 @@ const timeAgo = (date) => {
   return 'just now';
 };
 
+let metricsCache = null;
+let metricsCacheExpiresAt = 0;
+
 /**
  * Dashboard Metrics and Activities Controller
  */
 export const getMetrics = async (req, res, next) => {
   try {
-    const totalCases = await Case.countDocuments({ isDeleted: { $ne: true } });
-    const activeCases = await Case.countDocuments({ status: 'Active', isDeleted: { $ne: true } });
-    const totalStatutes = await Statute.countDocuments({ isDeleted: { $ne: true } });
-    const totalNotifications = await Notification.countDocuments({ isDeleted: { $ne: true } });
+    if (metricsCache && Date.now() < metricsCacheExpiresAt) {
+      return res.status(200).json({
+        success: true,
+        message: 'Dashboard metrics calculated.',
+        data: metricsCache
+      });
+    }
 
-    // Aggregate attachments across all cases
-    const attachmentsAggregation = await Case.aggregate([
-      { $match: { isDeleted: { $ne: true } } },
-      { $project: { count: { $size: { $ifNull: ['$attachments', []] } } } },
-      { $group: { _id: null, total: { $sum: '$count' } } }
+    const [totalCases, activeCases, totalStatutes, totalNotifications, attachmentsAggregation] = await Promise.all([
+      Case.countDocuments({ isDeleted: { $ne: true } }),
+      Case.countDocuments({ status: 'Active', isDeleted: { $ne: true } }),
+      Statute.countDocuments({ isDeleted: { $ne: true } }),
+      Notification.countDocuments({ isDeleted: { $ne: true } }),
+      Case.aggregate([
+        { $match: { isDeleted: { $ne: true } } },
+        { $project: { count: { $size: { $ifNull: ['$attachments', []] } } } },
+        { $group: { _id: null, total: { $sum: '$count' } } }
+      ])
     ]);
+
     const totalAttachments = attachmentsAggregation.length > 0 ? attachmentsAggregation[0].total : 0;
+
+    const data = {
+      totalCases: totalCases.toLocaleString(),
+      activeCases: activeCases.toLocaleString(),
+      totalStatutes: totalStatutes.toLocaleString(),
+      totalNotifications: totalNotifications.toLocaleString(),
+      totalAttachments: totalAttachments.toLocaleString()
+    };
+
+    metricsCache = data;
+    metricsCacheExpiresAt = Date.now() + 45_000; // 45 seconds cache
 
     return res.status(200).json({
       success: true,
       message: 'Dashboard metrics calculated.',
-      data: {
-        totalCases: totalCases.toLocaleString(),
-        activeCases: activeCases.toLocaleString(),
-        totalStatutes: totalStatutes.toLocaleString(),
-        totalNotifications: totalNotifications.toLocaleString(),
-        totalAttachments: totalAttachments.toLocaleString()
-      }
+      data
     });
   } catch (error) {
     next(error);
@@ -63,18 +80,24 @@ export const getMetrics = async (req, res, next) => {
 
 export const getActivities = async (req, res, next) => {
   try {
-    // Retrieve the latest 5 cases, statutes, and notifications
-    const cases = await Case.find({ isDeleted: { $ne: true } })
-      .sort({ updatedAt: -1 })
-      .limit(5);
-
-    const statutes = await Statute.find({ isDeleted: { $ne: true } })
-      .sort({ updatedAt: -1 })
-      .limit(5);
-
-    const notifications = await Notification.find({ isDeleted: { $ne: true } })
-      .sort({ updatedAt: -1 })
-      .limit(5);
+    // Retrieve the latest 5 cases, statutes, and notifications concurrently with lean projections
+    const [cases, statutes, notifications] = await Promise.all([
+      Case.find({ isDeleted: { $ne: true } })
+        .select('createdAt updatedAt caseNumber sldNumber court attachments status')
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .lean(),
+      Statute.find({ isDeleted: { $ne: true } })
+        .select('createdAt updatedAt blocks sectionHeading heading law section department srNumber status')
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .lean(),
+      Notification.find({ isDeleted: { $ne: true } })
+        .select('createdAt updatedAt subject sroNumber number department status')
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .lean()
+    ]);
 
     const activities = [];
 

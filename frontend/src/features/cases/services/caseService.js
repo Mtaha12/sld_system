@@ -1,5 +1,16 @@
 import api from '../../../services/api.js';
 
+const clientCaseCache = new Map();
+const MAX_CLIENT_CACHE = 150;
+
+const setClientCache = (key, data) => {
+  if (clientCaseCache.size >= MAX_CLIENT_CACHE) {
+    const oldest = clientCaseCache.keys().next().value;
+    clientCaseCache.delete(oldest);
+  }
+  clientCaseCache.set(key, data);
+};
+
 export const caseService = {
   /**
    * Fetches paginated cases from backend
@@ -27,8 +38,17 @@ export const caseService = {
    * @returns {Promise<Object|null>}
    */
   getCaseById: async (idOrSld) => {
+    const key = `id_${String(idOrSld).trim().toLowerCase()}`;
+    if (clientCaseCache.has(key)) return clientCaseCache.get(key);
+
     const response = await api.get(`/api/cases/${idOrSld}`);
-    return response.data.data;
+    const data = response.data.data;
+    if (data) {
+      setClientCache(key, data);
+      if (data.sldNumber) setClientCache(`sld_${String(data.sldNumber).toLowerCase()}`, data);
+      if (data.id) setClientCache(`id_${String(data.id).toLowerCase()}`, data);
+    }
+    return data;
   },
 
   /**
@@ -37,8 +57,17 @@ export const caseService = {
    * @returns {Promise<Object|null>}
    */
   getCaseBySld: async (sldNumber) => {
+    const key = `sld_${String(sldNumber).trim().toLowerCase()}`;
+    if (clientCaseCache.has(key)) return clientCaseCache.get(key);
+
     const response = await api.get(`/api/cases/sld/${encodeURIComponent(sldNumber)}`);
-    return response.data.data;
+    const data = response.data.data;
+    if (data) {
+      setClientCache(key, data);
+      if (data.sldNumber) setClientCache(`sld_${String(data.sldNumber).toLowerCase()}`, data);
+      if (data.id) setClientCache(`id_${String(data.id).toLowerCase()}`, data);
+    }
+    return data;
   },
 
   /**
@@ -57,6 +86,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   createCase: async (newCase) => {
+    clientCaseCache.clear();
     const response = await api.post('/api/cases', newCase);
     return response.data;
   },
@@ -68,6 +98,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   updateCase: async (id, updatedFields) => {
+    clientCaseCache.clear();
     const response = await api.put(`/api/cases/${id}`, updatedFields);
     return response.data;
   },
@@ -78,6 +109,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   deleteCase: async (id) => {
+    clientCaseCache.clear();
     const response = await api.delete(`/api/cases/${id}`);
     return response.data;
   },
@@ -88,6 +120,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   deleteCases: async (ids) => {
+    clientCaseCache.clear();
     const response = await api.post('/api/cases/delete-multiple', { ids });
     return response.data;
   },

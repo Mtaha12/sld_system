@@ -10,6 +10,31 @@ const escapeRegex = (string) => {
 };
 
 /**
+ * High-speed In-Memory Case Cache (< 1ms)
+ */
+const caseDetailCache = new Map();
+const CASE_CACHE_MAX = 400;
+const CASE_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+const getCachedCase = (key) => {
+  const item = caseDetailCache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiresAt) {
+    caseDetailCache.delete(key);
+    return null;
+  }
+  return item.data;
+};
+
+const setCachedCase = (key, data) => {
+  if (caseDetailCache.size >= CASE_CACHE_MAX) {
+    const oldest = caseDetailCache.keys().next().value;
+    caseDetailCache.delete(oldest);
+  }
+  caseDetailCache.set(key, { data, expiresAt: Date.now() + CASE_CACHE_TTL });
+};
+
+/**
  * Helper to translate a space or newline separated string into an array of trimmed strings
  */
 const stringToArray = (str) => {
@@ -279,10 +304,20 @@ export const getCaseBySld = async (req, res, next) => {
       conditions.push({ _id: cleanSld });
     }
 
+    const cached = getCachedCase(`sld_${cleanSld.toLowerCase()}`);
+    if (cached) {
+      const payload = req.user?.isSpammer === true ? spoofCase(cached) : cached;
+      return res.status(200).json({
+        success: true,
+        message: 'Case retrieved successfully.',
+        data: payload
+      });
+    }
+
     const c = await Case.findOne({
       $or: conditions,
       isDeleted: { $ne: true }
-    });
+    }).lean();
 
     if (!c) {
       return res.status(404).json({
@@ -307,12 +342,17 @@ export const getCaseBySld = async (req, res, next) => {
       }).catch(() => {});
     }
 
-    const payload = req.user?.isSpammer === true ? spoofCase(c) : c;
+    const formatted = formatCaseForFrontend(c);
+    setCachedCase(`sld_${cleanSld.toLowerCase()}`, formatted);
+    if (c._id) setCachedCase(`id_${c._id.toString()}`, formatted);
+    if (c.caseId) setCachedCase(`id_${c.caseId.toLowerCase()}`, formatted);
+
+    const payload = req.user?.isSpammer === true ? spoofCase(formatted) : formatted;
 
     return res.status(200).json({
       success: true,
       message: 'Case retrieved successfully.',
-      data: formatCaseForFrontend(payload)
+      data: payload
     });
   } catch (error) {
     next(error);
@@ -372,7 +412,16 @@ export const getCaseById = async (req, res, next) => {
       query = { $or: orList };
     }
 
-    const c = await Case.findOne({ ...query, isDeleted: { $ne: true } });
+    const cached = getCachedCase(`id_${rawId.toLowerCase()}`);
+    if (cached) {
+      const payload = req.user?.isSpammer === true ? spoofCase(cached) : cached;
+      return res.status(200).json({
+        success: true,
+        data: payload
+      });
+    }
+
+    const c = await Case.findOne({ ...query, isDeleted: { $ne: true } }).lean();
 
     if (!c) {
       return res.status(404).json({
@@ -397,11 +446,16 @@ export const getCaseById = async (req, res, next) => {
       }).catch(() => {});
     }
 
-    const payload = req.user?.isSpammer === true ? spoofCase(c) : c;
+    const formatted = formatCaseForFrontend(c);
+    setCachedCase(`id_${rawId.toLowerCase()}`, formatted);
+    if (c.sldNumber) setCachedCase(`sld_${c.sldNumber.toLowerCase()}`, formatted);
+    if (c._id) setCachedCase(`id_${c._id.toString()}`, formatted);
+
+    const payload = req.user?.isSpammer === true ? spoofCase(formatted) : formatted;
 
     return res.status(200).json({
       success: true,
-      data: formatCaseForFrontend(payload)
+      data: payload
     });
   } catch (error) {
     next(error);
@@ -462,6 +516,7 @@ export const createCase = async (req, res, next) => {
       await newCase.save();
     }
 
+    caseDetailCache.clear();
     logger.info(`[Case Created] Case ID ${newCase.caseId} (SLD #${newCase.sldNumber}) added.`);
 
     return res.status(201).json({
@@ -538,6 +593,7 @@ export const updateCase = async (req, res, next) => {
     if (attachments !== undefined) c.attachments = attachments;
 
     await c.save();
+    caseDetailCache.clear();
     logger.info(`[Case Updated] Case ID ${c.caseId} (SLD #${c.sldNumber}) updated.`);
 
     return res.status(200).json({
@@ -575,6 +631,7 @@ export const deleteCase = async (req, res, next) => {
     c.isDeleted = true;
     c.deletedAt = new Date();
     await c.save();
+    caseDetailCache.clear();
 
     logger.info(`[Case Deleted] Case ID ${c.caseId || c.sldNumber} soft-deleted.`);
 
@@ -617,6 +674,7 @@ export const deleteMultiple = async (req, res, next) => {
       }
     );
 
+    caseDetailCache.clear();
     logger.info(`[Bulk Case Deleted] ${ids.length} cases soft-deleted.`);
 
     return res.status(200).json({
@@ -776,7 +834,14 @@ export const searchCases = async (req, res, next) => {
     }
     const query = { $and: andConditions };
     
-    // Also limit results for performance
+    // High-performance execution: limit + field projection + .lean()
+    const cases = await Case.find(query)
+      .collation({ locale: 'en_US', numericOrdering: true })
+      .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim')
+      .sort({ sldNumber: -1 })
+      .limit(100)
+      .lean();
+
     let formattedCases = cases.map(c => formatCaseForFrontend(c));
     if (req.user?.isSpammer === true) {
       formattedCases = spoofCaseList(formattedCases);

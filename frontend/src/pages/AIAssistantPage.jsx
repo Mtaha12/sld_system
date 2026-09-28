@@ -6,7 +6,7 @@ import { aiChatService } from '../services/aiChatService';
 const INITIAL_MESSAGE = {
   sender: 'assistant',
   text: '### SLD AI Legal Neural Engine Initialized\n\n' +
-    'I am trained directly on **15,000 cases** in the SLD database. You can:\n' +
+    'I am trained directly on **over 27,500 verified judicial cases** in the SLD database. You can:\n' +
     '• **Paste a line from any judgment** — I will locate where it appears, cite the case, and explain the ruling.\n' +
     '• **Enter an SLD # or Citation** (e.g., `2006 SLD 282`, `2006 PTD 2726`).\n' +
     '• **Ask legal statutory questions** (e.g., *Section 7E Super Tax, Sales Tax exemptions*).\n\n' +
@@ -21,7 +21,7 @@ const createNewSession = (title = 'New Research') => ({
   messages: [INITIAL_MESSAGE],
   lastMatchedCase: null,
   activeReferences: [
-    'case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'
+    'citations', 'case_numbers', 'text_search', 'notifications', 'fbr_secp', 'statutes', 'tribunal_fto', 'pra_srb'
   ],
   focusedNode: null,
   createdAt: new Date().toISOString()
@@ -58,6 +58,25 @@ const AIAssistantPage = () => {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showWheel, setShowWheel] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sld_ai_show_wheel');
+      if (saved !== null) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {}
+    return true;
+  });
+
+  const handleToggleWheel = () => {
+    setShowWheel(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sld_ai_show_wheel', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
 
   // Sync sessions to localStorage
   useEffect(() => {
@@ -113,14 +132,9 @@ const AIAssistantPage = () => {
 
     try {
       let replyData;
-      if (activeSession.backendSessionId && /^[0-9a-fA-F]{24}$/.test(activeSession.backendSessionId)) {
-        try {
-          const res = await aiChatService.sendMessage(activeSession.backendSessionId, text.trim(), activeSession.focusedNode);
-          replyData = res?.reply || res;
-        } catch (sendErr) {
-          console.warn('Session sendMessage fallback to direct query:', sendErr);
-          replyData = await aiChatService.queryLegalCore(text.trim(), activeSession.focusedNode);
-        }
+      if (activeSession.backendSessionId) {
+        const res = await aiChatService.sendMessage(activeSession.backendSessionId, text.trim(), activeSession.focusedNode);
+        replyData = res?.reply;
       } else {
         replyData = await aiChatService.queryLegalCore(text.trim(), activeSession.focusedNode);
       }
@@ -223,14 +237,14 @@ const AIAssistantPage = () => {
 
     if (nextFocused) {
       const sectorQueries = {
+        citations: '(2011) 104 TAX 78',
         case_numbers: 'Special Sales Tax Appeal No.192 to 196',
-        judgments: 'The intention of the legislature is gathered from the language of the statute',
-        judges: 'Shahid Jamil Khan Judicial Member',
-        petitioners: 'Messrs Nishat Mills Ltd',
-        headnotes: 'Sales tax penalty generic non speaking order invalid',
-        legal_maxim: 'Lex non cogit ad impossibilia',
-        principle_law: 'Refund is an Amanah and cannot be refused on grounds of limitation',
-        citations: '(2011) 104 TAX 78'
+        text_search: 'The intention of the legislature is gathered from the language of the statute',
+        notifications: 'S.R.O. 589(I)/2020',
+        fbr_secp: 'FBR circular clarification on section 7E',
+        statutes: 'Section 7E Income Tax Ordinance 2001',
+        tribunal_fto: 'Appellate Tribunal Inland Revenue orders',
+        pra_srb: 'PRA sales tax on services withholding rules'
       };
 
       if (sectorQueries[nodeId]) {
@@ -242,27 +256,12 @@ const AIAssistantPage = () => {
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] w-full animate-fade-in overflow-hidden">
       
-      {/* Main Layout: Left Orbital Spin Wheel (32%) | Right Dialogue Panel (68%) */}
+      {/* Main Layout: Left Orbital Spin Wheel (when shown) | Right Dialogue Panel */}
       <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-hidden">
         
-        {/* LEFT COLUMN: Orbital Spin Wheel */}
-        <div className="w-full lg:w-[32%] shrink-0 bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-sm p-3.5 flex flex-col items-center justify-between overflow-hidden relative">
-          
-          {/* Executive Sub-Header Bar */}
-          <div className="w-full flex items-center justify-between pb-2 border-b border-theme-border/60 text-xs shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" />
-              <span className="font-extrabold text-theme-main text-xs uppercase tracking-wider">
-                Orbital Law Core
-              </span>
-            </div>
-            <span className="px-2 py-0.5 rounded-md bg-brand-orange/10 text-brand-orange border border-brand-orange/20 text-[10px] font-bold">
-              8 Case Law Fields
-            </span>
-          </div>
-
-          {/* Wheel Graphic */}
-          <div className="flex-1 w-full flex items-center justify-center my-auto min-h-0 overflow-hidden">
+        {/* LEFT COLUMN: Orbital Spin Wheel (Toggled via Chatbot Header) */}
+        {showWheel && (
+          <div className="w-full lg:w-[32%] shrink-0 bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-sm p-3 flex flex-col items-center justify-start overflow-y-auto no-scrollbar relative animate-fade-in transition-all">
             <OrbitalSpinWheel
               isSearching={isLoading}
               activeReferences={activeReferences}
@@ -271,11 +270,10 @@ const AIAssistantPage = () => {
               lastMatchedCase={lastMatchedCase}
             />
           </div>
+        )}
 
-        </div>
-
-        {/* RIGHT COLUMN: Multi-Session Legal Dialogue Panel */}
-        <div className="w-full lg:w-[68%] flex-1 min-w-0 h-full">
+        {/* RIGHT COLUMN: Multi-Session Legal Dialogue Panel (Expands to full width when wheel is hidden) */}
+        <div className={`w-full ${showWheel ? 'lg:w-[68%]' : 'lg:w-full'} flex-1 min-w-0 h-full transition-all duration-300`}>
           <AIChatPanel
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -285,6 +283,8 @@ const AIAssistantPage = () => {
             messages={messages}
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
+            showWheel={showWheel}
+            onToggleWheel={handleToggleWheel}
           />
         </div>
 

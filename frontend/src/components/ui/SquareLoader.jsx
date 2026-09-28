@@ -1,6 +1,6 @@
 import React from 'react';
-import logoDark from '../../assets/branding/logo/SLD_Logo.jpeg';
-import logoLight from '../../assets/branding/logo/SLD_Logo.jpeg';
+import logoDark from '../../assets/branding/logo/SLD_Logo.png';
+import logoLight from '../../assets/branding/logo/SLD_Logo.png';
 
 const SquareLoader = ({ 
   size = 'md', 

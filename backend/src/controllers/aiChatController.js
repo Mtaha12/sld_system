@@ -353,8 +353,33 @@ const validateTextKeywords = (c, phraseOrWords) => {
 };
 
 /**
+ * In-memory LRU Cache for Instant Legal Intelligence Responses (< 1ms)
+ */
+const AI_ENGINE_CACHE_MAX = 600;
+const AI_ENGINE_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+const aiEngineCache = new Map();
+
+const getCachedAIResult = (key) => {
+  const item = aiEngineCache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiresAt) {
+    aiEngineCache.delete(key);
+    return null;
+  }
+  return item.data;
+};
+
+const setCachedAIResult = (key, data) => {
+  if (aiEngineCache.size >= AI_ENGINE_CACHE_MAX) {
+    const oldestKey = aiEngineCache.keys().next().value;
+    aiEngineCache.delete(oldestKey);
+  }
+  aiEngineCache.set(key, { data, expiresAt: Date.now() + AI_ENGINE_CACHE_TTL });
+};
+
+/**
  * SLD Core Legal AI Intelligence Engine
- * Grounded 100% in the 15,000 cases database across all fields
+ * Grounded 100% in the 27,500+ cases database across all fields
  */
 export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) => {
   const rawClean = (userQuery || '').trim();
@@ -369,7 +394,15 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
   const cleanQuery = cleanUserQuery(rawClean);
   const normalizedQuery = cleanQuery.replace(/\b0+(\d{4})\b/g, '$1').trim();
 
+  // Instant Cache Check (< 1ms)
+  const cacheKey = `${normalizedQuery.toLowerCase()}___${focusNode || ''}`;
+  const cachedResult = getCachedAIResult(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+
   let targetCase = null;
+  let citationDetails = null;
   let matchingCitationCases = [];
   let matchingCaseNumberCases = [];
   let matchingJudgeCases = [];
@@ -408,7 +441,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       idConditions.push({ _id: cleanId });
     }
 
-    targetCase = await Case.findOne({ $or: idConditions, isDeleted: { $ne: true } });
+    targetCase = await Case.findOne({ $or: idConditions, isDeleted: { $ne: true } }).lean();
     if (targetCase) {
       matchType = 'case_id';
       confidence = 100;
@@ -419,7 +452,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
 
   // PRIORITY 2: Publication Citation Lookup (e.g. "(2011) 104 TAX 78", "2001 SLD 1", "02001 sld 1", "2011 PTD 770")
   if (!targetCase) {
-    const citationDetails = extractCitationDetails(normalizedQuery);
+    citationDetails = extractCitationDetails(normalizedQuery);
     if (citationDetails) {
       const y = citationDetails.year;
       const m = escapeRegex(citationDetails.mag);
@@ -444,7 +477,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       let rawCitationCases = await Case.find({
         $or: orConditions,
         isDeleted: { $ne: true }
-      }).sort({ sldNumber: -1 }).limit(20);
+      }).sort({ sldNumber: -1 }).limit(20).lean();
 
       if (rawCitationCases.length === 0 && y && m && p) {
         rawCitationCases = await Case.find({
@@ -453,7 +486,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
             { principleLaw: new RegExp(`\\b\\(?${y}\\)?\\s*${m}\\s+${pagePat}`, 'i') }
           ],
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(20);
+        }).sort({ sldNumber: -1 }).limit(20).lean();
       }
 
       // STRICT VALIDATION: Ensure returned cases genuinely contain the queried citation
@@ -484,7 +517,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         const rawCaseNumberCases = await Case.find({
           caseNumber: caseRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15);
+        }).sort({ sldNumber: -1 }).limit(15).lean();
 
         // STRICT VALIDATION: Check that candidates contain all core search tokens
         matchingCaseNumberCases = rawCaseNumberCases.filter(c => validateCaseNumberKeywords(c, coreCaseNo));
@@ -512,7 +545,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         const rawJudgeCases = await Case.find({
           judges: judgeRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15);
+        }).sort({ sldNumber: -1 }).limit(15).lean();
 
         // STRICT VALIDATION: Filter out any cases that do not contain the judge's key name tokens
         matchingJudgeCases = rawJudgeCases.filter(c => validateJudgeKeywords(c, judgeQueryName));
@@ -540,7 +573,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         const rawPartyCases = await Case.find({
           petitioners: partyRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15);
+        }).sort({ sldNumber: -1 }).limit(15).lean();
 
         // STRICT VALIDATION: Check that candidate cases genuinely contain all petitioner search tokens
         matchingPartyCases = rawPartyCases.filter(c => validatePetitionerKeywords(c, partyQueryName));
@@ -568,7 +601,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         const rawLawyerCases = await Case.find({
           lawyers: lawyerRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15);
+        }).sort({ sldNumber: -1 }).limit(15).lean();
 
         // STRICT VALIDATION: Filter out any cases not containing lawyer keywords
         matchingLawyerCases = rawLawyerCases.filter(c => validateLawyerKeywords(c, lawyerQueryName));
@@ -598,7 +631,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         const rawCourtCases = await Case.find({
           court: courtRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15);
+        }).sort({ sldNumber: -1 }).limit(15).lean();
 
         // STRICT VALIDATION: Filter out any cases not containing court keywords
         matchingCourtCases = rawCourtCases.filter(c => validateCourtKeywords(c, courtQueryName));
@@ -626,7 +659,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
           { headNote: new RegExp(`section\\s*${escapeRegex(secNum)}`, 'i') }
         ],
         isDeleted: { $ne: true }
-      }).sort({ sldNumber: -1 }).limit(15);
+      }).sort({ sldNumber: -1 }).limit(15).lean();
 
       // STRICT VALIDATION: Filter out any cases not containing statute keywords
       matchingTopicCases = statuteCases.filter(c => validateStatuteKeywords(c, secNum));
@@ -656,7 +689,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
           { caseDescription: phraseRegex }
         ],
         isDeleted: { $ne: true }
-      }).sort({ sldNumber: -1 }).limit(15);
+      }).sort({ sldNumber: -1 }).limit(15).lean();
 
       if (rawJudgmentCases.length === 0 && searchPhrase.length > 15) {
         const words = searchPhrase
@@ -674,7 +707,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
               { principleLaw: clusterRegex }
             ],
             isDeleted: { $ne: true }
-          }).sort({ sldNumber: -1 }).limit(15);
+          }).sort({ sldNumber: -1 }).limit(15).lean();
         }
       }
 
@@ -710,7 +743,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
           ]}
         ],
         isDeleted: { $ne: true }
-      }).limit(25);
+      }).limit(25).lean();
 
       if (candidates.length > 0) {
         const scored = candidates.map(c => {
@@ -756,7 +789,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       const candidates = await Case.find({
         $and: andFilters,
         isDeleted: { $ne: true }
-      }).limit(20);
+      }).limit(20).lean();
 
       if (candidates.length > 0) {
         // STRICT VALIDATION: Only keep cases containing all filtered search keywords
@@ -1194,7 +1227,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       [targetCase]
     );
 
-    return {
+    const result = {
       text: responseText,
       legalAnalysis: {
         matchedCase: {
@@ -1232,12 +1265,14 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
         }
       }
     };
+    setCachedAIResult(cacheKey, result);
+    return result;
   }
 
   // If no direct case was matched in database
-  return {
+  const fallbackResult = {
     text: `### Legal Inquiry Analysis\n\n` +
-      `I cross-referenced the SLD database across all 15,000 cases, judgments, citations, judges, case numbers, and petitioners, but found no direct record for: *"**${cleanQuery}**"*.\n\n` +
+      `I cross-referenced the SLD database across all 27,500+ cases, judgments, citations, judges, case numbers, and petitioners, but found no direct record for: *"**${cleanQuery}**"*.\n\n` +
       `**Suggested Inquiries**:\n` +
       `1. **Case Number**: Search by appeal/suit number like \`1173 of 1978\`, \`C.T.R. No. 50 of 1995\`, or \`S.T.A. No.1903/LB of 2009\`.\n` +
       `2. **Judge Name**: Search by judge like \`Yahya Afridi\`, \`Ejaz Afzal Khan\`, or \`Mian Saqib Nisar\`.\n` +
@@ -1253,6 +1288,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       sourcesFound: 0
     }
   };
+  setCachedAIResult(cacheKey, fallbackResult);
+  return fallbackResult;
 };
 
 
@@ -1271,7 +1308,7 @@ export const createSession = async (req, res, next) => {
       messages: [
         {
           sender: 'assistant',
-          text: 'Welcome to the **SLD AI Legal Core**. You can enter any line from a judgment, citation, statute section, or case title. The system will scan all 15,000 cases to locate the exact authority and provide an explanation.',
+          text: 'Welcome to the **SLD AI Legal Core**. You can enter any line from a judgment, citation, statute section, or case title. The system will scan the complete database of over 27,500 verified judicial cases to locate the exact authority and provide an explanation.',
           timestamp: new Date()
         }
       ]

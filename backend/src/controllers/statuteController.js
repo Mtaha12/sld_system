@@ -70,7 +70,7 @@ export const getStatutes = async (req, res, next) => {
       ];
     }
 
-    const statutes = await Statute.find(filter).sort({ createdAt: -1, srNumber: -1 });
+    const statutes = await Statute.find(filter).sort({ createdAt: -1, srNumber: -1 }).lean();
     const isSpammer = req.user?.isSpammer === true;
     const data = (isSpammer ? statutes.map(spoofStatute) : statutes).map(formatStatuteForFrontend);
 
@@ -99,7 +99,7 @@ export const getStatuteById = async (req, res, next) => {
       isDeleted: { $ne: true }
     };
 
-    const s = await Statute.findOne(query);
+    const s = await Statute.findOne(query).lean();
 
     if (!s) {
       return res.status(404).json({
