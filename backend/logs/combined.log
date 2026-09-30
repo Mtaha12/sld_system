@@ -1373,3 +1373,6 @@
 {"level":"warn","message":"Gemini model gemini-3.7-flash returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-09-30 09:10:28"}
 {"level":"warn","message":"Gemini model gemini-3.5-flash returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-09-30 09:10:39"}
 {"level":"warn","message":"Gemini synthesis failed, falling back to structured breakdown: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-09-30 09:10:39"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-09-30 09:37:11"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-09-30 09:37:11"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-09-30 09:37:13"}
