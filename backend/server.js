@@ -301,43 +301,83 @@ app.post('/api/chat', async (req, res, next) => {
 
     if (cleanQuery.length > 0 && shouldSearch) {
       try {
-        const caseQuery = citation
-          ? {
+        let foundCases = [];
+        const sldNumMatch = message.match(/\b(?:sld\s*(?:no\.?|#)?|case\s*(?:no\.?|#)?)\s*[:\-]?\s*(\d{1,6})\b/i) ||
+          message.match(/\bCASE-(\d{1,6})\b/i) ||
+          cleanQuery.match(/^(\d{1,6})$/);
+
+        if (sldNumMatch) {
+          const numStr = String(parseInt(sldNumMatch[1], 10));
+          foundCases = await Case.find({
+            isDeleted: { $ne: true },
+            $or: [
+              { sldNumber: numStr },
+              { caseId: new RegExp(`^CASE-0*${numStr}$`, 'i') },
+              { case_id: new RegExp(`^CASE-0*${numStr}$`, 'i') }
+            ]
+          }).limit(5).select('_id caseId sldNumber court dated caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications judgment').lean();
+        }
+
+        if (foundCases.length === 0 && citation) {
+          foundCases = await Case.find({
+            isDeleted: { $ne: true },
+            $or: [
+              { mapYearPage: { $regex: `${escapeRegex(citation.magazine)}\\s+${escapeRegex(citation.year)}\\s+${escapeRegex(citation.page)}`, $options: 'i' } },
+              { publications: { $elemMatch: {
+                mag: { $regex: `^${escapeRegex(citation.magazine)}$`, $options: 'i' },
+                year: citation.year,
+                page: citation.page
+              } } },
+              ...(citation.isVolume ? [{ publications: { $elemMatch: {
+                mag: { $regex: `^${escapeRegex(citation.magazine)}$`, $options: 'i' },
+                vol: citation.year,
+                page: citation.page
+              } } }] : [])
+            ]
+          }).sort({ sldNumber: -1 }).limit(5).select('_id caseId sldNumber court dated caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications judgment').lean();
+        }
+
+        if (foundCases.length === 0) {
+          try {
+            foundCases = await Case.find(
+              { $text: { $search: cleanQuery }, isDeleted: { $ne: true } },
+              { score: { $meta: 'textScore' } }
+            )
+            .sort({ score: { $meta: 'textScore' } })
+            .limit(5)
+            .select('_id caseId sldNumber court dated caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications judgment')
+            .lean();
+          } catch (tErr) {
+            // Regex search fallback
+            const reg = new RegExp(escapeRegex(cleanQuery.slice(0, 30)), 'i');
+            foundCases = await Case.find({
               isDeleted: { $ne: true },
               $or: [
-                { mapYearPage: { $regex: `${escapeRegex(citation.magazine)}\\s+${escapeRegex(citation.year)}\\s+${escapeRegex(citation.page)}`, $options: 'i' } },
-                { publications: { $elemMatch: {
-                  mag: { $regex: `^${escapeRegex(citation.magazine)}$`, $options: 'i' },
-                  year: citation.year,
-                  page: citation.page
-                } } },
-                ...(citation.isVolume ? [{ publications: { $elemMatch: {
-                  mag: { $regex: `^${escapeRegex(citation.magazine)}$`, $options: 'i' },
-                  vol: citation.year,
-                  page: citation.page
-                } } }] : [])
+                { caseNumber: reg },
+                { judges: reg },
+                { petitioners: reg },
+                { headNote: reg },
+                { principleLaw: reg }
               ]
-            }
-          : { $text: { $search: cleanQuery } };
+            }).limit(5).select('_id caseId sldNumber court dated caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications judgment').lean();
+          }
+        }
 
-        const [foundCases, foundStatutes] = await Promise.all([
-          Case.find(caseQuery, citation ? {} : { score: { $meta: 'textScore' } })
-          .sort(citation ? { createdAt: -1 } : { score: { $meta: 'textScore' } })
-          .limit(3)
-          .select('_id caseId sldNumber court caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications'),
-          Statute.find(
-            { $text: { $search: cleanQuery } }
-          )
+        const foundStatutes = await Statute.find({ $text: { $search: cleanQuery }, isDeleted: { $ne: true } })
           .limit(3)
           .select('statuteId title category description')
-        ]);
+          .lean()
+          .catch(() => []);
 
         if (foundCases && foundCases.length > 0) {
-          searchContext += `\nTop matching cases found in database for "${citation?.value || cleanQuery}":\n` +
+          searchContext += `\nTop matching verified cases found in database (162,865 cases total) for "${citation?.value || cleanQuery}":\n` +
             foundCases.map(c => {
               const docId = c._id?.toString() || c.caseId;
-              return `- DOC_ID: ${docId}, SLD No: ${c.sldNumber || c.caseId}, Publications: ${c.mapYearPage?.join(', ') || c.publications?.map(p => `${p.mag} ${p.year} ${p.page}`).join(', ') || 'N/A'}, Court: ${c.court || 'Supreme Court'}, Number: ${c.caseNumber?.join(', ') || 'N/A'}, Judges: ${c.judges?.join(', ') || 'N/A'}, Lawyers: ${c.lawyers?.join(', ') || 'N/A'}, Principle Law: ${c.principleLaw || 'N/A'}, Headnote excerpt: ${c.headNote?.substring(0, 300) || 'N/A'}`;
-            }).join('\n');
+              const cite = c.mapYearPage?.join(', ') || c.publications?.map(p => `${p.mag} ${p.year} ${p.page}`).join(', ') || 'N/A';
+              const headSnippet = c.headNote ? c.headNote.substring(0, 450) : 'N/A';
+              const judgSnippet = c.judgment ? c.judgment.substring(0, 600) : 'N/A';
+              return `- SLD No: ${c.sldNumber || c.caseId}, Case ID: ${c.caseId || docId}, Publications: ${cite}, Court: ${c.court || 'Court of Record'}, Date: ${c.dated || 'N/A'}, Case Number: ${c.caseNumber?.join(', ') || 'N/A'}, Bench: ${c.judges?.join(' & ') || 'N/A'}, Parties: ${c.petitioners?.join(' vs ') || 'N/A'}, Counsel: ${c.lawyers?.join(', ') || 'N/A'}, Principle Law: ${c.principleLaw || 'N/A'}\n  Headnote: ${headSnippet}\n  Judgment Excerpt: ${judgSnippet}`;
+            }).join('\n\n');
         }
 
         if (foundStatutes && foundStatutes.length > 0) {

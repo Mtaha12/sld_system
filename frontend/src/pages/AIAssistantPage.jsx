@@ -6,11 +6,15 @@ import { aiChatService } from '../services/aiChatService';
 const INITIAL_MESSAGE = {
   sender: 'assistant',
   text: '### SLD AI Legal Neural Engine Initialized\n\n' +
-    'I am trained directly on **over 27,500 verified judicial cases** in the SLD database. You can:\n' +
+    'I am trained directly on **over 162,865 verified judicial cases** in the SLD database. You can:\n' +
     '• **Paste a line from any judgment** — I will locate where it appears, cite the case, and explain the ruling.\n' +
     '• **Enter an SLD # or Citation** (e.g., `2006 SLD 282`, `2006 PTD 2726`).\n' +
+    '• **Attach a file or order** to generate statutory appeals & petitions:\n' +
+    '   - **Format 1**: High Court Writ Petition under Art. 199 (Complete with Index, Stay u/s 151 CPC, Exemption & Vakalatnama)\n' +
+    '   - **Format 2**: Appellate Tribunal Inland Revenue (ATIR) Appeal (Form "B" [Rule 7] under Section 46 STA / FEA)\n' +
+    '   - **Format 3**: Commissioner of Income Tax / Wealth Tax (Appeals) (Form of Appeal IT-16)\n' +
     '• **Ask legal statutory questions** (e.g., *Section 7E Super Tax, Sales Tax exemptions*).\n\n' +
-    'All results are 100% grounded in verified judicial orders.',
+    'All legal pleadings follow strict statutory court formats and verified precedent rulings.',
   legalAnalysis: null
 };
 
@@ -20,6 +24,7 @@ const createNewSession = (title = 'New Research') => ({
   title,
   messages: [INITIAL_MESSAGE],
   lastMatchedCase: null,
+  matchType: null,
   activeReferences: [
     'citations', 'case_numbers', 'text_search', 'notifications', 'fbr_secp', 'statutes', 'tribunal_fto', 'pra_srb'
   ],
@@ -96,25 +101,33 @@ const AIAssistantPage = () => {
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || createNewSession('Research Session 1');
   const messages = activeSession.messages || [INITIAL_MESSAGE];
   const activeReferences = activeSession.activeReferences || [
-    'case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'
+    'citations', 'case_numbers', 'text_search', 'notifications', 'fbr_secp', 'statutes', 'tribunal_fto', 'pra_srb'
   ];
-  const lastMatchedCase = activeSession.lastMatchedCase || null;
+
+  // Robustly derive last matched case & match type (from session state or latest assistant message)
+  const lastAssistantWithCase = [...messages].reverse().find(m => m.legalAnalysis?.matchedCase);
+  const effectiveMatchedCase = activeSession.lastMatchedCase || lastAssistantWithCase?.legalAnalysis?.matchedCase || null;
+  const effectiveMatchType = activeSession.matchType || lastAssistantWithCase?.legalAnalysis?.matchType || null;
   const focusedNode = activeSession.focusedNode || null;
 
-  const handleSendMessage = async (text) => {
-    if (!text.trim() || isLoading) return;
+  const handleSendMessage = async (text, attachments = []) => {
+    const hasText = Boolean(text && text.trim());
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+    if ((!hasText && !hasAttachments) || isLoading) return;
 
     const currentSessId = activeSession.id;
+    const displayText = hasText ? text.trim() : `Uploaded ${attachments.map(a => a.name).join(', ')}`;
     const userMsg = {
       sender: 'user',
-      text: text.trim(),
+      text: displayText,
+      attachments: attachments.map(a => ({ name: a.name, type: a.type, size: a.size })),
       timestamp: new Date()
     };
 
     // Auto-derive a concise topic title for the tab from first query
     const isDefaultTitle = /^Research Session|^Session \d+|^New Research/i.test(activeSession.title);
     const updatedTitle = isDefaultTitle 
-      ? (text.trim().length > 22 ? text.trim().slice(0, 22) + '...' : text.trim())
+      ? (displayText.length > 22 ? displayText.slice(0, 22) + '...' : displayText)
       : activeSession.title;
 
     // Optimistically append user message
@@ -133,10 +146,10 @@ const AIAssistantPage = () => {
     try {
       let replyData;
       if (activeSession.backendSessionId) {
-        const res = await aiChatService.sendMessage(activeSession.backendSessionId, text.trim(), activeSession.focusedNode);
+        const res = await aiChatService.sendMessage(activeSession.backendSessionId, hasText ? text.trim() : displayText, activeSession.focusedNode, attachments);
         replyData = res?.reply;
       } else {
-        replyData = await aiChatService.queryLegalCore(text.trim(), activeSession.focusedNode);
+        replyData = await aiChatService.queryLegalCore(hasText ? text.trim() : displayText, activeSession.focusedNode, attachments);
       }
 
       const assistantMsg = {
@@ -152,6 +165,7 @@ const AIAssistantPage = () => {
             ...s,
             messages: [...(s.messages || []), assistantMsg],
             lastMatchedCase: replyData?.legalAnalysis?.matchedCase || s.lastMatchedCase,
+            matchType: replyData?.legalAnalysis?.matchType || s.matchType,
             activeReferences: replyData?.legalAnalysis?.activeReferences || s.activeReferences
           };
         }
@@ -267,7 +281,8 @@ const AIAssistantPage = () => {
               activeReferences={activeReferences}
               focusedNode={focusedNode}
               onNodeClick={handleNodeClick}
-              lastMatchedCase={lastMatchedCase}
+              lastMatchedCase={effectiveMatchedCase}
+              matchType={effectiveMatchType}
             />
           </div>
         )}

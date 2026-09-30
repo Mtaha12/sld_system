@@ -36,6 +36,12 @@ const messageSchema = new mongoose.Schema({
     activeReferences: [String], // ['judgments', 'citations', 'statutes', 'headnotes', etc.]
     sourcesFound: Number,
   },
+  // Optional attached file references
+  attachments: [{
+    name: String,
+    type: { type: String },
+    size: Number
+  }],
   timestamp: {
     type: Date,
     default: Date.now,

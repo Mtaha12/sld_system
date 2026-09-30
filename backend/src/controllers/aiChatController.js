@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 import Case from '../models/Case.js';
 import ChatSession from '../models/ChatSession.js';
 import logger from '../utils/logger.js';
+import {
+  checkIsCodeRequest,
+  checkIsLegalDraftingRequest,
+  generatePleadingDocument,
+  callGeminiWithTokenControl
+} from '../services/legalDraftingService.js';
 
 /**
  * Escapes regex special characters
@@ -378,16 +384,127 @@ const setCachedAIResult = (key, data) => {
 };
 
 /**
- * SLD Core Legal AI Intelligence Engine
- * Grounded 100% in the 27,500+ cases database across all fields
+ * Synthesizes a real-time, lawyer-grade response using Gemini
+ * grounded 100% in the real case records retrieved from the 162,865-case database.
  */
-export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) => {
+const synthesizeLegalAIAnswer = async (userQuery, matchedCases, targetCase) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !targetCase) return null;
+
+  try {
+    const list = Array.isArray(matchedCases) && matchedCases.length > 0 ? matchedCases : [targetCase];
+    const topCases = list.slice(0, 5);
+
+    const casesSummary = topCases.map((c, idx) => {
+      const citeStr = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+      const parties = cleanParties(c.petitioners);
+      const bench = cleanBenchList(c.judges);
+      const lawyers = cleanLawyers(c.lawyers);
+      const caseNums = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber.join(', ') : 'N/A';
+      const headnote = (c.headNote || '').slice(0, 1000);
+      const judgmentSnippet = (c.judgment || '').slice(0, 1500);
+      const principle = c.principleLaw || '';
+      const laws = (c.laws || []).map(l => `${l.lawStatute || ''}${l.section ? ` (s. ${l.section})` : ''}`).filter(Boolean).join(', ');
+
+      return `[CASE RECORD #${idx + 1}]
+- SLD Number: SLD #${c.sldNumber} (${c.caseId || ''})
+- Citation: ${citeStr}
+- Court: ${c.court || 'High Court / Supreme Court'}
+- Decision Date: ${formatDate(c)}
+- Bench: ${bench}
+- Parties: ${parties}
+- Counsel: ${lawyers}
+- Case Numbers: ${caseNums}
+- Statutory Provisions: ${laws || 'Income Tax Ordinance / Relevant Statutes'}
+- Principle of Law: ${principle || 'N/A'}
+- Headnote: ${headnote || 'N/A'}
+- Operative Judgment Excerpt: ${judgmentSnippet || 'N/A'}`;
+    }).join('\n\n---\n\n');
+
+    const systemInstruction = `You are the Senior Judicial AI Research Counsel for the Supreme Law Digest (SLD) System of Pakistan, with direct access to the database of 162,865 reported judicial judgments from the Supreme Court, High Courts, and Appellate Tribunals.
+
+CRITICAL INSTRUCTIONS:
+1. Provide a direct, authoritative, and lawyer-grade answer to the user's specific query.
+2. Ground your analysis 100% in the real case law records provided below from the SLD database. Do NOT invent fake cases or phantom citations.
+3. Explicitly cite the matching authority by SLD Number (e.g. SLD #${targetCase.sldNumber}), publication citation (e.g. ${targetCase.mapYearPage?.[0] || 'SLD'}), Court, and Bench.
+4. Structure your response professionally:
+   - ### Direct Legal Answer: Answer the user's specific inquiry clearly and concisely.
+   - #### Governing Judicial Precedent: Detailed analysis of the cited authority, court, bench, and litigants.
+   - #### Ratio Decidendi & Legal Principles: The rationale, statutory interpretation, and doctrine established.
+   - Include a document link at the bottom: [View Full Case Document ↗](/cases/view/${targetCase._id})
+5. Formatting Constraints:
+   - Do NOT use stray raw asterisks (**) around signature or party blocks.
+   - Use clean markdown headings and concise bullet points.`;
+
+    const userPrompt = `USER INQUIRY: "${userQuery}"
+
+VERIFIED CASE LAW RECORDS RETRIEVED FROM SLD DATABASE (162,865 CASES):
+${casesSummary}`;
+
+    const geminiText = await callGeminiWithTokenControl(systemInstruction, userPrompt);
+    if (geminiText && geminiText.trim().length > 50) {
+      return geminiText.trim();
+    }
+  } catch (err) {
+    logger.warn('Gemini synthesis failed, falling back to structured breakdown: ' + err.message);
+  }
+  return null;
+};
+
+/**
+ * SLD Core Legal AI Intelligence Engine
+ * Grounded 100% in the 162,865+ cases database across all fields
+ */
+export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, attachments = []) => {
   const rawClean = (userQuery || '').trim();
-  if (!rawClean) {
+  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+  if (!rawClean && !hasAttachments) {
     return {
-      text: "Please provide a case number, judge name, petitioner/litigant, citation (e.g. 2001 SLD 1), legal maxim, principle of law, or judgment excerpt to begin.",
+      text: "Please provide a case number, judge name, petitioner/litigant, citation (e.g. 2001 SLD 1), legal maxim, principle of law, judgment excerpt, or attach a document to begin.",
       legalAnalysis: null
     };
+  }
+
+  // 0. GUARDRAIL: Strict Code Generation Refusal
+  if (checkIsCodeRequest(rawClean)) {
+    return {
+      text: `### ⚖️ SLD Legal Intelligence Scope\n\n` +
+        `I am specialized **strictly as an SLD Legal Intelligence & Tax Pleadings Engine**. I do not generate software programming code (Python, JavaScript, HTML, SQL, etc.).\n\n` +
+        `However, I can assist you with all Pakistani legal and tax documents and research:\n` +
+        `1. **Statutory Legal Pleadings & Document Drafting**:\n` +
+        `   • **Format 1**: High Court Writ Petition under Article 199 (Complete with Index, Grounds, C.M Stay u/s 151 CPC, Exemption Application u/s 151 CPC, Affidavit & Vakalatnama).\n` +
+        `   • **Format 2**: Appellate Tribunal Inland Revenue (ATIR) Appeal (Form "B" [Rule 7] under Section 46 of Sales Tax Act 1990 / Section 34 FEA 2005).\n` +
+        `   • **Format 3**: Commissioner of Income Tax / Wealth Tax (Appeals) (Form of Appeal IT-16 under Income Tax Ordinance).\n\n` +
+        `2. **Precedent Research**: Searching over **162,865+ verified judicial cases** by Citation, Case Number, Judge, Litigant, or Legal Principle.\n\n` +
+        `To generate an appeal or petition, simply attach your Show Cause Notice, Assessment Order, or specify the parties and details!`,
+      legalAnalysis: {
+        matchedCase: null,
+        matchType: 'code_request_declined',
+        confidence: 100,
+        sourcesFound: 0
+      }
+    };
+  }
+
+  // 0.1 LEGAL DRAFTING / PLEADING GENERATION DISPATCH
+  if (checkIsLegalDraftingRequest(rawClean, attachments)) {
+    try {
+      const draftingResult = await generatePleadingDocument(rawClean, attachments);
+      return {
+        text: draftingResult.text,
+        legalAnalysis: {
+          matchedCase: null,
+          matchType: 'pleading_draft',
+          formatType: draftingResult.formatType,
+          confidence: 100,
+          sourcesFound: 1,
+          activeReferences: ['statutes', 'headnotes', 'case_numbers', 'courts', 'judgments']
+        }
+      };
+    } catch (draftErr) {
+      logger.error('Error generating legal pleading:', draftErr);
+    }
   }
 
   // 1. Clean conversational wrappers and normalize leading zeros on 4-digit years
@@ -771,51 +888,121 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     }
   }
 
-  // PRIORITY 11: Multi-Keyword AND Matching across full text
+  // PRIORITY 11: Multi-Keyword & Concept Matching across full database
   if (!targetCase) {
     const rawWords = normalizedQuery.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
-    const stopWords = new Set(['is', 'are', 'was', 'were', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'about', 'and', 'or', 'that', 'this', 'it', 'be', 'cannot', 'can', 'not', 'have', 'has', 'had']);
-    const filteredTerms = rawWords.filter(w => !stopWords.has(w));
+    const stopWords = new Set([
+      'is', 'are', 'was', 'were', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of',
+      'with', 'by', 'from', 'about', 'and', 'or', 'that', 'this', 'it', 'be', 'cannot',
+      'can', 'not', 'have', 'has', 'had', 'what', 'did', 'do', 'does', 'how', 'why',
+      'when', 'where', 'which', 'who', 'whom', 'whose', 'regarding', 'concerning',
+      'courts', 'court', 'rule', 'ruled', 'ruling', 'tell', 'me', 'please', 'explain',
+      'case', 'cases', 'law', 'laws', 'judgment', 'judgments', 'held'
+    ]);
+    const filteredTerms = rawWords.filter(w => !stopWords.has(w) && w.length >= 3);
 
-    if (filteredTerms.length >= 2) {
-      const andFilters = filteredTerms.slice(0, 4).map(term => ({
-        $or: [
-          { headNote: new RegExp(escapeRegex(term), 'i') },
-          { principleLaw: new RegExp(escapeRegex(term), 'i') },
-          { judgment: new RegExp(escapeRegex(term), 'i') }
-        ]
-      }));
+    if (filteredTerms.length >= 1) {
+      // 1. Try strict AND first for high precision
+      let candidates = [];
+      if (filteredTerms.length >= 2) {
+        const andFilters = filteredTerms.slice(0, 4).map(term => ({
+          $or: [
+            { headNote: new RegExp(escapeRegex(term), 'i') },
+            { principleLaw: new RegExp(escapeRegex(term), 'i') },
+            { judgment: new RegExp(escapeRegex(term), 'i') }
+          ]
+        }));
+        candidates = await Case.find({
+          $and: andFilters,
+          isDeleted: { $ne: true }
+        }).limit(20).lean();
+      }
 
-      const candidates = await Case.find({
-        $and: andFilters,
-        isDeleted: { $ne: true }
-      }).limit(20).lean();
+      // 2. If no strict AND candidates, try broad OR matching across top significant terms
+      if (candidates.length === 0) {
+        const orFilters = filteredTerms.slice(0, 5).map(term => ({
+          $or: [
+            { headNote: new RegExp(escapeRegex(term), 'i') },
+            { principleLaw: new RegExp(escapeRegex(term), 'i') },
+            { judgment: new RegExp(escapeRegex(term), 'i') }
+          ]
+        }));
+        candidates = await Case.find({
+          $or: orFilters,
+          isDeleted: { $ne: true }
+        }).limit(30).lean();
+      }
 
       if (candidates.length > 0) {
-        // STRICT VALIDATION: Only keep cases containing all filtered search keywords
-        const validatedCases = candidates.filter(c => validateTextKeywords(c, filteredTerms));
+        const ranked = candidates.map(c => {
+          let score = 0;
+          const hn = (c.headNote || '').toLowerCase();
+          const jg = (c.judgment || '').toLowerCase();
+          const pl = (c.principleLaw || '').toLowerCase();
+          filteredTerms.forEach(t => {
+            if (hn.includes(t)) score += 30;
+            if (pl.includes(t)) score += 25;
+            if (jg.includes(t)) score += 10;
+          });
+          return { c, score };
+        }).sort((a, b) => b.score - a.score);
 
-        if (validatedCases.length > 0) {
-          const ranked = validatedCases.map(c => {
-            let score = 0;
-            const hn = (c.headNote || '').toLowerCase();
-            const jg = (c.judgment || '').toLowerCase();
-            filteredTerms.forEach(t => {
-              if (hn.includes(t)) score += 20;
-              if (jg.includes(t)) score += 10;
-            });
-            return { c, score };
-          }).sort((a, b) => b.score - a.score);
-
-          matchingTopicCases = ranked.filter(r => r.score > 0).slice(0, 10).map(r => r.c);
-          if (matchingTopicCases.length > 0) {
-            targetCase = matchingTopicCases[0];
-            matchType = 'topic_multi';
-            confidence = 90;
-            activeReferences = ['headnotes', 'statutes', 'courts', 'citations'];
-          }
+        matchingTopicCases = ranked.filter(r => r.score > 0).slice(0, 10).map(r => r.c);
+        if (matchingTopicCases.length > 0) {
+          targetCase = matchingTopicCases[0];
+          matchType = 'topic_multi';
+          matchedFieldDisplay = cleanQuery;
+          confidence = 90;
+          activeReferences = ['headnotes', 'statutes', 'courts', 'citations'];
         }
       }
+    }
+  }
+
+  // PRIORITY 12: MongoDB Full-Text Database Search across all 162,865 cases
+  if (!targetCase && cleanQuery.length >= 3) {
+    try {
+      const sanitizedTextQuery = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, ' ').trim();
+      if (sanitizedTextQuery.length >= 3) {
+        const textCases = await Case.find(
+          { $text: { $search: sanitizedTextQuery }, isDeleted: { $ne: true } },
+          { score: { $meta: 'textScore' } }
+        )
+        .sort({ score: { $meta: 'textScore' } })
+        .limit(10)
+        .lean();
+
+        if (textCases && textCases.length > 0) {
+          matchingTopicCases = textCases;
+          targetCase = textCases[0];
+          matchType = 'topic_multi';
+          matchedFieldDisplay = cleanQuery;
+          confidence = 90;
+          activeReferences = ['headnotes', 'statutes', 'judgments', 'courts', 'citations'];
+        }
+      }
+    } catch (textErr) {
+      // In case $text index query encounters any syntax issue, fallback to multi-field regex
+      try {
+        const regexTerm = new RegExp(escapeRegex(cleanQuery.slice(0, 30)), 'i');
+        const regexCases = await Case.find({
+          $or: [
+            { headNote: regexTerm },
+            { principleLaw: regexTerm },
+            { judgment: regexTerm }
+          ],
+          isDeleted: { $ne: true }
+        }).limit(5).lean();
+
+        if (regexCases && regexCases.length > 0) {
+          matchingTopicCases = regexCases;
+          targetCase = regexCases[0];
+          matchType = 'topic_multi';
+          matchedFieldDisplay = cleanQuery;
+          confidence = 88;
+          activeReferences = ['headnotes', 'statutes', 'judgments', 'courts', 'citations'];
+        }
+      } catch (e) {}
     }
   }
 
@@ -1227,6 +1414,15 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
       [targetCase]
     );
 
+    // If Gemini is available, synthesize an authoritative AI research answer
+    // grounded 100% in the retrieved database records
+    if (process.env.GEMINI_API_KEY && (rawClean.length > 8 || rawClean.includes('?') || matchType === 'topic_multi' || matchType === 'database_search' || matchType === 'statute' || matchType === 'legal_principle_refund' || matchType === 'exact_judgment_line_multi')) {
+      const synthesized = await synthesizeLegalAIAnswer(rawClean, allMatchedCasesList, targetCase);
+      if (synthesized) {
+        responseText = synthesized;
+      }
+    }
+
     const result = {
       text: responseText,
       legalAnalysis: {
@@ -1269,21 +1465,44 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null) =>
     return result;
   }
 
-  // If no direct case was matched in database
-  const fallbackResult = {
-    text: `### Legal Inquiry Analysis\n\n` +
-      `I cross-referenced the SLD database across all 27,500+ cases, judgments, citations, judges, case numbers, and petitioners, but found no direct record for: *"**${cleanQuery}**"*.\n\n` +
+  // If no direct case was matched in database, invoke Gemini for statutory explanation & guidance
+  let fallbackText = '';
+  if (process.env.GEMINI_API_KEY && cleanQuery.length >= 3) {
+    try {
+      const sysPrompt = `You are the Senior Legal AI Assistant for the SLD System (Supreme Law Digest) of Pakistan, with full access to 162,865 reported cases across Supreme Court, High Courts, and Appellate Tribunals.
+The user asked a legal question for which no single specific case matched by direct title.
+Provide an informative, authoritative overview of the legal position under Pakistani statutory law (e.g. Income Tax Ordinance 2001, Sales Tax Act 1990, Constitution of Pakistan, Civil/Criminal procedure).
+Explain the general doctrine or principle clearly to the lawyer or litigant.
+Guide them on how they can query the SLD database (by Case Number, Citation, Judge name, or exact statute section) to retrieve specific case precedents.
+Do not use stray raw asterisks ** around party blocks or signatures.`;
+      
+      const aiReply = await callGeminiWithTokenControl(sysPrompt, `USER QUERY: "${cleanQuery}"`);
+      if (aiReply && aiReply.trim().length > 40) {
+        fallbackText = aiReply.trim();
+      }
+    } catch (e) {
+      logger.warn('Gemini fallback synthesis failed: ' + e.message);
+    }
+  }
+
+  if (!fallbackText) {
+    fallbackText = `### Legal Inquiry Analysis\n\n` +
+      `I cross-referenced the SLD database across all 162,865+ cases, judgments, citations, judges, case numbers, and petitioners, but found no direct record for: *"**${cleanQuery}**"*.\n\n` +
       `**Suggested Inquiries**:\n` +
       `1. **Case Number**: Search by appeal/suit number like \`1173 of 1978\`, \`C.T.R. No. 50 of 1995\`, or \`S.T.A. No.1903/LB of 2009\`.\n` +
       `2. **Judge Name**: Search by judge like \`Yahya Afridi\`, \`Ejaz Afzal Khan\`, or \`Mian Saqib Nisar\`.\n` +
       `3. **Petitioner / Party**: Search by company or party like \`Delta CNG\`, \`Sui Northern Gas\`, or \`Sargroh Oil\`.\n` +
       `4. **Citation**: Search by publication report like \`2001 SLD 1\`, \`(2011) 104 TAX 78\`, or \`2011 PTD 770\`.\n` +
-      `5. **Verbatim Excerpt**: Quote a sentence from the operative text of any judgment.`,
+      `5. **Verbatim Excerpt**: Quote a sentence from the operative text of any judgment.`;
+  }
+
+  const fallbackResult = {
+    text: fallbackText,
     legalAnalysis: {
       matchedCase: null,
       exactQuote: null,
       matchType: 'none',
-      confidence: 0,
+      confidence: fallbackText !== '' ? 70 : 0,
       activeReferences: ['case_numbers', 'judgments', 'judges', 'petitioners', 'headnotes', 'legal_maxim', 'principle_law', 'citations'],
       sourcesFound: 0
     }
@@ -1308,7 +1527,7 @@ export const createSession = async (req, res, next) => {
       messages: [
         {
           sender: 'assistant',
-          text: 'Welcome to the **SLD AI Legal Core**. You can enter any line from a judgment, citation, statute section, or case title. The system will scan the complete database of over 27,500 verified judicial cases to locate the exact authority and provide an explanation.',
+          text: 'Welcome to the **SLD AI Legal Core**. You can enter any line from a judgment, citation, statute section, or case title. The system will scan the complete database of over 162,865 verified judicial cases to locate the exact authority and provide an explanation.',
           timestamp: new Date()
         }
       ]
@@ -1362,10 +1581,13 @@ export const getSessionById = async (req, res, next) => {
 export const sendMessage = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
-    const { message, focusNode } = req.body;
+    const { message, focusNode, attachments } = req.body;
 
-    if (!message || !message.trim()) {
-      return res.status(400).json({ success: false, message: 'Message is required' });
+    const trimmedMsg = (message || '').trim();
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+    if (!trimmedMsg && !hasAttachments) {
+      return res.status(400).json({ success: false, message: 'Message or attachment is required' });
     }
 
     let session = await ChatSession.findById(sessionId);
@@ -1373,7 +1595,7 @@ export const sendMessage = async (req, res, next) => {
       // Auto-create session if not found
       session = new ChatSession({
         userId: req.user._id,
-        title: message.slice(0, 30) + '...',
+        title: (trimmedMsg || 'Document Analysis').slice(0, 30) + '...',
         messages: []
       });
     }
@@ -1381,13 +1603,18 @@ export const sendMessage = async (req, res, next) => {
     // 1. Append User Message
     const userMsg = {
       sender: 'user',
-      text: message.trim(),
+      text: trimmedMsg,
+      attachments: hasAttachments ? attachments.map(a => ({
+        name: a.name,
+        type: a.type,
+        size: a.size
+      })) : [],
       timestamp: new Date()
     };
     session.messages.push(userMsg);
 
     // 2. Run SLD Legal Intelligence Engine
-    const { text, legalAnalysis } = await runLegalIntelligenceEngine(message.trim(), focusNode);
+    const { text, legalAnalysis } = await runLegalIntelligenceEngine(trimmedMsg, focusNode, attachments || []);
 
     // 3. Append Assistant Message
     const assistantMsg = {
@@ -1400,7 +1627,7 @@ export const sendMessage = async (req, res, next) => {
 
     // Auto-update session title if default
     if (session.title === 'New Legal Research' || session.title.startsWith('New Session')) {
-      session.title = message.trim().slice(0, 35) + '...';
+      session.title = (trimmedMsg || 'Legal Drafting').slice(0, 35) + '...';
     }
 
     await session.save();
@@ -1422,8 +1649,8 @@ export const sendMessage = async (req, res, next) => {
  */
 export const queryLegalCore = async (req, res, next) => {
   try {
-    const { query, focusNode } = req.body;
-    const result = await runLegalIntelligenceEngine(query, focusNode);
+    const { query, focusNode, attachments } = req.body;
+    const result = await runLegalIntelligenceEngine(query, focusNode, attachments || []);
     return res.status(200).json({
       success: true,
       data: result

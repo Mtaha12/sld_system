@@ -131,24 +131,175 @@ const REFERENCE_SECTORS = [
   }
 ];
 
+/**
+ * Intelligently detect which of the 8 reference sectors extracted the case law
+ */
+const detectMatchingSector = (matchedCase, matchType) => {
+  if (!matchedCase) return null;
+
+  const court = String(matchedCase.court || '').toLowerCase();
+  const caseNums = Array.isArray(matchedCase.caseNumber) 
+    ? matchedCase.caseNumber.join(' ').toLowerCase() 
+    : String(matchedCase.caseNumber || '').toLowerCase();
+  const citations = Array.isArray(matchedCase.mapYearPage) 
+    ? matchedCase.mapYearPage.join(' ').toLowerCase() 
+    : String(matchedCase.mapYearPage || '').toLowerCase();
+  const principle = String(matchedCase.principleLaw || '').toLowerCase();
+
+  // 1. Tribunal / FTO / Ombudsman (e.g. Appellate Tribunal Inland Revenue, Customs Tribunal, FTO)
+  if (
+    court.includes('tribunal') ||
+    court.includes('fto') ||
+    court.includes('ombudsman') ||
+    court.includes('atir') ||
+    (court.includes('inland revenue') && court.includes('appellate')) ||
+    court.includes('labour appellate')
+  ) {
+    return 'tribunal_fto';
+  }
+
+  // 2. Provincial Revenue Authorities (PRA, SRB, KPRA, BRA)
+  if (
+    court.includes('pra') ||
+    court.includes('srb') ||
+    court.includes('kpra') ||
+    court.includes('bra') ||
+    court.includes('punjab revenue') ||
+    court.includes('sindh revenue') ||
+    court.includes('kpk revenue') ||
+    court.includes('khyber pakhtunkhwa') ||
+    court.includes('balochistan revenue')
+  ) {
+    return 'pra_srb';
+  }
+
+  // 3. FBR & SECP
+  if (
+    court.includes('fbr') ||
+    court.includes('secp') ||
+    court.includes('federal board of revenue') ||
+    court.includes('circular') ||
+    court.includes('general order')
+  ) {
+    return 'fbr_secp';
+  }
+
+  // 4. Notifications & SROs
+  if (
+    court.includes('sro') ||
+    court.includes('notification') ||
+    court.includes('gazette') ||
+    caseNums.includes('s.r.o') ||
+    caseNums.includes('sro') ||
+    caseNums.includes('notification')
+  ) {
+    return 'notifications';
+  }
+
+  // 5. Explicit matchType / statutory classification
+  if (matchType === 'statute' || principle.includes('section') || principle.includes('ordinance')) {
+    return 'statutes';
+  }
+
+  if (matchType === 'case_number') {
+    return 'case_numbers';
+  }
+
+  if (matchType === 'citation' || citations.length > 0) {
+    return 'citations';
+  }
+
+  if (matchType === 'exact_line' || matchType === 'text_search') {
+    return 'text_search';
+  }
+
+  // Fallbacks:
+  if (citations.length > 0) return 'citations';
+  if (caseNums.length > 0) return 'case_numbers';
+  return 'tribunal_fto';
+};
+
+/**
+ * Returns the exact forum / court / institution name where the result was extracted
+ */
+const getExactSourceName = (matchedCase, fallbackSector) => {
+  if (matchedCase) {
+    if (matchedCase.court && matchedCase.court.trim()) {
+      return matchedCase.court.trim();
+    }
+    if (matchedCase.mapYearPage && matchedCase.mapYearPage.length > 0) {
+      return matchedCase.mapYearPage[0];
+    }
+    if (matchedCase.caseNumber && matchedCase.caseNumber.length > 0) {
+      return matchedCase.caseNumber[0];
+    }
+  }
+  return fallbackSector?.tag || 'Appellate Tribunal Inland Revenue';
+};
+
+/**
+ * Formats the right-side category badge (e.g. TRIBUNAL, HIGH COURT, APEX COURT, PROVINCIAL)
+ */
+const getSourceCategoryTag = (courtName, sectorId) => {
+  const c = String(courtName || '').toLowerCase();
+  if (c.includes('supreme court')) return 'APEX COURT';
+  if (c.includes('high court')) return 'HIGH COURT';
+  if (c.includes('tribunal') || c.includes('fto') || c.includes('ombudsman')) return 'TRIBUNAL';
+  if (c.includes('srb') || c.includes('pra') || c.includes('kpra') || c.includes('bra')) return 'PROVINCIAL';
+  if (c.includes('fbr') || c.includes('secp')) return 'FEDERAL';
+
+  const tagMap = {
+    citations: 'JOURNAL',
+    case_numbers: 'CASE RECORD',
+    text_search: 'JUDGMENT TEXT',
+    notifications: 'GAZETTE / SRO',
+    fbr_secp: 'FEDERAL',
+    statutes: 'STATUTE',
+    tribunal_fto: 'TRIBUNAL',
+    pra_srb: 'PROVINCIAL'
+  };
+  return tagMap[sectorId] || 'FIELD';
+};
+
 const OrbitalSpinWheel = ({
   isSearching = false,
   activeReferences = [],
   focusedNode = null,
   onNodeClick,
+  lastMatchedCase = null,
+  matchType = null,
   className = ""
 }) => {
   const [hoveredSector, setHoveredSector] = useState(null);
 
+  // Intelligently identify which sector extracted this result
+  const extractedSectorId = useMemo(() => {
+    return detectMatchingSector(lastMatchedCase, matchType);
+  }, [lastMatchedCase, matchType]);
+
   // Determine currently active or displayed sector for center hub & detail card
   const displayedSector = useMemo(() => {
-    return (
-      REFERENCE_SECTORS.find(s => s.id === hoveredSector) ||
-      REFERENCE_SECTORS.find(s => s.id === focusedNode) ||
-      REFERENCE_SECTORS.find(s => s.id === 'fbr_secp') ||
-      REFERENCE_SECTORS[0]
-    );
-  }, [hoveredSector, focusedNode]);
+    if (hoveredSector) {
+      return REFERENCE_SECTORS.find(s => s.id === hoveredSector) || REFERENCE_SECTORS[0];
+    }
+    if (focusedNode) {
+      return REFERENCE_SECTORS.find(s => s.id === focusedNode) || REFERENCE_SECTORS[0];
+    }
+    if (extractedSectorId) {
+      return REFERENCE_SECTORS.find(s => s.id === extractedSectorId) || REFERENCE_SECTORS[0];
+    }
+    return REFERENCE_SECTORS.find(s => s.id === 'tribunal_fto') || REFERENCE_SECTORS[0];
+  }, [hoveredSector, focusedNode, extractedSectorId]);
+
+  // Exact name where the result was extracted
+  const exactSourceName = useMemo(() => {
+    return getExactSourceName(lastMatchedCase, displayedSector);
+  }, [lastMatchedCase, displayedSector]);
+
+  // Category classification for the result
+  const sourceCategoryTag = useMemo(() => {
+    return getSourceCategoryTag(lastMatchedCase?.court || exactSourceName, displayedSector.id);
+  }, [lastMatchedCase, exactSourceName, displayedSector]);
 
   const DisplayedIcon = displayedSector.icon;
 
@@ -369,6 +520,18 @@ const OrbitalSpinWheel = ({
               <feDropShadow dx="0" dy="5" stdDeviation="6" floodColor="#000" floodOpacity="0.18" />
             </filter>
 
+            {/* Radiant Glowing Halos for Active/Extracted Sector */}
+            <filter id="activeSectorGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="0" stdDeviation="7" floodColor="#FFFFFF" floodOpacity="0.9" />
+              <feDropShadow dx="0" dy="0" stdDeviation="14" floodColor="#F59E0B" floodOpacity="0.5" />
+            </filter>
+
+            {/* Deep 3D Shadow for Highlighted Card */}
+            <filter id="cardActiveShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="6" stdDeviation="9" floodColor="#000" floodOpacity="0.3" />
+              <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="#F59E0B" floodOpacity="0.4" />
+            </filter>
+
             {/* Gear 3D Shadow */}
             <filter id="gearShadow" x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.25" />
@@ -420,8 +583,11 @@ const OrbitalSpinWheel = ({
             
             {REFERENCE_SECTORS.map((sector, index) => {
               const sectorAngle = index * 45 - 90;
-              const isActive = activeReferences.includes(sector.id) || focusedNode === sector.id;
+              const isExtracted = sector.id === extractedSectorId;
+              const isFocused = sector.id === focusedNode;
               const isHovered = hoveredSector === sector.id;
+              const isActive = isExtracted || isFocused;
+              const isHighlighted = isActive || isHovered;
 
               return (
                 <g
@@ -436,12 +602,13 @@ const OrbitalSpinWheel = ({
                       <path
                         d={bannerPath}
                         fill={`url(#grad-${sector.id})`}
-                        stroke={isHovered ? "#FFFFFF" : "none"}
-                        strokeWidth={isHovered ? "1.5" : "0"}
-                        className={`transition-all duration-200 ${
-                          isActive ? 'filter drop-shadow-[0_0_10px_rgba(241,90,36,0.6)]' : ''
+                        stroke={isExtracted ? "#FFFFFF" : isHovered ? "#FFFFFF" : "none"}
+                        strokeWidth={isExtracted ? "2.5" : isHovered ? "1.5" : "0"}
+                        filter={isExtracted ? "url(#activeSectorGlow)" : "none"}
+                        className={`transition-all duration-300 ${
+                          isExtracted ? 'filter drop-shadow-[0_0_14px_rgba(255,255,255,0.9)]' : ''
                         }`}
-                        opacity={isHovered || isActive ? 1 : 0.94}
+                        opacity={isHighlighted ? 1 : 0.94}
                       />
 
                       {/* Outer Tag Curved Text */}
@@ -468,25 +635,27 @@ const OrbitalSpinWheel = ({
                       <circle
                         cx={cx + R_BANNER_IN - 10}
                         cy={cy}
-                        r={3.5}
+                        r={isExtracted ? 4.5 : 3.5}
                         fill="#FFFFFF"
-                        opacity="0.95"
-                        className="drop-shadow-sm"
+                        opacity={isExtracted ? 1 : 0.95}
+                        className={isExtracted ? "animate-pulse drop-shadow-md" : "drop-shadow-sm"}
                       />
                     </g>
 
                     {/* 2. WHITE 3D WEDGE CARD */}
-                    <g filter="url(#cardShadow)">
+                    <g filter={isExtracted ? "url(#cardActiveShadow)" : "url(#cardShadow)"}>
                       {/* Card Body */}
                       <path
                         d={cardPath}
-                        className={`transition-colors duration-200 ${
-                          isHovered 
-                            ? 'fill-amber-50/40 dark:fill-[#252b3b]' 
-                            : 'fill-white dark:fill-[#1e222d]'
+                        className={`transition-all duration-300 ${
+                          isExtracted
+                            ? 'fill-amber-50/70 dark:fill-[#252b3b]'
+                            : isHovered 
+                              ? 'fill-amber-50/40 dark:fill-[#252b3b]' 
+                              : 'fill-white dark:fill-[#1e222d]'
                         }`}
-                        stroke={isActive ? sector.color : isHovered ? sector.color : '#CBD5E1'}
-                        strokeWidth={isActive ? '3' : isHovered ? '2.5' : '1'}
+                        stroke={isExtracted ? sector.color : isHovered ? sector.color : '#CBD5E1'}
+                        strokeWidth={isExtracted ? '3.5' : isHovered ? '2.5' : '1'}
                       />
 
                       {/* Top Bevel Highlight */}
@@ -571,15 +740,26 @@ const OrbitalSpinWheel = ({
                         </g>
                       </g>
 
-                      {/* Pulsing indicator on arrow tip when active */}
+                      {/* Pulsing indicator on arrow tip when active or extracted */}
                       {isActive && (
-                        <circle
-                          cx={cx + R_ARROW_TIP + 2}
-                          cy={cy}
-                          r={4}
-                          fill={sector.color}
-                          className="animate-ping"
-                        />
+                        <>
+                          <circle
+                            cx={cx + R_ARROW_TIP + 2}
+                            cy={cy}
+                            r={7}
+                            fill={sector.color}
+                            className="animate-ping"
+                            opacity="0.8"
+                          />
+                          <circle
+                            cx={cx + R_ARROW_TIP + 2}
+                            cy={cy}
+                            r={4.5}
+                            fill={sector.color}
+                            stroke="#FFFFFF"
+                            strokeWidth="1.5"
+                          />
+                        </>
                       )}
 
                     </g>
@@ -662,7 +842,7 @@ const OrbitalSpinWheel = ({
               </textPath>
             </text>
 
-            {/* Bottom Arc Text: 27,500+ CASES GROUNDED */}
+            {/* Bottom Arc Text: 162,865+ CASES GROUNDED */}
             <text
               fill="#475569"
               fontSize="9"
@@ -671,7 +851,7 @@ const OrbitalSpinWheel = ({
               className="select-none font-sans"
             >
               <textPath href="#gearHubTextBottom" startOffset="50%" textAnchor="middle">
-                27,500+ CASES GROUNDED
+                162,865+ CASES GROUNDED
               </textPath>
             </text>
 
@@ -731,15 +911,17 @@ const OrbitalSpinWheel = ({
 
       </div>
 
-      {/* 3. THREE STACKED CARDS DIRECTLY BELOW THE WHEEL (EXACTLY AS IN USER REFERENCE) */}
+      {/* 3. THREE STACKED CARDS DIRECTLY BELOW THE WHEEL (SYNCHRONIZED WITH GROUNDED PRECEDENT) */}
       <div className="w-full flex flex-col gap-2 z-20 shrink-0">
         
-        {/* CARD 1: Appellate Tribunal Inland Revenue — SLD #1 | 100% Grounded */}
-        <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/30 dark:bg-slate-900 shadow-xs">
+        {/* CARD 1: Case Court / Citation — SLD # | 100% Grounded */}
+        <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/40 dark:bg-slate-900 shadow-xs">
           <div className="flex items-center gap-2 min-w-0">
-            <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+            <Sparkles className="w-4 h-4 text-emerald-500 shrink-0 animate-pulse" />
             <span className="text-xs sm:text-[13px] font-black text-slate-800 dark:text-slate-100 truncate">
-              Appellate Tribunal Inland Revenue — SLD #1
+              {lastMatchedCase 
+                ? `${lastMatchedCase.court || 'Court of Record'} — SLD #${lastMatchedCase.sldNumber || ''}`
+                : 'Appellate Tribunal Inland Revenue — SLD Precedents'}
             </span>
           </div>
           <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 px-2.5 py-0.5 rounded-full shrink-0">
@@ -747,23 +929,38 @@ const OrbitalSpinWheel = ({
           </span>
         </div>
 
-        {/* CARD 2: Result from [SELECTED/ACTIVE SECTOR] | FIELD */}
-        <div className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-            <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-              Result from <strong className="text-rose-600 dark:text-rose-400 uppercase font-black">{displayedSector.tag}</strong>
+        {/* CARD 2: Result from [EXACT NAME OF EXTRACTED FORUM / TRIBUNAL / STATUTE] | FORUM CATEGORY */}
+        <div className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span 
+              className="w-2.5 h-2.5 rounded-full shrink-0 animate-ping"
+              style={{ backgroundColor: displayedSector.color }}
+            />
+            <span 
+              className="w-2.5 h-2.5 rounded-full shrink-0 -ml-5"
+              style={{ backgroundColor: displayedSector.color }}
+            />
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate">
+              Result from <strong className="uppercase font-black" style={{ color: displayedSector.color }}>{exactSourceName}</strong>
             </span>
           </div>
-          <span className="text-[10px] font-black tracking-wider text-slate-400 dark:text-slate-500 uppercase">
-            FIELD
+          <span 
+            className="text-[10px] font-black tracking-wider uppercase shrink-0 px-2 py-0.5 rounded border"
+            style={{ 
+              color: displayedSector.color, 
+              borderColor: `${displayedSector.color}40`,
+              backgroundColor: `${displayedSector.color}15` 
+            }}
+          >
+            {sourceCategoryTag}
           </span>
         </div>
 
-        {/* CARD 3: Sector Detail Card (FBR & SECP / All Govt. Departments / FEDERAL) */}
+        {/* CARD 3: Sector Detail Card (Interactive Deep Dive / Query Trigger) */}
         <div 
           onClick={() => onNodeClick?.(displayedSector.id)}
-          className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-2xl border-2 border-purple-300/80 dark:border-purple-600/60 bg-white dark:bg-slate-900 shadow-sm cursor-pointer hover:shadow-md hover:border-purple-500 transition-all gap-2.5"
+          className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-2xl border-2 bg-white dark:bg-slate-900 shadow-sm cursor-pointer hover:shadow-md transition-all gap-2.5"
+          style={{ borderColor: `${displayedSector.color}60` }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div 

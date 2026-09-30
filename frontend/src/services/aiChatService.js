@@ -16,18 +16,20 @@ export const aiChatService = {
     return response.data?.data;
   },
 
-  sendMessage: async (sessionId, message, focusNode = null) => {
+  sendMessage: async (sessionId, message, focusNode = null, attachments = []) => {
     const response = await api.post(`/api/ai-chat/sessions/${sessionId}/messages`, { 
       message,
-      focusNode 
+      focusNode,
+      attachments
     });
     return response.data?.data;
   },
 
-  queryLegalCore: async (query, focusNode = null) => {
+  queryLegalCore: async (query, focusNode = null, attachments = []) => {
     const response = await api.post('/api/ai-chat/query', { 
       query,
-      focusNode 
+      focusNode,
+      attachments
     });
     return response.data?.data;
   },
