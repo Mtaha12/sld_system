@@ -43,6 +43,10 @@ const caseSchema = new mongoose.Schema({
     trim: true,
     index: true,
   },
+  sldNumberInt: {
+    type: Number,
+    index: true,
+  },
   dated: {
     type: String,
     default: null,
@@ -132,10 +136,14 @@ caseSchema.plugin(autoUniqueIdPlugin, {
   aliases: ['case_id']
 });
 
-// Fallback sldNumber to caseId if not manually provided
+// Fallback sldNumber to caseId if not manually provided and populate sldNumberInt
 caseSchema.pre('save', async function () {
   if (!this.sldNumber) {
     this.sldNumber = this.caseId;
+  }
+  if (this.sldNumber) {
+    const parsed = parseInt(String(this.sldNumber).replace(/\D+/g, ''), 10);
+    this.sldNumberInt = !isNaN(parsed) ? parsed : null;
   }
 });
 
@@ -153,6 +161,8 @@ caseSchema.index({
   references: 'text',
   principleLaw: 'text',
 });
+caseSchema.index({ isDeleted: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, sldNumberInt: 1 });
 caseSchema.index({ isDeleted: 1, sldNumber: -1 });
 caseSchema.index({ isDeleted: 1, dated: -1 });
 caseSchema.index({ isDeleted: 1, court: 1 });

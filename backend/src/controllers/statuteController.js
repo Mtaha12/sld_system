@@ -49,7 +49,7 @@ const formatStatuteForFrontend = (s) => {
  */
 export const getStatutes = async (req, res, next) => {
   try {
-    const { query } = req.query;
+    const { query, page, limit, all, full, sortField, sortOrder } = req.query;
 
     const filter = { isDeleted: { $ne: true } };
 
@@ -70,13 +70,44 @@ export const getStatutes = async (req, res, next) => {
       ];
     }
 
-    const statutes = await Statute.find(filter).sort({ createdAt: -1, srNumber: -1 }).lean();
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const isAll = all === 'true';
+
+    const safeLimit = isAll ? 500 : Math.min(Math.max(limitNum || 25, 1), 200);
+    const safePage = Math.max(pageNum || 1, 1);
+
+    const total = await Statute.countDocuments(filter);
+    const totalPages = Math.ceil(total / safeLimit) || 1;
+
+    const order = sortOrder === 'asc' ? 1 : -1;
+    let sortObj = { srNumberInt: order };
+    if (sortField === 'law') sortObj = { law: order, srNumberInt: order };
+    else if (sortField === 'chapter') sortObj = { chapter: order };
+    else if (sortField === 'section') sortObj = { section: order };
+    else if (sortField === 'department') sortObj = { department: order };
+
+    let dbQuery = Statute.find(filter).sort(sortObj);
+
+    if (full !== 'true') {
+      dbQuery = dbQuery.select('statuteId statute_id srNumber law chapter section heading department status blocks createdAt updatedAt');
+    }
+
+    if (!isAll) {
+      dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);
+    }
+
+    const statutes = await dbQuery.lean();
     const isSpammer = req.user?.isSpammer === true;
     const data = (isSpammer ? statutes.map(spoofStatute) : statutes).map(formatStatuteForFrontend);
 
     return res.status(200).json({
       success: true,
       message: 'Statutes retrieved successfully.',
+      count: data.length,
+      total,
+      totalPages,
+      currentPage: safePage,
       data
     });
   } catch (error) {

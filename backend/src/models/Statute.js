@@ -30,6 +30,10 @@ const statuteSchema = new mongoose.Schema({
     trim: true,
     index: true,
   },
+  srNumberInt: {
+    type: Number,
+    index: true,
+  },
   department: {
     type: String,
     default: 'tax',
@@ -80,10 +84,14 @@ statuteSchema.plugin(autoUniqueIdPlugin, {
   aliases: ['statute_id']
 });
 
-// Fallback srNumber to statuteId if not manually provided
+// Fallback srNumber to statuteId if not manually provided and populate srNumberInt
 statuteSchema.pre('save', async function () {
   if (!this.srNumber) {
     this.srNumber = this.statuteId;
+  }
+  if (this.srNumber) {
+    const parsed = parseInt(String(this.srNumber).replace(/\D+/g, ''), 10);
+    this.srNumberInt = !isNaN(parsed) ? parsed : null;
   }
 });
 
@@ -100,6 +108,12 @@ statuteSchema.index({
   'blocks.sectionHeading': 'text',
   'blocks.detail': 'text'
 });
+statuteSchema.index({ isDeleted: 1, srNumberInt: -1 });
+statuteSchema.index({ isDeleted: 1, srNumberInt: 1 });
+statuteSchema.index({ isDeleted: 1, createdAt: -1, srNumber: -1 });
+statuteSchema.index({ isDeleted: 1, srNumber: -1 });
+statuteSchema.index({ isDeleted: 1, department: 1 });
+statuteSchema.index({ isDeleted: 1, law: 1 });
 
 // Soft delete query filter middleware
 statuteSchema.pre(/^find/, function () {

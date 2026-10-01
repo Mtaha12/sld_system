@@ -16,6 +16,7 @@ import {
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
+import Pagination from '../../../components/ui/Pagination';
 import { updateService } from '../services/updateService';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
@@ -262,37 +263,14 @@ const ManageUpdatesTable = ({
 
         {/* Pagination */}
         {!isLoading && totalItems > 0 && (
-          <div className="px-4 py-2 border-t border-theme-border flex items-center justify-between gap-2 bg-gray-50/40 dark:bg-theme-surface-alt/20 text-xs">
-            <span className="text-theme-muted text-[11px]">
-              {startIndex + 1}–{Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems}
-            </span>
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="h-7 px-2.5 text-xs"
-              >
-                Prev
-              </Button>
-              <span className="px-2 text-[11px] font-medium text-theme-main">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="h-7 px-2.5 text-xs"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+          />
         )}
-
       </div>
 
       {/* View Modal */}

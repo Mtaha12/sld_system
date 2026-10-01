@@ -16,18 +16,22 @@ const ManageNotificationsPage = () => {
 
   const [notifications, setNotifications] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [highlightedId, setHighlightedId] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState(initialParamQuery);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch initial notifications from notificationService
+  // Fetch notifications with server pagination
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    notificationService.getNotifications().then(data => {
+    notificationService.getNotifications({ page: currentPage, limit: 25, query: searchQuery }).then(data => {
       if (isMounted) {
         setNotifications(data);
+        setTotalItems(data.total || data.length || 0);
+        setTotalPages(data.totalPages || 1);
       }
     }).finally(() => {
       if (isMounted) {
@@ -35,13 +39,14 @@ const ManageNotificationsPage = () => {
       }
     });
     return () => { isMounted = false; };
-  }, []);
+  }, [currentPage, searchQuery]);
 
   // Sync when search URL query changes
   useEffect(() => {
     const q = searchParams.get('search');
     if (q !== null && q !== undefined) {
       setSearchQuery(q);
+      setCurrentPage(1);
     }
   }, [searchParams]);
 
@@ -144,16 +149,25 @@ const ManageNotificationsPage = () => {
       <ManageNotificationsFilterBar 
         initialSearch={searchQuery}
         onGetId={handleOpenGetId}
-        onSearch={setSearchQuery}
-        onShowAll={() => setSearchQuery('')}
+        onSearch={(q) => {
+          setSearchQuery(q);
+          setCurrentPage(1);
+        }}
+        onShowAll={() => {
+          setSearchQuery('');
+          setCurrentPage(1);
+        }}
       />
 
       <div className="flex-1">
         <ManageNotificationsTable 
-          notifications={filteredNotifications}
+          notifications={notifications}
           setNotifications={setNotifications}
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
+          totalItems={totalItems}
+          totalPages={totalPages}
+          serverPaginated={true}
           highlightedId={highlightedId}
           toastMessage={toastMessage}
           setToastMessage={setToastMessage}

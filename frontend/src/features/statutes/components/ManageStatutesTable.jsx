@@ -17,6 +17,7 @@ import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
 import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
+import Pagination from '../../../components/ui/Pagination';
 import { statuteService } from '../services/statuteService';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className }) => {
@@ -49,6 +50,11 @@ const TableHeader = ({ title, sortKey, sortConfig, onSort, className }) => {
 const ManageStatutesTable = ({
   statutes: propStatutes,
   setStatutes: propSetStatutes,
+  currentPage: propCurrentPage,
+  setCurrentPage: propSetCurrentPage,
+  totalItems: propTotalItems,
+  totalPages: propTotalPages,
+  serverPaginated = false,
   highlightedId,
   toastMessage: propToastMessage,
   setToastMessage: propSetToastMessage,
@@ -56,6 +62,7 @@ const ManageStatutesTable = ({
 }) => {
   const navigate = useNavigate();
   const [internalStatutes, setInternalStatutes] = useState([]);
+  const [internalCurrentPage, setInternalCurrentPage] = useState(1);
   const [internalToastMessage, setInternalToastMessage] = useState('');
   const [internalLoading, setInternalLoading] = useState(false);
 
@@ -71,6 +78,8 @@ const ManageStatutesTable = ({
   const statutes = propStatutes || internalStatutes;
   const setStatutes = propSetStatutes || setInternalStatutes;
   const loading = isLoading || internalLoading;
+  const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalCurrentPage;
+  const setCurrentPage = propSetCurrentPage || setInternalCurrentPage;
   const toastMessage = propToastMessage !== undefined ? propToastMessage : internalToastMessage;
   const setToastMessage = propSetToastMessage || setInternalToastMessage;
 
@@ -83,8 +92,8 @@ const ManageStatutesTable = ({
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const isServerPaginated = Boolean(serverPaginated || propTotalItems !== undefined);
+  const itemsPerPage = isServerPaginated ? 25 : 10;
 
   const handleSort = (key) => {
     setSortConfig(prev => {
@@ -98,6 +107,7 @@ const ManageStatutesTable = ({
   };
 
   const sortedStatutes = useMemo(() => {
+    if (isServerPaginated) return statutes;
     if (!sortConfig.key || !sortConfig.direction) return statutes;
 
     const { key, direction } = sortConfig;
@@ -138,12 +148,12 @@ const ManageStatutesTable = ({
       const result = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
       return isAsc ? result : -result;
     });
-  }, [statutes, sortConfig]);
+  }, [statutes, sortConfig, isServerPaginated]);
 
-  const totalItems = sortedStatutes.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const totalItems = isServerPaginated ? (propTotalItems !== undefined ? propTotalItems : statutes.length) : sortedStatutes.length;
+  const totalPages = isServerPaginated ? (propTotalPages !== undefined ? propTotalPages : Math.max(1, Math.ceil(totalItems / itemsPerPage))) : Math.max(1, Math.ceil(totalItems / itemsPerPage));
 
-  const currentData = sortedStatutes.slice(
+  const currentData = isServerPaginated ? statutes : sortedStatutes.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -254,7 +264,7 @@ const ManageStatutesTable = ({
           <CalendarClock className="w-4 h-4 mr-2" /> Update Dates
         </Button>
         <div className="text-brand-orange font-semibold text-sm">
-          Total Records: ({statutes.length})
+          Total Records: ({totalItems})
         </div>
       </div>
 
@@ -349,47 +359,13 @@ const ManageStatutesTable = ({
         </div>
 
         {/* Pagination Footer */}
-        <div className="px-6 py-4 border-t border-theme-border/50 bg-theme-surface flex items-center justify-between">
-          <span className="text-sm text-theme-muted">
-            Showing <span className="font-medium text-theme-main">{startIdx}</span> to <span className="font-medium text-theme-main">{endIdx}</span> of <span className="font-medium text-theme-main">{totalItems}</span> entries
-          </span>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className="text-sm text-theme-muted hover:text-theme-main disabled:opacity-40 disabled:cursor-not-allowed font-medium px-2"
-            >
-              ← Prev
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-              .map((p, idx, arr) => {
-                const prev = arr[idx - 1];
-                return (
-                  <span key={p} className="flex items-center gap-1">
-                    {prev && p - prev > 1 && <span className="text-theme-disabled px-1">...</span>}
-                    <button
-                      onClick={() => setCurrentPage(p)}
-                      className={`w-8 h-8 flex items-center justify-center rounded text-sm transition-colors font-medium ${
-                        currentPage === p
-                          ? 'bg-brand-orange text-white'
-                          : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border border-theme-border'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  </span>
-                );
-              })}
-            <button 
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="text-sm text-theme-muted hover:text-theme-main disabled:opacity-40 disabled:cursor-not-allowed font-medium px-2"
-            >
-              Next →
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={(page) => setCurrentPage(page)}
+        />
       </div>
 
       {/* View Statute Modal */}

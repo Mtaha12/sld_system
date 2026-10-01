@@ -17,7 +17,7 @@ const formatItem = (w) => ({
 
 export const getWhatsappUpdates = async (req, res, next) => {
   try {
-    const { query } = req.query;
+    const { query, page, limit, all } = req.query;
     const filter = { isDeleted: { $ne: true } };
 
     if (query) {
@@ -35,13 +35,32 @@ export const getWhatsappUpdates = async (req, res, next) => {
       filter.$or = orConditions;
     }
 
-    const items = await WhatsappUpdate.find(filter).sort({ srNumber: -1, createdAt: -1 });
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const isAll = all === 'true';
+
+    const safeLimit = isAll ? 1000 : Math.min(Math.max(limitNum || 25, 1), 200);
+    const safePage = Math.max(pageNum || 1, 1);
+
+    const total = await WhatsappUpdate.countDocuments(filter);
+    const totalPages = Math.ceil(total / safeLimit) || 1;
+
+    let dbQuery = WhatsappUpdate.find(filter).sort({ srNumber: -1, createdAt: -1 });
+
+    if (!isAll) {
+      dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);
+    }
+
+    const items = await dbQuery.lean();
     const data = items.map(formatItem);
 
     return res.status(200).json({
       success: true,
       message: 'Whatsapp updates retrieved successfully.',
       count: data.length,
+      total,
+      totalPages,
+      currentPage: safePage,
       data
     });
   } catch (error) {

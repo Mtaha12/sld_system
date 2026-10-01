@@ -18,6 +18,19 @@ import logger from './logger.js';
  */
 const backfillCollection = async (Model, entityName, primaryField, aliases = [], prefix = '', padLength = 6) => {
   try {
+    // Fast path: Check if any records are actually missing the unique ID
+    const missingCount = await Model.countDocuments({
+      $or: [
+        { [primaryField]: { $exists: false } },
+        { [primaryField]: null },
+        { [primaryField]: '' }
+      ]
+    });
+
+    if (missingCount === 0) {
+      return { total: 0, backfilled: 0 };
+    }
+
     // 1. Find existing max sequence if some records already have an ID
     const existingWithId = await Model.find({ [primaryField]: { $exists: true, $ne: null, $nin: [''] } })
       .select(primaryField)
@@ -37,7 +50,7 @@ const backfillCollection = async (Model, entityName, primaryField, aliases = [],
       maxSeq = counterDoc.seq;
     }
 
-    // 2. Find all records missing the unique ID
+    // 2. Find records missing the unique ID
     const recordsWithoutId = await Model.find({
       $or: [
         { [primaryField]: { $exists: false } },
@@ -45,12 +58,6 @@ const backfillCollection = async (Model, entityName, primaryField, aliases = [],
         { [primaryField]: '' }
       ]
     }).sort({ createdAt: 1, _id: 1 });
-
-    if (recordsWithoutId.length === 0) {
-      // Ensure counter is at least synced to maxSeq
-      await syncCounter(entityName, maxSeq);
-      return { total: existingWithId.length, backfilled: 0, currentMaxSeq: maxSeq };
-    }
 
     logger.info(`[Backfill] Found ${recordsWithoutId.length} '${entityName}' records missing unique IDs. Starting backfill...`);
 

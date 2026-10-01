@@ -585,7 +585,7 @@ export const getLaws = async (req, res, next) => {
     }
 
     const total = await LawSetting.countDocuments(filter);
-    let query = LawSetting.find(filter).sort({ ordering: 1, name: 1 });
+    let query = LawSetting.find(filter).select('name ordering court status').sort({ ordering: 1, name: 1 });
 
     if (page && limit) {
       const p = Math.max(1, parseInt(page, 10) || 1);
@@ -596,7 +596,7 @@ export const getLaws = async (req, res, next) => {
       query = query.limit(l);
     }
 
-    const laws = await query;
+    const laws = await query.lean();
 
     return res.status(200).json({
       success: true,

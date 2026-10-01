@@ -45,6 +45,14 @@ const ManageCourtsPage = lazy(() => import('./pages/setting/ManageCourtsPage'))
 const ManageIpBlockPage = lazy(() => import('./pages/setting/ManageIpBlockPage'))
 const ReplacementPage = lazy(() => import('./pages/ReplacementPage'))
 const ManageAdminsPage = lazy(() => import('./pages/ManageAdminsPage'))
+const ManageTaxCardsPage = lazy(() => import('./pages/ManageTaxCardsPage'))
+const ManageDictionaryPage = lazy(() => import('./pages/ManageDictionaryPage'))
+import ErrorBoundary from './components/common/ErrorBoundary'
+
+const ManageNewslettersPage = lazy(() => import('./pages/ManageNewslettersPage'))
+const ManageCustomTariffsPage = lazy(() => import('./pages/ManageCustomTariffsPage'))
+const ManageInvoicesPage = lazy(() => import('./pages/ManageInvoicesPage'))
+const OtherCaseLawsPage = lazy(() => import('./pages/OtherCaseLawsPage'))
 
 
 function App() {
@@ -52,8 +60,9 @@ function App() {
     <ThemeProvider>
       <UserProvider>
         <BrowserRouter>
-          <Suspense fallback={<div className="min-h-screen bg-brand-dark flex items-center justify-center"><Spinner size="lg" /></div>}>
-            <Routes>
+          <ErrorBoundary>
+            <Suspense fallback={<div className="min-h-screen bg-brand-dark flex items-center justify-center"><Spinner size="lg" /></div>}>
+              <Routes>
             {/* Public Auth & Verification Routes */}
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
@@ -123,12 +132,27 @@ function App() {
                 <Route path="/manage-replacement" element={<Navigate to="/replacement" replace />} />
                 <Route path="/manage-admins" element={<ManageAdminsPage />} />
                 <Route path="/admins" element={<Navigate to="/manage-admins" replace />} />
+                <Route path="/manage-tax-cards" element={<ManageTaxCardsPage />} />
+                <Route path="/tax-cards" element={<Navigate to="/manage-tax-cards" replace />} />
+                <Route path="/manage-dictionary" element={<ManageDictionaryPage />} />
+                <Route path="/dictionary" element={<Navigate to="/manage-dictionary" replace />} />
+                <Route path="/manage-newsletters" element={<ManageNewslettersPage />} />
+                <Route path="/newsletters" element={<Navigate to="/manage-newsletters" replace />} />
+                <Route path="/manage-custom-tariffs" element={<ManageCustomTariffsPage />} />
+                <Route path="/manage-custom-tariff" element={<Navigate to="/manage-custom-tariffs" replace />} />
+                <Route path="/custom-tariffs" element={<Navigate to="/manage-custom-tariffs" replace />} />
+                <Route path="/custom-tariff" element={<Navigate to="/manage-custom-tariffs" replace />} />
+                <Route path="/manage-invoices" element={<ManageInvoicesPage />} />
+                <Route path="/invoices" element={<Navigate to="/manage-invoices" replace />} />
+                <Route path="/other-caselaws" element={<OtherCaseLawsPage />} />
+                <Route path="/manage-other-cases" element={<Navigate to="/other-caselaws" replace />} />
               </Route>
             </Route>
 
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
           </Suspense>
+          </ErrorBoundary>
         </BrowserRouter>
       </UserProvider>
     </ThemeProvider>

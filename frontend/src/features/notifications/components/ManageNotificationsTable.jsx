@@ -15,6 +15,7 @@ import {
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
+import Pagination from '../../../components/ui/Pagination';
 import { notificationService } from '../services/notificationService';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort }) => {
@@ -49,6 +50,9 @@ const ManageNotificationsTable = ({
   setNotifications: propSetNotifications,
   currentPage: propCurrentPage,
   setCurrentPage: propSetCurrentPage,
+  totalItems: propTotalItems,
+  totalPages: propTotalPages,
+  serverPaginated = false,
   highlightedId,
   toastMessage: propToastMessage,
   setToastMessage: propSetToastMessage,
@@ -82,7 +86,8 @@ const ManageNotificationsTable = ({
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const itemsPerPage = 10;
+  const isServerPaginated = Boolean(serverPaginated || propTotalItems !== undefined);
+  const itemsPerPage = isServerPaginated ? 25 : 10;
   
   const handleSort = (key) => {
     setSortConfig(prev => {
@@ -96,6 +101,7 @@ const ManageNotificationsTable = ({
   };
 
   const sortedNotifications = useMemo(() => {
+    if (isServerPaginated) return notifications;
     if (!sortConfig.key || !sortConfig.direction) return notifications;
 
     const { key, direction } = sortConfig;
@@ -136,12 +142,12 @@ const ManageNotificationsTable = ({
       const result = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
       return isAsc ? result : -result;
     });
-  }, [notifications, sortConfig]);
+  }, [notifications, sortConfig, isServerPaginated]);
 
-  const totalItems = sortedNotifications.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const totalItems = isServerPaginated ? (propTotalItems !== undefined ? propTotalItems : notifications.length) : sortedNotifications.length;
+  const totalPages = isServerPaginated ? (propTotalPages !== undefined ? propTotalPages : Math.ceil(totalItems / itemsPerPage) || 1) : (Math.ceil(totalItems / itemsPerPage) || 1);
   
-  const currentData = sortedNotifications.slice(
+  const currentData = isServerPaginated ? notifications : sortedNotifications.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -305,36 +311,13 @@ const ManageNotificationsTable = ({
         </div>
 
         {/* Pagination */}
-        <div className="px-6 py-4 border-t border-theme-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-theme-surface">
-          <span className="text-sm text-theme-muted">Showing {startIdx} to {endIdx} of <strong className="font-semibold text-theme-main">{totalItems}</strong> entries</span>
-          
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {Array.from({ length: totalPages }).map((_, idx) => {
-              const page = idx + 1;
-              return (
-                <button 
-                  key={page}
-                  onClick={() => handlePageChange(page)}
-                  className={`w-8 h-8 flex items-center justify-center rounded text-sm transition-colors ${
-                    currentPage === page 
-                      ? 'bg-[#641E16] text-white font-medium hover:bg-[#4A1610]' 
-                      : 'text-theme-muted border border-theme-border hover:bg-theme-surface-alt'
-                  }`}
-                >
-                  {page}
-                </button>
-              );
-            })}
-            
-            <button 
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages || totalPages === 0}
-              className="px-3 h-8 flex items-center justify-center rounded text-sm text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next &rarr;
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+        />
       </div>
 
       {/* View Notification Modal */}

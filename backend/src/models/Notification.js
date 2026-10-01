@@ -28,6 +28,10 @@ const notificationSchema = new mongoose.Schema({
     trim: true,
     index: true,
   },
+  srNumberInt: {
+    type: Number,
+    index: true,
+  },
   number: {
     type: String,
     default: '',
@@ -96,10 +100,14 @@ notificationSchema.plugin(autoUniqueIdPlugin, {
   aliases: ['notification_id']
 });
 
-// Fallback srNumber to notificationId if not manually provided
+// Fallback srNumber to notificationId if not manually provided and populate srNumberInt
 notificationSchema.pre('save', async function () {
   if (!this.srNumber) {
     this.srNumber = this.notificationId;
+  }
+  if (this.srNumber) {
+    const parsed = parseInt(String(this.srNumber).replace(/\D+/g, ''), 10);
+    this.srNumberInt = !isNaN(parsed) ? parsed : null;
   }
 });
 
@@ -116,6 +124,12 @@ notificationSchema.index({
   department: 'text',
   'blocks.detail': 'text'
 });
+notificationSchema.index({ isDeleted: 1, srNumberInt: -1 });
+notificationSchema.index({ isDeleted: 1, srNumberInt: 1 });
+notificationSchema.index({ isDeleted: 1, createdAt: -1, srNumber: -1 });
+notificationSchema.index({ isDeleted: 1, srNumber: -1 });
+notificationSchema.index({ isDeleted: 1, year: -1 });
+notificationSchema.index({ isDeleted: 1, department: 1 });
 
 // Soft delete query filter middleware
 notificationSchema.pre(/^find/, function () {

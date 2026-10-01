@@ -5,9 +5,19 @@ export const notificationService = {
    * Fetches all notifications from backend
    * @returns {Promise<Array>}
    */
-  getNotifications: async () => {
-    const response = await api.get('/api/notifications');
-    return response.data.data;
+  getNotifications: async (params = {}) => {
+    const queryParams = typeof params === 'string' ? (params ? { query: params } : {}) : (params || {});
+    const response = await api.get('/api/notifications', { params: queryParams });
+    const data = response.data?.data || [];
+    data.total = response.data?.total ?? data.length;
+    data.totalPages = response.data?.totalPages ?? 1;
+    data.currentPage = response.data?.currentPage ?? 1;
+    data.pagination = {
+      total: data.total,
+      totalPages: data.totalPages,
+      currentPage: data.currentPage
+    };
+    return data;
   },
 
   /**

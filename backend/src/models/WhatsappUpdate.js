@@ -79,6 +79,8 @@ whatsappUpdateSchema.index({
   whatsappId: 'text',
   heading: 'text',
 });
+whatsappUpdateSchema.index({ isDeleted: 1, srNumber: -1, createdAt: -1 });
+whatsappUpdateSchema.index({ isDeleted: 1, dated: -1 });
 
 whatsappUpdateSchema.pre(/^find/, function () {
   this.where({ isDeleted: { $ne: true } });

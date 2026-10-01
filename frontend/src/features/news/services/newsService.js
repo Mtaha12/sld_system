@@ -4,10 +4,19 @@ export const newsService = {
   /**
    * Fetch all news records with optional search query
    */
-  getNews: async (query = '') => {
-    const params = query ? { query } : {};
-    const res = await api.get('/api/news', { params });
-    return res.data?.data || [];
+  getNews: async (params = {}) => {
+    const queryParams = typeof params === 'string' ? (params ? { query: params } : {}) : (params || {});
+    const res = await api.get('/api/news', { params: queryParams });
+    const data = res.data?.data || [];
+    data.total = res.data?.total ?? data.length;
+    data.totalPages = res.data?.totalPages ?? 1;
+    data.currentPage = res.data?.currentPage ?? 1;
+    data.pagination = {
+      total: data.total,
+      totalPages: data.totalPages,
+      currentPage: data.currentPage
+    };
+    return data;
   },
 
   /**

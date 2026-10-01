@@ -24,7 +24,7 @@ const formatNewsForFrontend = (n) => ({
  */
 export const getNews = async (req, res, next) => {
   try {
-    const { query } = req.query;
+    const { query, page, limit, all } = req.query;
     const filter = { isDeleted: { $ne: true } };
 
     if (query) {
@@ -44,13 +44,32 @@ export const getNews = async (req, res, next) => {
       filter.$or = orConditions;
     }
 
-    const newsList = await News.find(filter).sort({ srNumber: -1, createdAt: -1 });
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const isAll = all === 'true';
+
+    const safeLimit = isAll ? 1000 : Math.min(Math.max(limitNum || 25, 1), 200);
+    const safePage = Math.max(pageNum || 1, 1);
+
+    const total = await News.countDocuments(filter);
+    const totalPages = Math.ceil(total / safeLimit) || 1;
+
+    let dbQuery = News.find(filter).sort({ srNumber: -1, createdAt: -1 });
+
+    if (!isAll) {
+      dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);
+    }
+
+    const newsList = await dbQuery.lean();
     const data = newsList.map(formatNewsForFrontend);
 
     return res.status(200).json({
       success: true,
       message: 'News retrieved successfully.',
       count: data.length,
+      total,
+      totalPages,
+      currentPage: safePage,
       data
     });
   } catch (error) {

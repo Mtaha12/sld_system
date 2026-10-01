@@ -14,11 +14,15 @@ const sel =
   'w-full bg-white text-gray-700 text-sm px-3 py-2 rounded-md ' +
   'border-0 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#4a7a9b]/40 h-[38px]';
 
-const SelectField = ({ value, onChange, options = [] }) => {
-  const allOptions = [...options];
-  if (value && !allOptions.some(o => o.value === value)) {
-    allOptions.push({ value, label: value });
-  }
+const SelectField = React.memo(({ value, onChange, options = [] }) => {
+  const allOptions = React.useMemo(() => {
+    const list = [...options];
+    if (value && !list.some(o => o.value === value)) {
+      list.push({ value, label: value });
+    }
+    return list;
+  }, [options, value]);
+
   return (
     <div className="relative w-full">
       <select className={sel} value={value} onChange={onChange}>
@@ -34,7 +38,7 @@ const SelectField = ({ value, onChange, options = [] }) => {
       </span>
     </div>
   );
-};
+});
 
 /* ─────────────────────────────────────────────────────────────────────── */
 

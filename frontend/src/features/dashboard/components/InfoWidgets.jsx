@@ -129,9 +129,9 @@ const InfoWidgets = () => {
     const loadDashboardData = async () => {
       try {
         const [waRes, ytRes, webRes] = await Promise.allSettled([
-          whatsappService.getUpdates(),
+          whatsappService.getUpdates({ limit: 6 }),
           youtubeService.getYoutubeUpdates(),
-          updateService.getUpdates()
+          updateService.getUpdates({ limit: 6 })
         ]);
         if (!isMounted) return;
         if (waRes.status === 'fulfilled' && Array.isArray(waRes.value) && waRes.value.length > 0) {

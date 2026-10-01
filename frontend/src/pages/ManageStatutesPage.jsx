@@ -15,18 +15,23 @@ const ManageStatutesPage = () => {
   const initialParamQuery = searchParams.get('search') || '';
 
   const [statutes, setStatutes] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [highlightedId, setHighlightedId] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState(initialParamQuery);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch initial statutes from statuteService
+  // Fetch statutes with server pagination
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    statuteService.getStatutes().then(data => {
+    statuteService.getStatutes({ page: currentPage, limit: 25, query: searchQuery }).then(data => {
       if (isMounted) {
         setStatutes(data);
+        setTotalItems(data.total || data.length || 0);
+        setTotalPages(data.totalPages || 1);
       }
     }).finally(() => {
       if (isMounted) {
@@ -34,13 +39,14 @@ const ManageStatutesPage = () => {
       }
     });
     return () => { isMounted = false; };
-  }, []);
+  }, [currentPage, searchQuery]);
 
   // Sync if URL query changes
   useEffect(() => {
     const q = searchParams.get('search');
     if (q !== null && q !== undefined) {
       setSearchQuery(q);
+      setCurrentPage(1);
     }
   }, [searchParams]);
 
@@ -134,12 +140,23 @@ const ManageStatutesPage = () => {
         <ManageStatutesFilterBar 
           initialSearch={searchQuery}
           onGetStatuteId={handleOpenGetStatuteId}
-          onSearch={setSearchQuery}
-          onShowAll={() => setSearchQuery('')}
+          onSearch={(q) => {
+            setSearchQuery(q);
+            setCurrentPage(1);
+          }}
+          onShowAll={() => {
+            setSearchQuery('');
+            setCurrentPage(1);
+          }}
         />
         <ManageStatutesTable 
-          statutes={filteredStatutes}
+          statutes={statutes}
           setStatutes={setStatutes}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          totalItems={totalItems}
+          totalPages={totalPages}
+          serverPaginated={true}
           highlightedId={highlightedId}
           toastMessage={toastMessage}
           setToastMessage={setToastMessage}

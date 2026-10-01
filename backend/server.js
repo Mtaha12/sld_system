@@ -36,6 +36,12 @@ import courtRoutes from './src/routes/courtRoutes.js';
 import ipBlockRoutes from './src/routes/ipBlockRoutes.js';
 import replacementRoutes from './src/routes/replacementRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
+import taxCardRoutes from './src/routes/taxCardRoutes.js';
+import dictionaryRoutes from './src/routes/dictionaryRoutes.js';
+import newsletterRoutes from './src/routes/newsletterRoutes.js';
+import customTariffRoutes from './src/routes/customTariffRoutes.js';
+import invoiceRoutes from './src/routes/invoiceRoutes.js';
+import otherCaseLawRoutes from './src/routes/otherCaseLawRoutes.js';
 
 // Models
 import mongoose from 'mongoose';
@@ -127,6 +133,13 @@ app.use('/api/courts', courtRoutes);
 app.use('/api/ip-blocks', ipBlockRoutes);
 app.use('/api/replacement', replacementRoutes);
 app.use('/api/admins', adminRoutes);
+app.use('/api/tax-cards', taxCardRoutes);
+app.use('/api/dictionary', dictionaryRoutes);
+app.use('/api/newsletters', newsletterRoutes);
+app.use('/api/custom-tariffs', customTariffRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/other-cases', otherCaseLawRoutes);
+app.use('/api/other-caselaws', otherCaseLawRoutes);
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {
@@ -490,10 +503,26 @@ RESPONSE RULES — follow these strictly:
 // Centralized Error Interceptor (Must be loaded last)
 app.use(errorHandler);
 
+// Global unhandled error resilience
+process.on('uncaughtException', (err) => {
+  logger.error(`[Uncaught Exception]: ${err?.message || err}`, { stack: err?.stack });
+  console.error(`[Uncaught Exception]:`, err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error(`[Unhandled Rejection]: ${reason?.message || reason}`);
+  console.error(`[Unhandled Rejection]:`, reason);
+});
+
 // Start Server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[SLD System Backend] Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode.`);
   logger.info(`[SLD System Backend] Server listening on port ${PORT}`);
 });
 
-// Watch reload trigger comment
+process.on('SIGTERM', () => {
+  server.close(() => {
+    logger.info('Process terminated gracefully on SIGTERM');
+    process.exit(0);
+  });
+});

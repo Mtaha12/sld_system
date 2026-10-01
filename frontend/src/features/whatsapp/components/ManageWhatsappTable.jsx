@@ -17,6 +17,7 @@ import {
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
+import Pagination from '../../../components/ui/Pagination';
 import { whatsappService } from '../services/whatsappService';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
@@ -46,6 +47,11 @@ const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => 
 
 const ManageWhatsappTable = ({
   updates = [],
+  currentPage: propCurrentPage,
+  setCurrentPage: propSetCurrentPage,
+  totalItems: propTotalItems,
+  totalPages: propTotalPages,
+  serverPaginated = false,
   onEdit,
   onDeleted,
   toastMessage,
@@ -58,8 +64,12 @@ const ManageWhatsappTable = ({
   const [deleteError, setDeleteError] = useState('');
 
   const [sortConfig, setSortConfig] = useState({ key: 'srNumber', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [internalCurrentPage, setInternalCurrentPage] = useState(1);
+  const isServerPaginated = Boolean(serverPaginated || propTotalItems !== undefined);
+  const itemsPerPage = isServerPaginated ? 25 : 10;
+
+  const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalCurrentPage;
+  const setCurrentPage = propSetCurrentPage || setInternalCurrentPage;
 
   const handleSort = (key) => {
     setSortConfig(prev => {
@@ -73,6 +83,7 @@ const ManageWhatsappTable = ({
   };
 
   const sortedUpdates = useMemo(() => {
+    if (isServerPaginated) return updates;
     if (!updates || !updates.length) return [];
     if (!sortConfig.key || !sortConfig.direction) return updates;
 
@@ -92,12 +103,12 @@ const ManageWhatsappTable = ({
       if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [updates, sortConfig]);
+  }, [updates, sortConfig, isServerPaginated]);
 
-  const totalItems = sortedUpdates.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const totalItems = isServerPaginated ? (propTotalItems !== undefined ? propTotalItems : updates.length) : sortedUpdates.length;
+  const totalPages = isServerPaginated ? (propTotalPages !== undefined ? propTotalPages : Math.ceil(totalItems / itemsPerPage) || 1) : (Math.ceil(totalItems / itemsPerPage) || 1);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedUpdates = sortedUpdates.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedUpdates = isServerPaginated ? sortedUpdates : sortedUpdates.slice(startIndex, startIndex + itemsPerPage);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
@@ -261,37 +272,14 @@ const ManageWhatsappTable = ({
 
         {/* Pagination */}
         {!isLoading && totalItems > 0 && (
-          <div className="px-4 py-2 border-t border-theme-border flex items-center justify-between gap-2 bg-gray-50/40 dark:bg-theme-surface-alt/20 text-xs">
-            <span className="text-theme-muted text-[11px]">
-              {startIndex + 1}–{Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems}
-            </span>
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="h-7 px-2.5 text-xs"
-              >
-                Prev
-              </Button>
-              <span className="px-2 text-[11px] font-medium text-theme-main">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="h-7 px-2.5 text-xs"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+          />
         )}
-
       </div>
 
       {/* View Modal */}

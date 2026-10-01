@@ -13,6 +13,12 @@ export const DEFAULT_ENTITY_CONFIGS = {
   update: { prefix: 'UPD', padLength: 6, field: 'updateId', aliases: ['update_id'] },
   download: { prefix: 'DWN', padLength: 6, field: 'downloadId', aliases: ['download_id'] },
   youtube: { prefix: 'YT', padLength: 6, field: 'youtubeId', aliases: ['youtube_id'] },
+  taxcard: { prefix: 'TC', padLength: 6, field: 'taxCardId', aliases: ['tax_card_id'] },
+  dictionary: { prefix: 'DICT', padLength: 6, field: 'dictionaryId', aliases: ['dictionary_id'] },
+  newsletter: { prefix: 'NL', padLength: 6, field: 'newsletterId', aliases: ['newsletter_id'] },
+  customtariff: { prefix: 'CT', padLength: 6, field: 'customTariffId', aliases: ['custom_tariff_id'] },
+  invoice: { prefix: 'INV', padLength: 6, field: 'invoiceId', aliases: ['invoice_id'] },
+  othercaselaw: { prefix: 'OCL', padLength: 6, field: 'otherCaseId', aliases: ['other_case_id'] },
   user: { prefix: 'USER', padLength: 6, field: 'userId', aliases: ['user_id'] },
   default: { prefix: 'REC', padLength: 6, field: 'recordId', aliases: ['record_id'] }
 };

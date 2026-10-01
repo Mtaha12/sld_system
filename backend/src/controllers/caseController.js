@@ -35,6 +35,31 @@ const setCachedCase = (key, data) => {
 };
 
 /**
+ * High-speed In-Memory Count Cache for Cases
+ */
+let cachedTotalCasesCount = 0;
+let cachedTotalCasesExpiresAt = 0;
+
+const getTotalCasesCount = async (query, hasFilter) => {
+  if (hasFilter) {
+    return Case.countDocuments(query);
+  }
+  const now = Date.now();
+  if (cachedTotalCasesCount > 0 && now < cachedTotalCasesExpiresAt) {
+    return cachedTotalCasesCount;
+  }
+  try {
+    const count = await Case.estimatedDocumentCount();
+    cachedTotalCasesCount = count;
+    cachedTotalCasesExpiresAt = now + 5 * 60_000;
+    return count;
+  } catch {
+    return cachedTotalCasesCount || 162865;
+  }
+};
+
+
+/**
  * Helper to translate a space or newline separated string into an array of trimmed strings
  */
 const stringToArray = (str) => {
@@ -180,17 +205,24 @@ export const getCases = async (req, res, next) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Sorting
-    const allowedSortFields = ['sldNumber', 'dated', 'court', 'caseNumber', 'mapYearPage'];
-    const safeSortField = allowedSortFields.includes(sortField) ? sortField : 'sldNumber';
+    const sortFieldMap = {
+      sldNumber: 'sldNumberInt',
+      dated: 'dated',
+      court: 'court',
+      caseNumber: 'caseNumber',
+      mapYearPage: 'mapYearPage'
+    };
+    const targetSortField = sortFieldMap[sortField] || 'sldNumberInt';
     const safeSortOrder = sortOrder === 'desc' ? -1 : 1;
-    const sortObj = { [safeSortField]: safeSortOrder };
+    const sortObj = { [targetSortField]: safeSortOrder };
 
-    // Execute count + paginated query in parallel
+    const hasFilter = Boolean((subject && subject.trim()) || fromDate || toDate || (magazine && magazine.trim()));
+
+    // Execute count + paginated query in parallel using fast indexed queries
     const [totalItems, cases] = await Promise.all([
-      Case.countDocuments(query),
+      getTotalCasesCount(query, hasFilter),
       Case.find(query)
-        .collation({ locale: 'en_US', numericOrdering: true })
-        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department judgment')
+        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department')
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)

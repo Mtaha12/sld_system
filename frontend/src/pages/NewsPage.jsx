@@ -9,17 +9,22 @@ import { newsService } from '../features/news/services/newsService';
 const NewsPage = () => {
   const [newsList, setNewsList] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  const fetchNews = useCallback(async (query = '') => {
+  const fetchNews = useCallback(async (page = 1, query = '') => {
     setIsLoading(true);
     try {
-      const data = await newsService.getNews(query);
+      const data = await newsService.getNews({ page, limit: 25, query });
       setNewsList(data);
+      setTotalItems(data.total || data.length || 0);
+      setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error('[NewsPage] Fetch error:', err);
     } finally {
@@ -28,17 +33,19 @@ const NewsPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchNews();
-  }, [fetchNews]);
+    fetchNews(currentPage, searchKeyword);
+  }, [fetchNews, currentPage]);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
-    fetchNews(searchKeyword);
+    setCurrentPage(1);
+    fetchNews(1, searchKeyword);
   };
 
   const handleShowAll = () => {
     setSearchKeyword('');
-    fetchNews('');
+    setCurrentPage(1);
+    fetchNews(1, '');
   };
 
   const handleOpenAddForm = () => {
@@ -56,15 +63,11 @@ const NewsPage = () => {
     setToastMessage(message || 'Success');
     setIsFormOpen(false);
     setEditingItem(null);
-    fetchNews(searchKeyword);
+    fetchNews(currentPage, searchKeyword);
   };
 
   const handleItemDeleted = (deletedId) => {
-    setNewsList(prev => prev.filter(item => 
-      item.id !== deletedId && 
-      item.mongoId !== deletedId && 
-      item.newsId !== deletedId
-    ));
+    fetchNews(currentPage, searchKeyword);
   };
 
   return (
@@ -146,6 +149,11 @@ const NewsPage = () => {
       {/* Table */}
       <ManageNewsTable
         newsList={newsList}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        totalItems={totalItems}
+        totalPages={totalPages}
+        serverPaginated={true}
         onEdit={handleEditItem}
         onDeleted={handleItemDeleted}
         toastMessage={toastMessage}

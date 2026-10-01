@@ -5,9 +5,19 @@ export const statuteService = {
    * Fetches all statutes from backend
    * @returns {Promise<Array>}
    */
-  getStatutes: async () => {
-    const response = await api.get('/api/statutes');
-    return response.data.data;
+  getStatutes: async (params = {}) => {
+    const queryParams = typeof params === 'string' ? (params ? { query: params } : {}) : (params || {});
+    const response = await api.get('/api/statutes', { params: queryParams });
+    const data = response.data?.data || [];
+    data.total = response.data?.total ?? data.length;
+    data.totalPages = response.data?.totalPages ?? 1;
+    data.currentPage = response.data?.currentPage ?? 1;
+    data.pagination = {
+      total: data.total,
+      totalPages: data.totalPages,
+      currentPage: data.currentPage
+    };
+    return data;
   },
 
   /**

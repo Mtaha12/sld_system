@@ -1,5 +1,23 @@
-import { forwardRef, useState } from 'react'
+import { forwardRef, useState, memo } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+
+const SelectOptions = memo(({ options, variant }) => {
+  const optClass = variant === 'dark'
+    ? 'bg-[#14151A] text-gray-100'
+    : variant === 'light'
+    ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100'
+    : 'bg-theme-surface text-theme-main';
+
+  return (
+    <>
+      {options?.map((opt) => (
+        <option key={opt.value} value={opt.value} className={optClass}>
+          {opt.label}
+        </option>
+      ))}
+    </>
+  );
+});
 
 const Input = forwardRef(({ className = '', type, icon: Icon, error, options, variant = 'theme', inputSize = 'default', ...props }, ref) => {
   const [showPassword, setShowPassword] = useState(false)
@@ -36,18 +54,7 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
               ref={ref}
               {...props}
             >
-              {options?.map((opt) => {
-                const optClass = variant === 'dark'
-                  ? 'bg-[#14151A] text-gray-100'
-                  : variant === 'light'
-                  ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100'
-                  : 'bg-theme-surface text-theme-main';
-                return (
-                  <option key={opt.value} value={opt.value} className={optClass}>
-                    {opt.label}
-                  </option>
-                );
-              })}
+              <SelectOptions options={options} variant={variant} />
             </select>
             {/* Custom dropdown arrow */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-theme-muted">

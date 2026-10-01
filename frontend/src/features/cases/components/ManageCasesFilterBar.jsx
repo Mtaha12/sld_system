@@ -10,7 +10,8 @@ import {
   FileText, 
   FileDown, 
   FileSpreadsheet,
-  Hash
+  Hash,
+  Scale
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
@@ -138,6 +139,15 @@ const ManageCasesFilterBar = ({
           className="h-[42px] px-5 whitespace-nowrap shadow-sm"
         >
           <Plus className="w-4 h-4" /> Add Record
+        </Button>
+
+        <Button 
+          type="button"
+          size="sm" 
+          onClick={() => navigate('/other-caselaws')}
+          className="bg-[#673ab7] hover:bg-[#5e35b1] text-white border-transparent h-[42px] px-5 whitespace-nowrap shadow-sm flex items-center gap-1.5 cursor-pointer font-medium"
+        >
+          <Scale className="w-4 h-4" /> Other Caselaws
         </Button>
       </form>
 

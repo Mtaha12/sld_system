@@ -9,17 +9,22 @@ import { whatsappService } from '../features/whatsapp/services/whatsappService';
 const WhatsappUpdatesPage = () => {
   const [updates, setUpdates] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  const fetchUpdates = useCallback(async (query = '') => {
+  const fetchUpdates = useCallback(async (page = 1, query = '') => {
     setIsLoading(true);
     try {
-      const data = await whatsappService.getUpdates(query);
+      const data = await whatsappService.getUpdates({ page, limit: 25, query });
       setUpdates(data);
+      setTotalItems(data.total || data.length || 0);
+      setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error('[WhatsappUpdatesPage] Fetch error:', err);
     } finally {
@@ -28,17 +33,19 @@ const WhatsappUpdatesPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchUpdates();
-  }, [fetchUpdates]);
+    fetchUpdates(currentPage, searchKeyword);
+  }, [fetchUpdates, currentPage]);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
-    fetchUpdates(searchKeyword);
+    setCurrentPage(1);
+    fetchUpdates(1, searchKeyword);
   };
 
   const handleShowAll = () => {
     setSearchKeyword('');
-    fetchUpdates('');
+    setCurrentPage(1);
+    fetchUpdates(1, '');
   };
 
   const handleOpenAddForm = () => {
@@ -56,15 +63,11 @@ const WhatsappUpdatesPage = () => {
     setToastMessage(message || 'Success');
     setIsFormOpen(false);
     setEditingItem(null);
-    fetchUpdates(searchKeyword);
+    fetchUpdates(currentPage, searchKeyword);
   };
 
   const handleItemDeleted = (deletedId) => {
-    setUpdates(prev => prev.filter(item => 
-      item.id !== deletedId && 
-      item.mongoId !== deletedId && 
-      item.whatsappId !== deletedId
-    ));
+    fetchUpdates(currentPage, searchKeyword);
   };
 
   return (
@@ -146,6 +149,11 @@ const WhatsappUpdatesPage = () => {
       {/* Table */}
       <ManageWhatsappTable
         updates={updates}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        totalItems={totalItems}
+        totalPages={totalPages}
+        serverPaginated={true}
         onEdit={handleEditItem}
         onDeleted={handleItemDeleted}
         toastMessage={toastMessage}

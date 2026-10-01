@@ -1,33 +1,192 @@
-import React, { useEffect, useRef } from 'react';
-import { CKEditor } from 'ckeditor4-react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { 
+  Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, 
+  AlignRight, AlignJustify, List, ListOrdered, Link2, Code, 
+  Heading1, Heading2, Table, Undo, Redo, Sparkles
+} from 'lucide-react';
 import './RichTextEditor.css';
 
+// Fallback high-fidelity WYSIWYG toolbar when CKEditor is loading or unavailable
+const FallbackRichEditor = ({ value, onChange, placeholder, minHeight, isDark }) => {
+  const editorRef = useRef(null);
+  const [htmlMode, setHtmlMode] = useState(false);
+
+  useEffect(() => {
+    if (editorRef.current && !htmlMode && editorRef.current.innerHTML !== (value || '')) {
+      editorRef.current.innerHTML = value || '';
+    }
+  }, [value, htmlMode]);
+
+  const exec = (command, val = null) => {
+    document.execCommand(command, false, val);
+    if (editorRef.current) {
+      onChange?.(editorRef.current.innerHTML);
+    }
+  };
+
+  const handleInput = () => {
+    if (editorRef.current) {
+      onChange?.(editorRef.current.innerHTML);
+    }
+  };
+
+  return (
+    <div className="flex flex-col w-full border border-theme-border rounded-lg overflow-hidden bg-white dark:bg-theme-surface">
+      {/* CKEditor-like Multi-row Toolbar */}
+      <div className="p-1.5 bg-gray-100 dark:bg-theme-surface-alt/70 border-b border-theme-border flex flex-wrap items-center gap-1 text-xs select-none">
+        <button
+          type="button"
+          onClick={() => setHtmlMode(!htmlMode)}
+          className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${htmlMode ? 'bg-brand-orange text-white' : 'hover:bg-gray-200 dark:hover:bg-theme-surface-hover text-theme-main'}`}
+          title="Source HTML"
+        >
+          Source
+        </button>
+        <span className="w-px h-4 bg-gray-300 dark:bg-theme-border mx-0.5" />
+
+        <button type="button" onClick={() => exec('undo')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main" title="Undo">
+          <Undo className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => exec('redo')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main" title="Redo">
+          <Redo className="w-3.5 h-3.5" />
+        </button>
+        <span className="w-px h-4 bg-gray-300 dark:bg-theme-border mx-0.5" />
+
+        <button type="button" onClick={() => exec('bold')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main font-bold" title="Bold">
+          <Bold className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => exec('italic')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main italic" title="Italic">
+          <Italic className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => exec('underline')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main underline" title="Underline">
+          <Underline className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => exec('strikeThrough')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main line-through" title="Strikethrough">
+          <Strikethrough className="w-3.5 h-3.5" />
+        </button>
+        <span className="w-px h-4 bg-gray-300 dark:bg-theme-border mx-0.5" />
+
+        <button type="button" onClick={() => exec('justifyLeft')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main" title="Align Left">
+          <AlignLeft className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => exec('justifyCenter')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main" title="Align Center">
+          <AlignCenter className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => exec('justifyRight')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main" title="Align Right">
+          <AlignRight className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => exec('justifyFull')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main" title="Justify">
+          <AlignJustify className="w-3.5 h-3.5" />
+        </button>
+        <span className="w-px h-4 bg-gray-300 dark:bg-theme-border mx-0.5" />
+
+        <button type="button" onClick={() => exec('insertUnorderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main" title="Bullet List">
+          <List className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => exec('insertOrderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-theme-surface-hover rounded text-theme-main" title="Numbered List">
+          <ListOrdered className="w-3.5 h-3.5" />
+        </button>
+        <span className="w-px h-4 bg-gray-300 dark:bg-theme-border mx-0.5" />
+
+        <select
+          onChange={(e) => {
+            if (e.target.value) exec('formatBlock', `<${e.target.value}>`);
+          }}
+          defaultValue=""
+          className="text-[11px] px-1.5 py-0.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none"
+        >
+          <option value="" disabled>Format</option>
+          <option value="p">Paragraph</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+          <option value="pre">Formatted</option>
+        </select>
+
+        <select
+          onChange={(e) => {
+            if (e.target.value) exec('fontSize', e.target.value);
+          }}
+          defaultValue=""
+          className="text-[11px] px-1.5 py-0.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none"
+        >
+          <option value="" disabled>Size</option>
+          <option value="2">Small</option>
+          <option value="3">Normal</option>
+          <option value="4">Large</option>
+          <option value="5">Huge</option>
+        </select>
+      </div>
+
+      {/* Editor Body */}
+      {htmlMode ? (
+        <textarea
+          value={value || ''}
+          onChange={(e) => onChange?.(e.target.value)}
+          style={{ minHeight: `${minHeight}px` }}
+          placeholder={placeholder}
+          className="w-full p-3 font-mono text-xs bg-white dark:bg-theme-surface text-theme-main focus:outline-none resize-y"
+        />
+      ) : (
+        <div
+          ref={editorRef}
+          contentEditable
+          onInput={handleInput}
+          onBlur={handleInput}
+          style={{ minHeight: `${minHeight}px` }}
+          data-placeholder={placeholder}
+          className="w-full p-3 text-xs text-theme-main focus:outline-none overflow-y-auto leading-relaxed"
+        />
+      )}
+    </div>
+  );
+};
+
 const RichTextEditor = ({ 
+  name,
   value, 
   onChange, 
   placeholder = 'Start typing...',
   className = "",
-  minHeight = 250
+  minHeight = 200
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const autoId = useId();
+  const editorId = (name || autoId).replace(/[^a-zA-Z0-9_]/g, '_');
+  const [ckError, setCkError] = useState(false);
+  const [CKEditorComponent, setCKEditorComponent] = useState(null);
   const editorInstanceRef = useRef(null);
 
-  // Sync editor content iframe styling on theme change
+  // Dynamically load CKEditor to prevent SSR / React 19 crashes
+  useEffect(() => {
+    let mounted = true;
+    import('ckeditor4-react')
+      .then((mod) => {
+        if (mounted) {
+          setCKEditorComponent(() => mod.CKEditor);
+        }
+      })
+      .catch((err) => {
+        console.warn('[CKEditor load warning, using native rich editor]:', err);
+        if (mounted) setCkError(true);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const applyThemeToIframe = (editor) => {
     if (!editor) return;
     try {
       const doc = editor.document?.$;
       if (doc) {
-        // 1. Inject or update dynamic style tag in iframe head
         let styleTag = doc.getElementById('ck-theme-custom-style');
         if (!styleTag) {
           styleTag = doc.createElement('style');
           styleTag.id = 'ck-theme-custom-style';
-          if (doc.head) {
-            doc.head.appendChild(styleTag);
-          }
+          if (doc.head) doc.head.appendChild(styleTag);
         }
         if (styleTag) {
           styleTag.textContent = `
@@ -35,36 +194,24 @@ const RichTextEditor = ({
               background-color: ${isDark ? '#14151A' : '#ffffff'} !important;
               color: ${isDark ? '#F3F4F6' : '#111827'} !important;
               caret-color: ${isDark ? '#F3F4F6' : '#111827'} !important;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
             }
             body.cke_editable {
               background-color: ${isDark ? '#14151A' : '#ffffff'} !important;
               color: ${isDark ? '#F3F4F6' : '#111827'} !important;
             }
-            body.cke_editable p, body.cke_editable div, body.cke_editable span, body.cke_editable li, body.cke_editable td, body.cke_editable th {
-              color: ${isDark ? '#F3F4F6' : '#111827'};
-            }
-            body.cke_editable a {
-              color: #E55C41;
-            }
-            body.cke_editable blockquote {
-              border-left-color: ${isDark ? '#262833' : '#E5E7EB'} !important;
-              color: ${isDark ? '#9CA3AF' : '#6B7280'} !important;
-            }
           `;
         }
-
-        // 2. Set inline styles on html and body using setProperty with !important
         if (doc.documentElement) {
           doc.documentElement.style.setProperty('background-color', isDark ? '#14151A' : '#ffffff', 'important');
         }
         if (doc.body) {
           doc.body.style.setProperty('background-color', isDark ? '#14151A' : '#ffffff', 'important');
           doc.body.style.setProperty('color', isDark ? '#F3F4F6' : '#111827', 'important');
-          doc.body.style.transition = 'background-color 0.3s ease, color 0.3s ease';
         }
       }
-    } catch (e) {
-      console.warn('Could not apply theme to CKEditor iframe', e);
+    } catch {
+      // safe ignore
     }
   };
 
@@ -74,10 +221,25 @@ const RichTextEditor = ({
     }
   }, [isDark, theme]);
 
+  if (ckError || !CKEditorComponent) {
+    return (
+      <FallbackRichEditor
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        minHeight={minHeight}
+        isDark={isDark}
+      />
+    );
+  }
+
+  const CKEditor = CKEditorComponent;
+
   return (
     <div className={`rich-text-editor-wrapper w-full overflow-hidden rounded-lg border border-theme-border shadow-sm transition-colors ${className}`}>
       <CKEditor
-        initData={value}
+        name={editorId}
+        initData={value || ''}
         editorUrl="https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js"
         onInstanceReady={(evt) => {
           editorInstanceRef.current = evt.editor;
@@ -96,20 +258,18 @@ const RichTextEditor = ({
           width: '100%',
           placeholder: placeholder,
           toolbar: [
-            { name: 'document', items: ['Source', 'Save', 'NewPage', 'Preview', 'Print', 'Templates'] },
-            { name: 'clipboard', items: ['Cut', 'Copy', 'Paste', 'PasteText', 'PasteFromWord', 'Undo', 'Redo'] },
-            { name: 'editing', items: ['Find', 'Replace', 'SelectAll', 'Scayt'] },
-            { name: 'forms', items: ['Form', 'Checkbox', 'Radio', 'TextField', 'Textarea', 'Select', 'Button', 'ImageButton', 'HiddenField'] },
+            { name: 'document', items: ['Source', 'Save', 'NewPage', 'Preview', 'Print'] },
+            { name: 'clipboard', items: ['Cut', 'Copy', 'Paste', 'Undo', 'Redo'] },
+            { name: 'editing', items: ['Find', 'Replace', 'SelectAll'] },
             '/',
             { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript', 'RemoveFormat'] },
-            { name: 'paragraph', items: ['NumberedList', 'BulletedList', 'Outdent', 'Indent', 'Blockquote', 'CreateDiv', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock', 'BidiLtr', 'BidiRtl', 'Language'] },
-            { name: 'links', items: ['Link', 'Unlink', 'Anchor'] },
-            { name: 'insert', items: ['Image', 'Flash', 'Table', 'HorizontalRule', 'Smiley', 'SpecialChar', 'PageBreak', 'Iframe'] },
+            { name: 'paragraph', items: ['NumberedList', 'BulletedList', 'Outdent', 'Indent', 'Blockquote', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock'] },
+            { name: 'links', items: ['Link', 'Unlink'] },
+            { name: 'insert', items: ['Table', 'HorizontalRule', 'SpecialChar'] },
             '/',
             { name: 'styles', items: ['Styles', 'Format', 'Font', 'FontSize'] },
             { name: 'colors', items: ['TextColor', 'BGColor'] },
-            { name: 'tools', items: ['Maximize', 'ShowBlocks'] },
-            { name: 'about', items: ['About'] }
+            { name: 'tools', items: ['Maximize'] }
           ],
           removePlugins: 'resize',
           uiColor: isDark ? '#14151A' : '#ffffff',
@@ -121,5 +281,3 @@ const RichTextEditor = ({
 };
 
 export default RichTextEditor;
-
-

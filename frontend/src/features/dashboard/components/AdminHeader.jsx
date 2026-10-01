@@ -48,6 +48,30 @@ const PAGE_HEADERS = {
   '/search-case-law': {
     title: 'Case Law Search',
     subtitle: 'Search case laws, judgments and legal references across multiple sources.'
+  },
+  '/manage-tax-cards': {
+    title: 'Manage Tax Cards',
+    subtitle: 'View, search and manage official tax cards and annual schedules'
+  },
+  '/manage-dictionary': {
+    title: 'Manage Dictionary',
+    subtitle: 'Manage legal glossary terms, definitions and word meanings'
+  },
+  '/manage-newsletters': {
+    title: 'Manage Newsletters',
+    subtitle: 'Create, broadcast and archive newsletters and circular updates'
+  },
+  '/manage-custom-tariffs': {
+    title: 'Manage Custom Tariffs',
+    subtitle: 'Maintain custom duty rates, PCT codes and annual tariff schedules'
+  },
+  '/manage-invoices': {
+    title: 'Manage Invoices',
+    subtitle: 'Create, compute and manage client legal billing and invoices'
+  },
+  '/other-caselaws': {
+    title: 'Other Case Laws',
+    subtitle: 'View, search, edit and manage Supreme Court citations and law judgments'
   }
 };
 

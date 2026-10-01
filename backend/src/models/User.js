@@ -169,8 +169,15 @@ userSchema.pre('save', async function () {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Method to verify passwords
+// Method to verify passwords (supports both bcrypt and legacy MD5)
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (this.password && this.password.length === 32 && /^[a-f0-9]{32}$/i.test(this.password)) {
+    const crypto = await import('crypto');
+    const md5Hash = crypto.default.createHash('md5').update(candidatePassword).digest('hex');
+    if (md5Hash.toLowerCase() === this.password.toLowerCase()) {
+      return true;
+    }
+  }
   return bcrypt.compare(candidatePassword, this.password);
 };
 

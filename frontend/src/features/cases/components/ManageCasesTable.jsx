@@ -49,6 +49,7 @@ import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import FileUpload from '../../../components/ui/FileUpload';
 import SquareLoader from '../../../components/ui/SquareLoader';
+import Pagination from '../../../components/ui/Pagination';
 import { caseService } from '../services/caseService';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon, widthClassName = '' }) => {
@@ -555,59 +556,13 @@ const ManageCasesTable = ({
         </div>
 
         {/* Pagination */}
-        <div className="px-6 py-4 border-t border-theme-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-theme-surface">
-          <span className="text-sm text-theme-muted">Showing {startIdx} to {endIdx} of <strong className="font-semibold text-theme-main">{totalItems}</strong> entries</span>
-          
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1 || totalPages === 0}
-              className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title="First page"
-            >
-              First
-            </button>
-            <button 
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1 || totalPages === 0}
-              className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Prev
-            </button>
-            {getPaginationItems(currentPage, totalPages).map((item) => (
-              typeof item === 'string' ? (
-                <span key={item} className="w-8 h-8 flex items-center justify-center text-sm text-theme-disabled">...</span>
-              ) : (
-                <button
-                  key={item}
-                  onClick={() => handlePageChange(item)}
-                  className={`w-8 h-8 flex items-center justify-center rounded text-sm transition-colors ${
-                    currentPage === item
-                      ? 'bg-[#641E16] text-white font-medium hover:bg-[#4A1610]'
-                      : 'text-theme-muted border border-theme-border hover:bg-theme-surface-alt'
-                  }`}
-                >
-                  {item}
-                </button>
-              )
-            ))}
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages || totalPages === 0}
-              className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-            <button
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages || totalPages === 0}
-              className="px-2.5 h-8 flex items-center justify-center rounded text-xs text-theme-muted border border-theme-border hover:bg-theme-surface-alt transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Last page"
-            >
-              Last
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+        />
       </div>
 
       {/* View Case Details Modal */}

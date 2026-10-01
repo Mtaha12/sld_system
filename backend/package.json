@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "node --watch --watch-path=src --watch-path=server.js server.js",
     "test:smtp": "node testSmtp.js",
     "seed": "node src/utils/seed.js",
     "import:cases": "node src/utils/importCaseExcel.js",

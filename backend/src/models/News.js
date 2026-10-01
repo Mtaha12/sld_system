@@ -87,6 +87,9 @@ newsSchema.index({
   heading: 'text',
   detail: 'text',
 });
+newsSchema.index({ isDeleted: 1, srNumber: -1, createdAt: -1 });
+newsSchema.index({ isDeleted: 1, year: -1 });
+newsSchema.index({ isDeleted: 1, date: -1 });
 
 // Soft delete query filter middleware
 newsSchema.pre(/^find/, function () {
