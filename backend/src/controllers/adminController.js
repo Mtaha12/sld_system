@@ -203,3 +203,42 @@ export const deleteAdmin = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Admin direct password change endpoint:
+ * Allows administrators to set a new password for any admin without requiring previous password.
+ */
+export const changeAdminPassword = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || !password.trim()) {
+      return res.status(400).json({ success: false, message: 'New password is required.' });
+    }
+
+    if (password.trim().length < 4) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 4 characters long.' });
+    }
+
+    const admin = await User.findById(id);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Administrator not found' });
+    }
+
+    // Direct password update - No previous password required!
+    admin.password = password.trim();
+    admin.plainPassword = password.trim();
+    await admin.save();
+
+    logger.info(`[Admin Password Change] Password updated for administrator: "${admin.username}" by "${req.user?.username}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Password for administrator "${admin.fullName || admin.username}" updated successfully.`,
+      plainPassword: admin.plainPassword
+    });
+  } catch (error) {
+    next(error);
+  }
+};

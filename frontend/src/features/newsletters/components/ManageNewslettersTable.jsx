@@ -19,6 +19,7 @@ import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { newsletterService } from '../services/newsletterService';
+import NewsletterMessageViewer from './NewsletterMessageViewer';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = Boolean(sortKey && sortConfig?.key === sortKey);
@@ -285,39 +286,53 @@ const ManageNewslettersTable = ({
         title="Newsletter Details"
         subtitle={`SR #${viewModalItem?.srNumber || viewModalItem?.id} • ${viewModalItem?.date} • Category: ${viewModalItem?.category}`}
         icon={Mail}
-        maxWidth="max-w-xl"
+        maxWidth="max-w-4xl"
         footer={<Button variant="outline" size="sm" onClick={() => setViewModalItem(null)}>Close</Button>}
       >
         {viewModalItem && (
-          <div className="space-y-3 text-xs">
-            <h3 className="text-sm font-bold text-theme-main leading-snug">
-              {viewModalItem.subject}
-            </h3>
+          <div className="space-y-4">
+            {/* Newsletter Header Card */}
+            <div className="p-4 bg-orange-50/60 dark:bg-orange-950/20 border border-orange-200/60 dark:border-orange-800/40 rounded-xl">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-orange text-white">
+                  {viewModalItem.category || 'General'}
+                </span>
+                <span className="text-xs font-semibold text-theme-muted">
+                  Date: {viewModalItem.date || '—'}
+                </span>
+              </div>
+              <h2 className="text-base font-bold text-theme-main tracking-tight">
+                {viewModalItem.subject}
+              </h2>
+            </div>
+
+            {/* Optional Attachment Bar */}
             {viewModalItem.attachmentName && (
               <div className="p-3 bg-gray-50 dark:bg-theme-surface-alt rounded-lg border border-theme-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Paperclip className="w-4 h-4 text-brand-orange" />
-                  <span className="font-medium text-theme-main">{viewModalItem.attachmentName}</span>
+                  <span className="font-semibold text-xs text-theme-main">{viewModalItem.attachmentName}</span>
                 </div>
                 {viewModalItem.attachment && (
                   <a
                     href={viewModalItem.attachment}
                     download={viewModalItem.attachmentName}
-                    className="px-2.5 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1"
+                    className="px-3 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1.5 font-medium transition-colors shadow-sm"
                   >
-                    <DownloadCloud className="w-3 h-3" /> Download
+                    <DownloadCloud className="w-3.5 h-3.5" /> Download Attached File
                   </a>
                 )}
               </div>
             )}
-            {viewModalItem.message ? (
-              <div 
-                className="p-3.5 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-80 overflow-y-auto"
-                dangerouslySetInnerHTML={{ __html: viewModalItem.message }}
-              />
-            ) : (
-              <p className="text-theme-muted italic">No message body entered.</p>
-            )}
+
+            {/* Rich Formatted Message Content */}
+            <NewsletterMessageViewer 
+              message={viewModalItem.message}
+              subject={viewModalItem.subject}
+              date={viewModalItem.date}
+              srNumber={viewModalItem.srNumber || viewModalItem.id}
+              category={viewModalItem.category}
+            />
           </div>
         )}
       </Modal>

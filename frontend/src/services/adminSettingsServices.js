@@ -77,6 +77,10 @@ export const adminService = {
     const res = await api.put(`/api/admins/${id}`, data);
     return res.data;
   },
+  changePassword: async (id, password) => {
+    const res = await api.patch(`/api/admins/${id}/password`, { password });
+    return res.data;
+  },
   deleteAdmin: async (id) => {
     const res = await api.delete(`/api/admins/${id}`);
     return res.data;

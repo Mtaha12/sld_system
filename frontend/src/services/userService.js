@@ -21,6 +21,11 @@ export const userService = {
     return res.data;
   },
 
+  changePassword: async (id, password) => {
+    const res = await api.patch(`/api/users/${id}/password`, { password });
+    return res.data;
+  },
+
   deleteUser: async (id) => {
     const res = await api.delete(`/api/users/${id}`);
     return res.data;
