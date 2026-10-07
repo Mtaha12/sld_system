@@ -12,9 +12,28 @@ async function run() {
   const hash = await bcrypt.hash('Admin@123', 10);
   const updateRes = await userColl.updateOne(
     { email: 'haroonarafiq@gmail.com' },
-    { $set: { password: hash, plainPassword: 'Admin@123', status: 'ACTIVE', role: 'Administrator' } }
+    { 
+      $set: { 
+        fullName: 'Haroon Rafiq',
+        username: 'haroonarafiq',
+        email: 'haroonarafiq@gmail.com',
+        password: hash, 
+        plainPassword: 'Admin@123', 
+        status: 'ACTIVE', 
+        role: 'Administrator',
+        isVerified: true,
+        allowAllForms: true,
+        isDeleted: false,
+        updatedAt: new Date()
+      },
+      $setOnInsert: {
+        userId: 'USER_ADMIN_HAROON',
+        createdAt: new Date()
+      }
+    },
+    { upsert: true }
   );
-  console.log('Updated haroon result:', updateRes.modifiedCount);
+  console.log('Updated haroon result:', updateRes.modifiedCount || updateRes.upsertedCount);
 
   const haroon = await userColl.findOne({ email: 'haroonarafiq@gmail.com' });
   console.log('Haroon account:', { email: haroon?.email, role: haroon?.role, status: haroon?.status });
