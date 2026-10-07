@@ -76,7 +76,7 @@ const ManageNewslettersPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <Mail className="w-4 h-4 text-brand-orange" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Manage Newsletters</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Manage Emails</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">

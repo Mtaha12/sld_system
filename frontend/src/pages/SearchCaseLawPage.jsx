@@ -45,7 +45,7 @@ const SelectField = React.memo(({ value, onChange, options = [] }) => {
 const EMPTY = {
   yearVolume: '', magazine: '', page: '',
   selectLaw: '', section: '', section2: '',
-  court: '', caseNumber: '', date: '',
+  court: '', caseNumber: '', fromYear: '', toYear: '',
   text: '', text2: '', phrase: '',
   judges: '', lawyers: '', petitioner: '',
   principleLaw: '',
@@ -133,7 +133,8 @@ const SearchCaseLawPage = () => {
       section2:     f.section2     || undefined,
       court:        f.court        || undefined,
       caseNumber:   f.caseNumber   || undefined,
-      date:         f.date         || undefined,
+      fromYear:     f.fromYear     || undefined,
+      toYear:       f.toYear       || undefined,
       keywords:     f.text         || undefined,
       keywords2:    f.text2        || undefined,
       phrase:       f.phrase       || undefined,
@@ -215,16 +216,19 @@ const SearchCaseLawPage = () => {
           </div>
         </div>
 
-        {/* ── Row 3: Select Court (wide) · Enter Case # · Enter Date ────── */}
+        {/* ── Row 3: Select Court (wide) · Enter Case # · From Year · To Year ── */}
         <div className="flex gap-4 mb-3 items-center">
-          <div className="w-[58%]">
+          <div className="w-[50%]">
             <SelectField value={f.court} onChange={set('court')} options={courtOptions} />
           </div>
-          <div className="flex-1">
+          <div className="w-[20%]">
             <input className={inp} placeholder="Enter Case #" value={f.caseNumber} onChange={set('caseNumber')} />
           </div>
-          <div className="flex-1">
-            <input className={inp} placeholder="Enter Date" value={f.date} onChange={set('date')} />
+          <div className="w-[15%]">
+            <input className={inp} type="number" min="1900" max="2099" placeholder="From Year" value={f.fromYear} onChange={set('fromYear')} />
+          </div>
+          <div className="w-[15%]">
+            <input className={inp} type="number" min="1900" max="2099" placeholder="To Year" value={f.toYear} onChange={set('toYear')} />
           </div>
         </div>
 
@@ -299,43 +303,63 @@ const SearchCaseLawPage = () => {
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="bg-[#3d4a7a] text-white">
-                    <th className="px-3 py-2.5 font-semibold">#</th>
+                    <th className="px-3 py-2.5 font-semibold w-12 text-center">#</th>
                     <th className="px-3 py-2.5 font-semibold whitespace-nowrap">SLD #</th>
-                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Citation</th>
-                    <th className="px-3 py-2.5 font-semibold">Court</th>
-                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Case No.</th>
-                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Date</th>
-                    <th className="px-3 py-2.5 font-semibold">Head Note</th>
-                    <th className="px-3 py-2.5 font-semibold"></th>
+                    {Boolean(f.magazine && f.magazine.trim()) ? (
+                      <th className="px-3 py-2.5 font-semibold">Year / Mag / Vol (All Entries)</th>
+                    ) : (
+                      <>
+                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Citation</th>
+                        <th className="px-3 py-2.5 font-semibold">Court</th>
+                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Case No.</th>
+                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Date</th>
+                        <th className="px-3 py-2.5 font-semibold">Head Note</th>
+                      </>
+                    )}
+                    <th className="px-3 py-2.5 font-semibold w-20 text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {results.map((c, i) => (
                     <tr key={c.id || i} className="hover:bg-blue-50/40 transition-colors">
-                      <td className="px-3 py-2.5 text-gray-400">{i + 1}</td>
+                      <td className="px-3 py-2.5 text-gray-400 text-center">{i + 1}</td>
                       <td className="px-3 py-2.5 font-semibold text-gray-700 whitespace-nowrap">
                         {c.sldNumber || '—'}
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        {(Array.isArray(c.mapYearPage) ? c.mapYearPage : []).map((cit, j) => (
-                          <span key={j} className="inline-block mr-1 px-1.5 py-0.5 bg-[#a8cfe0]/50 text-[#1e3a5a] rounded text-[11px] font-semibold">
-                            {cit}
-                          </span>
-                        ))}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-700 max-w-[180px] truncate">
-                        {c.court || '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-600 max-w-[140px] truncate">
-                        {Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : (c.caseNumber || '—')}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                        {c.dated ? String(c.dated).split('T')[0] : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-600 max-w-[260px]">
-                        <p className="line-clamp-2">{c.headNote || '—'}</p>
-                      </td>
-                      <td className="px-3 py-2.5">
+                      {Boolean(f.magazine && f.magazine.trim()) ? (
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-wrap gap-1.5">
+                            {(Array.isArray(c.mapYearPage) && c.mapYearPage.length > 0 ? c.mapYearPage : [c.yearVolume || '—']).map((cit, j) => (
+                              <span key={j} className="inline-block px-2 py-0.5 bg-[#a8cfe0]/60 text-[#1e3a5a] rounded text-[11px] font-semibold border border-[#a8cfe0]">
+                                {cit}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      ) : (
+                        <>
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            {(Array.isArray(c.mapYearPage) ? c.mapYearPage : []).map((cit, j) => (
+                              <span key={j} className="inline-block mr-1 px-1.5 py-0.5 bg-[#a8cfe0]/50 text-[#1e3a5a] rounded text-[11px] font-semibold">
+                                {cit}
+                              </span>
+                            ))}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-700 max-w-[180px] truncate">
+                            {c.court || '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-600 max-w-[140px] truncate">
+                            {Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : (c.caseNumber || '—')}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                            {c.dated ? String(c.dated).split('T')[0] : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-600 max-w-[260px]">
+                            <p className="line-clamp-2">{c.headNote || '—'}</p>
+                          </td>
+                        </>
+                      )}
+                      <td className="px-3 py-2.5 text-center">
                         <a
                           href={`/cases/view/${c.id || c._id || c.sldNumber}`}
                           target="_blank"

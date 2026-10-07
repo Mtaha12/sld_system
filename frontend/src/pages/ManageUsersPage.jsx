@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, Plus, Search, Edit2, Trash2, X, AlertCircle, RefreshCw, 
-  ShieldAlert, ShieldCheck, Check, User, LogOut, Lock, Eye, EyeOff
+  ShieldAlert, ShieldCheck, Check, Lock, Eye, EyeOff
 } from 'lucide-react';
 import { userService } from '../services/userService';
 import { settingService } from '../services/settingService';
@@ -30,6 +30,10 @@ const ManageUsersPage = () => {
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Table password view toggle state
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+  const togglePassword = (id) => setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
+
   // Form State matching screenshot Image 3
   const [modalForm, setModalForm] = useState({
     loginId: '',
@@ -51,6 +55,8 @@ const ManageUsersPage = () => {
     ipRestriction: 'No',
     displayStatute: 'Yes',
     displayNotification: 'Yes',
+    displayCase: 'Yes',
+    allowAllForms: 'No',
   });
 
   // Feedback Toast
@@ -116,7 +122,7 @@ const ManageUsersPage = () => {
 
   const handleOpenAddModal = () => {
     setEditingUser(null);
-    setShowPassword(false);
+    setShowPassword(true);
     setModalForm({
       loginId: '',
       password: '',
@@ -137,6 +143,8 @@ const ManageUsersPage = () => {
       ipRestriction: 'No',
       displayStatute: 'Yes',
       displayNotification: 'Yes',
+      displayCase: 'Yes',
+      allowAllForms: 'No',
     });
     setModalError('');
     setIsModalOpen(true);
@@ -144,10 +152,10 @@ const ManageUsersPage = () => {
 
   const handleOpenEditModal = (u) => {
     setEditingUser(u);
-    setShowPassword(false);
+    setShowPassword(true);
     setModalForm({
       loginId: u.loginId || u.username || '',
-      password: '', // Blank unless modifying
+      password: u.plainPassword || (u.password && !u.password.startsWith('$2') && u.password.length < 30 ? u.password : '') || '',
       name: u.fullName || u.name || '',
       companyName: u.companyName || '',
       contactNo: u.contactNumber || u.contactNo || '',
@@ -165,6 +173,8 @@ const ManageUsersPage = () => {
       ipRestriction: u.ipRestriction ? 'Yes' : 'No',
       displayStatute: u.displayStatute === false ? 'No' : 'Yes',
       displayNotification: u.displayNotification === false ? 'No' : 'Yes',
+      displayCase: u.displayCase === false ? 'No' : 'Yes',
+      allowAllForms: u.allowAllForms ? 'Yes' : 'No',
     });
     setModalError('');
     setIsModalOpen(true);
@@ -208,6 +218,8 @@ const ManageUsersPage = () => {
         ipRestriction: modalForm.ipRestriction === 'Yes',
         displayStatute: modalForm.displayStatute === 'Yes',
         displayNotification: modalForm.displayNotification === 'Yes',
+        displayCase: modalForm.displayCase === 'Yes',
+        allowAllForms: modalForm.allowAllForms === 'Yes',
       };
 
       if (editingUser) {
@@ -273,16 +285,6 @@ const ManageUsersPage = () => {
         <div className="flex items-center gap-2">
           <Users className="w-5 h-5 text-white/90" />
           <h1 className="text-base font-bold tracking-wide">Manage Users</h1>
-        </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={() => navigate('/settings')}>
-            <User className="w-4 h-4" />
-            <span>My Account</span>
-          </div>
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={logout}>
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </div>
         </div>
       </div>
 
@@ -350,6 +352,7 @@ const ManageUsersPage = () => {
                 <tr className="bg-[#E67E22] text-white text-xs font-bold uppercase tracking-wider">
                   <th className="py-2.5 px-3 w-12 text-center border-r border-[#d35400]">Sr #</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400]">Login ID</th>
+                  <th className="py-2.5 px-3 border-r border-[#d35400] text-center w-36">Password</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400]">Full Name</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400]">Agency</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400]">City</th>
@@ -363,14 +366,14 @@ const ManageUsersPage = () => {
               <tbody className="divide-y divide-theme-border">
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="py-12 text-center text-theme-muted">
+                    <td colSpan="11" className="py-12 text-center text-theme-muted">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-orange" />
                       <span>Loading Users...</span>
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="py-10 text-center text-theme-muted">
+                    <td colSpan="11" className="py-10 text-center text-theme-muted">
                       No users found.
                     </td>
                   </tr>
@@ -387,6 +390,11 @@ const ManageUsersPage = () => {
                       </td>
                       <td className="py-2.5 px-3 font-bold text-theme-main border-r border-theme-border/60">
                         {u.loginId || u.username}
+                      </td>
+                      <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
+                        <span className="font-mono text-xs font-bold text-brand-orange select-all tracking-wide">
+                          {u.plainPassword || '—'}
+                        </span>
                       </td>
                       <td className="py-2.5 px-3 font-semibold text-theme-main border-r border-theme-border/60">
                         {u.fullName || u.name || '—'}
@@ -412,7 +420,7 @@ const ManageUsersPage = () => {
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
-                        <div className="flex items-center justify-center gap-1 text-[10px]">
+                        <div className="flex flex-wrap items-center justify-center gap-1 text-[10px]">
                           <span 
                             title={`Statutes: ${u.displayStatute !== false ? 'Allowed' : 'Blocked'}`}
                             className={`px-1.5 py-0.5 rounded font-semibold ${u.displayStatute !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 line-through'}`}
@@ -426,11 +434,19 @@ const ManageUsersPage = () => {
                             Notif
                           </span>
                           <span 
-                            title={`AI Assistant: ${u.aiAssistant !== false ? 'Allowed' : 'Blocked'}`}
-                            className={`px-1.5 py-0.5 rounded font-semibold ${u.aiAssistant !== false ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'}`}
+                            title={`Case Law: ${u.displayCase !== false ? 'Allowed' : 'Blocked'}`}
+                            className={`px-1.5 py-0.5 rounded font-semibold ${u.displayCase !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 line-through'}`}
                           >
-                            AI
+                            Case
                           </span>
+                          {u.allowAllForms && (
+                            <span 
+                              title="User has access to ALL backend forms"
+                              className="px-1.5 py-0.5 rounded font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                            >
+                              All Forms
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
@@ -517,7 +533,7 @@ const ManageUsersPage = () => {
                   required={!editingUser}
                   value={modalForm.password}
                   onChange={(e) => setModalForm({ ...modalForm, password: e.target.value })}
-                  placeholder={editingUser ? '••••••••' : 'Enter password'}
+                  placeholder="Enter password"
                   className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner pr-8"
                 />
                 <button
@@ -721,8 +737,8 @@ const ManageUsersPage = () => {
             </div>
           </div>
 
-          {/* Row 7: Display Statute *, Display Notification * */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-theme-border/60">
+          {/* Row 7: Form & Feature Permissions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-theme-border/60">
             <div>
               <label className="block text-[11px] font-bold text-theme-main mb-1">
                 Display Statute <span className="text-red-500">*</span>
@@ -730,10 +746,10 @@ const ManageUsersPage = () => {
               <select
                 value={modalForm.displayStatute}
                 onChange={(e) => setModalForm({ ...modalForm, displayStatute: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+                className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner text-xs"
               >
-                <option value="Yes">Yes (Allowed to view statutes)</option>
-                <option value="No">No (Access Blocked)</option>
+                <option value="Yes">Yes (Allowed)</option>
+                <option value="No">No (Blocked)</option>
               </select>
             </div>
             <div>
@@ -743,10 +759,36 @@ const ManageUsersPage = () => {
               <select
                 value={modalForm.displayNotification}
                 onChange={(e) => setModalForm({ ...modalForm, displayNotification: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+                className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner text-xs"
               >
-                <option value="Yes">Yes (Allowed to view notifications)</option>
-                <option value="No">No (Access Blocked)</option>
+                <option value="Yes">Yes (Allowed)</option>
+                <option value="No">No (Blocked)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-theme-main mb-1">
+                Display Case Law <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={modalForm.displayCase}
+                onChange={(e) => setModalForm({ ...modalForm, displayCase: e.target.value })}
+                className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner text-xs"
+              >
+                <option value="Yes">Yes (Allowed)</option>
+                <option value="No">No (Blocked)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-amber-600 dark:text-amber-400 mb-1">
+                Allow All Forms? <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={modalForm.allowAllForms}
+                onChange={(e) => setModalForm({ ...modalForm, allowAllForms: e.target.value })}
+                className="w-full px-3 py-1.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-900 rounded text-amber-800 dark:text-amber-300 font-semibold focus:outline-none shadow-inner text-xs"
+              >
+                <option value="No">No (Search & AI Only)</option>
+                <option value="Yes">Yes (Grant All Forms)</option>
               </select>
             </div>
           </div>

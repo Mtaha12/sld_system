@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, ChevronDown, LogOut, Menu, Sparkles } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { ACTIVITIES } from './RecentActivity';
 import { useUser } from '../../../contexts/UserContext';
@@ -18,12 +18,12 @@ const PAGE_HEADERS = {
     subtitle: 'Add new case law detail and publication records'
   },
   '/manage-notifications': {
-    title: 'Manage Notifications / Circulars / Letters / General Orders',
-    subtitle: 'View, search and manage notifications and orders'
+    title: 'Manage Notifications',
+    subtitle: ''
   },
   '/manage-notifications/add': {
-    title: 'Add Notifications / Circulars / Letters / General Orders Detail',
-    subtitle: 'Add new notifications, circulars, letters, and general orders'
+    title: 'Manage Notifications',
+    subtitle: ''
   },
   '/manage-statutes': {
     title: 'Manage Statutes Forms',
@@ -49,6 +49,14 @@ const PAGE_HEADERS = {
     title: 'Case Law Search',
     subtitle: 'Search case laws, judgments and legal references across multiple sources.'
   },
+  '/statute-search': {
+    title: 'Statute Search',
+    subtitle: 'Search case laws and judgments by Law and Section, with alphabetical index.'
+  },
+  '/notification-search': {
+    title: 'Notification Search',
+    subtitle: 'Search case laws, circulars, SROs and notifications across departments.'
+  },
   '/manage-tax-cards': {
     title: 'Manage Tax Cards',
     subtitle: 'View, search and manage official tax cards and annual schedules'
@@ -58,8 +66,16 @@ const PAGE_HEADERS = {
     subtitle: 'Manage legal glossary terms, definitions and word meanings'
   },
   '/manage-newsletters': {
-    title: 'Manage Newsletters',
-    subtitle: 'Create, broadcast and archive newsletters and circular updates'
+    title: 'Manage Emails',
+    subtitle: 'Create, broadcast and archive email newsletters and circular updates'
+  },
+  '/manage-emails': {
+    title: 'Manage Emails',
+    subtitle: 'Create, broadcast and archive email newsletters and circular updates'
+  },
+  '/setting/legal-maxims': {
+    title: 'Manage Legal Maxim',
+    subtitle: 'Manage legal maxims, Latin legal principles and interpretations'
   },
   '/manage-custom-tariffs': {
     title: 'Manage Custom Tariffs',
@@ -77,7 +93,7 @@ const PAGE_HEADERS = {
 
 import AIChatDrawer from './AIChatDrawer';
 
-const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
+const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onToggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -119,11 +135,21 @@ const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
     navigate('/login', { replace: true });
   };
 
-  // Fallback to Dashboard if route is unknown
-  const headerContent = PAGE_HEADERS[location.pathname] || {
-    title: 'Overview',
-    subtitle: 'SLD System Administration'
+  // Header content logic - enforce strictly "Manage Notifications" on manage notifications pages
+  const getHeaderContent = () => {
+    if (location.pathname.startsWith('/manage-notifications')) {
+      return {
+        title: 'Manage Notifications',
+        subtitle: ''
+      };
+    }
+    return PAGE_HEADERS[location.pathname] || {
+      title: 'Overview',
+      subtitle: 'SLD System Administration'
+    };
   };
+
+  const headerContent = getHeaderContent();
 
   return (
     <header className="h-20 sm:h-24 px-6 sm:px-8 flex items-center justify-between bg-theme-base border-b border-theme-border relative z-50 shrink-0">
@@ -138,9 +164,34 @@ const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
             <Menu className="w-6 h-6" />
           </button>
         )}
+
+        {/* Desktop Sidebar Toggle Option (Click to View / Hide) */}
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-theme-border bg-theme-surface hover:bg-theme-surface-hover text-theme-main transition-all cursor-pointer shadow-xs mr-1"
+            title={isSidebarPinned ? "Click to Hide sidebar (auto-reveal on hover)" : "Click to View and Fix sidebar open"}
+          >
+            {isSidebarPinned ? (
+              <>
+                <PanelLeftClose className="w-4 h-4 text-brand-orange" />
+                <span>Hide Sidebar</span>
+              </>
+            ) : (
+              <>
+                <PanelLeftOpen className="w-4 h-4 text-brand-orange" />
+                <span>View Sidebar</span>
+              </>
+            )}
+          </button>
+        )}
+
         <div className="flex flex-col min-w-0">
           <h1 className="text-xl sm:text-2xl font-semibold text-theme-main truncate">{headerContent.title}</h1>
-          <p className="text-xs sm:text-sm text-theme-muted mt-0.5 truncate">{headerContent.subtitle}</p>
+          {headerContent.subtitle ? (
+            <p className="text-xs sm:text-sm text-theme-muted mt-0.5 truncate">{headerContent.subtitle}</p>
+          ) : null}
         </div>
       </div>
 
@@ -237,7 +288,7 @@ const AdminHeader = ({ onToggleMenu, onOpenChat }) => {
             </div>
             <div className="hidden sm:flex flex-col">
               <span className="text-sm font-semibold text-theme-main">{user.fullName}</span>
-              <span className="text-xs text-theme-muted">{user.role || 'Administrator'}</span>
+              <span className="text-xs text-theme-muted">{user.role || 'User'}</span>
             </div>
             <ChevronDown className={`w-4 h-4 transition-all ${isProfileOpen ? 'text-theme-main rotate-180' : 'text-theme-disabled group-hover:text-theme-muted'}`} />
           </div>

@@ -511,7 +511,7 @@ const CaseViewPage = () => {
                     const cleanPara = para.trim();
                     if (!cleanPara) return null;
                     return (
-                      <p key={pIdx} className="leading-relaxed indent-6">
+                      <p key={pIdx} className="leading-relaxed indent-6 whitespace-pre-line">
                         {cleanPara}
                       </p>
                     );

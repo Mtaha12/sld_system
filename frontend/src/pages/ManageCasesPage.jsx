@@ -267,8 +267,8 @@ const ManageCasesPage = () => {
   // Search & Filter State
   const [filters, setFilters] = useState({
     subject: initialQuery,
-    fromDate: null,
-    toDate: null,
+    fromYear: '',
+    toYear: '',
     magazine: ''
   });
 
@@ -307,11 +307,14 @@ const ManageCasesPage = () => {
     const requestId = ++fetchRequestRef.current;
     setIsLoading(true);
 
+    const isMag = Boolean(debouncedFilters.magazine && debouncedFilters.magazine.trim());
     const params = {
       page: currentPage,
-      limit: 25
+      limit: isMag ? 500 : 25
     };
     if (debouncedFilters.subject) params.subject = debouncedFilters.subject;
+    if (debouncedFilters.fromYear) params.fromYear = debouncedFilters.fromYear;
+    if (debouncedFilters.toYear) params.toYear = debouncedFilters.toYear;
     if (debouncedFilters.fromDate) params.fromDate = debouncedFilters.fromDate;
     if (debouncedFilters.toDate) params.toDate = debouncedFilters.toDate;
     if (debouncedFilters.magazine) params.magazine = debouncedFilters.magazine;
@@ -569,7 +572,7 @@ const ManageCasesPage = () => {
         onJudgment={handleJudgment}
         onGetCaseId={handleGetCaseId}
         onSearch={setFilters}
-        onShowAll={() => setFilters({ subject: '', fromDate: null, toDate: null, magazine: '' })}
+        onShowAll={() => setFilters({ subject: '', fromYear: '', toYear: '', magazine: '' })}
       />
 
       <div className="flex-1">
@@ -590,6 +593,7 @@ const ManageCasesPage = () => {
           onExportSelection={handleExport}
           isLoading={isLoading}
           serverPaginated={true}
+          isMagazineSearch={Boolean(filters.magazine && filters.magazine.trim())}
         />
       </div>
 

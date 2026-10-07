@@ -145,7 +145,21 @@ const AddCaseLawDetail = ({ onClose }) => {
     }
     return list;
   });
-  const [principleOptions, setPrincipleOptions] = useState([]);
+  const [principleOptions, setPrincipleOptions] = useState(() => {
+    const list = [{ label: 'Select Principle of Law', value: '' }];
+    if (editData?.principleLaw) {
+      list.push({ label: editData.principleLaw, value: editData.principleLaw });
+    }
+    return list;
+  });
+
+  const [legalMaximOptions, setLegalMaximOptions] = useState(() => {
+    const list = [{ label: 'Select Legal Maxim', value: '' }];
+    if (editData?.legalMaxim) {
+      list.push({ label: editData.legalMaxim, value: editData.legalMaxim });
+    }
+    return list;
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -226,14 +240,45 @@ const AddCaseLawDetail = ({ onClose }) => {
         console.warn('Could not load dynamic laws for AddCaseLawDetail:', err);
       });
 
+    // Fetch dynamic principles from backend
     settingService.getPrinciples({ status: 'active', limit: 1000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data)) {
-          setPrincipleOptions(res.data.map(p => p.name));
+          const fetched = res.data.map(p => ({ label: p.name, value: p.name }));
+          setPrincipleOptions(prev => {
+            const list = [{ label: 'Select Principle of Law', value: '' }, ...fetched];
+            const current = getValues('principleLaw') || editData?.principleLaw;
+            if (current && !list.some(o => o.value === current)) {
+              list.push({ label: current, value: current });
+            }
+            return list;
+          });
         }
       })
       .catch(err => {
         console.warn('Could not load dynamic principles for AddCaseLawDetail:', err);
+      });
+
+    // Fetch dynamic legal maxims from backend
+    settingService.getLegalMaxims({ status: 'active', limit: 1000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data)) {
+          const fetched = res.data.map(m => ({ 
+            label: m.meaning ? `${m.name} (${m.meaning})` : m.name, 
+            value: m.name 
+          }));
+          setLegalMaximOptions(prev => {
+            const list = [{ label: 'Select Legal Maxim', value: '' }, ...fetched];
+            const current = getValues('legalMaxim') || editData?.legalMaxim;
+            if (current && !list.some(o => o.value === current)) {
+              list.push({ label: current, value: current });
+            }
+            return list;
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic legal maxims for AddCaseLawDetail:', err);
       });
 
     return () => { isMounted = false; };
@@ -750,7 +795,7 @@ const AddCaseLawDetail = ({ onClose }) => {
             </div>
           </FormSection>
 
-          {/* Judgment + Attachment side by side */}
+          {/* Judgment + Attachment row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             
             {/* Judgment — takes 2/3 */}
@@ -772,10 +817,8 @@ const AddCaseLawDetail = ({ onClose }) => {
               </FormSection>
             </div>
 
-            {/* Right column: Attachment & Details */}
+            {/* Right column: Attachment — exact previous structure */}
             <div className="flex flex-col gap-3">
-
-              {/* Attachment */}
               <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
                 <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
                   <Upload className="w-4 h-4" />
@@ -830,44 +873,41 @@ const AddCaseLawDetail = ({ onClose }) => {
                   }}
                 />
               </div>
-
-              {/* Principle Law */}
-              <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
-                <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
-                  <Scale className="w-4 h-4" />
-                  Principle Law
-                </div>
-                <Input 
-                  variant="light" 
-                  inputSize="sm" 
-                  placeholder="Enter principle law..." 
-                  list="principle-law-datalist"
-                  error={errors.principleLaw}
-                  {...register('principleLaw')}
-                />
-                <datalist id="principle-law-datalist">
-                  {principleOptions.map((pName, pIdx) => (
-                    <option key={pIdx} value={pName} />
-                  ))}
-                </datalist>
-              </div>
-
-              {/* Legal Maxim */}
-              <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
-                <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
-                  <Scale className="w-4 h-4" />
-                  Legal Maxim
-                </div>
-                <Input 
-                  variant="light" 
-                  inputSize="sm" 
-                  placeholder="Enter legal maxim..." 
-                  error={errors.legalMaxim}
-                  {...register('legalMaxim')}
-                />
-              </div>
-
             </div>
+
+          </div>
+
+          {/* Principle Law (Row 1) & Legal Maxim (Row 2) — 100% full width covering the entire form boundary */}
+          {/* Row 1: Principle Law */}
+          <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3 w-full">
+            <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
+              <Scale className="w-4 h-4" />
+              Principle Law
+            </div>
+            <Input 
+              variant="light" 
+              inputSize="sm" 
+              type="select"
+              options={principleOptions}
+              error={errors.principleLaw}
+              {...register('principleLaw')}
+            />
+          </div>
+
+          {/* Row 2: Legal Maxim */}
+          <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3 w-full">
+            <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
+              <Scale className="w-4 h-4" />
+              Legal Maxim
+            </div>
+            <Input 
+              variant="light" 
+              inputSize="sm" 
+              type="select"
+              options={legalMaximOptions}
+              error={errors.legalMaxim}
+              {...register('legalMaxim')}
+            />
           </div>
 
         </form>

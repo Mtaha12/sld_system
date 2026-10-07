@@ -69,6 +69,29 @@ const sendOtpEmail = async (email, fullName, code, type = 'verification') => {
 };
 
 /**
+ * Standardized User payload to expose role and permission flags safely to clients
+ */
+export const sanitizeUserPayload = (user) => ({
+  id: user._id,
+  userId: user.userId || user.user_id || '',
+  user_id: user.user_id || user.userId || '',
+  fullName: user.fullName,
+  username: user.username,
+  email: user.email,
+  role: user.role || 'User',
+  allowAllForms: Boolean(user.allowAllForms),
+  displayCase: user.displayCase !== false,
+  displayNotification: user.displayNotification !== false,
+  displayStatute: user.displayStatute !== false,
+  aiAssistant: user.aiAssistant !== false,
+  contactNumber: user.contactNumber,
+  city: user.city,
+  companyName: user.companyName,
+  address: user.address,
+  avatarUrl: user.avatarUrl
+});
+
+/**
  * Controller methods for User account handling
  */
 export const register = async (req, res, next) => {
@@ -106,12 +129,18 @@ export const register = async (req, res, next) => {
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
-    // Create user object
+    // Create user object - STRICTLY enforce 'User' role and default permissions
     const user = new User({
       fullName,
       username,
       email: email.toLowerCase(),
       password, // pre-save hook will hash it
+      role: 'User', // Public signup CANNOT create admin accounts
+      allowAllForms: false,
+      displayCase: true,
+      displayStatute: true,
+      displayNotification: true,
+      aiAssistant: true,
       contactNumber,
       city,
       companyName,
@@ -328,20 +357,7 @@ export const login = async (req, res, next) => {
       message: 'Login successful.',
       accessToken,
       refreshToken,
-      user: {
-        id: user._id,
-        userId: user.userId || user.user_id || '',
-        user_id: user.user_id || user.userId || '',
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        contactNumber: user.contactNumber,
-        city: user.city,
-        companyName: user.companyName,
-        address: user.address,
-        avatarUrl: user.avatarUrl
-      }
+      user: sanitizeUserPayload(user)
     });
   } catch (error) {
     next(error);
@@ -707,18 +723,7 @@ export const googleLogin = async (req, res, next) => {
       message: 'Google login successful.',
       accessToken,
       refreshToken,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        contactNumber: user.contactNumber,
-        city: user.city,
-        companyName: user.companyName,
-        address: user.address,
-        avatarUrl: user.avatarUrl
-      }
+      user: sanitizeUserPayload(user)
     });
   } catch (error) {
     next(error);
@@ -756,7 +761,12 @@ export const googleSignup = async (req, res, next) => {
       email,
       password: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
       isVerified: false,
-      role: 'Administrator',
+      role: 'User', // Strictly standard user
+      allowAllForms: false,
+      displayCase: true,
+      displayStatute: true,
+      displayNotification: true,
+      aiAssistant: true,
       avatarUrl: profile.picture || '',
       verificationCode,
       verificationCodeExpires,
@@ -775,13 +785,7 @@ export const googleSignup = async (req, res, next) => {
       message: hasSmtp 
         ? 'Account registered successfully. Please verify using the code sent to your Google email.'
         : `[SIMULATION MODE] Account registered. OTP code is: ${verificationCode}`,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      },
+      user: sanitizeUserPayload(user),
       data: {
         ...(!hasSmtp ? { otpCode: verificationCode } : {})
       }
@@ -794,9 +798,12 @@ export const googleSignup = async (req, res, next) => {
 export const getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
     return res.status(200).json({
       success: true,
-      data: user
+      data: sanitizeUserPayload(user)
     });
   } catch (error) {
     next(error);
@@ -838,20 +845,7 @@ export const updateProfile = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Profile details saved successfully.',
-      data: {
-        id: user._id,
-        userId: user.userId || user.user_id || '',
-        user_id: user.user_id || user.userId || '',
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        contactNumber: user.contactNumber,
-        city: user.city,
-        companyName: user.companyName,
-        address: user.address,
-        avatarUrl: user.avatarUrl
-      }
+      data: sanitizeUserPayload(user)
     });
   } catch (error) {
     next(error);

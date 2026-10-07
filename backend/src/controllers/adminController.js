@@ -42,6 +42,16 @@ export const getAdmins = async (req, res, next) => {
 
 export const createAdmin = async (req, res, next) => {
   try {
+    // Unique Admin Security Guard: Verify requester is verified active Administrator in database
+    const requester = await User.findById(req.user.id || req.user._id);
+    if (!requester || requester.role !== 'Administrator' || requester.isDeleted) {
+      logger.warn(`[Security Alert] Unauthorized attempt to create admin by: ${req.user?.username || 'Unknown'}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Security Violation: Only authenticated administrators can create admin accounts.'
+      });
+    }
+
     const { fullName, loginId, password, email, phoneNo, contactNumber, userType, status } = req.body;
 
     if (!fullName || !fullName.trim()) {

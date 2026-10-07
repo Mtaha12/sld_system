@@ -21,21 +21,31 @@ const BottomBanners = () => {
         <div className="hidden xl:block w-px h-10 bg-theme-border mx-2"></div>
         
         <div className="flex gap-4">
-          <button className="flex items-center gap-3 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors h-12">
+          <a
+            href="https://apps.apple.com/pk/app/sld-system/id6741755009"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors h-12"
+          >
             <img src={appStoreLogo} alt="App Store Icon" className="h-7 w-7 object-contain" />
             <div className="flex flex-col items-start">
               <span className="text-[10px] leading-none font-medium text-gray-200">Download on the</span>
               <span className="text-sm font-bold leading-tight mt-0.5">App Store</span>
             </div>
-          </button>
+          </a>
           
-          <button className="flex items-center gap-3 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors h-12">
+          <a
+            href="https://play.google.com/store/apps/details?id=com.sldsystem"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors h-12"
+          >
             <img src={playStoreLogo} alt="Google Play Icon" className="h-7 w-7 object-contain" />
             <div className="flex flex-col items-start">
               <span className="text-[10px] leading-none font-medium text-gray-200">GET IT ON</span>
               <span className="text-sm font-bold leading-tight mt-0.5">Google Play</span>
             </div>
-          </button>
+          </a>
         </div>
       </div>
       

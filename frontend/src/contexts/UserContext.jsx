@@ -38,6 +38,29 @@ export const UserProvider = ({ children }) => {
     return DEFAULT_USER;
   });
 
+  // Keep user permissions & status synced from backend
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      api.get('/api/auth/me')
+        .then(res => {
+          if (res?.data?.data) {
+            setUser(res.data.data);
+            try {
+              localStorage.setItem('sld_user_profile', JSON.stringify(res.data.data));
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        })
+        .catch(err => {
+          // If token expired or unauthorized, logout
+          if (err.response?.status === 401 || err.response?.status === 403) {
+            logoutUser();
+          }
+        });
+    }
+  }, [isAuthenticated]);
+
   const loginUser = (userProfile) => {
     setIsAuthenticated(true);
     if (userProfile) {

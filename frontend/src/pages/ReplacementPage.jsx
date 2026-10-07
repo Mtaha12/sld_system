@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Replace, Search, RefreshCw, AlertCircle, Check, History, User, LogOut } from 'lucide-react';
+import { Replace, Search, RefreshCw, AlertCircle, Check, History } from 'lucide-react';
 import { replacementService } from '../services/adminSettingsServices';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import { useUser } from '../contexts/UserContext';
@@ -125,16 +125,6 @@ const ReplacementPage = () => {
         <div className="flex items-center gap-2">
           <Replace className="w-5 h-5 text-white/90" />
           <h1 className="text-base font-bold tracking-wide">Replacement</h1>
-        </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={() => navigate('/settings')}>
-            <User className="w-4 h-4" />
-            <span>My Account</span>
-          </div>
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={logout}>
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </div>
         </div>
       </div>
 

@@ -8,6 +8,10 @@ import {
   createPrinciple,
   updatePrinciple,
   deletePrinciple,
+  getLegalMaxims,
+  createLegalMaxim,
+  updateLegalMaxim,
+  deleteLegalMaxim,
   getLaws,
   createLaw,
   updateLaw,
@@ -36,7 +40,15 @@ router.put('/principles/:id', protect, requireAdmin, updatePrinciple);
 router.delete('/principles/:id', protect, requireAdmin, deletePrinciple);
 
 // ==============================
-// 3. LAWS / STATUTES ROUTES
+// 3. LEGAL MAXIMS ROUTES
+// ==============================
+router.get('/legal-maxims', getLegalMaxims);
+router.post('/legal-maxims', protect, requireAdmin, createLegalMaxim);
+router.put('/legal-maxims/:id', protect, requireAdmin, updateLegalMaxim);
+router.delete('/legal-maxims/:id', protect, requireAdmin, deleteLegalMaxim);
+
+// ==============================
+// 4. LAWS / STATUTES ROUTES
 // ==============================
 router.get('/laws', getLaws);
 router.post('/laws/swap', protect, requireAdmin, swapLawOrdering);

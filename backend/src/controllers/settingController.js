@@ -1,5 +1,6 @@
 import City from '../models/City.js';
 import PrincipleOfLaw from '../models/PrincipleOfLaw.js';
+import LegalMaxim from '../models/LegalMaxim.js';
 import LawSetting from '../models/LawSetting.js';
 import Case from '../models/Case.js';
 import Statute from '../models/Statute.js';
@@ -775,3 +776,132 @@ export const swapLawOrdering = async (req, res, next) => {
     next(err);
   }
 };
+
+// ==========================================
+// 8. LEGAL MAXIMS CRUD CONTROLLERS
+// ==========================================
+
+export const getLegalMaxims = async (req, res, next) => {
+  try {
+    const { search = '', status = '', page, limit } = req.query;
+
+    const filter = {};
+    if (search.trim()) {
+      filter.$or = [
+        { name: { $regex: search.trim(), $options: 'i' } },
+        { meaning: { $regex: search.trim(), $options: 'i' } }
+      ];
+    }
+    if (status.trim() && status !== 'All' && status !== 'all') {
+      filter.status = status.trim().toLowerCase();
+    }
+
+    const total = await LegalMaxim.countDocuments(filter);
+    let query = LegalMaxim.find(filter).sort({ name: 1 });
+
+    if (page && limit) {
+      const p = Math.max(1, parseInt(page, 10) || 1);
+      const l = Math.max(1, parseInt(limit, 10) || 20);
+      query = query.skip((p - 1) * l).limit(l);
+    }
+
+    const maxims = await query;
+
+    return res.status(200).json({
+      success: true,
+      total,
+      data: maxims,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createLegalMaxim = async (req, res, next) => {
+  try {
+    const { name, meaning = '', status } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Legal Maxim name is required.' });
+    }
+
+    const existing = await LegalMaxim.findOne({ name: { $regex: `^${escapeRegex(name.trim())}$`, $options: 'i' } });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'This Legal Maxim already exists.' });
+    }
+
+    const maxim = await LegalMaxim.create({
+      name: name.trim(),
+      meaning: String(meaning || '').trim(),
+      status: status === 'inactive' ? 'inactive' : 'active',
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Legal Maxim created successfully',
+      data: maxim,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateLegalMaxim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, meaning, status } = req.body;
+
+    const maxim = await LegalMaxim.findById(id);
+    if (!maxim) {
+      return res.status(404).json({ success: false, message: 'Legal Maxim not found' });
+    }
+
+    if (name && name.trim()) {
+      const existing = await LegalMaxim.findOne({ 
+        name: { $regex: `^${escapeRegex(name.trim())}$`, $options: 'i' },
+        _id: { $ne: id }
+      });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'This Legal Maxim already exists.' });
+      }
+      maxim.name = name.trim();
+    }
+
+    if (meaning !== undefined) {
+      maxim.meaning = String(meaning).trim();
+    }
+
+    if (status) {
+      maxim.status = status === 'inactive' ? 'inactive' : 'active';
+    }
+
+    await maxim.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Legal Maxim updated successfully',
+      data: maxim,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteLegalMaxim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const maxim = await LegalMaxim.findByIdAndDelete(id);
+    if (!maxim) {
+      return res.status(404).json({ success: false, message: 'Legal Maxim not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Legal Maxim deleted successfully',
+      data: maxim,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+

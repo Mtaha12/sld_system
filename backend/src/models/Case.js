@@ -166,10 +166,15 @@ caseSchema.index({ isDeleted: 1, sldNumberInt: 1 });
 caseSchema.index({ isDeleted: 1, sldNumber: -1 });
 caseSchema.index({ isDeleted: 1, dated: -1 });
 caseSchema.index({ isDeleted: 1, court: 1 });
+caseSchema.index({ 'laws.section': 1 });
+caseSchema.index({ mapYearPage: 1 });
+caseSchema.index({ caseNumber: 1 });
 
 // Soft delete query filter middleware
 caseSchema.pre(/^find/, function () {
-  this.where({ isDeleted: { $ne: true } });
+  if (this.getOptions().skipDeletedFilter) return;
+  if (this.getQuery().isDeleted !== undefined || this.getQuery().$text) return;
+  this.where({ isDeleted: false });
 });
 
 const Case = mongoose.model('Case', caseSchema);

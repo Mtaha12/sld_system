@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   FileText, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, RefreshCw, ChevronUp, ChevronDown, User, LogOut, Calendar
+  Check, AlertCircle, RefreshCw, ChevronUp, ChevronDown, Calendar
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
@@ -249,22 +249,6 @@ const ManageLawsPage = () => {
           <div className="flex items-center gap-2.5 font-bold text-base tracking-wide">
             <FileText className="w-5 h-5 text-white" />
             <span>Manage Laws / Statutes</span>
-          </div>
-          <div className="flex items-center gap-4 text-xs">
-            <button
-              onClick={() => navigate('/settings')}
-              className="flex items-center gap-1.5 hover:text-white/80 transition-colors"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>My Account</span>
-            </button>
-            <button
-              onClick={logout}
-              className="flex items-center gap-1.5 hover:text-white/80 transition-colors text-white/90"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Logout</span>
-            </button>
           </div>
         </div>
 

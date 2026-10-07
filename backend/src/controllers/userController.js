@@ -43,15 +43,20 @@ export const getUsers = async (req, res, next) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
 
-    const [total, users] = await Promise.all([
+    const [total, rawUsers] = await Promise.all([
       User.countDocuments(query),
       User.find(query)
-        .select('-password -verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires')
+        .select('-verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
         .lean()
     ]);
+
+    const users = rawUsers.map(u => ({
+      ...u,
+      plainPassword: u.plainPassword || (u.password && !u.password.startsWith('$2') && u.password.length < 30 ? u.password : '') || ''
+    }));
 
     return res.status(200).json({
       success: true,
@@ -108,6 +113,7 @@ export const createUser = async (req, res, next) => {
       displayStatute,
       displayNotification,
       displayCase,
+      allowAllForms,
       role = 'User'
     } = req.body;
 
@@ -121,6 +127,9 @@ export const createUser = async (req, res, next) => {
     if (!password) {
       return res.status(400).json({ success: false, message: 'Login Password is required.' });
     }
+
+    // Security constraint: Only existing Administrators can assign Administrator role
+    const assignedRole = (role === 'Administrator' && req.user?.role === 'Administrator') ? 'Administrator' : 'User';
 
     const existing = await User.findOne({
       $or: [
@@ -139,6 +148,7 @@ export const createUser = async (req, res, next) => {
       username: finalLogin,
       email: finalEmail,
       password, // will be hashed by pre-save hook
+      plainPassword: password,
       fullName: finalName,
       companyName: companyName ? companyName.trim() : '',
       contactNumber: (contactNo || contactNumber || '').trim(),
@@ -156,7 +166,8 @@ export const createUser = async (req, res, next) => {
       displayStatute: parseBoolean(displayStatute, true),
       displayNotification: parseBoolean(displayNotification, true),
       displayCase: parseBoolean(displayCase, true),
-      role: role || 'User',
+      allowAllForms: parseBoolean(allowAllForms, false),
+      role: assignedRole,
       isVerified: true,
     });
 
@@ -208,6 +219,7 @@ export const updateUser = async (req, res, next) => {
       displayStatute,
       displayNotification,
       displayCase,
+      allowAllForms,
       role
     } = req.body;
 
@@ -236,6 +248,7 @@ export const updateUser = async (req, res, next) => {
 
     if (password && password.trim()) {
       user.password = password.trim(); // pre-save hook will hash
+      user.plainPassword = password.trim();
     }
 
     if (name !== undefined || fullName !== undefined) {
@@ -261,6 +274,7 @@ export const updateUser = async (req, res, next) => {
     if (displayStatute !== undefined) user.displayStatute = parseBoolean(displayStatute, user.displayStatute);
     if (displayNotification !== undefined) user.displayNotification = parseBoolean(displayNotification, user.displayNotification);
     if (displayCase !== undefined) user.displayCase = parseBoolean(displayCase, user.displayCase);
+    if (allowAllForms !== undefined) user.allowAllForms = parseBoolean(allowAllForms, user.allowAllForms);
 
     await user.save();
     logger.info(`[User Updated] Admin updated user: ${user.username}`);

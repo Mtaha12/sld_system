@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import api from '../../../services/api';
 
 export const contactService = {
   /**
@@ -10,10 +8,7 @@ export const contactService = {
    */
   sendContactMessage: async (data) => {
     try {
-      const response = await axios.post(`${API_URL}/api/contact`, data, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
+      const response = await api.post('/api/contact', data, {
         timeout: 10000
       });
       return response.data;

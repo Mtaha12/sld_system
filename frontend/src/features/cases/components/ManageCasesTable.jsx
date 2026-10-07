@@ -96,7 +96,8 @@ const ManageCasesTable = ({
   highlightedId,
   onExportSelection,
   isLoading = false,
-  serverPaginated = false
+  serverPaginated = false,
+  isMagazineSearch = false
 }) => {
   const navigate = useNavigate();
   const [internalCases, setInternalCases] = useState([]);
@@ -412,29 +413,35 @@ const ManageCasesTable = ({
                     className="w-4 h-4 rounded border-theme-border bg-theme-surface text-brand-orange focus:ring-brand-orange cursor-pointer accent-[#E55C41]" 
                   />
                 </th>
-                <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-[5%]" />
-                <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-[6%]" />
-                <TableHeader title="Year/Mag/Page" widthClassName="w-[12%]" />
-                <TableHeader title="Court" widthClassName="w-[9%]" />
-                <TableHeader title="Case #" widthClassName="w-[13%]" />
-                <TableHeader title="Judges" widthClassName="w-[13%]" />
-                <TableHeader title="Lawyers" widthClassName="w-[12%]" />
-                <TableHeader title="Petitioners" widthClassName="w-[12%]" />
-                <TableHeader title="Law / Statute" widthClassName="w-[13%]" />
-                <TableHeader title="Attachment" widthClassName="w-[6%]" />
-                <th className="px-2 py-3 font-semibold text-theme-main align-top w-[8%]">Action</th>
+                <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName={isMagazineSearch ? "w-[12%]" : "w-[5%]"} />
+                {isMagazineSearch ? (
+                  <TableHeader title="Year / Mag / Vol (All Entries)" widthClassName="w-[74%]" />
+                ) : (
+                  <>
+                    <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-[6%]" />
+                    <TableHeader title="Year/Mag/Page" widthClassName="w-[12%]" />
+                    <TableHeader title="Court" widthClassName="w-[9%]" />
+                    <TableHeader title="Case #" widthClassName="w-[13%]" />
+                    <TableHeader title="Judges" widthClassName="w-[13%]" />
+                    <TableHeader title="Lawyers" widthClassName="w-[12%]" />
+                    <TableHeader title="Petitioners" widthClassName="w-[12%]" />
+                    <TableHeader title="Law / Statute" widthClassName="w-[13%]" />
+                    <TableHeader title="Attachment" widthClassName="w-[6%]" />
+                  </>
+                )}
+                <th className={`px-2 py-3 font-semibold text-theme-main align-top ${isMagazineSearch ? 'w-[10%]' : 'w-[8%]'}`}>Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border/50">
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center">
+                  <td colSpan={isMagazineSearch ? 4 : 12} className="py-12 text-center">
                     <SquareLoader text="Loading Case Law records..." />
                   </td>
                 </tr>
               ) : currentData.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-sm text-theme-muted">
+                  <td colSpan={isMagazineSearch ? 4 : 12} className="py-12 text-center text-sm text-theme-muted">
                     No Case Law records found.
                   </td>
                 </tr>
@@ -462,65 +469,85 @@ const ManageCasesTable = ({
                         className="w-4 h-4 rounded border-theme-border bg-theme-surface text-brand-orange focus:ring-brand-orange mt-1 cursor-pointer accent-[#E55C41]" 
                       />
                     </td>
-                    <td className="px-2 py-4 align-top text-theme-muted break-words">{item.sldNumber}</td>
-                    <td className="px-2 py-4 align-top text-theme-muted">{item.dated ? item.dated.split('T')[0] : ''}</td>
-                    <td className="px-2 py-4 align-top text-theme-muted" style={{ minWidth: '210px' }}>
-                      <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden">
-                        {(Array.isArray(item.mapYearPage) ? item.mapYearPage.filter(Boolean) : [])
-                          .reduce((unique, line) => {
-                            if (!unique.includes(line)) unique.push(line);
-                            return unique;
-                          }, [])
-                          .slice(0, 2)
-                          .map((line, i) => (
-                            <span key={`${line}-${i}`} className="inline-block whitespace-nowrap">{line}</span>
-                          ))}
-                      </div>
-                    </td>
-                    <td className="px-2 py-4 align-top text-theme-main font-medium">{item.court}</td>
-                    <td className="px-2 py-4 align-top text-theme-muted">
-                      <div className="flex flex-col gap-1">
-                        {item.caseNumber.map((line, i) => <span key={i}>{line}</span>)}
-                      </div>
-                    </td>
-                    <td className="px-2 py-4 align-top text-theme-muted">
-                      <div className="flex flex-col gap-1">
-                        {item.judges.map((line, i) => <span key={i}>{line}</span>)}
-                      </div>
-                    </td>
-                    <td className="px-2 py-4 align-top text-theme-muted">
-                      <div className="flex flex-col gap-1">
-                        {item.lawyers.map((line, i) => <span key={i}>{line}</span>)}
-                        {item.lawyersMore && <span className="text-brand-orange font-medium mt-1">{item.lawyersMore}</span>}
-                      </div>
-                    </td>
-                    <td className="px-2 py-4 align-top text-theme-muted">
-                      <div className="flex flex-col gap-1">
-                        {item.petitioners.map((line, i) => <span key={i}>{line}</span>)}
-                        {item.petitionersMore && <span className="text-brand-orange font-medium mt-1">{item.petitionersMore}</span>}
-                      </div>
-                    </td>
-                    <td className="px-2 py-4 align-top text-theme-muted">
-                      <div className="flex flex-col gap-1">
-                        {formatLawReferences(item.laws).map((law) => (
-                          <span key={law.name} className="whitespace-normal break-words">
-                            <span className="font-medium text-theme-main">{law.name}</span>
-                            {law.sections.length > 0 ? `=${law.sections.join(',')}` : ''}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-2 py-4 align-top">
-                      <button 
-                        type="button"
-                        onClick={() => setAttachmentModalCase(item)}
-                        className="flex items-center gap-1 text-theme-muted hover:text-brand-orange transition-colors cursor-pointer px-1.5 py-1 rounded-md hover:bg-brand-orange/10 group"
-                        title="View & Manage Attachments"
-                      >
-                        <Paperclip className="w-4 h-4 text-brand-orange shrink-0 group-hover:scale-110 transition-transform" />
-                        <span className="text-brand-orange font-semibold text-xs">({item.attachments || 1})</span>
-                      </button>
-                    </td>
+                    <td className="px-2 py-4 align-top text-theme-muted font-bold break-words">{item.sldNumber}</td>
+
+                    {isMagazineSearch ? (
+                      <td className="px-2 py-4 align-top text-theme-main">
+                        <div className="flex flex-wrap gap-1.5">
+                          {(Array.isArray(item.mapYearPage) && item.mapYearPage.length > 0 ? item.mapYearPage.filter(Boolean) : [item.yearVolume || '—'])
+                            .reduce((unique, line) => {
+                              if (!unique.includes(line)) unique.push(line);
+                              return unique;
+                            }, [])
+                            .map((line, i) => (
+                              <span key={`${line}-${i}`} className="inline-flex items-center px-2 py-1 bg-amber-50 dark:bg-amber-950/40 text-brand-orange border border-brand-orange/30 rounded text-xs font-semibold">
+                                {line}
+                              </span>
+                            ))}
+                        </div>
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-2 py-4 align-top text-theme-muted">{item.dated ? item.dated.split('T')[0] : ''}</td>
+                        <td className="px-2 py-4 align-top text-theme-muted" style={{ minWidth: '210px' }}>
+                          <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden">
+                            {(Array.isArray(item.mapYearPage) ? item.mapYearPage.filter(Boolean) : [])
+                              .reduce((unique, line) => {
+                                if (!unique.includes(line)) unique.push(line);
+                                return unique;
+                              }, [])
+                              .slice(0, 2)
+                              .map((line, i) => (
+                                <span key={`${line}-${i}`} className="inline-block whitespace-nowrap">{line}</span>
+                              ))}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 align-top text-theme-main font-medium">{item.court}</td>
+                        <td className="px-2 py-4 align-top text-theme-muted">
+                          <div className="flex flex-col gap-1">
+                            {item.caseNumber.map((line, i) => <span key={i}>{line}</span>)}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 align-top text-theme-muted">
+                          <div className="flex flex-col gap-1">
+                            {item.judges.map((line, i) => <span key={i}>{line}</span>)}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 align-top text-theme-muted">
+                          <div className="flex flex-col gap-1">
+                            {item.lawyers.map((line, i) => <span key={i}>{line}</span>)}
+                            {item.lawyersMore && <span className="text-brand-orange font-medium mt-1">{item.lawyersMore}</span>}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 align-top text-theme-muted">
+                          <div className="flex flex-col gap-1">
+                            {item.petitioners.map((line, i) => <span key={i}>{line}</span>)}
+                            {item.petitionersMore && <span className="text-brand-orange font-medium mt-1">{item.petitionersMore}</span>}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 align-top text-theme-muted">
+                          <div className="flex flex-col gap-1">
+                            {formatLawReferences(item.laws).map((law) => (
+                              <span key={law.name} className="whitespace-normal break-words">
+                                <span className="font-medium text-theme-main">{law.name}</span>
+                                {law.sections.length > 0 ? `=${law.sections.join(',')}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 align-top">
+                          <button 
+                            type="button"
+                            onClick={() => setAttachmentModalCase(item)}
+                            className="flex items-center gap-1 text-theme-muted hover:text-brand-orange transition-colors cursor-pointer px-1.5 py-1 rounded-md hover:bg-brand-orange/10 group"
+                            title="View & Manage Attachments"
+                          >
+                            <Paperclip className="w-4 h-4 text-brand-orange shrink-0 group-hover:scale-110 transition-transform" />
+                            <span className="text-brand-orange font-semibold text-xs">({item.attachments || 1})</span>
+                          </button>
+                        </td>
+                      </>
+                    )}
                     <td className="px-2 py-4 align-top">
                       <div className="flex items-center gap-1.5">
                         <a 

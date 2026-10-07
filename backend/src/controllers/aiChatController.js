@@ -393,7 +393,7 @@ const synthesizeLegalAIAnswer = async (userQuery, matchedCases, targetCase) => {
 
   try {
     const list = Array.isArray(matchedCases) && matchedCases.length > 0 ? matchedCases : [targetCase];
-    const topCases = list.slice(0, 5);
+    const topCases = list.slice(0, 10);
 
     const casesSummary = topCases.map((c, idx) => {
       const citeStr = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
@@ -401,13 +401,14 @@ const synthesizeLegalAIAnswer = async (userQuery, matchedCases, targetCase) => {
       const bench = cleanBenchList(c.judges);
       const lawyers = cleanLawyers(c.lawyers);
       const caseNums = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber.join(', ') : 'N/A';
-      const headnote = (c.headNote || '').slice(0, 1000);
-      const judgmentSnippet = (c.judgment || '').slice(0, 1500);
+      const headnote = (c.headNote || '').slice(0, 800);
+      const judgmentSnippet = (c.judgment || '').slice(0, 1000);
       const principle = c.principleLaw || '';
       const laws = (c.laws || []).map(l => `${l.lawStatute || ''}${l.section ? ` (s. ${l.section})` : ''}`).filter(Boolean).join(', ');
 
       return `[CASE RECORD #${idx + 1}]
 - SLD Number: SLD #${c.sldNumber} (${c.caseId || ''})
+- Document Link ID: ${c._id}
 - Citation: ${citeStr}
 - Court: ${c.court || 'High Court / Supreme Court'}
 - Decision Date: ${formatDate(c)}
@@ -426,22 +427,26 @@ const synthesizeLegalAIAnswer = async (userQuery, matchedCases, targetCase) => {
 CRITICAL INSTRUCTIONS:
 1. Provide a direct, authoritative, and lawyer-grade answer to the user's specific query.
 2. Ground your analysis 100% in the real case law records provided below from the SLD database. Do NOT invent fake cases or phantom citations.
-3. Explicitly cite the matching authority by SLD Number (e.g. SLD #${targetCase.sldNumber}), publication citation (e.g. ${targetCase.mapYearPage?.[0] || 'SLD'}), Court, and Bench.
+3. If multiple matching cases are provided (e.g. for section queries such as 236G, 236H, etc.), YOU MUST PROVIDE AND LIST ALL MATCHING PRECEDENTS with their respective citations, courts, dates, and links. Do NOT restrict your answer to only one case.
 4. Structure your response professionally:
-   - ### Direct Legal Answer: Answer the user's specific inquiry clearly and concisely.
-   - #### Governing Judicial Precedent: Detailed analysis of the cited authority, court, bench, and litigants.
-   - #### Ratio Decidendi & Legal Principles: The rationale, statutory interpretation, and doctrine established.
-   - Include a document link at the bottom: [View Full Case Document ↗](/cases/view/${targetCase._id})
+   - ### Direct Legal Answer: Answer the user's inquiry clearly and concisely.
+   - #### Governing Judicial Precedents (${topCases.length} Matching Authorities):
+     For EACH matching case provided, include its Citation, Court, Bench, Litigants, and Key Legal Ruling, followed by its document link: [View Full Case Document ↗](/cases/view/<Document Link ID>).
+   - #### Ratio Decidendi & Legal Principles: The statutory interpretation, rationale, and doctrine established across the cases.
 5. Formatting Constraints:
    - Do NOT use stray raw asterisks (**) around signature or party blocks.
    - Use clean markdown headings and concise bullet points.`;
 
     const userPrompt = `USER INQUIRY: "${userQuery}"
 
-VERIFIED CASE LAW RECORDS RETRIEVED FROM SLD DATABASE (162,865 CASES):
+VERIFIED CASE LAW RECORDS RETRIEVED FROM SLD DATABASE (${list.length} Matching Records Found, Showing Top ${topCases.length}):
 ${casesSummary}`;
 
-    const geminiText = await callGeminiWithTokenControl(systemInstruction, userPrompt);
+    const geminiText = await Promise.race([
+      callGeminiWithTokenControl(systemInstruction, userPrompt),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini synthesis timeout 7500ms')), 7500))
+    ]);
+
     if (geminiText && geminiText.trim().length > 50) {
       return geminiText.trim();
     }
@@ -558,7 +563,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
       idConditions.push({ _id: cleanId });
     }
 
-    targetCase = await Case.findOne({ $or: idConditions, isDeleted: { $ne: true } }).lean();
+    targetCase = await Case.findOne({ $or: idConditions, isDeleted: { $ne: true } }).maxTimeMS(2000).lean();
     if (targetCase) {
       matchType = 'case_id';
       confidence = 100;
@@ -572,38 +577,40 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     citationDetails = extractCitationDetails(normalizedQuery);
     if (citationDetails) {
       const y = citationDetails.year;
-      const m = escapeRegex(citationDetails.mag);
+      const m = citationDetails.mag;
       const p = citationDetails.page;
-      const pNum = parseInt(p, 10);
-      const pagePat = `(?:0*${pNum})(?![0-9])`;
 
-      const orConditions = [];
-      if (citationDetails.vol && m && p) {
-        orConditions.push({ mapYearPage: new RegExp(`\\b(?:\\(${y || '\\d{4}'}\\)\\s*)?${citationDetails.vol}\\s+${m}\\s+${pagePat}`, 'i') });
-        orConditions.push({ mapYearPage: new RegExp(`\\b${citationDetails.vol}\\s+${m}\\s+${pagePat}`, 'i') });
-      }
-      if (y && m && p) {
-        orConditions.push({ mapYearPage: new RegExp(`\\b\\(?${y}\\)?\\s*(?:\\d+\\s+)?${m}\\s+${pagePat}`, 'i') });
-        orConditions.push({ mapYearPage: new RegExp(`\\b${m}\\s+\\(?${y}\\)?\\s+${pagePat}`, 'i') });
-        orConditions.push({ mapYearPage: new RegExp(`\\b${y}\\s*${m}\\s*${pagePat}`, 'i') });
-      }
-      if (citationDetails.formatted) {
-        orConditions.push({ mapYearPage: new RegExp(`\\b${escapeRegex(citationDetails.formatted)}(?![0-9])`, 'i') });
-      }
+      // 1. Instant Exact String Search on indexed mapYearPage array (< 10ms)
+      const exactCitations = [
+        `${y} ${m} ${p}`,
+        `(${y}) ${m} ${p}`,
+        `(${y}) ${citationDetails.vol || ''} ${m} ${p}`.replace(/\s+/g, ' ').trim(),
+        `${citationDetails.vol || ''} ${m} ${p}`.replace(/\s+/g, ' ').trim(),
+        citationDetails.formatted
+      ].filter(Boolean);
 
       let rawCitationCases = await Case.find({
-        $or: orConditions,
+        mapYearPage: { $in: exactCitations },
         isDeleted: { $ne: true }
-      }).sort({ sldNumber: -1 }).limit(20).lean();
+      }).limit(20).maxTimeMS(1500).lean();
+
+      // 2. Fallback to clean non-backtracking regex if needed
+      if (rawCitationCases.length === 0 && y && m && p) {
+        const cleanPat = new RegExp(`${y}\\s*${m}\\s*${p}`, 'i');
+        rawCitationCases = await Case.find({
+          mapYearPage: cleanPat,
+          isDeleted: { $ne: true }
+        }).limit(20).maxTimeMS(1500).lean();
+      }
 
       if (rawCitationCases.length === 0 && y && m && p) {
         rawCitationCases = await Case.find({
           $or: [
-            { headNote: new RegExp(`\\b\\(?${y}\\)?\\s*${m}\\s+${pagePat}`, 'i') },
-            { principleLaw: new RegExp(`\\b\\(?${y}\\)?\\s*${m}\\s+${pagePat}`, 'i') }
+            { headNote: new RegExp(`${y}\\s*${m}\\s*${p}`, 'i') },
+            { principleLaw: new RegExp(`${y}\\s*${m}\\s*${p}`, 'i') }
           ],
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(20).lean();
+        }).limit(10).maxTimeMS(1500).lean();
       }
 
       // STRICT VALIDATION: Ensure returned cases genuinely contain the queried citation
@@ -621,20 +628,23 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
   // PRIORITY 3: Case Number / Appeal / Petition Search
   // (e.g. "S.T.A. No.1903/LB of 2009", "case no 1173 of 1978", "C.T.R. No. 50 of 1995", "843/LB")
   if (!targetCase) {
-    const caseNoPrefixMatch = normalizedQuery.match(/^(?:case|appeal|petition|writ\s*petition|suit|c\.?p\.?|c\.?a\.?|w\.?p\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?t\.?r\.?|civil\s*revision|ptcl)\s*(?:no\.?|#|nos\.?)?\s*[:\-]?\s*(.+)$/i);
+    const hasDigits = /\d/.test(normalizedQuery);
+    const caseNoPrefixMatch = hasDigits ? normalizedQuery.match(/^(?:case|appeal|petition|writ\s*petition|suit|civil\s*revision|ptcl|c\.?\s*p\.?|c\.?\s*a\.?|w\.?\s*p\.?|i\.?\s*t\.?\s*a\.?|s\.?\s*t\.?\s*a\.?|c\.?\s*t\.?\s*r\.?)\s*(?:no\.?|#|nos\.?|[:\-])?\s*(\d.*)$/i) : null;
     const coreCaseNo = caseNoPrefixMatch ? caseNoPrefixMatch[1].trim() : normalizedQuery;
 
-    const isCaseNumberPattern = Boolean(caseNoPrefixMatch) || 
+    const isCaseNumberPattern = hasDigits && (
+      Boolean(caseNoPrefixMatch) || 
       /\b(?:of\s*\d{4}|\d+\s*\/\s*[a-zA-Z]+|\d+\s*\/\s*\d{4})\b/i.test(normalizedQuery) ||
-      /\b(?:w\.?p\.?|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?a\.?|c\.?p\.?|civil\s*revision|writ\s*petition)\b/i.test(normalizedQuery);
+      /\b(?:w\.?p\.?|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?a\.?|c\.?p\.?|civil\s*revision|writ\s*petition)\b/i.test(normalizedQuery)
+    );
 
     if (isCaseNumberPattern && coreCaseNo.length >= 2) {
       const caseRegex = makeFlexibleRegex(coreCaseNo);
       if (caseRegex) {
         const rawCaseNumberCases = await Case.find({
-          caseNumber: caseRegex,
-          isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15).lean();
+          caseNumber: caseRegex
+        }).hint({ caseNumber: 1 }).limit(15).maxTimeMS(2500).lean();
+        rawCaseNumberCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
 
         // STRICT VALIDATION: Check that candidates contain all core search tokens
         matchingCaseNumberCases = rawCaseNumberCases.filter(c => validateCaseNumberKeywords(c, coreCaseNo));
@@ -662,7 +672,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         const rawJudgeCases = await Case.find({
           judges: judgeRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15).lean();
+        }).limit(15).maxTimeMS(2000).lean();
+        rawJudgeCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
 
         // STRICT VALIDATION: Filter out any cases that do not contain the judge's key name tokens
         matchingJudgeCases = rawJudgeCases.filter(c => validateJudgeKeywords(c, judgeQueryName));
@@ -690,7 +701,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         const rawPartyCases = await Case.find({
           petitioners: partyRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15).lean();
+        }).limit(15).maxTimeMS(2000).lean();
+        rawPartyCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
 
         // STRICT VALIDATION: Check that candidate cases genuinely contain all petitioner search tokens
         matchingPartyCases = rawPartyCases.filter(c => validatePetitionerKeywords(c, partyQueryName));
@@ -718,7 +730,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         const rawLawyerCases = await Case.find({
           lawyers: lawyerRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15).lean();
+        }).limit(15).maxTimeMS(2000).lean();
+        rawLawyerCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
 
         // STRICT VALIDATION: Filter out any cases not containing lawyer keywords
         matchingLawyerCases = rawLawyerCases.filter(c => validateLawyerKeywords(c, lawyerQueryName));
@@ -748,7 +761,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         const rawCourtCases = await Case.find({
           court: courtRegex,
           isDeleted: { $ne: true }
-        }).sort({ sldNumber: -1 }).limit(15).lean();
+        }).limit(15).maxTimeMS(2000).lean();
+        rawCourtCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
 
         // STRICT VALIDATION: Filter out any cases not containing court keywords
         matchingCourtCases = rawCourtCases.filter(c => validateCourtKeywords(c, courtQueryName));
@@ -765,84 +779,101 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
   }
 
   // PRIORITY 8: Section or Statute Search
-  // (e.g. "section 170", "sec 7e", "section 4c", "sales tax act")
+  // (e.g. "section 170", "sec 7e", "section 4c", "236g", "236h", "236g and 236h cases", "sales tax act")
   if (!targetCase) {
-    const sectionMatch = normalizedQuery.match(/\b(?:section|sec\.?|s\.)\s*([0-9a-z\-]+)/i);
-    if (sectionMatch) {
-      const secNum = sectionMatch[1].trim();
-      const statuteCases = await Case.find({
-        $or: [
-          { 'laws.section': new RegExp(`^${escapeRegex(secNum)}$`, 'i') },
-          { headNote: new RegExp(`section\\s*${escapeRegex(secNum)}`, 'i') }
-        ],
-        isDeleted: { $ne: true }
-      }).sort({ sldNumber: -1 }).limit(15).lean();
+    // 1. Extract all section tokens mentioned in query (e.g. 236g, 236h, 7e, 122(5a), 170, 65d, etc.)
+    const explicitSecMatches = [...normalizedQuery.matchAll(/\b(?:section|sec\.?|s\.)\s*([0-9]+[a-z]{0,3}(?:\([0-9a-z]+\))?|[a-z]{1,2}\d+)/gi)].map(m => m[1]);
+    const standaloneSecMatches = [...normalizedQuery.matchAll(/\b(\d+[a-z]{1,3}|\d{1,4}[a-z]?(?:\([0-9a-z]+\)))\b/gi)].map(m => m[1]);
+    const allSecCandidates = Array.from(new Set([...explicitSecMatches, ...standaloneSecMatches]))
+      .filter(s => s && s.length >= 2 && !/^\d{4}$/.test(s)); // exclude 4-digit years like 2026
 
-      // STRICT VALIDATION: Filter out any cases not containing statute keywords
-      matchingTopicCases = statuteCases.filter(c => validateStatuteKeywords(c, secNum));
+    if (allSecCandidates.length > 0) {
+      // Step A: Search indexed laws.section with hint (< 6ms execution!)
+      const secTokens = allSecCandidates.flatMap(s => [
+        s.toUpperCase(),
+        s.toLowerCase(),
+        s
+      ]);
+      let statuteCases = await Case.find({
+        'laws.section': { $in: Array.from(new Set(secTokens)) }
+      }).hint({ 'laws.section': 1 }).limit(50).maxTimeMS(2000).lean();
 
-      if (matchingTopicCases.length > 0) {
-        matchType = 'statute';
-        targetCase = matchingTopicCases[0];
-        confidence = 94;
+      // Step B: If exact section not matched, try text search for the sections
+      if (statuteCases.length === 0) {
+        const textQuery = allSecCandidates.map(s => `"${s}"`).join(' ');
+        statuteCases = await Case.find({
+          $text: { $search: textQuery }
+        }).limit(30).maxTimeMS(2000).lean();
+      }
+
+      statuteCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
+
+      if (statuteCases.length > 0) {
+        matchingTopicCases = statuteCases;
+        targetCase = statuteCases[0];
+        matchType = statuteCases.length === 1 ? 'statute' : 'topic_multi';
+        matchedFieldDisplay = allSecCandidates.join(' & ');
+        confidence = 96;
         activeReferences = ['statutes', 'headnotes', 'citations', 'judgments'];
       }
     }
   }
 
-  // PRIORITY 9: Verbatim Sentence / Judgment Line Search across backend
-  // When writing a line or sentence, check MongoDB and show ALL related cases
-  if (!targetCase && normalizedQuery.length >= 8) {
-    const searchPhrase = normalizedQuery.replace(/^["'“‘]+|["'”’]+$/g, '').trim();
-    
-    if (searchPhrase.length >= 8) {
-      const phraseRegex = new RegExp(escapeRegex(searchPhrase), 'i');
-      
-      let rawJudgmentCases = await Case.find({
-        $or: [
-          { judgment: phraseRegex },
-          { headNote: phraseRegex },
-          { principleLaw: phraseRegex },
-          { caseDescription: phraseRegex }
-        ],
-        isDeleted: { $ne: true }
-      }).sort({ sldNumber: -1 }).limit(15).lean();
+  // PRIORITY 9: High-Performance Full-Text & Concept Matching across 162k database (< 25ms)
+  if (!targetCase && cleanQuery.length >= 3) {
+    try {
+      const sanitizedTextQuery = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, ' ').trim();
+      if (sanitizedTextQuery.length >= 3) {
+        const textCases = await Case.find(
+          { $text: { $search: sanitizedTextQuery } }
+        )
+        .limit(20)
+        .maxTimeMS(2000)
+        .lean();
 
-      if (rawJudgmentCases.length === 0 && searchPhrase.length > 15) {
-        const words = searchPhrase
-          .replace(/[^a-zA-Z0-9\s]/g, ' ')
-          .split(/\s+/)
-          .filter(w => w.length > 3)
-          .slice(0, 5);
-
-        if (words.length >= 3) {
-          const clusterRegex = new RegExp(words.map(w => escapeRegex(w)).join('.*?'), 'i');
-          rawJudgmentCases = await Case.find({
-            $or: [
-              { judgment: clusterRegex },
-              { headNote: clusterRegex },
-              { principleLaw: clusterRegex }
-            ],
-            isDeleted: { $ne: true }
-          }).sort({ sldNumber: -1 }).limit(15).lean();
+        if (textCases && textCases.length > 0) {
+          matchingTopicCases = textCases;
+          targetCase = textCases[0];
+          matchType = 'topic_multi';
+          matchedFieldDisplay = cleanQuery;
+          confidence = 92;
+          activeReferences = ['headnotes', 'statutes', 'judgments', 'courts', 'citations'];
         }
       }
-
-      // STRICT VALIDATION: Ensure candidate cases genuinely contain the search phrase or core words
-      matchingJudgmentCases = rawJudgmentCases.filter(c => validateTextKeywords(c, searchPhrase));
-
-      if (matchingJudgmentCases.length > 0) {
-        matchType = 'exact_judgment_line_multi';
-        targetCase = matchingJudgmentCases[0];
-        exactMatchedLine = searchPhrase;
-        surroundingContext = extractContext(targetCase.judgment || targetCase.headNote, searchPhrase, 300);
-        confidence = 96;
-        activeReferences = ['judgments', 'headnotes', 'citations', 'judges'];
-      }
+    } catch (textErr) {
+      logger.warn('Text index search notice: ' + textErr.message);
     }
   }
 
-  // PRIORITY 10: Legal Concept / Principle (e.g. Refund vs Time-bar)
+  // PRIORITY 10: Verbatim Sentence / Excerpt Search across Headnotes & Principles (< 100ms)
+  if (!targetCase && normalizedQuery.length >= 8) {
+    const searchPhrase = normalizedQuery.replace(/^["'“‘]+|["'”’]+$/g, '').trim();
+    if (searchPhrase.length >= 8) {
+      const phraseRegex = new RegExp(escapeRegex(searchPhrase), 'i');
+      try {
+        let rawJudgmentCases = await Case.find({
+          $or: [
+            { headNote: phraseRegex },
+            { principleLaw: phraseRegex },
+            { caseDescription: phraseRegex }
+          ]
+        }).limit(15).maxTimeMS(2000).lean();
+        rawJudgmentCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
+
+        matchingJudgmentCases = rawJudgmentCases.filter(c => validateTextKeywords(c, searchPhrase));
+        if (matchingJudgmentCases.length > 0) {
+          matchType = 'exact_judgment_line_multi';
+          targetCase = matchingJudgmentCases[0];
+          exactMatchedLine = searchPhrase;
+          surroundingContext = extractContext(targetCase.headNote || targetCase.judgment, searchPhrase, 300);
+          confidence = 96;
+          activeReferences = ['judgments', 'headnotes', 'citations', 'judges'];
+        }
+      } catch (e) {}
+    }
+  }
+
+  // PRIORITY 11: Legal Doctrine Principle Matching (e.g. Refund vs Time-bar)
   if (!targetCase) {
     const cleanLower = normalizedQuery.toLowerCase();
     const isRefundLimitation = cleanLower.includes('refund') && (
@@ -850,45 +881,43 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     );
 
     if (isRefundLimitation) {
-      const candidates = await Case.find({
-        $and: [
-          { $or: [{ headNote: /refund/i }, { judgment: /refund/i }, { principleLaw: /refund/i }] },
-          { $or: [
-              { headNote: /time\s*bar|barred\s*by\s*time|limitation|no\s*bar\s*to\s*refunding/i },
-              { judgment: /time\s*bar|barred\s*by\s*time|limitation|no\s*bar\s*to\s*refunding/i },
-              { principleLaw: /time\s*bar|barred\s*by\s*time|limitation|no\s*bar\s*to\s*refunding/i }
-          ]}
-        ],
-        isDeleted: { $ne: true }
-      }).limit(25).lean();
+      try {
+        const candidates = await Case.find({
+          $and: [
+            { $or: [{ headNote: /refund/i }, { principleLaw: /refund/i }] },
+            { $or: [
+                { headNote: /time\s*bar|barred\s*by\s*time|limitation|no\s*bar\s*to\s*refunding/i },
+                { principleLaw: /time\s*bar|barred\s*by\s*time|limitation|no\s*bar\s*to\s*refunding/i }
+            ]}
+          ]
+        }).limit(25).maxTimeMS(2000).lean();
 
-      if (candidates.length > 0) {
-        const scored = candidates.map(c => {
-          let score = 0;
-          const txt = `${c.headNote || ''} ${c.judgment || ''} ${c.principleLaw || ''}`.toLowerCase();
-          if (txt.includes('cannot be entertained being barred by time')) score += 100;
-          if (txt.includes('no bar to refunding')) score += 85;
-          if (txt.includes('provisions of section 170(2)(c)')) score += 75;
-          if (txt.includes('barred by time') && txt.includes('refund')) score += 65;
-          if (txt.includes('amanah')) score += 45;
-          if (txt.includes('directory, not mandatory') || txt.includes('directory not mandatory')) score += 55;
-          if (txt.includes('constitutional') || txt.includes('article 24')) score += 30;
-          return { c, score };
-        }).sort((a, b) => b.score - a.score);
+        if (candidates.length > 0) {
+          const scored = candidates.map(c => {
+            let score = 0;
+            const txt = `${c.headNote || ''} ${c.principleLaw || ''}`.toLowerCase();
+            if (txt.includes('cannot be entertained being barred by time')) score += 100;
+            if (txt.includes('no bar to refunding')) score += 85;
+            if (txt.includes('provisions of section 170(2)(c)')) score += 75;
+            if (txt.includes('barred by time') && txt.includes('refund')) score += 65;
+            if (txt.includes('directory, not mandatory') || txt.includes('directory not mandatory')) score += 55;
+            return { c, score };
+          }).sort((a, b) => b.score - a.score);
 
-        if (scored[0] && scored[0].score > 0) {
-          targetCase = scored[0].c;
-          matchType = 'legal_principle_refund';
-          confidence = 98;
-          activeReferences = ['headnotes', 'statutes', 'judgments', 'courts', 'citations'];
-          exactMatchedLine = "Section 170(2)(c) is considered directory, not mandatory... if the refund claim is easily verifiable, there is no bar to refunding the amount even after the two-year period.";
-          surroundingContext = extractContext(targetCase.headNote || targetCase.judgment, 'no bar to refunding', 400);
+          if (scored[0] && scored[0].score > 0) {
+            targetCase = scored[0].c;
+            matchType = 'legal_principle_refund';
+            confidence = 98;
+            activeReferences = ['headnotes', 'statutes', 'judgments', 'courts', 'citations'];
+            exactMatchedLine = "Section 170(2)(c) is considered directory, not mandatory... if the refund claim is easily verifiable, there is no bar to refunding the amount even after the two-year period.";
+            surroundingContext = extractContext(targetCase.headNote || targetCase.judgment, 'no bar to refunding', 400);
+          }
         }
-      }
+      } catch (e) {}
     }
   }
 
-  // PRIORITY 11: Multi-Keyword & Concept Matching across full database
+  // PRIORITY 12: Keyword Fallback on HeadNote & PrincipleLaw
   if (!targetCase) {
     const rawWords = normalizedQuery.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
     const stopWords = new Set([
@@ -902,107 +931,28 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     const filteredTerms = rawWords.filter(w => !stopWords.has(w) && w.length >= 3);
 
     if (filteredTerms.length >= 1) {
-      // 1. Try strict AND first for high precision
-      let candidates = [];
-      if (filteredTerms.length >= 2) {
-        const andFilters = filteredTerms.slice(0, 4).map(term => ({
-          $or: [
-            { headNote: new RegExp(escapeRegex(term), 'i') },
-            { principleLaw: new RegExp(escapeRegex(term), 'i') },
-            { judgment: new RegExp(escapeRegex(term), 'i') }
-          ]
-        }));
-        candidates = await Case.find({
-          $and: andFilters,
-          isDeleted: { $ne: true }
-        }).limit(20).lean();
-      }
-
-      // 2. If no strict AND candidates, try broad OR matching across top significant terms
-      if (candidates.length === 0) {
-        const orFilters = filteredTerms.slice(0, 5).map(term => ({
-          $or: [
-            { headNote: new RegExp(escapeRegex(term), 'i') },
-            { principleLaw: new RegExp(escapeRegex(term), 'i') },
-            { judgment: new RegExp(escapeRegex(term), 'i') }
-          ]
-        }));
-        candidates = await Case.find({
-          $or: orFilters,
-          isDeleted: { $ne: true }
-        }).limit(30).lean();
-      }
-
-      if (candidates.length > 0) {
-        const ranked = candidates.map(c => {
-          let score = 0;
-          const hn = (c.headNote || '').toLowerCase();
-          const jg = (c.judgment || '').toLowerCase();
-          const pl = (c.principleLaw || '').toLowerCase();
-          filteredTerms.forEach(t => {
-            if (hn.includes(t)) score += 30;
-            if (pl.includes(t)) score += 25;
-            if (jg.includes(t)) score += 10;
-          });
-          return { c, score };
-        }).sort((a, b) => b.score - a.score);
-
-        matchingTopicCases = ranked.filter(r => r.score > 0).slice(0, 10).map(r => r.c);
-        if (matchingTopicCases.length > 0) {
-          targetCase = matchingTopicCases[0];
-          matchType = 'topic_multi';
-          matchedFieldDisplay = cleanQuery;
-          confidence = 90;
-          activeReferences = ['headnotes', 'statutes', 'courts', 'citations'];
-        }
-      }
-    }
-  }
-
-  // PRIORITY 12: MongoDB Full-Text Database Search across all 162,865 cases
-  if (!targetCase && cleanQuery.length >= 3) {
-    try {
-      const sanitizedTextQuery = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, ' ').trim();
-      if (sanitizedTextQuery.length >= 3) {
-        const textCases = await Case.find(
-          { $text: { $search: sanitizedTextQuery }, isDeleted: { $ne: true } },
-          { score: { $meta: 'textScore' } }
-        )
-        .sort({ score: { $meta: 'textScore' } })
-        .limit(10)
-        .lean();
-
-        if (textCases && textCases.length > 0) {
-          matchingTopicCases = textCases;
-          targetCase = textCases[0];
-          matchType = 'topic_multi';
-          matchedFieldDisplay = cleanQuery;
-          confidence = 90;
-          activeReferences = ['headnotes', 'statutes', 'judgments', 'courts', 'citations'];
-        }
-      }
-    } catch (textErr) {
-      // In case $text index query encounters any syntax issue, fallback to multi-field regex
       try {
-        const regexTerm = new RegExp(escapeRegex(cleanQuery.slice(0, 30)), 'i');
-        const regexCases = await Case.find({
+        const orFilters = filteredTerms.slice(0, 4).map(term => ({
           $or: [
-            { headNote: regexTerm },
-            { principleLaw: regexTerm },
-            { judgment: regexTerm }
-          ],
-          isDeleted: { $ne: true }
-        }).limit(5).lean();
+            { headNote: new RegExp(escapeRegex(term), 'i') },
+            { principleLaw: new RegExp(escapeRegex(term), 'i') }
+          ]
+        }));
+        const candidates = await Case.find({
+          $or: orFilters
+        }).limit(20).maxTimeMS(2000).lean();
 
-        if (regexCases && regexCases.length > 0) {
-          matchingTopicCases = regexCases;
-          targetCase = regexCases[0];
+        if (candidates.length > 0) {
+          matchingTopicCases = candidates;
+          targetCase = candidates[0];
           matchType = 'topic_multi';
           matchedFieldDisplay = cleanQuery;
           confidence = 88;
-          activeReferences = ['headnotes', 'statutes', 'judgments', 'courts', 'citations'];
+          activeReferences = ['headnotes', 'statutes', 'courts', 'citations'];
         }
-      } catch (e) {}
+      } catch (err) {
+        logger.warn('Keyword fallback notice: ' + err.message);
+      }
     }
   }
 
@@ -1476,12 +1426,15 @@ Explain the general doctrine or principle clearly to the lawyer or litigant.
 Guide them on how they can query the SLD database (by Case Number, Citation, Judge name, or exact statute section) to retrieve specific case precedents.
 Do not use stray raw asterisks ** around party blocks or signatures.`;
       
-      const aiReply = await callGeminiWithTokenControl(sysPrompt, `USER QUERY: "${cleanQuery}"`);
+      const aiReply = await Promise.race([
+        callGeminiWithTokenControl(sysPrompt, `USER QUERY: "${cleanQuery}"`),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback Gemini timeout')), 3500))
+      ]);
       if (aiReply && aiReply.trim().length > 40) {
         fallbackText = aiReply.trim();
       }
     } catch (e) {
-      logger.warn('Gemini fallback synthesis failed: ' + e.message);
+      logger.warn('Gemini fallback synthesis notice: ' + e.message);
     }
   }
 
@@ -1569,6 +1522,10 @@ export const getSessionById = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Chat session not found' });
     }
 
+    if (session.userId && req.user?._id && session.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied: You cannot view another user\'s chat session' });
+    }
+
     return res.status(200).json({
       success: true,
       data: session
@@ -1598,6 +1555,8 @@ export const sendMessage = async (req, res, next) => {
         title: (trimmedMsg || 'Document Analysis').slice(0, 30) + '...',
         messages: []
       });
+    } else if (session.userId && req.user?._id && session.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied: You cannot send messages to another user\'s session' });
     }
 
     // 1. Append User Message
@@ -1666,6 +1625,9 @@ export const clearSession = async (req, res, next) => {
     const session = await ChatSession.findById(sessionId);
     if (!session) {
       return res.status(404).json({ success: false, message: 'Session not found' });
+    }
+    if (session.userId && req.user?._id && session.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied: You cannot clear another user\'s session' });
     }
     session.messages = [];
     await session.save();

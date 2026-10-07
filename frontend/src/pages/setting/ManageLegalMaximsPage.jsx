@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  FileText, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, RefreshCw, ChevronUp, ChevronDown
+  Scale, Plus, Search, Edit2, Trash2, X, 
+  Check, AlertCircle, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
@@ -9,11 +9,11 @@ import Modal from '../../components/ui/Modal';
 import { useUser } from '../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 
-const ManagePrincipleOfLawsPage = () => {
-  const { user, logout } = useUser();
+const ManageLegalMaximsPage = () => {
+  const { user } = useUser();
   const navigate = useNavigate();
 
-  const [principles, setPrinciples] = useState([]);
+  const [maxims, setMaxims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
 
@@ -25,9 +25,10 @@ const ManagePrincipleOfLawsPage = () => {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPrinciple, setEditingPrinciple] = useState(null);
+  const [editingMaxim, setEditingMaxim] = useState(null);
   const [modalForm, setModalForm] = useState({
     name: '',
+    meaning: '',
   });
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -40,51 +41,53 @@ const ManagePrincipleOfLawsPage = () => {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const fetchPrinciples = useCallback(async (params = {}) => {
+  const fetchMaxims = useCallback(async (params = {}) => {
     setLoading(true);
     try {
-      const res = await settingService.getPrinciples({
+      const res = await settingService.getLegalMaxims({
         search: params.search !== undefined ? params.search : searchName,
       });
       if (res && res.data) {
-        setPrinciples(res.data);
+        setMaxims(res.data);
         setTotalRecords(res.total ?? res.data.length);
       }
     } catch (err) {
-      console.error('Failed to load principles:', err);
-      showToast('error', 'Failed to load Principle of Laws from server.');
+      console.error('Failed to load legal maxims:', err);
+      showToast('error', 'Failed to load Legal Maxims from server.');
     } finally {
       setLoading(false);
     }
   }, [searchName]);
 
   useEffect(() => {
-    fetchPrinciples();
+    fetchMaxims();
   }, []);
 
   const handleSearch = (e) => {
     e?.preventDefault();
-    fetchPrinciples({ search: searchName });
+    fetchMaxims({ search: searchName });
   };
 
   const handleResetAll = () => {
     setSearchName('');
-    fetchPrinciples({ search: '' });
+    fetchMaxims({ search: '' });
   };
 
   const handleOpenAddModal = () => {
-    setEditingPrinciple(null);
+    setEditingMaxim(null);
     setModalForm({
       name: '',
+      meaning: '',
     });
     setModalError('');
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (item) => {
-    setEditingPrinciple(item);
+    setEditingMaxim(item);
     setModalForm({
       name: item.name || '',
+      meaning: item.meaning || '',
     });
     setModalError('');
     setIsModalOpen(true);
@@ -93,7 +96,7 @@ const ManagePrincipleOfLawsPage = () => {
   const handleModalSubmit = async (e) => {
     e.preventDefault();
     if (!modalForm.name.trim()) {
-      setModalError('Law Name is required.');
+      setModalError('Legal Maxim name is required.');
       return;
     }
 
@@ -101,40 +104,39 @@ const ManagePrincipleOfLawsPage = () => {
     setModalError('');
 
     try {
-      if (editingPrinciple) {
-        await settingService.updatePrinciple(editingPrinciple._id || editingPrinciple.id, modalForm);
-        showToast('success', 'Principle of Law updated successfully.');
+      if (editingMaxim) {
+        await settingService.updateLegalMaxim(editingMaxim._id || editingMaxim.id, modalForm);
+        showToast('success', 'Legal Maxim updated successfully.');
       } else {
-        await settingService.createPrinciple(modalForm);
-        showToast('success', 'Principle of Law added successfully.');
+        await settingService.createLegalMaxim(modalForm);
+        showToast('success', 'Legal Maxim added successfully.');
       }
       setIsModalOpen(false);
-      fetchPrinciples();
+      fetchMaxims();
     } catch (err) {
-      setModalError(err.response?.data?.message || 'Failed to save Principle of Law.');
+      setModalError(err.response?.data?.message || 'Failed to save Legal Maxim.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (item) => {
-    if (!window.confirm(`Are you sure you want to delete "${item.name}"?`)) return;
-
+    if (!window.confirm(`Are you sure you want to delete Legal Maxim "${item.name}"?`)) {
+      return;
+    }
     try {
-      await settingService.deletePrinciple(item._id || item.id);
-      showToast('success', 'Principle of Law deleted.');
-      fetchPrinciples();
-    } catch (err) {
-      showToast('error', err.response?.data?.message || 'Failed to delete record.');
+      await settingService.deleteLegalMaxim(item._id || item.id);
+      showToast('success', 'Legal Maxim deleted.');
+      fetchMaxims();
+    } catch {
+      showToast('error', 'Failed to delete Legal Maxim.');
     }
   };
 
-  const sortedPrinciples = [...principles].sort((a, b) => {
-    let valA = (a.name || '').toLowerCase();
-    let valB = (b.name || '').toLowerCase();
-    if (valA < valB) return sortAsc ? -1 : 1;
-    if (valA > valB) return sortAsc ? 1 : -1;
-    return 0;
+  const sortedMaxims = [...maxims].sort((a, b) => {
+    const valA = (a.name || '').toLowerCase();
+    const valB = (b.name || '').toLowerCase();
+    return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
   });
 
   return (
@@ -153,11 +155,11 @@ const ManagePrincipleOfLawsPage = () => {
       {/* Main Container */}
       <div className="bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-sm overflow-hidden">
         
-        {/* Top Crimson Red Title Bar (Matching Reference Infographic) */}
+        {/* Top Crimson Red Title Bar */}
         <div className="bg-[#B91C1C] text-white px-5 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5 font-bold text-base tracking-wide">
-            <FileText className="w-5 h-5 text-white" />
-            <span>Manage Principle of Laws</span>
+            <Scale className="w-5 h-5 text-white" />
+            <span>Manage Legal Maxim</span>
           </div>
         </div>
 
@@ -165,7 +167,7 @@ const ManagePrincipleOfLawsPage = () => {
         <form onSubmit={handleSearch} className="p-4 bg-gray-50/70 dark:bg-theme-surface-alt/30 border-b border-theme-border flex flex-wrap items-center gap-2.5">
           <input
             type="text"
-            placeholder="Name"
+            placeholder="Search Legal Maxim"
             value={searchName}
             onChange={(e) => setSearchName(e.target.value)}
             className="px-3.5 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange w-72 shadow-inner"
@@ -192,7 +194,7 @@ const ManagePrincipleOfLawsPage = () => {
             className="px-4 py-1.5 bg-[#2E7D32] hover:bg-[#256628] text-white rounded-lg text-xs font-bold shadow-sm transition-colors ml-auto flex items-center gap-1 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Principle of Laws</span>
+            <span>Add Legal Maxim</span>
           </button>
         </form>
 
@@ -212,56 +214,59 @@ const ManagePrincipleOfLawsPage = () => {
                   onClick={() => setSortAsc(!sortAsc)}
                 >
                   <div className="flex items-center gap-1">
-                    <span>Law Name</span>
+                    <span>Legal Maxim</span>
                     {sortAsc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   </div>
                 </th>
+                <th className="py-2.5 px-4 border-r border-[#d35400]">Meaning / Interpretation</th>
                 <th className="py-2.5 px-4 w-28 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan="3" className="py-12 text-center text-theme-muted">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-orange" />
-                    <span>Loading Principle of Laws...</span>
+                  <td colSpan="4" className="py-12 text-center text-theme-muted">
+                    <span>Loading Legal Maxims...</span>
                   </td>
                 </tr>
-              ) : sortedPrinciples.length === 0 ? (
+              ) : sortedMaxims.length === 0 ? (
                 <tr>
-                  <td colSpan="3" className="py-10 text-center text-theme-muted">
-                    No principles found.
+                  <td colSpan="4" className="py-8 text-center text-theme-muted font-medium">
+                    No Legal Maxims found.
                   </td>
                 </tr>
               ) : (
-                sortedPrinciples.map((item, idx) => (
+                sortedMaxims.map((item, idx) => (
                   <tr 
-                    key={item._id || idx}
-                    className="hover:bg-gray-50/70 dark:hover:bg-theme-surface-alt/30 transition-colors"
+                    key={item._id || item.id || idx}
+                    className="hover:bg-gray-50/80 dark:hover:bg-theme-surface-alt/40 transition-colors"
                   >
-                    <td className="py-2.5 px-4 text-center text-theme-muted font-medium border-r border-theme-border/60">
+                    <td className="py-2.5 px-4 text-center text-theme-muted font-semibold border-r border-theme-border">
                       {idx + 1}
                     </td>
-                    <td className="py-2.5 px-4 font-semibold text-theme-main border-r border-theme-border/60">
+                    <td className="py-2.5 px-4 font-bold text-theme-main border-r border-theme-border italic">
                       {item.name}
                     </td>
+                    <td className="py-2.5 px-4 text-theme-muted border-r border-theme-border">
+                      {item.meaning || '—'}
+                    </td>
                     <td className="py-2.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(item)}
-                          className="w-6 h-6 rounded bg-[#00A8CC] hover:bg-[#0092b3] text-white flex items-center justify-center shadow-sm cursor-pointer transition-colors"
-                          title="Edit"
+                          className="p-1 text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                          title="Edit Legal Maxim"
                         >
-                          <Edit2 className="w-3 h-3" />
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(item)}
-                          className="w-6 h-6 rounded bg-[#E53935] hover:bg-[#c62828] text-white flex items-center justify-center shadow-sm cursor-pointer transition-colors"
-                          title="Delete"
+                          className="p-1 text-red-600 hover:text-red-800 transition-colors cursor-pointer"
+                          title="Delete Legal Maxim"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -271,19 +276,20 @@ const ManagePrincipleOfLawsPage = () => {
             </tbody>
           </table>
         </div>
-
       </div>
 
-      {/* Add / Edit Principle of Laws Modal (Screenshot 2 & 4 Matching) */}
+      {/* Add / Edit Legal Maxim Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingPrinciple ? "Edit Principle of Laws" : "Add Principle of Laws"}
-        maxWidth="max-w-xl"
+        title={editingMaxim ? "Edit Legal Maxim" : "Add Legal Maxim"}
+        subtitle="Manage legal maxims for case law and research"
+        icon={Scale}
+        maxWidth="max-w-md"
       >
-        <form onSubmit={handleModalSubmit} className="space-y-4 pt-1">
+        <form onSubmit={handleModalSubmit} className="space-y-4">
           {modalError && (
-            <div className="p-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-xs flex items-center gap-2 animate-fade-in">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{modalError}</span>
             </div>
@@ -291,32 +297,46 @@ const ManagePrincipleOfLawsPage = () => {
 
           <div>
             <label className="block text-xs font-bold text-theme-main mb-1">
-              Law Name <span className="text-red-500">*</span>
+              Legal Maxim <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               required
               value={modalForm.name}
               onChange={(e) => setModalForm({ ...modalForm, name: e.target.value })}
-              placeholder="Enter law principle name..."
-              className="w-full px-3.5 py-2 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+              placeholder="e.g. Audi alteram partem"
+              className="w-full px-3 py-2 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+              autoFocus
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-theme-border">
+          <div>
+            <label className="block text-xs font-bold text-theme-main mb-1">
+              Meaning / Interpretation (Optional)
+            </label>
+            <textarea
+              rows={3}
+              value={modalForm.meaning}
+              onChange={(e) => setModalForm({ ...modalForm, meaning: e.target.value })}
+              placeholder="e.g. No person should be condemned unheard..."
+              className="w-full px-3 py-2 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange shadow-inner resize-none"
+            />
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-1.5 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-semibold text-theme-main cursor-pointer"
+              className="px-4 py-2 border border-theme-border rounded-lg text-xs font-semibold text-theme-muted hover:bg-theme-surface-alt transition-colors"
             >
-              Closed
+              Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-1.5 rounded-lg bg-[#00A8CC] hover:bg-[#0092b3] text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
+              className="px-5 py-2 bg-brand-orange hover:bg-[#d34a26] text-white rounded-lg text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50"
             >
-              {submitting ? 'Saving...' : editingPrinciple ? 'Save Changes' : 'Add Record'}
+              {submitting ? 'Saving...' : editingMaxim ? 'Save Changes' : 'Add Record'}
             </button>
           </div>
         </form>
@@ -327,4 +347,4 @@ const ManagePrincipleOfLawsPage = () => {
   );
 };
 
-export default ManagePrincipleOfLawsPage;
+export default ManageLegalMaximsPage;

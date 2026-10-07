@@ -48,6 +48,29 @@ export const settingService = {
   },
 
   // ============================
+  // LEGAL MAXIMS
+  // ============================
+  getLegalMaxims: async (params = {}) => {
+    const response = await api.get('/api/settings/legal-maxims', { params });
+    return response.data;
+  },
+
+  createLegalMaxim: async (data) => {
+    const response = await api.post('/api/settings/legal-maxims', data);
+    return response.data;
+  },
+
+  updateLegalMaxim: async (id, data) => {
+    const response = await api.put(`/api/settings/legal-maxims/${id}`, data);
+    return response.data;
+  },
+
+  deleteLegalMaxim: async (id) => {
+    const response = await api.delete(`/api/settings/legal-maxims/${id}`);
+    return response.data;
+  },
+
+  // ============================
   // LAWS / STATUTES
   // ============================
   getLaws: async (params = {}) => {

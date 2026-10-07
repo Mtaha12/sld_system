@@ -38,15 +38,20 @@ import {
   Receipt,
   Folder,
   Briefcase,
-  User
+  User,
+  Pin,
+  PinOff
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/SLD_Logo.png';
+import { useUser } from '../../../contexts/UserContext';
 
 // Standalone top navigation items
 const TOP_NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { label: 'AI Legal Core', path: '/ai-assistant', icon: Bot, isHighlight: true },
   { label: 'Search Case Law', path: '/search-case-law', icon: Search },
+  { label: 'Statute Search', path: '/statute-search', icon: FileText },
+  { label: 'Notification Search', path: '/notification-search', icon: Bell },
 ];
 
 // Dropdown Folder Categories requested by user
@@ -81,6 +86,7 @@ const FOLDER_GROUPS = [
       { label: 'YouTube Updates', path: '/youtube-updates', icon: Video },
       { label: 'Manage Cities', path: '/setting/cities', icon: Building2 },
       { label: 'Manage Principle of Law', path: '/setting/principles', icon: BookOpen },
+      { label: 'Manage Legal Maxim', path: '/setting/legal-maxims', icon: Scale },
       { label: 'Manage Laws / Statute', path: '/setting/laws', icon: Library },
     ]
   },
@@ -93,17 +99,39 @@ const FOLDER_GROUPS = [
       { label: 'Manage Downloads', path: '/manage-downloads', icon: Download },
       { label: 'Manage Tax Cards', path: '/manage-tax-cards', icon: CreditCard },
       { label: 'Manage Dictionary', path: '/manage-dictionary', icon: BookA },
-      { label: 'Manage Newsletters', path: '/manage-newsletters', icon: Mail },
+      { label: 'Manage Emails', path: '/manage-emails', icon: Mail },
       { label: 'Manage Custom Tariffs', path: '/manage-custom-tariffs', icon: Layers },
       { label: 'Manage Invoices', path: '/manage-invoices', icon: Receipt },
     ]
   }
 ];
 
-const AdminSidebar = ({ className = '', isMobile = false, onItemClick, onClose }) => {
+const AdminSidebar = ({ 
+  className = '', 
+  isMobile = false, 
+  isPinned = false, 
+  onTogglePin, 
+  onItemClick, 
+  onClose 
+}) => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { user } = useUser();
   const isDarkMode = theme === 'dark';
+
+  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+
+  // Filter top navigation items based on user permissions
+  const visibleTopNavItems = React.useMemo(() => {
+    return TOP_NAV_ITEMS.filter((item) => {
+      if (item.path === '/dashboard') return true;
+      if (item.path === '/ai-assistant') return user?.aiAssistant !== false;
+      if (item.path === '/search-case-law') return user?.displayCase !== false;
+      if (item.path === '/statute-search') return user?.displayStatute !== false;
+      if (item.path === '/notification-search') return user?.displayNotification !== false;
+      return true;
+    });
+  }, [user]);
 
   // State to track which folder dropdowns are expanded
   const [openFolders, setOpenFolders] = useState({
@@ -133,39 +161,52 @@ const AdminSidebar = ({ className = '', isMobile = false, onItemClick, onClose }
   };
 
   return (
-    <aside className={`bg-brand-dark-surface text-gray-300 flex-col h-full border-r border-brand-dark-border transition-[width] duration-300 ease-in-out ${
-      isMobile 
-        ? 'w-[260px] flex shadow-2xl z-50' 
-        : 'w-[80px] hover:w-[260px] group overflow-hidden'
-    } ${className}`}>
+    <aside className={`bg-brand-dark-surface text-gray-300 flex flex-col h-full border-r border-brand-dark-border w-[260px] select-none ${className}`}>
       
-      {/* Logo Container */}
-      <div className={`h-24 flex items-center border-b border-brand-dark-border shrink-0 pt-2 w-full transition-all duration-300 ${
-        isMobile ? 'justify-between px-4' : 'justify-center'
-      }`}>
-        <img 
-          src={logo} 
-          alt="SLD System" 
-          className={`${
-            isMobile ? 'h-[44px]' : 'h-[36px] group-hover:h-[64px]'
-          } object-contain transition-all duration-300 ease-in-out shrink-0`} 
-        />
-        {isMobile && onClose && (
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-brand-dark-border transition-colors cursor-pointer"
-            aria-label="Close navigation"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+      {/* Logo & Header Controls */}
+      <div className="h-20 px-4 flex items-center justify-between border-b border-brand-dark-border shrink-0 w-full">
+        <Link to="/dashboard" onClick={onItemClick} className="flex items-center gap-2">
+          <img 
+            src={logo} 
+            alt="SLD System" 
+            className="h-[44px] object-contain transition-all duration-300 ease-in-out shrink-0" 
+          />
+        </Link>
+
+        <div className="flex items-center gap-1.5">
+          {/* Click to View / Hide (Pin) button on Desktop */}
+          {!isMobile && onTogglePin && (
+            <button
+              type="button"
+              onClick={onTogglePin}
+              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                isPinned 
+                  ? 'bg-brand-orange text-white border-brand-orange shadow-xs' 
+                  : 'bg-brand-dark-border/40 text-gray-400 border-brand-dark-border hover:text-white hover:bg-brand-dark-border'
+              }`}
+              title={isPinned ? "Side panel is Fixed (Click to Auto-hide on hover)" : "Click to Fix / Keep side panel open"}
+            >
+              {isPinned ? <Pin className="w-4 h-4" /> : <PinOff className="w-4 h-4" />}
+            </button>
+          )}
+
+          {isMobile && onClose && (
+            <button 
+              onClick={onClose}
+              className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-brand-dark-border transition-colors cursor-pointer"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navigation List */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 space-y-1.5 scrollbar-hide w-[260px]">
         
         {/* Top-Level Items (Dashboard, AI Assistant, Search) */}
-        {TOP_NAV_ITEMS.map((item) => {
+        {visibleTopNavItems.map((item) => {
           const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
           return (
             <Link
@@ -180,98 +221,87 @@ const AdminSidebar = ({ className = '', isMobile = false, onItemClick, onClose }
               }`}
             >
               <item.icon className={`w-5 h-5 shrink-0 transition-colors ${isActive ? 'text-white' : item.isHighlight ? 'text-brand-orange' : 'text-gray-400'}`} />
-              <span className={`text-xs font-semibold whitespace-nowrap overflow-hidden transition-all duration-300 ${
-                isMobile 
-                  ? 'max-w-[180px] opacity-100 ml-3.5' 
-                  : 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-3.5'
-              }`}>
+              <span className="text-xs font-semibold whitespace-nowrap overflow-hidden ml-3.5 max-w-[180px] opacity-100">
                 {item.label}
               </span>
             </Link>
           );
         })}
 
-        {/* Separator */}
-        <div className="pt-1 border-t border-brand-dark-border/60 my-1" />
+        {/* Backend Management Folders: Strictly restricted to Administrators and users with allowAllForms */}
+        {isAdmin && (
+          <>
+            {/* Separator */}
+            <div className="pt-1 border-t border-brand-dark-border/60 my-1" />
 
-        {/* Dropdown Folder Groups */}
-        {FOLDER_GROUPS.map((folder) => {
-          const isOpen = Boolean(openFolders[folder.id]);
-          const containsActive = folder.items.some(
-            it => location.pathname === it.path || location.pathname.startsWith(it.path + '/')
-          );
+            {/* Dropdown Folder Groups */}
+            {FOLDER_GROUPS.map((folder) => {
+              const isOpen = Boolean(openFolders[folder.id]);
+              const containsActive = folder.items.some(
+                it => location.pathname === it.path || location.pathname.startsWith(it.path + '/')
+              );
 
-          return (
-            <div key={folder.id} className="flex flex-col">
-              
-              {/* Folder Header Button */}
-              <button
-                type="button"
-                onClick={() => toggleFolder(folder.id)}
-                title={folder.label}
-                className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all select-none cursor-pointer ${
-                  containsActive
-                    ? 'bg-brand-dark-border/70 text-white font-semibold'
-                    : 'text-gray-300 hover:bg-brand-dark-border hover:text-white'
-                }`}
-              >
-                <folder.icon className={`w-5 h-5 shrink-0 transition-colors ${containsActive ? 'text-brand-orange' : 'text-gray-400'}`} />
-                
-                <span className={`text-xs font-bold uppercase tracking-wider whitespace-nowrap overflow-hidden transition-all duration-300 ${
-                  isMobile 
-                    ? 'max-w-[160px] opacity-100 ml-3.5 text-left' 
-                    : 'max-w-0 opacity-0 group-hover:max-w-[160px] group-hover:opacity-100 ml-0 group-hover:ml-3.5 text-left'
-                }`}>
-                  {folder.label}
-                </span>
+              return (
+                <div key={folder.id} className="flex flex-col">
+                  
+                  {/* Folder Header Button */}
+                  <button
+                    type="button"
+                    onClick={() => toggleFolder(folder.id)}
+                    title={folder.label}
+                    className={`flex items-center w-full px-3 py-2.5 rounded-xl transition-all select-none cursor-pointer ${
+                      containsActive
+                        ? 'bg-brand-dark-border/70 text-white font-semibold'
+                        : 'text-gray-300 hover:bg-brand-dark-border hover:text-white'
+                    }`}
+                  >
+                    <folder.icon className={`w-5 h-5 shrink-0 transition-colors ${containsActive ? 'text-brand-orange' : 'text-gray-400'}`} />
+                    
+                    <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap overflow-hidden ml-3.5 text-left max-w-[160px] opacity-100">
+                      {folder.label}
+                    </span>
 
-                <span className={`ml-auto shrink-0 transition-all duration-300 ${
-                  isMobile
-                    ? 'opacity-100'
-                    : 'opacity-0 group-hover:opacity-100'
-                }`}>
-                  {isOpen ? (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-gray-500" />
+                    <span className="ml-auto shrink-0 opacity-100">
+                      {isOpen ? (
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-gray-500" />
+                      )}
+                    </span>
+                  </button>
+
+                  {/* Collapsible Children Items */}
+                  {isOpen && (
+                    <div className="flex flex-col space-y-1 mt-1 pl-2 border-l border-brand-dark-border/70 ml-5 animate-fade-in">
+                      {folder.items.map((subItem) => {
+                        const isSubActive = location.pathname === subItem.path || location.pathname.startsWith(subItem.path + '/');
+                        return (
+                          <Link
+                            key={subItem.path}
+                            to={subItem.path}
+                            title={subItem.label}
+                            onClick={onItemClick}
+                            className={`flex items-center px-2.5 py-2 rounded-lg transition-all ${
+                              isSubActive
+                                ? 'bg-brand-orange text-white font-semibold shadow-sm'
+                                : 'text-gray-400 hover:text-white hover:bg-brand-dark-border/50'
+                            }`}
+                          >
+                            <subItem.icon className={`w-4 h-4 shrink-0 transition-colors ${isSubActive ? 'text-white' : 'text-gray-400'}`} />
+                            <span className="text-xs whitespace-nowrap overflow-hidden ml-2.5 max-w-[180px] opacity-100">
+                              {subItem.label}
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   )}
-                </span>
-              </button>
 
-              {/* Collapsible Children Items */}
-              {isOpen && (
-                <div className="flex flex-col space-y-1 mt-1 pl-2 border-l border-brand-dark-border/70 ml-5 animate-fade-in">
-                  {folder.items.map((subItem) => {
-                    const isSubActive = location.pathname === subItem.path || location.pathname.startsWith(subItem.path + '/');
-                    return (
-                      <Link
-                        key={subItem.path}
-                        to={subItem.path}
-                        title={subItem.label}
-                        onClick={onItemClick}
-                        className={`flex items-center px-2.5 py-2 rounded-lg transition-all ${
-                          isSubActive
-                            ? 'bg-brand-orange text-white font-semibold shadow-sm'
-                            : 'text-gray-400 hover:text-white hover:bg-brand-dark-border/50'
-                        }`}
-                      >
-                        <subItem.icon className={`w-4 h-4 shrink-0 transition-colors ${isSubActive ? 'text-white' : 'text-gray-400'}`} />
-                        <span className={`text-xs whitespace-nowrap overflow-hidden transition-all duration-300 ${
-                          isMobile 
-                            ? 'max-w-[180px] opacity-100 ml-2.5' 
-                            : 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-2.5'
-                        }`}>
-                          {subItem.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
                 </div>
-              )}
-
-            </div>
-          );
-        })}
+              );
+            })}
+          </>
+        )}
 
       </div>
 
@@ -288,16 +318,12 @@ const AdminSidebar = ({ className = '', isMobile = false, onItemClick, onClose }
           ) : (
             <Sun className="w-5 h-5 shrink-0 transition-colors text-gray-400" />
           )}
-          <span className={`text-xs font-semibold whitespace-nowrap overflow-hidden transition-all duration-300 ${
-            isMobile 
-              ? 'max-w-[180px] opacity-100 ml-3.5' 
-              : 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-3.5'
-          }`}>
+          <span className="text-xs font-semibold whitespace-nowrap overflow-hidden ml-3.5 max-w-[180px] opacity-100">
             {isDarkMode ? 'Dark Mode' : 'Light Mode'}
           </span>
         </button>
 
-        {/* User Profile (formerly Settings) */}
+        {/* User Profile */}
         <Link
           to="/settings"
           title="User Profile"
@@ -309,18 +335,12 @@ const AdminSidebar = ({ className = '', isMobile = false, onItemClick, onClose }
           }`}
         >
           <User className={`w-5 h-5 shrink-0 transition-colors ${location.pathname === '/settings' || location.pathname.startsWith('/settings/') ? 'text-white' : 'text-gray-400'}`} />
-          <span className={`text-xs font-semibold whitespace-nowrap overflow-hidden transition-all duration-300 ${
-            isMobile 
-              ? 'max-w-[180px] opacity-100 ml-3.5' 
-              : 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100 ml-0 group-hover:ml-3.5'
-          }`}>
+          <span className="text-xs font-semibold whitespace-nowrap overflow-hidden ml-3.5 max-w-[180px] opacity-100">
             User Profile
           </span>
-          <ChevronRight className={`w-4 h-4 shrink-0 transition-all duration-300 ${
-            isMobile
-              ? 'max-w-[20px] opacity-100 ml-auto'
-              : 'max-w-0 opacity-0 group-hover:max-w-[20px] group-hover:opacity-100 ml-auto'
-          } ${location.pathname === '/settings' || location.pathname.startsWith('/settings/') ? 'text-white' : 'text-gray-500'}`} />
+          <ChevronRight className={`w-4 h-4 shrink-0 transition-all duration-300 ml-auto max-w-[20px] opacity-100 ${
+            location.pathname === '/settings' || location.pathname.startsWith('/settings/') ? 'text-white' : 'text-gray-500'
+          }`} />
         </Link>
       </div>
 

@@ -41,10 +41,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Password is required'],
   },
+  plainPassword: {
+    type: String,
+    default: '',
+  },
   role: {
     type: String,
     enum: ['User', 'Administrator'],
-    default: 'Administrator',
+    default: 'User',
   },
   contactNumber: {
     type: String,
@@ -104,6 +108,10 @@ const userSchema = new mongoose.Schema({
   displayCase: {
     type: Boolean,
     default: true,
+  },
+  allowAllForms: {
+    type: Boolean,
+    default: false,
   },
   activeDate: {
     type: Date,
@@ -165,16 +173,29 @@ userSchema.plugin(autoUniqueIdPlugin, {
 // Pre-save hook to hash password if it was modified
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
+  if (!this.plainPassword || this.isModified('password')) {
+    this.plainPassword = this.password;
+  }
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Method to verify passwords (supports both bcrypt and legacy MD5)
+// Method to verify passwords (supports bcrypt, legacy MD5, SHA1, and plainPassword match)
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (this.plainPassword && this.plainPassword === candidatePassword) {
+    return true;
+  }
   if (this.password && this.password.length === 32 && /^[a-f0-9]{32}$/i.test(this.password)) {
     const crypto = await import('crypto');
     const md5Hash = crypto.default.createHash('md5').update(candidatePassword).digest('hex');
     if (md5Hash.toLowerCase() === this.password.toLowerCase()) {
+      return true;
+    }
+  }
+  if (this.password && this.password.length === 40 && /^[a-f0-9]{40}$/i.test(this.password)) {
+    const crypto = await import('crypto');
+    const sha1Hash = crypto.default.createHash('sha1').update(candidatePassword).digest('hex');
+    if (sha1Hash.toLowerCase() === this.password.toLowerCase()) {
       return true;
     }
   }

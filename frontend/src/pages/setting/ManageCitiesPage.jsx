@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Folder, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, RefreshCw, ChevronUp, ChevronDown, User, LogOut
+  Check, AlertCircle, RefreshCw, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import { PROVINCES } from '../../constants/provinces';
@@ -187,22 +187,6 @@ const ManageCitiesPage = () => {
           <div className="flex items-center gap-2.5 font-bold text-base tracking-wide">
             <Folder className="w-5 h-5 fill-white/20 text-white" />
             <span>Manage Cities</span>
-          </div>
-          <div className="flex items-center gap-4 text-xs">
-            <button
-              onClick={() => navigate('/settings')}
-              className="flex items-center gap-1.5 hover:text-white/80 transition-colors"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>My Account</span>
-            </button>
-            <button
-              onClick={logout}
-              className="flex items-center gap-1.5 hover:text-white/80 transition-colors text-white/90"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Logout</span>
-            </button>
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Scale, FileText, Hash, Building2, 
+import {
+  Scale, FileText, Hash, Building2,
   BookOpen, Sparkles, Bell, Gavel, Landmark
 } from 'lucide-react';
 
@@ -103,11 +103,11 @@ const REFERENCE_SECTORS = [
   },
   {
     id: 'tribunal_fto',
-    tag: 'TRIBUNAL, FTO',
-    title: 'TRIBUNAL, FTO',
+    tag: 'Tri.,Fto,Hc,SC,FCCP',
+    title: 'Tri.,Fto,Hc,SC,FCCP',
     sub: 'Search From All Courts/Fto',
     badge: 'ORDER',
-    fullDesc: 'Decisions and orders from Appellate Tribunal Inland Revenue, Customs & FTO',
+    fullDesc: 'Decisions and orders from Appellate Tribunal Inland Revenue, Customs, High Courts, Supreme Court & FCCP',
     color: '#EAB308', // Amber / Gold
     gradient: ['#FBBF24', '#B45309'],
     badgeBg: '#FEF3C7',
@@ -138,11 +138,11 @@ const detectMatchingSector = (matchedCase, matchType) => {
   if (!matchedCase) return null;
 
   const court = String(matchedCase.court || '').toLowerCase();
-  const caseNums = Array.isArray(matchedCase.caseNumber) 
-    ? matchedCase.caseNumber.join(' ').toLowerCase() 
+  const caseNums = Array.isArray(matchedCase.caseNumber)
+    ? matchedCase.caseNumber.join(' ').toLowerCase()
     : String(matchedCase.caseNumber || '').toLowerCase();
-  const citations = Array.isArray(matchedCase.mapYearPage) 
-    ? matchedCase.mapYearPage.join(' ').toLowerCase() 
+  const citations = Array.isArray(matchedCase.mapYearPage)
+    ? matchedCase.mapYearPage.join(' ').toLowerCase()
     : String(matchedCase.mapYearPage || '').toLowerCase();
   const principle = String(matchedCase.principleLaw || '').toLowerCase();
 
@@ -306,7 +306,7 @@ const OrbitalSpinWheel = ({
   // Center coordinate and radii for the 800x800 SVG canvas
   const cx = 400;
   const cy = 400;
-  
+
   // Dimensions matching the reference infographic
   const R_BANNER_OUT = 372;
   const R_BANNER_IN = 308;
@@ -321,7 +321,7 @@ const OrbitalSpinWheel = ({
   const bannerPath = useMemo(() => {
     const halfAngle = 19.5;
     const toRad = deg => (deg * Math.PI) / 180;
-    
+
     // Outer arc endpoints
     const xOut1 = cx + R_BANNER_OUT * Math.cos(toRad(-halfAngle));
     const yOut1 = cy + R_BANNER_OUT * Math.sin(toRad(-halfAngle));
@@ -439,7 +439,7 @@ const OrbitalSpinWheel = ({
     const rRoot = 114;
     const rTip = 138;
     const toRad = deg => (deg * Math.PI) / 180;
-    
+
     let path = '';
     for (let i = 0; i < numTeeth; i++) {
       const step = 360 / numTeeth;
@@ -468,7 +468,7 @@ const OrbitalSpinWheel = ({
 
   return (
     <div className={`relative flex flex-col items-center justify-start select-none w-full max-w-[500px] mx-auto gap-3 ${className}`}>
-      
+
       {/* 1. TOP HEADER: Matching Reference Image (● SLD LEGAL WHEEL  |  8 Reference Engines) */}
       <div className="w-full flex items-center justify-between px-1 py-1 z-20 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -485,12 +485,11 @@ const OrbitalSpinWheel = ({
 
       {/* 2. MAIN SVG INFOGRAPHIC WHEEL */}
       <div className="relative w-full aspect-square flex items-center justify-center">
-        
+
         {/* Subtle Ambient Radial Aura */}
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className={`w-[85%] h-[85%] rounded-full bg-gradient-to-tr from-brand-orange/15 via-cyan-500/10 to-purple-500/15 blur-3xl transition-opacity duration-700 ${
-            isSearching ? 'opacity-90 animate-pulse' : 'opacity-40'
-          }`} />
+          <div className={`w-[85%] h-[85%] rounded-full bg-gradient-to-tr from-brand-orange/15 via-cyan-500/10 to-purple-500/15 blur-3xl transition-opacity duration-700 ${isSearching ? 'opacity-90 animate-pulse' : 'opacity-40'
+            }`} />
         </div>
 
         <svg
@@ -580,7 +579,7 @@ const OrbitalSpinWheel = ({
 
           {/* ROTATING ASSEMBLY (8 SECTORS) */}
           <g className={isSearching ? "wheel-scanning-spin" : "wheel-idle-settled"}>
-            
+
             {REFERENCE_SECTORS.map((sector, index) => {
               const sectorAngle = index * 45 - 90;
               const isExtracted = sector.id === extractedSectorId;
@@ -596,7 +595,7 @@ const OrbitalSpinWheel = ({
                 >
                   {/* VISUAL LAYER */}
                   <g className="pointer-events-none">
-                    
+
                     {/* 1. OUTER COLORED CURVED BANNER WITH TAB */}
                     <g>
                       <path
@@ -605,9 +604,8 @@ const OrbitalSpinWheel = ({
                         stroke={isExtracted ? "#FFFFFF" : isHovered ? "#FFFFFF" : "none"}
                         strokeWidth={isExtracted ? "2.5" : isHovered ? "1.5" : "0"}
                         filter={isExtracted ? "url(#activeSectorGlow)" : "none"}
-                        className={`transition-all duration-300 ${
-                          isExtracted ? 'filter drop-shadow-[0_0_14px_rgba(255,255,255,0.9)]' : ''
-                        }`}
+                        className={`transition-all duration-300 ${isExtracted ? 'filter drop-shadow-[0_0_14px_rgba(255,255,255,0.9)]' : ''
+                          }`}
                         opacity={isHighlighted ? 1 : 0.94}
                       />
 
@@ -615,13 +613,15 @@ const OrbitalSpinWheel = ({
                       <text
                         fill="#FFFFFF"
                         fontSize={
-                          sector.tag === 'PRA,SRB,KPRA,BRA' ? "14.5" :
-                          sector.tag.length > 9 ? "17" : "19"
+                          sector.id === 'tribunal_fto' ? "13" :
+                            sector.tag === 'PRA,SRB,KPRA,BRA' ? "14.5" :
+                              sector.tag.length > 9 ? "17" : "19"
                         }
                         fontWeight="900"
                         letterSpacing={
-                          sector.tag === 'PRA,SRB,KPRA,BRA' ? "1.0" :
-                          sector.tag.length > 9 ? "1.5" : "2.2"
+                          sector.id === 'tribunal_fto' ? "0.6" :
+                            sector.tag === 'PRA,SRB,KPRA,BRA' ? "1.0" :
+                              sector.tag.length > 9 ? "1.5" : "2.2"
                         }
                         textAnchor="middle"
                         className="select-none tracking-widest drop-shadow-sm font-sans"
@@ -647,13 +647,12 @@ const OrbitalSpinWheel = ({
                       {/* Card Body */}
                       <path
                         d={cardPath}
-                        className={`transition-all duration-300 ${
-                          isExtracted
+                        className={`transition-all duration-300 ${isExtracted
                             ? 'fill-amber-50/70 dark:fill-[#252b3b]'
-                            : isHovered 
-                              ? 'fill-amber-50/40 dark:fill-[#252b3b]' 
+                            : isHovered
+                              ? 'fill-amber-50/40 dark:fill-[#252b3b]'
                               : 'fill-white dark:fill-[#1e222d]'
-                        }`}
+                          }`}
                         stroke={isExtracted ? sector.color : isHovered ? sector.color : '#CBD5E1'}
                         strokeWidth={isExtracted ? '3.5' : isHovered ? '2.5' : '1'}
                       />
@@ -682,38 +681,23 @@ const OrbitalSpinWheel = ({
                         opacity="0.85"
                       />
 
-                      {/* CARD CONTENT (Title, Subtitle, and Badge Pill) */}
+                      {/* CARD CONTENT (Subtitle and Badge Pill - Title removed as requested) */}
                       <g transform={`translate(${cx + 242}, ${cy})`}>
                         <g transform="rotate(90)">
-                          {/* Title */}
-                          <text
-                            x="0"
-                            y="-18"
-                            textAnchor="middle"
-                            fontSize={
-                              sector.title.length > 12 ? "12" :
-                              sector.title.length > 8 ? "15" : "18"
-                            }
-                            fontWeight="900"
-                            className="select-none font-sans fill-slate-900 dark:fill-slate-100"
-                          >
-                            {sector.title}
-                          </text>
-
                           {/* Subtitle */}
                           <text
                             x="0"
-                            y="2"
+                            y="-6"
                             textAnchor="middle"
-                            fontSize={sector.sub.length > 20 ? "9" : "10.5"}
-                            fontWeight="700"
-                            className="fill-slate-500 dark:fill-slate-400 select-none font-sans"
+                            fontSize={sector.sub.length > 20 ? "9.5" : "11"}
+                            fontWeight="800"
+                            className="fill-slate-700 dark:fill-slate-200 select-none font-sans"
                           >
                             {sector.sub}
                           </text>
 
                           {/* Pill Badge matching reference */}
-                          <g transform="translate(0, 24)">
+                          <g transform="translate(0, 16)">
                             <rect
                               x="-36"
                               y="-8.5"
@@ -784,7 +768,7 @@ const OrbitalSpinWheel = ({
 
           {/* 3. CENTRAL MECHANICAL GEAR (COGWHEEL) */}
           <g filter="url(#gearShadow)">
-            
+
             {/* Gear Body with 16 Teeth */}
             <path
               d={gearPath}
@@ -889,14 +873,14 @@ const OrbitalSpinWheel = ({
             onClick={() => onNodeClick?.(displayedSector.id)}
           >
             <div className="w-full h-full flex flex-col items-center justify-center text-center px-1">
-              <div 
+              <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-white mb-0.5 shadow-sm"
                 style={{ backgroundColor: displayedSector.color }}
               >
                 <DisplayedIcon className="w-4 h-4" />
               </div>
-              <span 
-                className="text-[9.5px] font-black uppercase tracking-tight truncate max-w-[85px] leading-tight"
+              <span
+                className="text-[9px] font-black tracking-tight truncate max-w-[88px] leading-tight"
                 style={{ color: '#A78BFA' }}
               >
                 {displayedSector.title}
@@ -913,13 +897,13 @@ const OrbitalSpinWheel = ({
 
       {/* 3. THREE STACKED CARDS DIRECTLY BELOW THE WHEEL (SYNCHRONIZED WITH GROUNDED PRECEDENT) */}
       <div className="w-full flex flex-col gap-2 z-20 shrink-0">
-        
+
         {/* CARD 1: Case Court / Citation — SLD # | 100% Grounded */}
         <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/40 dark:bg-slate-900 shadow-xs">
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="w-4 h-4 text-emerald-500 shrink-0 animate-pulse" />
             <span className="text-xs sm:text-[13px] font-black text-slate-800 dark:text-slate-100 truncate">
-              {lastMatchedCase 
+              {lastMatchedCase
                 ? `${lastMatchedCase.court || 'Court of Record'} — SLD #${lastMatchedCase.sldNumber || ''}`
                 : 'Appellate Tribunal Inland Revenue — SLD Precedents'}
             </span>
@@ -932,11 +916,11 @@ const OrbitalSpinWheel = ({
         {/* CARD 2: Result from [EXACT NAME OF EXTRACTED FORUM / TRIBUNAL / STATUTE] | FORUM CATEGORY */}
         <div className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span 
+            <span
               className="w-2.5 h-2.5 rounded-full shrink-0 animate-ping"
               style={{ backgroundColor: displayedSector.color }}
             />
-            <span 
+            <span
               className="w-2.5 h-2.5 rounded-full shrink-0 -ml-5"
               style={{ backgroundColor: displayedSector.color }}
             />
@@ -944,12 +928,12 @@ const OrbitalSpinWheel = ({
               Result from <strong className="uppercase font-black" style={{ color: displayedSector.color }}>{exactSourceName}</strong>
             </span>
           </div>
-          <span 
+          <span
             className="text-[10px] font-black tracking-wider uppercase shrink-0 px-2 py-0.5 rounded border"
-            style={{ 
-              color: displayedSector.color, 
+            style={{
+              color: displayedSector.color,
               borderColor: `${displayedSector.color}40`,
-              backgroundColor: `${displayedSector.color}15` 
+              backgroundColor: `${displayedSector.color}15`
             }}
           >
             {sourceCategoryTag}
@@ -957,13 +941,13 @@ const OrbitalSpinWheel = ({
         </div>
 
         {/* CARD 3: Sector Detail Card (Interactive Deep Dive / Query Trigger) */}
-        <div 
+        <div
           onClick={() => onNodeClick?.(displayedSector.id)}
           className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-2xl border-2 bg-white dark:bg-slate-900 shadow-sm cursor-pointer hover:shadow-md transition-all gap-2.5"
           style={{ borderColor: `${displayedSector.color}60` }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div 
+            <div
               className="w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-md shrink-0 transition-transform"
               style={{
                 background: `linear-gradient(135deg, ${displayedSector.gradient[0]}, ${displayedSector.gradient[1]})`
@@ -972,7 +956,7 @@ const OrbitalSpinWheel = ({
               <DisplayedIcon className="w-5 h-5" />
             </div>
             <div className="flex flex-col min-w-0">
-              <h4 
+              <h4
                 className="text-xs sm:text-[13px] font-black truncate leading-tight"
                 style={{ color: displayedSector.color }}
               >
@@ -987,7 +971,7 @@ const OrbitalSpinWheel = ({
             </div>
           </div>
 
-          <span 
+          <span
             className="text-[10px] font-black uppercase tracking-wider text-white px-2.5 py-1.5 rounded-lg shrink-0 shadow-xs"
             style={{ backgroundColor: displayedSector.badgeText === '#FFFFFF' ? displayedSector.badgeBg : displayedSector.color }}
           >

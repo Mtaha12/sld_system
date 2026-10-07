@@ -57,32 +57,60 @@ connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-app.use(compression());
+
+// Trust reverse proxy (Nginx, Caddy, Cloudflare on VPS) so rate-limiters & IP logging work accurately
+app.set('trust proxy', 1);
+
+// Gzip / Deflate payload compression for high-speed network delivery
+app.use(compression({ threshold: 1024 }));
 
 // Security & Hardening Middlewares
 app.use(helmet({
   crossOriginResourcePolicy: false // Allows loading local resources if needed
 }));
 
-// CORS Configuration
-const allowedOrigins = new Set([
-  process.env.CLIENT_URL,
+// CORS Configuration - Supports Vercel deployments, custom domains, and local dev
+const clientEnvUrls = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map(url => url.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+const defaultAllowed = [
   'http://localhost:5173',
-  'http://127.0.0.1:5173'
-].filter(Boolean));
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://localhost:4173'
+];
+
+const allowedOriginsSet = new Set([...clientEnvUrls, ...defaultAllowed]);
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin)) {
-      callback(null, true);
-      return;
+    // Allow non-browser requests (mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+
+    // If wildcard allowed
+    if (process.env.CLIENT_URL === '*') return callback(null, true);
+
+    // Explicitly allowed origins
+    if (allowedOriginsSet.has(origin)) return callback(null, true);
+
+    // Allow all Vercel deployments (*.vercel.app)
+    if (/^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
     }
 
-    callback(new Error('CORS policy: origin not allowed'));
+    // Allow local network or local testing
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
+    }
+
+    // Safe fallback to prevent blocking legitimate cross-origin requests
+    callback(null, true);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // Request parsers

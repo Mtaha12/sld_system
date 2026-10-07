@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ShieldBan, Plus, Search, Trash2, RefreshCw, AlertCircle, Check, User, LogOut } from 'lucide-react';
+import { ShieldBan, Plus, Search, Trash2, RefreshCw, AlertCircle, Check } from 'lucide-react';
 import { ipBlockService } from '../../services/adminSettingsServices';
 import { settingService } from '../../services/settingService';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
@@ -146,16 +146,6 @@ const ManageIpBlockPage = () => {
         <div className="flex items-center gap-2">
           <ShieldBan className="w-5 h-5 text-white/90" />
           <h1 className="text-base font-bold tracking-wide">Manage Ip Block List</h1>
-        </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={() => navigate('/settings')}>
-            <User className="w-4 h-4" />
-            <span>My Account</span>
-          </div>
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={logout}>
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </div>
         </div>
       </div>
 

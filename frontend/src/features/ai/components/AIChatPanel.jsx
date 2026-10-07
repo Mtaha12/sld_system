@@ -200,20 +200,59 @@ const AIChatPanel = ({
   return (
     <div className={`flex flex-col h-full bg-white dark:bg-[#0f1117] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden ${className}`}>
       
-      {/* Top Chambers Docket & Tab Registry Bar */}
-      <div className="px-3.5 pt-2.5 pb-0 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-[#141721] flex items-center justify-between gap-3 shrink-0 overflow-hidden">
+      {/* Top Chambers Docket & Tab Registry Bar (Sticky Top Header) */}
+      <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-[#141721]/95 backdrop-blur-md flex items-center gap-2 shrink-0 z-20 overflow-x-auto no-scrollbar">
         
-        {/* Horizontal Case Docket Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 py-1">
+        {/* START: Hide/Show Wheel Button */}
+        {onToggleWheel && (
+          <button
+            type="button"
+            onClick={onToggleWheel}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap active:scale-95 shrink-0 ${
+              showWheel
+                ? 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold'
+                : 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white font-bold'
+            }`}
+            title={showWheel ? "Hide Reference Wheel" : "Show Reference Wheel"}
+          >
+            {showWheel ? (
+              <>
+                <PanelLeftClose className="w-3.5 h-3.5 text-amber-600" />
+                <span>Hide Wheel</span>
+              </>
+            ) : (
+              <>
+                <PanelLeftOpen className="w-3.5 h-3.5 text-amber-500" />
+                <span>Show Wheel</span>
+              </>
+            )}
+          </button>
+        )}
+
+        {/* START: New Session Button */}
+        <button
+          type="button"
+          onClick={onNewSession}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold transition-all shadow-xs hover:shadow-sm cursor-pointer whitespace-nowrap active:scale-95 shrink-0"
+          title="Open new chat session"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>New Session</span>
+        </button>
+
+        <div className="h-5 w-[1px] bg-slate-300 dark:bg-slate-700 mx-1 shrink-0" />
+
+        {/* Followed by: All Chat Session Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 py-0.5">
           {sessions.map((sess) => {
             const isActive = sess.id === activeSessionId;
             return (
               <div
                 key={sess.id}
                 onClick={() => onSelectSession?.(sess.id)}
-                className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-t-xl text-xs font-semibold cursor-pointer transition-all border-t border-x shrink-0 select-none ${
+                className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all border shrink-0 select-none ${
                   isActive
-                    ? 'bg-white dark:bg-[#0f1117] text-amber-600 dark:text-amber-400 border-slate-200 dark:border-slate-700/80 shadow-xs border-b-2 border-b-amber-500 z-10 font-bold'
+                    ? 'bg-white dark:bg-[#0f1117] text-amber-600 dark:text-amber-400 border-amber-500/40 shadow-xs z-10 font-bold'
                     : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/60 border-transparent'
                 }`}
                 title={sess.title}
@@ -233,51 +272,13 @@ const AIChatPanel = ({
                   className={`rounded p-0.5 transition-all text-slate-400 hover:text-red-500 hover:bg-red-500/10 cursor-pointer ${
                     isActive ? 'opacity-80 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'
                   }`}
-                  title="Close brief"
+                  title="Close session"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </div>
             );
           })}
-        </div>
-
-        {/* Action Controls: Reference Wheel Toggle & New Brief Button */}
-        <div className="flex items-center gap-2 pb-1.5 shrink-0">
-          {onToggleWheel && (
-            <button
-              type="button"
-              onClick={onToggleWheel}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap active:scale-95 ${
-                showWheel
-                  ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  : 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white font-bold'
-              }`}
-              title={showWheel ? "Hide 8-Sector Reference Wheel to expand workspace" : "Show 8-Sector Reference Wheel"}
-            >
-              {showWheel ? (
-                <>
-                  <PanelLeftClose className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Hide Wheel</span>
-                </>
-              ) : (
-                <>
-                  <PanelLeftOpen className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Show Wheel</span>
-                </>
-              )}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={onNewSession}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold transition-all shadow-xs hover:shadow-sm cursor-pointer whitespace-nowrap active:scale-95"
-            title="Start a new legal case brief"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Brief</span>
-          </button>
         </div>
 
       </div>
@@ -568,6 +569,63 @@ const AIChatPanel = ({
                         )}
                       </div>
 
+                    </div>
+                  )}
+
+                  {/* Multi-Case Authority Cards (When multiple cases match, e.g. 236G, 236H, etc.) */}
+                  {!isUser && isMultiCase && (
+                    <div className="bg-white dark:bg-[#131620] border border-amber-500/30 rounded-xl p-4 sm:p-5 shadow-md space-y-4 animate-fade-in">
+                      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
+                        <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                          <Gavel className="w-4 h-4 text-amber-500" />
+                          <span>All Matching Case Law Records ({analysis.matchedCases.length} Cases Found)</span>
+                        </div>
+                        <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold font-mono">
+                          Verified in SLD Database
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-1">
+                        {analysis.matchedCases.map((c, cIdx) => (
+                          <div 
+                            key={c.id || cIdx}
+                            className="p-3 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/30 hover:border-amber-500/40 transition-all flex flex-col justify-between gap-2"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono">
+                                  SLD #{c.sldNumber || c.id}
+                                </span>
+                                {c.dated && (
+                                  <span className="text-[10px] text-slate-400">
+                                    {String(c.dated).split('T')[0]}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="font-bold text-xs text-slate-800 dark:text-slate-200 line-clamp-1">
+                                {Array.isArray(c.citations) && c.citations.length > 0 ? c.citations.join(' = ') : `Case ${cIdx + 1}`}
+                              </div>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                                {c.court || 'High Court of Record'}
+                              </p>
+                            </div>
+                            <div className="pt-1 border-t border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {Array.isArray(c.caseNumber) ? c.caseNumber[0] : (c.caseNumber || '')}
+                              </span>
+                              <a
+                                href={`/cases/view/${c.sldNumber || c.id || c._id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-500 transition-colors"
+                              >
+                                <span>View Document</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 

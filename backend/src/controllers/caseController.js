@@ -161,7 +161,7 @@ const formatCaseForFrontend = (c) => {
  */
 export const getCases = async (req, res, next) => {
   try {
-    const { subject, fromDate, toDate, magazine, page, limit, sortField, sortOrder } = req.query;
+    const { subject, fromDate, toDate, fromYear, toYear, magazine, page, limit, sortField, sortOrder } = req.query;
 
     const query = { isDeleted: { $ne: true } };
 
@@ -195,13 +195,59 @@ export const getCases = async (req, res, next) => {
       query.dated = { ...query.dated, $lte: toDate };
     }
 
-    if (magazine) {
-      query.mapYearPage = new RegExp(escapeRegex(magazine.trim()), 'i');
+    // Support year to year search (fromYear to toYear)
+    if (fromYear || toYear) {
+      const fy = fromYear ? String(fromYear).trim() : '';
+      const ty = toYear ? String(toYear).trim() : '';
+      const yearConditions = [];
+      if (fy && ty) {
+        yearConditions.push(
+          { 'publications.year': { $gte: fy, $lte: ty } },
+          { dated: { $gte: `${fy}-01-01`, $lte: `${ty}-12-31` } }
+        );
+      } else if (fy) {
+        yearConditions.push(
+          { 'publications.year': { $gte: fy } },
+          { dated: { $gte: `${fy}-01-01` } }
+        );
+      } else if (ty) {
+        yearConditions.push(
+          { 'publications.year': { $lte: ty } },
+          { dated: { $lte: `${ty}-12-31` } }
+        );
+      }
+      if (yearConditions.length > 0) {
+        if (query.$or) {
+          query.$and = [{ $or: query.$or }, { $or: yearConditions }];
+          delete query.$or;
+        } else {
+          query.$or = yearConditions;
+        }
+      }
     }
 
-    // Pagination
+    if (magazine && magazine.trim()) {
+      const magClean = escapeRegex(magazine.trim());
+      const magRegex = new RegExp(magClean, 'i');
+      const magCondition = [
+        { 'publications.mag': magRegex },
+        { mapYearPage: magRegex }
+      ];
+      if (query.$and) {
+        query.$and.push({ $or: magCondition });
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: magCondition }];
+        delete query.$or;
+      } else {
+        query.$or = magCondition;
+      }
+    }
+
+    // Pagination (allow up to 2000 if magazine search is active to retrieve all entries)
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 25));
+    const maxLimitAllowed = (magazine && magazine.trim()) ? 2000 : 100;
+    const defaultLimit = (magazine && magazine.trim()) ? 500 : 25;
+    const limitNum = Math.min(maxLimitAllowed, Math.max(1, parseInt(limit, 10) || defaultLimit));
     const skip = (pageNum - 1) * limitNum;
 
     // Sorting
@@ -216,13 +262,13 @@ export const getCases = async (req, res, next) => {
     const safeSortOrder = sortOrder === 'desc' ? -1 : 1;
     const sortObj = { [targetSortField]: safeSortOrder };
 
-    const hasFilter = Boolean((subject && subject.trim()) || fromDate || toDate || (magazine && magazine.trim()));
+    const hasFilter = Boolean((subject && subject.trim()) || fromDate || toDate || fromYear || toYear || (magazine && magazine.trim()));
 
     // Execute count + paginated query in parallel using fast indexed queries
     const [totalItems, cases] = await Promise.all([
       getTotalCasesCount(query, hasFilter),
       Case.find(query)
-        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department')
+        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw')
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
@@ -778,11 +824,35 @@ export const searchCases = async (req, res, next) => {
       andConditions.push({ 'publications.page': { $regex: escapeRegex(filters.page), $options: 'i' } });
     }
 
-    if (filters.selectLaw) {
+    const lawQuery = filters.selectLaw || filters.law;
+    if (lawQuery) {
       andConditions.push({
         $or: [
-          { principleLaw: { $regex: escapeRegex(filters.selectLaw), $options: 'i' } },
-          { 'laws.lawStatute': { $regex: escapeRegex(filters.selectLaw), $options: 'i' } }
+          { principleLaw: { $regex: escapeRegex(lawQuery), $options: 'i' } },
+          { 'laws.lawStatute': { $regex: escapeRegex(lawQuery), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.number) {
+      andConditions.push({
+        $or: [
+          { caseNumber: { $regex: escapeRegex(filters.number), $options: 'i' } },
+          { sldNumber: { $regex: escapeRegex(filters.number), $options: 'i' } },
+          { references: { $regex: escapeRegex(filters.number), $options: 'i' } },
+          { headNote: { $regex: escapeRegex(filters.number), $options: 'i' } },
+          { judgment: { $regex: escapeRegex(filters.number), $options: 'i' } }
+        ]
+      });
+    }
+
+    if (filters.year) {
+      andConditions.push({
+        $or: [
+          { 'publications.year': { $regex: escapeRegex(filters.year), $options: 'i' } },
+          { dated: { $regex: escapeRegex(filters.year), $options: 'i' } },
+          { caseNumber: { $regex: escapeRegex(filters.year), $options: 'i' } },
+          { mapYearPage: { $regex: escapeRegex(filters.year), $options: 'i' } }
         ]
       });
     }
@@ -817,20 +887,49 @@ export const searchCases = async (req, res, next) => {
       andConditions.push({ dated: { $regex: escapeRegex(filters.date), $options: 'i' } });
     }
 
-    if (filters.keywords) {
+    if (filters.fromYear || filters.toYear) {
+      const fy = filters.fromYear ? String(filters.fromYear).trim() : '';
+      const ty = filters.toYear ? String(filters.toYear).trim() : '';
+      if (fy && ty) {
+        andConditions.push({
+          $or: [
+            { 'publications.year': { $gte: fy, $lte: ty } },
+            { dated: { $gte: `${fy}-01-01`, $lte: `${ty}-12-31` } }
+          ]
+        });
+      } else if (fy) {
+        andConditions.push({
+          $or: [
+            { 'publications.year': { $gte: fy } },
+            { dated: { $gte: `${fy}-01-01` } }
+          ]
+        });
+      } else if (ty) {
+        andConditions.push({
+          $or: [
+            { 'publications.year': { $lte: ty } },
+            { dated: { $lte: `${ty}-12-31` } }
+          ]
+        });
+      }
+    }
+
+    const kw1 = filters.keywords || filters.text;
+    if (kw1) {
       andConditions.push({
         $or: [
-          { headNote: { $regex: escapeRegex(filters.keywords), $options: 'i' } },
-          { judgment: { $regex: escapeRegex(filters.keywords), $options: 'i' } }
+          { headNote: { $regex: escapeRegex(kw1), $options: 'i' } },
+          { judgment: { $regex: escapeRegex(kw1), $options: 'i' } }
         ]
       });
     }
 
-    if (filters.keywords2) {
+    const kw2 = filters.keywords2 || filters.text2;
+    if (kw2) {
       andConditions.push({
         $or: [
-          { headNote: { $regex: escapeRegex(filters.keywords2), $options: 'i' } },
-          { judgment: { $regex: escapeRegex(filters.keywords2), $options: 'i' } }
+          { headNote: { $regex: escapeRegex(kw2), $options: 'i' } },
+          { judgment: { $regex: escapeRegex(kw2), $options: 'i' } }
         ]
       });
     }
@@ -867,11 +966,11 @@ export const searchCases = async (req, res, next) => {
     const query = { $and: andConditions };
     
     // High-performance execution: limit + field projection + .lean()
+    const searchLimit = filters.magazine ? 2000 : (parseInt(filters.limit, 10) || 100);
     const cases = await Case.find(query)
-      .collation({ locale: 'en_US', numericOrdering: true })
       .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim')
-      .sort({ sldNumber: -1 })
-      .limit(100)
+      .sort({ sldNumberInt: -1, sldNumber: -1 })
+      .limit(searchLimit)
       .lean();
 
     let formattedCases = cases.map(c => formatCaseForFrontend(c));

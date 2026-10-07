@@ -32,9 +32,12 @@ const DownloadsPage = lazy(() => import('./pages/DownloadsPage'))
 const YoutubeUpdatesPage = lazy(() => import('./pages/YoutubeUpdatesPage'))
 const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'))
 const SearchCaseLawPage = lazy(() => import('./pages/SearchCaseLawPage'))
+const StatuteSearchPage = lazy(() => import('./pages/StatuteSearchPage'))
+const NotificationSearchPage = lazy(() => import('./pages/NotificationSearchPage'))
 const CaseViewPage = lazy(() => import('./pages/CaseViewPage'))
 const ManageCitiesPage = lazy(() => import('./pages/setting/ManageCitiesPage'))
 const ManagePrincipleOfLawsPage = lazy(() => import('./pages/setting/ManagePrincipleOfLawsPage'))
+const ManageLegalMaximsPage = lazy(() => import('./pages/setting/ManageLegalMaximsPage'))
 const ManageLawsPage = lazy(() => import('./pages/setting/ManageLawsPage'))
 const ManageUsersPage = lazy(() => import('./pages/ManageUsersPage'))
 const CaseActivityPage = lazy(() => import('./pages/activity/CaseActivityPage'))
@@ -97,6 +100,12 @@ function App() {
                 <Route path="/youtube-updates" element={<YoutubeUpdatesPage />} />
                 <Route path="/manage-youtube" element={<YoutubeUpdatesPage />} />
                 <Route path="/search-case-law" element={<SearchCaseLawPage />} />
+                <Route path="/statute-search" element={<StatuteSearchPage />} />
+                <Route path="/search-statute" element={<Navigate to="/statute-search" replace />} />
+                <Route path="/search-statutes" element={<Navigate to="/statute-search" replace />} />
+                <Route path="/notification-search" element={<NotificationSearchPage />} />
+                <Route path="/search-notification" element={<Navigate to="/notification-search" replace />} />
+                <Route path="/search-notifications" element={<Navigate to="/notification-search" replace />} />
                 <Route path="/manage-cases" element={<ManageCasesPage />} />
                 <Route path="/manage-cases/add" element={<AddCaseLawPage />} />
                 <Route path="/cases/new" element={<Navigate to="/manage-cases/add" replace />} />
@@ -111,6 +120,9 @@ function App() {
                 <Route path="/settings/cities" element={<Navigate to="/setting/cities" replace />} />
                 <Route path="/setting/principles" element={<ManagePrincipleOfLawsPage />} />
                 <Route path="/settings/principles" element={<Navigate to="/setting/principles" replace />} />
+                <Route path="/setting/legal-maxims" element={<ManageLegalMaximsPage />} />
+                <Route path="/settings/legal-maxims" element={<Navigate to="/setting/legal-maxims" replace />} />
+                <Route path="/manage-legal-maxims" element={<Navigate to="/setting/legal-maxims" replace />} />
                 <Route path="/setting/laws" element={<ManageLawsPage />} />
                 <Route path="/settings/laws" element={<Navigate to="/setting/laws" replace />} />
                 <Route path="/manage-users" element={<ManageUsersPage />} />
@@ -138,6 +150,8 @@ function App() {
                 <Route path="/dictionary" element={<Navigate to="/manage-dictionary" replace />} />
                 <Route path="/manage-newsletters" element={<ManageNewslettersPage />} />
                 <Route path="/newsletters" element={<Navigate to="/manage-newsletters" replace />} />
+                <Route path="/manage-emails" element={<ManageNewslettersPage />} />
+                <Route path="/emails" element={<Navigate to="/manage-emails" replace />} />
                 <Route path="/manage-custom-tariffs" element={<ManageCustomTariffsPage />} />
                 <Route path="/manage-custom-tariff" element={<Navigate to="/manage-custom-tariffs" replace />} />
                 <Route path="/custom-tariffs" element={<Navigate to="/manage-custom-tariffs" replace />} />

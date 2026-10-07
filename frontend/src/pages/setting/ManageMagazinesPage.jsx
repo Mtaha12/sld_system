@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BookOpen, Plus, Search, Edit2, Trash2, RefreshCw, AlertCircle, Check, User, LogOut } from 'lucide-react';
+import { BookOpen, Plus, Search, Edit2, Trash2, RefreshCw, AlertCircle, Check } from 'lucide-react';
 import { magazineService } from '../../services/adminSettingsServices';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
 import Modal from '../../components/ui/Modal';
@@ -142,16 +142,6 @@ const ManageMagazinesPage = () => {
         <div className="flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-white/90" />
           <h1 className="text-base font-bold tracking-wide">Manage Magazines</h1>
-        </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={() => navigate('/settings')}>
-            <User className="w-4 h-4" />
-            <span>My Account</span>
-          </div>
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={logout}>
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </div>
         </div>
       </div>
 

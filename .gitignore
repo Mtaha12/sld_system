@@ -2,3 +2,8 @@
 .env
 .env.*
 !.env.example
+
+# Database backup files (transferred directly to VPS via SCP to avoid GitHub 100MB file limit)
+database_backup/
+*.tar
+*.archive

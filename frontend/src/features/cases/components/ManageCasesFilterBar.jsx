@@ -29,8 +29,8 @@ const ManageCasesFilterBar = ({
   const navigate = useNavigate();
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [subject, setSubject] = useState(initialSearch || '');
-  const [fromDate, setFromDate] = useState(null);
-  const [toDate, setToDate] = useState(null);
+  const [fromYear, setFromYear] = useState('');
+  const [toYear, setToYear] = useState('');
   const [magazine, setMagazine] = useState('');
 
   // Synchronize when initialSearch prop changes (e.g. navigation from Dashboard search)
@@ -42,13 +42,13 @@ const ManageCasesFilterBar = ({
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
-    onSearch?.({ subject, fromDate, toDate, magazine });
+    onSearch?.({ subject, fromYear, toYear, magazine });
   };
 
   const handleShowAllClick = () => {
     setSubject('');
-    setFromDate(null);
-    setToDate(null);
+    setFromYear('');
+    setToYear('');
     setMagazine('');
     onShowAll?.();
   };
@@ -74,7 +74,7 @@ const ManageCasesFilterBar = ({
               onChange={(e) => {
                 const val = e.target.value;
                 setSubject(val);
-                onSearch?.({ subject: val, fromDate, toDate, magazine });
+                onSearch?.({ subject: val, fromYear, toYear, magazine });
               }}
               placeholder="Search by Court, Case #, Judge, Lawyer, Subject..." 
               className="w-full pl-9 pr-4 py-2.5 bg-theme-surface border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange text-theme-main transition-colors shadow-sm"
@@ -82,21 +82,39 @@ const ManageCasesFilterBar = ({
           </div>
         </div>
         
-        <DatePicker
-          selectedDate={fromDate}
-          onChange={setFromDate}
-          placeholder="From year/vol"
-          disableFutureDates={true}
-          className="w-full sm:w-[150px] shrink-0"
-        />
+        {/* From Year Input */}
+        <div className="w-full sm:w-[130px] shrink-0">
+          <input 
+            type="number"
+            min="1900"
+            max="2099"
+            value={fromYear}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFromYear(val);
+              onSearch?.({ subject, fromYear: val, toYear, magazine });
+            }}
+            placeholder="From Year" 
+            className="w-full px-3 py-2.5 bg-theme-surface border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange text-theme-main transition-colors shadow-sm"
+          />
+        </div>
 
-        <DatePicker
-          selectedDate={toDate}
-          onChange={setToDate}
-          placeholder="To year/vol"
-          disableFutureDates={true}
-          className="w-full sm:w-[150px] shrink-0"
-        />
+        {/* To Year Input */}
+        <div className="w-full sm:w-[130px] shrink-0">
+          <input 
+            type="number"
+            min="1900"
+            max="2099"
+            value={toYear}
+            onChange={(e) => {
+              const val = e.target.value;
+              setToYear(val);
+              onSearch?.({ subject, fromYear, toYear: val, magazine });
+            }}
+            placeholder="To Year" 
+            className="w-full px-3 py-2.5 bg-theme-surface border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange text-theme-main transition-colors shadow-sm"
+          />
+        </div>
 
         <div className="relative w-full sm:w-[140px] shrink-0">
           <select 

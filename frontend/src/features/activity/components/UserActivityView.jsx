@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Users, Search, RefreshCw, User, LogOut, Eye, FileText, Bell, Scale, Calendar, Globe
+  Users, Search, RefreshCw, Eye, FileText, Bell, Scale, Calendar, Globe
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { activityService } from '../../../services/activityService';
@@ -85,16 +85,6 @@ const UserActivityView = ({ activeType = 'case' }) => {
         <div className="flex items-center gap-2">
           <Users className="w-5 h-5 text-white/90" />
           <h1 className="text-base font-bold tracking-wide">Users Activity</h1>
-        </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={() => navigate('/settings')}>
-            <User className="w-4 h-4" />
-            <span>My Account</span>
-          </div>
-          <div className="flex items-center gap-1.5 cursor-pointer hover:text-white/80" onClick={logout}>
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </div>
         </div>
       </div>
 

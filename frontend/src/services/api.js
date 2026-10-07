@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// Default to backend port 5000 in dev
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Default to backend port 5000 in dev; sanitize for Vercel production deployment
+const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl.slice(0, -4) : rawApiUrl;
 
 const api = axios.create({
   baseURL: API_URL,

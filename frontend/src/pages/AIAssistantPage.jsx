@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import OrbitalSpinWheel from '../features/ai/components/OrbitalSpinWheel';
 import AIChatPanel from '../features/ai/components/AIChatPanel';
 import { aiChatService } from '../services/aiChatService';
+import { useUser } from '../contexts/UserContext';
 
 const INITIAL_MESSAGE = {
   sender: 'assistant',
@@ -33,10 +34,14 @@ const createNewSession = (title = 'New Research') => ({
 });
 
 const AIAssistantPage = () => {
-  // Multi-tab chat sessions state with localStorage persistence
+  const { user } = useUser();
+  const currentUserId = user?._id || user?.id || user?.loginId || user?.username || 'anonymous_user';
+  const userStorageKey = `sld_ai_chat_sessions_${currentUserId}`;
+
+  // Multi-tab chat sessions state with user-scoped localStorage persistence
   const [sessions, setSessions] = useState(() => {
     try {
-      const saved = localStorage.getItem('sld_ai_chat_sessions');
+      const saved = localStorage.getItem(userStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -44,14 +49,14 @@ const AIAssistantPage = () => {
         }
       }
     } catch (e) {
-      console.warn('Failed to load local sessions:', e);
+      console.warn('Failed to load user-scoped local sessions:', e);
     }
     return [createNewSession('Research Session 1')];
   });
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
     try {
-      const saved = localStorage.getItem('sld_ai_chat_sessions');
+      const saved = localStorage.getItem(userStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -61,6 +66,24 @@ const AIAssistantPage = () => {
     } catch (e) {}
     return 'sess_default';
   });
+
+  // Switch chat sessions immediately when user changes / logs in
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(userStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSessions(parsed);
+          setActiveSessionId(parsed[0].id);
+          return;
+        }
+      }
+    } catch (e) {}
+    const fresh = [createNewSession('Research Session 1')];
+    setSessions(fresh);
+    setActiveSessionId(fresh[0].id);
+  }, [userStorageKey]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [showWheel, setShowWheel] = useState(() => {
@@ -83,12 +106,12 @@ const AIAssistantPage = () => {
     });
   };
 
-  // Sync sessions to localStorage
+  // Sync sessions to user-scoped localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('sld_ai_chat_sessions', JSON.stringify(sessions));
+      localStorage.setItem(userStorageKey, JSON.stringify(sessions));
     } catch (e) {}
-  }, [sessions]);
+  }, [sessions, userStorageKey]);
 
   // Ensure valid activeSessionId
   useEffect(() => {
@@ -268,7 +291,7 @@ const AIAssistantPage = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] w-full animate-fade-in overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-125px)] w-full animate-fade-in overflow-hidden">
       
       {/* Main Layout: Left Orbital Spin Wheel (when shown) | Right Dialogue Panel */}
       <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-hidden">

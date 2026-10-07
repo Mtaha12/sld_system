@@ -636,8 +636,9 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  // Model cascade: try fast and low-token models first
-  const models = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash'];
+  // Fast, officially supported Gemini models with timeout guard
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  const models = [primaryModel, 'gemini-3.5-flash-lite', 'gemini-3.5-flash'].filter((v, i, a) => a.indexOf(v) === i);
   let lastError = null;
 
   for (const model of models) {
@@ -657,11 +658,12 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(7000), // 7-second timeout provides generous time for Gemini generation while staying fast
         body: JSON.stringify({
           contents,
           generationConfig: {
             temperature: 0.15,
-            maxOutputTokens: 3500, // Token limitizer prevents excessive generation
+            maxOutputTokens: 2500, // Token limitizer prevents excessive generation
             topP: 0.95
           }
         })
@@ -677,7 +679,7 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
         lastError = new Error(data.error.message || `API error ${data.error.code}`);
       }
     } catch (err) {
-      logger.warn(`Gemini model ${model} network error: ${err.message}`);
+      logger.warn(`Gemini model ${model} call error: ${err.message}`);
       lastError = err;
     }
   }
