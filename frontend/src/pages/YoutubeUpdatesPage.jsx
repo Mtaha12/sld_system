@@ -5,8 +5,12 @@ import AddYoutubeForm from '../features/youtube/components/AddYoutubeForm';
 import ManageYoutubeTable from '../features/youtube/components/ManageYoutubeTable';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import { youtubeService } from '../features/youtube/services/youtubeService';
+import { useUser } from '../contexts/UserContext';
 
 const YoutubeUpdatesPage = () => {
+  const { user } = useUser();
+  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+
   const [updates, setUpdates] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -76,7 +80,7 @@ const YoutubeUpdatesPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <Video className="w-4 h-4 text-red-600" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Manage Youtube Updates</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Youtube Updates' : 'Youtube Channel'}</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">
@@ -109,30 +113,32 @@ const YoutubeUpdatesPage = () => {
             <List className="w-3.5 h-3.5 mr-1" /> All
           </Button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (isFormOpen && !editingItem) setIsFormOpen(false);
-              else handleOpenAddForm();
-            }}
-            className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
-          >
-            {isFormOpen && !editingItem ? (
-              <>
-                <X className="w-3.5 h-3.5" /> Close
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" /> + Add Record
-              </>
-            )}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isFormOpen && !editingItem) setIsFormOpen(false);
+                else handleOpenAddForm();
+              }}
+              className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
+            >
+              {isFormOpen && !editingItem ? (
+                <>
+                  <X className="w-3.5 h-3.5" /> Close
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" /> + Add Record
+                </>
+              )}
+            </button>
+          )}
 
         </form>
       </div>
 
       {/* Form when open */}
-      {isFormOpen && (
+      {isAdmin && isFormOpen && (
         <AddYoutubeForm
           editData={editingItem}
           onClose={() => {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  ShieldCheck, Plus, Search, Edit2, Trash2, RefreshCw, AlertCircle, Check, Eye, EyeOff
+  ShieldCheck, Plus, Search, Edit2, Trash2, RefreshCw, AlertCircle, Check, Eye, EyeOff, KeyRound, Sparkles
 } from 'lucide-react';
 import { adminService } from '../services/adminSettingsServices';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
@@ -46,6 +46,14 @@ const ManageAdminsPage = () => {
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Dedicated Password Change Modal State (Admin Override - Zero Previous Password Required)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordAdmin, setPasswordAdmin] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordModalError, setPasswordModalError] = useState('');
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   const showToast = (type, message) => {
     setToast({ type, message });
@@ -113,6 +121,50 @@ const ManageAdminsPage = () => {
     });
     setModalError('');
     setIsModalOpen(true);
+  };
+
+  const handleOpenChangePasswordModal = (admin) => {
+    setPasswordAdmin(admin);
+    setNewPassword('');
+    setShowNewPassword(false);
+    setPasswordModalError('');
+    setIsPasswordModalOpen(true);
+  };
+
+  const handleGeneratePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
+    let pass = '';
+    for (let i = 0; i < 10; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(pass);
+    setShowNewPassword(true);
+  };
+
+  const handleChangePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.trim().length < 4) {
+      setPasswordModalError('Password must be at least 4 characters long.');
+      return;
+    }
+
+    setPasswordSubmitting(true);
+    setPasswordModalError('');
+
+    try {
+      await adminService.changePassword(passwordAdmin._id || passwordAdmin.id, newPassword.trim());
+      setAdmins(prev => prev.map(a => 
+        (a._id === passwordAdmin._id || a.id === passwordAdmin.id) 
+          ? { ...a, plainPassword: newPassword.trim() } 
+          : a
+      ));
+      showToast('success', `Password for "${passwordAdmin.fullName || passwordAdmin.username}" changed successfully! (No previous password required)`);
+      setIsPasswordModalOpen(false);
+    } catch (err) {
+      setPasswordModalError(err.response?.data?.message || 'Failed to update password.');
+    } finally {
+      setPasswordSubmitting(false);
+    }
   };
 
   const handleModalSubmit = async (e) => {
@@ -318,6 +370,14 @@ const ManageAdminsPage = () => {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
+                            onClick={() => handleOpenChangePasswordModal(a)}
+                            className="w-6 h-6 rounded bg-[#F59E0B] hover:bg-[#D97706] text-white flex items-center justify-center shadow-sm cursor-pointer transition-colors"
+                            title="Direct Password Change (No previous password required)"
+                          >
+                            <KeyRound className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleOpenEdit(a)}
                             className="w-6 h-6 rounded bg-[#00A8CC] hover:bg-[#0092b3] text-white flex items-center justify-center shadow-sm cursor-pointer transition-colors"
                             title="Edit"
@@ -488,6 +548,86 @@ const ManageAdminsPage = () => {
               className="px-4 py-1.5 rounded bg-[#00A8CC] hover:bg-[#0092b3] text-white text-xs font-bold shadow-sm transition-colors cursor-pointer"
             >
               {submitting ? 'Saving...' : editingAdmin ? 'Save Changes' : 'Create User'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Dedicated Change Admin Password Modal (Direct Override - Zero Previous Password Required) */}
+      <Modal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        title="Direct Change Admin Password"
+        subtitle={passwordAdmin ? `${passwordAdmin.fullName || passwordAdmin.name} (${passwordAdmin.loginId || passwordAdmin.username})` : 'Reset Administrator Password'}
+        icon={KeyRound}
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+            <span className="font-bold">Super Admin Authority:</span> You can directly set a new password for this administrator account. There is <strong>no requirement for their previous password</strong>.
+          </div>
+
+          {passwordModalError && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-600 dark:text-red-400 font-medium">
+              {passwordModalError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-theme-main mb-1.5">
+              Target Administrator Account
+            </label>
+            <div className="p-2.5 bg-gray-50 dark:bg-theme-surface-alt rounded-lg border border-theme-border text-xs text-theme-main font-mono">
+              {passwordAdmin?.loginId || passwordAdmin?.username || passwordAdmin?.email}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-theme-main">
+                New Password <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleGeneratePassword}
+                className="text-[11px] font-semibold text-brand-orange hover:text-orange-600 flex items-center gap-1 cursor-pointer"
+              >
+                <Sparkles className="w-3 h-3" /> Generate Random
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password (min. 4 characters)"
+                className="w-full px-3 py-2 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-sm text-theme-main focus:outline-none focus:border-brand-orange shadow-inner pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-2.5 text-theme-muted hover:text-theme-main cursor-pointer"
+              >
+                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-theme-border">
+            <button
+              type="button"
+              onClick={() => setIsPasswordModalOpen(false)}
+              className="px-4 py-2 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-semibold text-theme-main cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={passwordSubmitting}
+              className="px-5 py-2 rounded-lg bg-brand-orange hover:bg-orange-600 text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50"
+            >
+              {passwordSubmitting ? 'Updating...' : 'Set New Password'}
             </button>
           </div>
         </form>

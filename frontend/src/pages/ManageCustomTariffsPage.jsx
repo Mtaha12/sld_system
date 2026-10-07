@@ -5,8 +5,12 @@ import AddCustomTariffForm from '../features/custom-tariffs/components/AddCustom
 import ManageCustomTariffsTable from '../features/custom-tariffs/components/ManageCustomTariffsTable';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import { customTariffService } from '../features/custom-tariffs/services/customTariffService';
+import { useUser } from '../contexts/UserContext';
 
 const ManageCustomTariffsPage = () => {
+  const { user } = useUser();
+  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+
   const [tariffs, setTariffs] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -76,7 +80,7 @@ const ManageCustomTariffsPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <Layers className="w-4 h-4 text-brand-orange" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Manage Custom Tariffs</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Custom Tariffs' : 'Custom Tariffs'}</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">
@@ -109,30 +113,32 @@ const ManageCustomTariffsPage = () => {
             <List className="w-3.5 h-3.5 mr-1" /> All
           </Button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (isFormOpen && !editingItem) setIsFormOpen(false);
-              else handleOpenAddForm();
-            }}
-            className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
-          >
-            {isFormOpen && !editingItem ? (
-              <>
-                <X className="w-3.5 h-3.5" /> Close
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" /> + Add Record
-              </>
-            )}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isFormOpen && !editingItem) setIsFormOpen(false);
+                else handleOpenAddForm();
+              }}
+              className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
+            >
+              {isFormOpen && !editingItem ? (
+                <>
+                  <X className="w-3.5 h-3.5" /> Close
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" /> + Add Record
+                </>
+              )}
+            </button>
+          )}
 
         </form>
       </div>
 
       {/* Form (renders below action bar when open) */}
-      {isFormOpen && (
+      {isAdmin && isFormOpen && (
         <AddCustomTariffForm
           editData={editingItem}
           onClose={() => {

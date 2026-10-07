@@ -19,6 +19,7 @@ import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { whatsappService } from '../services/whatsappService';
+import { useUser } from '../../../contexts/UserContext';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = sortConfig?.key === sortKey;
@@ -58,6 +59,9 @@ const ManageWhatsappTable = ({
   setToastMessage,
   isLoading = false
 }) => {
+  const { user } = useUser();
+  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+
   const [viewModalItem, setViewModalItem] = useState(null);
   const [deleteModalItem, setDeleteModalItem] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -236,22 +240,26 @@ const ManageWhatsappTable = ({
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onEdit?.(item)}
-                          className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
-                          title="Edit"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteModalItem(item)}
-                          className="p-1 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {isAdmin && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onEdit?.(item)}
+                              className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+                              title="Edit"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteModalItem(item)}
+                              className="p-1 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

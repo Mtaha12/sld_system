@@ -5,8 +5,12 @@ import AddWhatsappForm from '../features/whatsapp/components/AddWhatsappForm';
 import ManageWhatsappTable from '../features/whatsapp/components/ManageWhatsappTable';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import { whatsappService } from '../features/whatsapp/services/whatsappService';
+import { useUser } from '../contexts/UserContext';
 
 const WhatsappUpdatesPage = () => {
+  const { user } = useUser();
+  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+
   const [updates, setUpdates] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,7 +83,7 @@ const WhatsappUpdatesPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <MessageSquare className="w-4 h-4 text-[#00bcd4]" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Manage Whatsapp Updates</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Whatsapp Updates' : 'Whatsapp Updates'}</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">
@@ -112,30 +116,32 @@ const WhatsappUpdatesPage = () => {
             <List className="w-3.5 h-3.5 mr-1" /> All
           </Button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (isFormOpen && !editingItem) setIsFormOpen(false);
-              else handleOpenAddForm();
-            }}
-            className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
-          >
-            {isFormOpen && !editingItem ? (
-              <>
-                <X className="w-3.5 h-3.5" /> Close
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" /> + Add Record
-              </>
-            )}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isFormOpen && !editingItem) setIsFormOpen(false);
+                else handleOpenAddForm();
+              }}
+              className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
+            >
+              {isFormOpen && !editingItem ? (
+                <>
+                  <X className="w-3.5 h-3.5" /> Close
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" /> + Add Record
+                </>
+              )}
+            </button>
+          )}
 
         </form>
       </div>
 
       {/* Form when open */}
-      {isFormOpen && (
+      {isAdmin && isFormOpen && (
         <AddWhatsappForm
           editData={editingItem}
           onClose={() => {

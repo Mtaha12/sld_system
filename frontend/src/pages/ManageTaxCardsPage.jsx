@@ -5,8 +5,12 @@ import AddTaxCardForm from '../features/tax-cards/components/AddTaxCardForm';
 import ManageTaxCardsTable from '../features/tax-cards/components/ManageTaxCardsTable';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import { taxCardService } from '../features/tax-cards/services/taxCardService';
+import { useUser } from '../contexts/UserContext';
 
 const ManageTaxCardsPage = () => {
+  const { user } = useUser();
+  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+
   const [taxCards, setTaxCards] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -76,7 +80,7 @@ const ManageTaxCardsPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <CreditCard className="w-4 h-4 text-brand-orange" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Manage Tax Cards</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Tax Cards' : 'Finance Act & Tax Rates'}</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">
@@ -109,30 +113,32 @@ const ManageTaxCardsPage = () => {
             <List className="w-3.5 h-3.5 mr-1" /> All
           </Button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (isFormOpen && !editingItem) setIsFormOpen(false);
-              else handleOpenAddForm();
-            }}
-            className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
-          >
-            {isFormOpen && !editingItem ? (
-              <>
-                <X className="w-3.5 h-3.5" /> Close
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" /> + Add Tax Cards
-              </>
-            )}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isFormOpen && !editingItem) setIsFormOpen(false);
+                else handleOpenAddForm();
+              }}
+              className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
+            >
+              {isFormOpen && !editingItem ? (
+                <>
+                  <X className="w-3.5 h-3.5" /> Close
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" /> + Add Tax Cards
+                </>
+              )}
+            </button>
+          )}
 
         </form>
       </div>
 
       {/* Form (when open) */}
-      {isFormOpen && (
+      {isAdmin && isFormOpen && (
         <AddTaxCardForm
           editData={editingItem}
           onClose={() => {

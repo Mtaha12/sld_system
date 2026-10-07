@@ -5,8 +5,12 @@ import AddDictionaryForm from '../features/dictionary/components/AddDictionaryFo
 import ManageDictionaryTable from '../features/dictionary/components/ManageDictionaryTable';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import { dictionaryService } from '../features/dictionary/services/dictionaryService';
+import { useUser } from '../contexts/UserContext';
 
 const ManageDictionaryPage = () => {
+  const { user } = useUser();
+  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+
   const [dictionaryList, setDictionaryList] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,7 +83,7 @@ const ManageDictionaryPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <BookA className="w-4 h-4 text-brand-orange" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Manage Dictionary</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Dictionary' : 'Legal Dictionary'}</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">
@@ -112,30 +116,32 @@ const ManageDictionaryPage = () => {
             <List className="w-3.5 h-3.5 mr-1" /> All
           </Button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (isFormOpen && !editingItem) setIsFormOpen(false);
-              else handleOpenAddForm();
-            }}
-            className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
-          >
-            {isFormOpen && !editingItem ? (
-              <>
-                <X className="w-3.5 h-3.5" /> Close
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" /> + Add Record
-              </>
-            )}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isFormOpen && !editingItem) setIsFormOpen(false);
+                else handleOpenAddForm();
+              }}
+              className="flex items-center justify-center font-medium bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs gap-1 h-[34px] px-4 whitespace-nowrap cursor-pointer transition-colors"
+            >
+              {isFormOpen && !editingItem ? (
+                <>
+                  <X className="w-3.5 h-3.5" /> Close
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" /> + Add Record
+                </>
+              )}
+            </button>
+          )}
 
         </form>
       </div>
 
       {/* Form (when open) */}
-      {isFormOpen && (
+      {isAdmin && isFormOpen && (
         <AddDictionaryForm
           editData={editingItem}
           onClose={() => {

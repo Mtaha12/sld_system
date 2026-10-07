@@ -1,24 +1,25 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useUser } from '../../contexts/UserContext';
 
-// List of backend / management route prefixes restricted to Admins and users with allowAllForms
+// List of administrative and settings routes strictly restricted to Administrators and users with allowAllForms
 const ADMIN_ROUTE_PREFIXES = [
-  '/manage-',
+  '/manage-cases',
+  '/manage-notifications',
+  '/manage-statutes',
+  '/other-caselaws',
+  '/manage-other-cases',
+  '/manage-users',
+  '/manage-admins',
+  '/manage-invoices',
+  '/invoices',
+  '/manage-newsletters',
+  '/newsletters',
+  '/manage-emails',
+  '/emails',
   '/setting',
   '/activity',
   '/replacement',
-  '/tax-cards',
-  '/dictionary',
-  '/newsletters',
-  '/custom-tariffs',
-  '/custom-tariff',
-  '/invoices',
-  '/other-caselaws',
-  '/news',
-  '/whatsapp-updates',
-  '/updates',
-  '/downloads',
-  '/youtube-updates',
+  '/manage-replacement',
   '/admins',
   '/users'
 ];

@@ -40,7 +40,10 @@ import {
   Briefcase,
   User,
   Pin,
-  PinOff
+  PinOff,
+  Gauge,
+  Network,
+  ExternalLink
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/SLD_Logo.png';
 import { useUser } from '../../../contexts/UserContext';
@@ -52,6 +55,27 @@ const TOP_NAV_ITEMS = [
   { label: 'Search Case Law', path: '/search-case-law', icon: Search },
   { label: 'Statute Search', path: '/statute-search', icon: FileText },
   { label: 'Notification Search', path: '/notification-search', icon: Bell },
+];
+
+// User Portal Navigation Items (matching screenshot with speedometer gauge icons)
+const USER_MENU_ITEMS = [
+  { label: 'Updated Laws', path: '/updates', icon: Gauge },
+  { label: 'Dictionary', path: '/manage-dictionary', icon: Gauge },
+  { label: 'News', path: '/news', icon: Gauge },
+  { label: 'Finance Act', path: '/manage-tax-cards', icon: Gauge },
+  { label: 'Custom Tariff', path: '/manage-custom-tariffs', icon: Gauge },
+  { label: 'Whatsapp', path: '/whatsapp-updates', icon: Gauge },
+  { label: 'Youtube Channel', path: '/youtube-updates', icon: Gauge },
+  { label: 'Tax Rates', path: '/manage-tax-cards', icon: Gauge },
+  { label: 'Tax Returns', path: '/downloads', icon: Gauge },
+  { label: 'Live Chat', path: '/ai-assistant', icon: Gauge },
+];
+
+const QUICK_LINKS = [
+  { label: 'FBR', url: 'https://iris.fbr.gov.pk' },
+  { label: 'SECP', url: 'https://eservices.secp.gov.pk' },
+  { label: 'Supreme Court of Pakistan', url: 'https://www.supremecourt.gov.pk' },
+  { label: 'Islamabad High Court', url: 'https://mis.ihc.gov.pk' },
 ];
 
 // Dropdown Folder Categories requested by user
@@ -125,13 +149,13 @@ const AdminSidebar = ({
   const visibleTopNavItems = React.useMemo(() => {
     return TOP_NAV_ITEMS.filter((item) => {
       if (item.path === '/dashboard') return true;
-      if (item.path === '/ai-assistant') return user?.aiAssistant !== false;
+      if (item.path === '/ai-assistant') return isAdmin && user?.aiAssistant !== false;
       if (item.path === '/search-case-law') return user?.displayCase !== false;
       if (item.path === '/statute-search') return user?.displayStatute !== false;
       if (item.path === '/notification-search') return user?.displayNotification !== false;
       return true;
     });
-  }, [user]);
+  }, [user, isAdmin]);
 
   // State to track which folder dropdowns are expanded
   const [openFolders, setOpenFolders] = useState({
@@ -139,6 +163,7 @@ const AdminSidebar = ({
     'settings': false,
     'other-services': false
   });
+  const [isQuickLinksOpen, setIsQuickLinksOpen] = useState(true);
 
   // Automatically expand the folder containing the currently active page
   useEffect(() => {
@@ -300,6 +325,77 @@ const AdminSidebar = ({
                 </div>
               );
             })}
+          </>
+        )}
+
+        {/* Regular User Portal Menu (matching user screenshot with dial/gauge icons & quick links) */}
+        {!isAdmin && (
+          <>
+            {/* Separator */}
+            <div className="pt-1 border-t border-brand-dark-border/60 my-1" />
+
+            {/* User Navigation Links */}
+            {USER_MENU_ITEMS.map((item) => {
+              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+              return (
+                <Link
+                  key={item.label}
+                  to={item.path}
+                  title={item.label}
+                  onClick={onItemClick}
+                  className={`flex items-center px-3 py-2 rounded-xl transition-all relative ${
+                    isActive
+                      ? 'bg-brand-orange text-white shadow-sm font-semibold'
+                      : 'text-gray-300 hover:bg-brand-dark-border hover:text-white'
+                  }`}
+                >
+                  <item.icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-white' : 'text-blue-400/90'}`} />
+                  <span className="text-xs font-medium whitespace-nowrap overflow-hidden ml-3 max-w-[180px]">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+
+            {/* Quick Links Dropdown Accordion matching Screenshot */}
+            <div className="flex flex-col pt-1">
+              <button
+                type="button"
+                onClick={() => setIsQuickLinksOpen(prev => !prev)}
+                title="Quick Links"
+                className="flex items-center w-full px-3 py-2 rounded-xl text-gray-300 hover:bg-brand-dark-border hover:text-white transition-all select-none cursor-pointer"
+              >
+                <Network className="w-4 h-4 shrink-0 text-blue-400/90" />
+                <span className="text-xs font-semibold whitespace-nowrap overflow-hidden ml-3 text-left max-w-[160px]">
+                  Quick Links
+                </span>
+                <span className="ml-auto shrink-0">
+                  {isQuickLinksOpen ? (
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-gray-500" />
+                  )}
+                </span>
+              </button>
+
+              {isQuickLinksOpen && (
+                <div className="flex flex-col space-y-0.5 mt-1 pl-3 border-l border-brand-dark-border/70 ml-5 animate-fade-in">
+                  {QUICK_LINKS.map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center px-2 py-1.5 rounded-lg text-xs text-gray-300 hover:text-white hover:bg-brand-dark-border/50 transition-colors gap-2"
+                    >
+                      <span className="text-gray-500 font-mono text-sm leading-none">-</span>
+                      <span className="truncate">{link.label}</span>
+                      <ExternalLink className="w-3 h-3 text-gray-500 ml-auto shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
 
