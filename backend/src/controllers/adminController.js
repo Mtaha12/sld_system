@@ -79,7 +79,11 @@ export const createAdmin = async (req, res, next) => {
     });
 
     if (existing) {
-      return res.status(400).json({ success: false, message: 'An administrator with this Login ID or Email already exists.' });
+      const matchType = existing.email === cleanEmail ? `Email address (${cleanEmail})` : `Login ID (${cleanLogin})`;
+      return res.status(400).json({ 
+        success: false, 
+        message: `An account with this ${matchType} is already registered in the system.` 
+      });
     }
 
     const admin = new User({
@@ -88,6 +92,7 @@ export const createAdmin = async (req, res, next) => {
       loginId: cleanLogin,
       email: cleanEmail,
       password: password.trim(), // Pre-save hook hashes
+      plainPassword: password.trim(),
       contactNumber: (phoneNo || contactNumber || '').trim(),
       userType: userType && userType !== 'Select Type' ? userType : 'Super Admin',
       status: (status || 'Active').toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',

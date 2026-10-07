@@ -77,8 +77,8 @@ const userSchema = new mongoose.Schema({
   },
   userType: {
     type: String,
-    enum: ['Special', 'Regular', 'Corporate'],
     default: 'Special',
+    trim: true,
   },
   aiAssistant: {
     type: Boolean,
@@ -147,7 +147,7 @@ const userSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'active', 'inactive', 'suspended'],
+    enum: ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'active', 'inactive', 'INACTIVE', 'suspended', 'SUSPENDED'],
     default: 'PENDING_APPROVAL',
   },
   isDeleted: {

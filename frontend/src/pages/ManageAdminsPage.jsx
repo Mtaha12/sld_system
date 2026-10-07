@@ -169,7 +169,15 @@ const ManageAdminsPage = () => {
       setIsModalOpen(false);
       fetchAdmins();
     } catch (err) {
-      setModalError(err.response?.data?.message || 'Failed to save administrator.');
+      const data = err.response?.data;
+      let msg = data?.message || 'Failed to save administrator.';
+      if (Array.isArray(data?.errors) && data.errors.length > 0) {
+        const errorDetails = data.errors.map(e => typeof e === 'string' ? e : e.message).filter(Boolean).join('. ');
+        if (errorDetails) {
+          msg = `${msg}: ${errorDetails}`;
+        }
+      }
+      setModalError(msg);
     } finally {
       setSubmitting(false);
     }
