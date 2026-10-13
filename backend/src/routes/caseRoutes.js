@@ -2,7 +2,7 @@ import express from 'express';
 import { 
   getCases, getCaseById, getCaseBySld, createCase, 
   updateCase, deleteCase, deleteMultiple,
-  searchCases, getMaxPage
+  searchCases, getMaxPage, getNextSld
 } from '../controllers/caseController.js';
 import { protect, requireAdmin, checkCaseAccess } from '../middleware/authMiddleware.js';
 
@@ -15,6 +15,7 @@ router.use(protect, checkCaseAccess);
 router.get('/', getCases);
 router.post('/search', searchCases);
 router.get('/max-page', getMaxPage);   // must be before /:id
+router.get('/next-sld', getNextSld);   // must be before /:id
 router.get('/sld/:sld', getCaseBySld); // direct lookup by SLD number
 router.get('/:id', getCaseById);
 

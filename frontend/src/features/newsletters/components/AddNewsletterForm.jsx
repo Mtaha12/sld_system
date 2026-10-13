@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Mail, AlertCircle, Paperclip } from 'lucide-react';
+import { X, Mail, AlertCircle, Paperclip, Share2, Check } from 'lucide-react';
 import Input from '../../../components/ui/Input';
 import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
+import FormFooter from '../../../components/ui/FormFooter';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import { newsletterService } from '../services/newsletterService';
 
@@ -37,6 +38,7 @@ const AddNewsletterForm = ({
   const [message, setMessage] = useState('');
   const [attachment, setAttachment] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -148,11 +150,33 @@ const AddNewsletterForm = ({
       </div>
 
       {/* Form Body */}
-      <form onSubmit={handleSubmit} className="p-4 space-y-3">
+      <form id="newsletter-form" onSubmit={handleSubmit} className="p-4 space-y-3">
         {serverError && (
           <div className="p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-600 rounded-lg text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{serverError}</span>
+          </div>
+        )}
+
+        {isEdit && editData && (
+          <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 min-w-0">
+              <Share2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span className="truncate">
+                Public Shareable Link: <span className="font-mono font-medium">{`${window.location.origin}/newsletters/view/${editData.mongoId || editData.id}`}</span>
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/newsletters/view/${editData.mongoId || editData.id}`);
+                setCopiedLink(true);
+                setTimeout(() => setCopiedLink(false), 2000);
+              }}
+              className="px-2.5 py-1 bg-white dark:bg-stone-800 border border-emerald-300 dark:border-emerald-700 rounded-lg text-emerald-700 dark:text-emerald-300 text-xs font-semibold hover:bg-emerald-50 shrink-0 cursor-pointer shadow-2xs"
+            >
+              {copiedLink ? 'Copied!' : 'Copy Link'}
+            </button>
           </div>
         )}
 
@@ -254,33 +278,13 @@ const AddNewsletterForm = ({
           {errors.attachment && <span className="text-[11px] text-red-500">{errors.attachment}</span>}
         </FormField>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-theme-border">
-          {onClose && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="h-[34px] px-4 text-xs"
-            >
-              Cancel
-            </Button>
-          )}
-
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            disabled={isSubmitting}
-            className="bg-[#00bcd4] hover:bg-[#00acc1] text-white h-[34px] px-5 text-xs font-medium cursor-pointer"
-          >
-            {isSubmitting ? 'Saving...' : (isEdit ? 'Update Record' : 'Add Record')}
-          </Button>
-        </div>
-
       </form>
+      <FormFooter
+        formId="newsletter-form"
+        onCancel={onClose}
+        isSubmitting={isSubmitting}
+        submitText={isEdit ? "Update Record" : "Add Record"}
+      />
     </div>
   );
 };

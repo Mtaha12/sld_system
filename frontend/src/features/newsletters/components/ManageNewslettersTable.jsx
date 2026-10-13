@@ -12,7 +12,9 @@ import {
   Mail,
   Paperclip,
   DownloadCloud,
-  X
+  X,
+  Share2,
+  ExternalLink
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
@@ -225,6 +227,28 @@ const ManageNewslettersTable = ({
                     </td>
                     <td className="px-4 py-2 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const publicUrl = `${window.location.origin}/newsletters/view/${item.mongoId || item.id || item.newsletterId}`;
+                            navigator.clipboard.writeText(publicUrl);
+                            setToastMessage('Public document link copied! Anyone with this link can view this document.');
+                            setTimeout(() => setToastMessage(''), 4000);
+                          }}
+                          className="p-1 rounded text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                          title="Copy Public Link (Anyone can view)"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
+                        <a
+                          href={`/newsletters/view/${item.mongoId || item.id || item.newsletterId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/40 transition-colors inline-flex items-center justify-center cursor-pointer"
+                          title="Open Public Document in New Tab"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
                         <button
                           type="button"
                           onClick={() => setViewModalItem(item)}

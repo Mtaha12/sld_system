@@ -16,7 +16,8 @@ import {
   FileText, 
   Download, 
   Upload, 
-  FileDown
+  FileDown,
+  ScrollText
 } from 'lucide-react';
 
 const formatLawReferences = (laws = []) => {
@@ -50,18 +51,20 @@ import Modal from '../../../components/ui/Modal';
 import FileUpload from '../../../components/ui/FileUpload';
 import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
+import RichTextEditor from '../../../components/ui/RichTextEditor';
 import { caseService } from '../services/caseService';
 
-const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon, widthClassName = '' }) => {
+const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon, widthClassName = '', align = 'left' }) => {
   const isSorted = sortKey && sortConfig?.key === sortKey;
   const direction = isSorted ? sortConfig?.direction : null;
+  const isCenter = align === 'center' || widthClassName.includes('text-center');
 
   return (
     <th 
       onClick={() => sortKey && onSort?.(sortKey)}
-      className={`px-2 py-3 font-semibold text-theme-main align-top select-none ${widthClassName} ${sortKey ? 'cursor-pointer hover:bg-theme-surface-alt/80 transition-colors group' : ''}`}
+      className={`px-3 py-3 font-semibold text-theme-main align-top select-none ${widthClassName} ${sortKey ? 'cursor-pointer hover:bg-theme-surface-alt/80 transition-colors group' : ''}`}
     >
-      <div className="flex items-start gap-1">
+      <div className={`flex items-start gap-1 ${isCenter ? 'justify-center' : ''}`}>
         {HeaderIcon && <HeaderIcon className="w-3.5 h-3.5 text-theme-disabled shrink-0 mt-0.5" />}
         <span className={`leading-tight ${isSorted ? 'text-brand-orange font-bold' : ''}`}>{title}</span>
         {sortKey && (
@@ -130,13 +133,131 @@ const ManageCasesTable = ({
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [attachmentModalCase, setAttachmentModalCase] = useState(null);
+  const [activeCaseAttachments, setActiveCaseAttachments] = useState([]);
+  const [previewAttachment, setPreviewAttachment] = useState(null);
   const [internalSortConfig, setInternalSortConfig] = useState({ key: null, direction: null });
-  const itemsPerPage = 25;
+
+  // Edit Judgment Only Modal States
+  const [editJudgmentCase, setEditJudgmentCase] = useState(null);
+  const [editJudgmentDated, setEditJudgmentDated] = useState('');
+  const [editJudgmentText, setEditJudgmentText] = useState('');
+  const [isSavingJudgment, setIsSavingJudgment] = useState(false);
+  const [isLoadingJudgmentText, setIsLoadingJudgmentText] = useState(false);
+  const [saveJudgmentError, setSaveJudgmentError] = useState('');
+
+  const handleOpenEditJudgment = async (item) => {
+    setEditJudgmentCase(item);
+    setEditJudgmentDated(item.dated ? item.dated.split('T')[0] : '');
+    setSaveJudgmentError('');
+
+    if (item.judgment && item.judgment.trim().length > 0) {
+      setEditJudgmentText(item.judgment);
+    } else {
+      setIsLoadingJudgmentText(true);
+      setEditJudgmentText('');
+      try {
+        const full = await caseService.getCaseById(item.id || item.sldNumber);
+        setEditJudgmentText(full?.judgment || '');
+      } catch (e) {
+        setEditJudgmentText('');
+      } finally {
+        setIsLoadingJudgmentText(false);
+      }
+    }
+  };
+
+  const handleSaveJudgmentOnly = async (e) => {
+    e?.preventDefault();
+    if (!editJudgmentCase) return;
+    setIsSavingJudgment(true);
+    setSaveJudgmentError('');
+    try {
+      await caseService.updateCase(editJudgmentCase.id || editJudgmentCase.sldNumber, {
+        dated: editJudgmentDated,
+        judgment: editJudgmentText
+      });
+      setCases(prev => prev.map(c => 
+        c.id === editJudgmentCase.id 
+          ? { ...c, dated: editJudgmentDated, judgment: editJudgmentText } 
+          : c
+      ));
+      setToastMessage(`Judgment for Case #${editJudgmentCase.sldNumber} updated successfully.`);
+      setEditJudgmentCase(null);
+      setTimeout(() => setToastMessage(''), 4000);
+    } catch (err) {
+      setSaveJudgmentError(err?.response?.data?.message || err?.message || 'Failed to update judgment.');
+    } finally {
+      setIsSavingJudgment(false);
+    }
+  };
+
+  // Sync active attachments when a case is selected for attachment viewing
+  useEffect(() => {
+    if (attachmentModalCase) {
+      if (Array.isArray(attachmentModalCase.attachments) && attachmentModalCase.attachments.length > 0) {
+        setActiveCaseAttachments(attachmentModalCase.attachments.map((f, i) => {
+          if (typeof f === 'string') {
+            const fileName = f.split('/').pop() || `Attachment_${i + 1}.pdf`;
+            return {
+              id: `att-${i}-${Date.now()}`,
+              name: fileName,
+              url: f,
+              size: '1.4 MB',
+              date: attachmentModalCase.dated || '2026-01-01',
+              type: f.endsWith('.docx') || f.endsWith('.doc') ? 'word' : (f.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
+            };
+          }
+          return f;
+        }));
+      } else {
+        const count = typeof attachmentModalCase.attachments === 'number' 
+          ? attachmentModalCase.attachments 
+          : (attachmentModalCase.attachments ? 1 : 1);
+        setActiveCaseAttachments([
+          {
+            id: 'doc-1',
+            name: `Order_Sheet_SLD_${attachmentModalCase.sldNumber}.pdf`,
+            url: `/api/cases/${attachmentModalCase.id || attachmentModalCase.sldNumber}/order.pdf`,
+            size: '1.84 MB',
+            date: attachmentModalCase.dated || '2026-05-06',
+            type: 'pdf'
+          },
+          ...(count > 1 ? [
+            {
+              id: 'doc-2',
+              name: `Certified_Judgment_Order_${attachmentModalCase.sldNumber}.docx`,
+              url: `/api/cases/${attachmentModalCase.id || attachmentModalCase.sldNumber}/judgment.docx`,
+              size: '920 KB',
+              date: attachmentModalCase.dated || '2026-05-06',
+              type: 'word'
+            }
+          ] : []),
+          ...(count > 2 ? [
+            {
+              id: 'doc-3',
+              name: `Petition_Annexure_A_${attachmentModalCase.sldNumber}.pdf`,
+              url: `/api/cases/${attachmentModalCase.id || attachmentModalCase.sldNumber}/petition.pdf`,
+              size: '480 KB',
+              date: attachmentModalCase.dated || '2026-05-06',
+              type: 'pdf'
+            }
+          ] : [])
+        ]);
+      }
+    } else {
+      setActiveCaseAttachments([]);
+      setPreviewAttachment(null);
+    }
+  }, [attachmentModalCase]);
+  const itemsPerPage = 100;
 
   // Use parent-provided sort state when server-paginated, otherwise internal
   const sortConfig = serverPaginated && propSortConfig ? propSortConfig : internalSortConfig;
   
-  const handleSort = serverPaginated && propOnSort ? propOnSort : (key) => {
+  const handleSort = (key) => {
+    if (serverPaginated && propOnSort) {
+      propOnSort(key);
+    }
     setInternalSortConfig(prev => {
       if (prev.key === key) {
         if (prev.direction === 'asc') return { key, direction: 'desc' };
@@ -148,8 +269,6 @@ const ManageCasesTable = ({
   };
 
   const sortedCases = useMemo(() => {
-    // When server-paginated, data is already sorted by the server
-    if (serverPaginated) return cases;
     if (!sortConfig.key || !sortConfig.direction) return cases;
 
     const { key, direction } = sortConfig;
@@ -396,10 +515,10 @@ const ManageCasesTable = ({
       {/* Table Container */}
       <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left table-fixed">
+          <table className="w-full text-xs text-left table-fixed min-w-[1180px]">
             <thead className="bg-theme-table-header border-b border-theme-border text-theme-main">
               <tr>
-                <th className="px-3 py-3 w-[3%] text-center">
+                <th className="px-2 py-2.5 w-10 text-center">
                   <input 
                     type="checkbox" 
                     checked={isAllCurrentSelected}
@@ -413,23 +532,23 @@ const ManageCasesTable = ({
                     className="w-4 h-4 rounded border-theme-border bg-theme-surface text-brand-orange focus:ring-brand-orange cursor-pointer accent-[#E55C41]" 
                   />
                 </th>
-                <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName={isMagazineSearch ? "w-[12%]" : "w-[5%]"} />
+                <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName={isMagazineSearch ? "w-24" : "w-16 text-center"} />
                 {isMagazineSearch ? (
-                  <TableHeader title="Year / Mag / Vol (All Entries)" widthClassName="w-[74%]" />
+                  <TableHeader title="Year / Mag / Vol (All Entries)" widthClassName="w-auto" />
                 ) : (
                   <>
-                    <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-[6%]" />
-                    <TableHeader title="Year/Mag/Page" widthClassName="w-[12%]" />
-                    <TableHeader title="Court" widthClassName="w-[9%]" />
-                    <TableHeader title="Case #" widthClassName="w-[13%]" />
-                    <TableHeader title="Judges" widthClassName="w-[13%]" />
-                    <TableHeader title="Lawyers" widthClassName="w-[12%]" />
-                    <TableHeader title="Petitioners" widthClassName="w-[12%]" />
-                    <TableHeader title="Law / Statute" widthClassName="w-[13%]" />
-                    <TableHeader title="Attachment" widthClassName="w-[6%]" />
+                    <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-24 text-center" />
+                    <TableHeader title="Year/Mag/Page" widthClassName="w-32" />
+                    <TableHeader title="Court" widthClassName="w-32" />
+                    <TableHeader title="Case #" widthClassName="w-28" />
+                    <TableHeader title="Judges" widthClassName="w-36" />
+                    <TableHeader title="Lawyers" widthClassName="w-36" />
+                    <TableHeader title="Petitioners" widthClassName="w-44" />
+                    <TableHeader title="Law / Statute" widthClassName="w-48" />
+                    <TableHeader title="Attachment" widthClassName="w-24 text-center" align="center" />
                   </>
                 )}
-                <th className={`px-2 py-3 font-semibold text-theme-main align-top ${isMagazineSearch ? 'w-[10%]' : 'w-[8%]'}`}>Action</th>
+                <th className="px-2 py-2.5 font-semibold text-theme-main align-top text-center w-32 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border/50">
@@ -461,26 +580,26 @@ const ManageCasesTable = ({
                         : 'hover:bg-theme-surface-alt/50'
                     }`}
                   >
-                    <td className="px-3 py-4 align-top text-center">
+                    <td className="px-2 py-2.5 align-top text-center">
                       <input 
                         type="checkbox" 
                         checked={isSelected}
                         onChange={() => handleToggleRow(item.id)}
-                        className="w-4 h-4 rounded border-theme-border bg-theme-surface text-brand-orange focus:ring-brand-orange mt-1 cursor-pointer accent-[#E55C41]" 
+                        className="w-4 h-4 rounded border-theme-border bg-theme-surface text-brand-orange focus:ring-brand-orange mt-0.5 cursor-pointer accent-[#E55C41]" 
                       />
                     </td>
-                    <td className="px-2 py-4 align-top text-theme-muted font-bold break-words">{item.sldNumber}</td>
+                    <td className="px-2 py-2.5 align-top text-theme-muted font-bold break-words text-center">{item.sldNumber}</td>
 
                     {isMagazineSearch ? (
-                      <td className="px-2 py-4 align-top text-theme-main">
-                        <div className="flex flex-wrap gap-1.5">
+                      <td className="px-2 py-2.5 align-top text-theme-main">
+                        <div className="flex flex-wrap gap-1 max-h-[64px] overflow-y-auto">
                           {(Array.isArray(item.mapYearPage) && item.mapYearPage.length > 0 ? item.mapYearPage.filter(Boolean) : [item.yearVolume || '—'])
                             .reduce((unique, line) => {
                               if (!unique.includes(line)) unique.push(line);
                               return unique;
                             }, [])
                             .map((line, i) => (
-                              <span key={`${line}-${i}`} className="inline-flex items-center px-2 py-1 bg-amber-50 dark:bg-amber-950/40 text-brand-orange border border-brand-orange/30 rounded text-xs font-semibold">
+                              <span key={`${line}-${i}`} className="inline-flex items-center px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-brand-orange border border-brand-orange/30 rounded text-xs font-semibold">
                                 {line}
                               </span>
                             ))}
@@ -488,9 +607,9 @@ const ManageCasesTable = ({
                       </td>
                     ) : (
                       <>
-                        <td className="px-2 py-4 align-top text-theme-muted">{item.dated ? item.dated.split('T')[0] : ''}</td>
-                        <td className="px-2 py-4 align-top text-theme-muted" style={{ minWidth: '210px' }}>
-                          <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden">
+                        <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated ? item.dated.split('T')[0] : ''}</td>
+                        <td className="px-2 py-2.5 align-top text-theme-muted">
+                          <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden max-h-[64px]">
                             {(Array.isArray(item.mapYearPage) ? item.mapYearPage.filter(Boolean) : [])
                               .reduce((unique, line) => {
                                 if (!unique.includes(line)) unique.push(line);
@@ -502,31 +621,31 @@ const ManageCasesTable = ({
                               ))}
                           </div>
                         </td>
-                        <td className="px-2 py-4 align-top text-theme-main font-medium">{item.court}</td>
-                        <td className="px-2 py-4 align-top text-theme-muted">
-                          <div className="flex flex-col gap-1">
-                            {item.caseNumber.map((line, i) => <span key={i}>{line}</span>)}
+                        <td className="px-2 py-2.5 align-top text-theme-main font-medium break-words">{item.court}</td>
+                        <td className="px-2 py-2.5 align-top text-theme-muted">
+                          <div className="flex flex-col gap-0.5 max-h-[64px] overflow-y-auto">
+                            {item.caseNumber.map((line, i) => <span key={i} className="break-words">{line}</span>)}
                           </div>
                         </td>
-                        <td className="px-2 py-4 align-top text-theme-muted">
-                          <div className="flex flex-col gap-1">
-                            {item.judges.map((line, i) => <span key={i}>{line}</span>)}
+                        <td className="px-2 py-2.5 align-top text-theme-muted">
+                          <div className="flex flex-col gap-0.5 max-h-[64px] overflow-y-auto">
+                            {item.judges.map((line, i) => <span key={i} className="break-words">{line}</span>)}
                           </div>
                         </td>
-                        <td className="px-2 py-4 align-top text-theme-muted">
-                          <div className="flex flex-col gap-1">
-                            {item.lawyers.map((line, i) => <span key={i}>{line}</span>)}
-                            {item.lawyersMore && <span className="text-brand-orange font-medium mt-1">{item.lawyersMore}</span>}
+                        <td className="px-2 py-2.5 align-top text-theme-muted">
+                          <div className="flex flex-col gap-0.5 max-h-[64px] overflow-y-auto">
+                            {item.lawyers.map((line, i) => <span key={i} className="break-words">{line}</span>)}
+                            {item.lawyersMore && <span className="text-brand-orange font-medium mt-0.5">{item.lawyersMore}</span>}
                           </div>
                         </td>
-                        <td className="px-2 py-4 align-top text-theme-muted">
-                          <div className="flex flex-col gap-1">
-                            {item.petitioners.map((line, i) => <span key={i}>{line}</span>)}
-                            {item.petitionersMore && <span className="text-brand-orange font-medium mt-1">{item.petitionersMore}</span>}
+                        <td className="px-2 py-2.5 align-top text-theme-muted">
+                          <div className="flex flex-col gap-0.5 max-h-[64px] overflow-y-auto">
+                            {item.petitioners.map((line, i) => <span key={i} className="break-words">{line}</span>)}
+                            {item.petitionersMore && <span className="text-brand-orange font-medium mt-0.5">{item.petitionersMore}</span>}
                           </div>
                         </td>
-                        <td className="px-2 py-4 align-top text-theme-muted">
-                          <div className="flex flex-col gap-1">
+                        <td className="px-2 py-2.5 align-top text-theme-muted">
+                          <div className="flex flex-col gap-0.5 max-h-[64px] overflow-y-auto">
                             {formatLawReferences(item.laws).map((law) => (
                               <span key={law.name} className="whitespace-normal break-words">
                                 <span className="font-medium text-theme-main">{law.name}</span>
@@ -535,41 +654,55 @@ const ManageCasesTable = ({
                             ))}
                           </div>
                         </td>
-                        <td className="px-2 py-4 align-top">
-                          <button 
-                            type="button"
-                            onClick={() => setAttachmentModalCase(item)}
-                            className="flex items-center gap-1 text-theme-muted hover:text-brand-orange transition-colors cursor-pointer px-1.5 py-1 rounded-md hover:bg-brand-orange/10 group"
-                            title="View & Manage Attachments"
-                          >
-                            <Paperclip className="w-4 h-4 text-brand-orange shrink-0 group-hover:scale-110 transition-transform" />
-                            <span className="text-brand-orange font-semibold text-xs">({item.attachments || 1})</span>
-                          </button>
+                        <td className="px-2 py-2.5 align-top text-center whitespace-nowrap">
+                          {Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                            <button 
+                              type="button"
+                              onClick={() => setAttachmentModalCase(item)}
+                              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 text-[#651fff] dark:text-[#b388ff] border border-[#7c4dff]/30 shadow-2xs transition-all cursor-pointer"
+                              title="View Attached Documents"
+                            >
+                              <Eye className="w-3.5 h-3.5 shrink-0" />
+                              <span>View ({item.attachments.length})</span>
+                            </button>
+                          ) : (
+                            <span className="text-theme-disabled font-bold text-sm select-none">—</span>
+                          )}
                         </td>
                       </>
                     )}
-                    <td className="px-2 py-4 align-top">
-                      <div className="flex items-center gap-1.5">
+                    <td className="px-2 py-2.5 align-top text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
                         <a 
                           href={`/cases/view/${item.id || item.sldNumber}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors inline-flex items-center justify-center" 
-                          title="View in new tab"
+                          className="p-1 text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs" 
+                          title="View Case in new tab"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </a>
                         <button 
+                          type="button"
+                          onClick={() => handleOpenEditJudgment(item)}
+                          className="p-1 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors cursor-pointer shadow-2xs" 
+                          title="Edit Judgment Only"
+                        >
+                          <ScrollText className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          type="button"
                           onClick={() => handleEdit(item)}
-                          className="p-1.5 text-theme-muted hover:text-blue-500 border border-theme-border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" 
-                          title="Edit"
+                          className="p-1 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors cursor-pointer shadow-2xs" 
+                          title="Edit Case"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button 
+                          type="button"
                           onClick={() => setDeleteModalCase(item)}
-                          className="p-1.5 text-theme-muted hover:text-red-500 border border-theme-border rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" 
-                          title="Delete"
+                          className="p-1 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer shadow-2xs" 
+                          title="Delete Case"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -769,8 +902,8 @@ const ManageCasesTable = ({
         maxWidth="max-w-xl"
         footer={
           <div className="flex items-center justify-between w-full">
-            <span className="text-xs text-theme-muted">
-              {attachmentModalCase ? `${attachmentModalCase.attachments || 1} file(s) attached` : ''}
+            <span className="text-xs text-theme-muted font-medium">
+              {activeCaseAttachments.length} file(s) attached
             </span>
             <div className="flex items-center gap-2">
               <Button 
@@ -780,87 +913,105 @@ const ManageCasesTable = ({
               >
                 Close
               </Button>
-              <Button 
-                variant="primary" 
-                size="sm"
-                className="bg-brand-orange hover:bg-[#D44E35] text-white flex items-center gap-1.5"
-                onClick={() => {
-                  if (attachmentModalCase) {
-                    handleDownloadAllAttachments(attachmentModalCase);
-                  }
-                }}
-              >
-                <Download className="w-4 h-4" /> Download All
-              </Button>
+              {activeCaseAttachments.length > 0 && (
+                <Button 
+                  variant="primary" 
+                  size="sm"
+                  className="bg-brand-orange hover:bg-[#D44E35] text-white flex items-center gap-1.5"
+                  onClick={() => {
+                    if (attachmentModalCase) {
+                      handleDownloadAllAttachments(attachmentModalCase);
+                    }
+                  }}
+                >
+                  <Download className="w-4 h-4" /> Download All
+                </Button>
+              )}
             </div>
           </div>
         }
       >
         {attachmentModalCase && (
           <div className="space-y-5">
-            {/* List of current attachments */}
+            {/* List of current attachments with Preview, Download, and Delete */}
             <div className="space-y-2.5">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-theme-muted flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-brand-orange" />
-                Attached Documents ({attachmentModalCase.attachments || 1})
+                Attached Documents ({activeCaseAttachments.length})
               </h4>
               
-              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {[
-                  {
-                    name: `Order_Sheet_SLD_${attachmentModalCase.sldNumber}.pdf`,
-                    size: '1.84 MB',
-                    date: attachmentModalCase.dated || '2025-05-06',
-                    type: 'pdf'
-                  },
-                  ...(attachmentModalCase.attachments > 1 ? [
-                    {
-                      name: `Certified_Judgment_Order_${attachmentModalCase.sldNumber}.docx`,
-                      size: '920 KB',
-                      date: attachmentModalCase.dated || '2025-05-06',
-                      type: 'word'
-                    }
-                  ] : []),
-                  ...(attachmentModalCase.attachments > 2 ? [
-                    {
-                      name: `Petition_Annexure_A_${attachmentModalCase.sldNumber}.pdf`,
-                      size: '480 KB',
-                      date: attachmentModalCase.dated || '2025-05-06',
-                      type: 'pdf'
-                    }
-                  ] : [])
-                ].map((file, idx) => (
-                  <div 
-                    key={idx}
-                    className="flex items-center justify-between p-3 rounded-xl border border-theme-border bg-theme-surface-alt/40 hover:bg-theme-surface-alt transition-colors group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className="p-2 rounded-lg bg-theme-surface border border-theme-border/50 shadow-sm text-brand-orange">
-                        {file.type === 'pdf' ? <FileText className="w-5 h-5 text-red-500" /> : <FileDown className="w-5 h-5 text-blue-500" />}
+              {activeCaseAttachments.length === 0 ? (
+                <div className="p-6 text-center border border-dashed border-theme-border rounded-xl text-theme-muted text-xs">
+                  No attachments on this case yet. Upload documents below.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {activeCaseAttachments.map((file, idx) => (
+                    <div 
+                      key={file.id || idx}
+                      className="flex items-center justify-between p-3 rounded-xl border border-theme-border bg-theme-surface-alt/40 hover:bg-theme-surface-alt transition-colors group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                        <div className="p-2 rounded-lg bg-theme-surface border border-theme-border/50 shadow-sm text-brand-orange shrink-0">
+                          {file.type === 'pdf' ? (
+                            <FileText className="w-5 h-5 text-red-500" />
+                          ) : file.type === 'image' ? (
+                            <Eye className="w-5 h-5 text-emerald-500" />
+                          ) : (
+                            <FileDown className="w-5 h-5 text-blue-500" />
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs sm:text-sm font-medium text-theme-main truncate">
+                            {file.name}
+                          </span>
+                          <span className="text-[11px] text-theme-muted">
+                            {file.size || 'Document'} • Added on {file.date || attachmentModalCase.dated || '2026-05-06'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs sm:text-sm font-medium text-theme-main truncate">
-                          {file.name}
-                        </span>
-                        <span className="text-[11px] text-theme-muted">
-                          {file.size} • Added on {file.date}
-                        </span>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadSingleFile(file.name, attachmentModalCase)}
-                        className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-brand-orange/10 transition-colors"
-                        title="Download file"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Preview Option */}
+                        <button
+                          type="button"
+                          onClick={() => setPreviewAttachment(file)}
+                          className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg transition-colors cursor-pointer"
+                          title="Preview attachment"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        {/* Download Option */}
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadSingleFile(file.name, attachmentModalCase)}
+                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-brand-orange/10 transition-colors cursor-pointer"
+                          title="Download file"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+
+                        {/* Delete Option */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = activeCaseAttachments.filter(f => (f.id || f.name) !== (file.id || file.name));
+                            setActiveCaseAttachments(updated);
+                            setCases(prev => prev.map(c => (c.id === attachmentModalCase.id || c.sldNumber === attachmentModalCase.sldNumber) ? { ...c, attachments: updated.length } : c));
+                            setToastMessage(`Deleted attachment "${file.name}".`);
+                            setTimeout(() => setToastMessage(''), 3000);
+                          }}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg transition-colors cursor-pointer"
+                          title="Delete attachment"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Upload New Attachment Section */}
@@ -872,14 +1023,217 @@ const ManageCasesTable = ({
               <FileUpload 
                 multiple={true}
                 onFileSelect={(files) => {
-                  const count = Array.isArray(files) ? files.length : files ? 1 : 0;
-                  if (count > 0) {
-                    setCases(prev => prev.map(c => c.id === attachmentModalCase.id ? { ...c, attachments: (c.attachments || 1) + count } : c));
-                    setToastMessage(`Added ${count} new attachment(s) to Case SLD #${attachmentModalCase.sldNumber}.`);
+                  const newFiles = (Array.isArray(files) ? files : [files]).filter(Boolean);
+                  if (newFiles.length > 0) {
+                    const added = newFiles.map((f, i) => ({
+                      id: `uploaded-${Date.now()}-${i}`,
+                      name: f.name || `Upload_${i + 1}.pdf`,
+                      url: URL.createObjectURL(f),
+                      size: `${((f.size || 1048576) / (1024 * 1024)).toFixed(2)} MB`,
+                      date: new Date().toISOString().split('T')[0],
+                      type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') || f.name?.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
+                    }));
+                    const updated = [...activeCaseAttachments, ...added];
+                    setActiveCaseAttachments(updated);
+                    setCases(prev => prev.map(c => (c.id === attachmentModalCase.id || c.sldNumber === attachmentModalCase.sldNumber) ? { ...c, attachments: updated.length } : c));
+                    setToastMessage(`Added ${newFiles.length} new attachment(s) to Case SLD #${attachmentModalCase.sldNumber}.`);
                     setTimeout(() => setToastMessage(''), 3500);
                   }
                 }}
               />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Attachment Preview Modal */}
+      <Modal
+        isOpen={Boolean(previewAttachment)}
+        onClose={() => setPreviewAttachment(null)}
+        title="Attachment Preview"
+        subtitle={previewAttachment ? `${previewAttachment.name} • ${previewAttachment.size || 'Document'}` : ''}
+        icon={Eye}
+        maxWidth="max-w-4xl"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-theme-muted font-medium truncate max-w-sm">{previewAttachment?.name}</span>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setPreviewAttachment(null)}
+              >
+                Close Preview
+              </Button>
+              <Button 
+                variant="primary" 
+                size="sm"
+                className="bg-brand-orange hover:bg-[#D44E35] text-white flex items-center gap-1.5"
+                onClick={() => handleDownloadSingleFile(previewAttachment.name, attachmentModalCase)}
+              >
+                <Download className="w-4 h-4" /> Download
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        {previewAttachment && (
+          <div className="w-full flex flex-col items-center justify-center min-h-[380px] max-h-[75vh] overflow-auto bg-theme-surface-alt/40 rounded-xl border border-theme-border p-3">
+            {previewAttachment.type === 'image' ? (
+              <img 
+                src={previewAttachment.url} 
+                alt={previewAttachment.name} 
+                className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-md"
+              />
+            ) : previewAttachment.type === 'pdf' ? (
+              <div className="w-full h-[520px] flex flex-col">
+                <iframe 
+                  src={`${previewAttachment.url}#toolbar=0`} 
+                  title={previewAttachment.name} 
+                  className="w-full h-full rounded-lg border border-theme-border bg-white"
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center text-center p-8 space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center border border-blue-500/20 shadow-sm">
+                  <FileText className="w-8 h-8" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-theme-main">{previewAttachment.name}</h4>
+                  <p className="text-xs text-theme-muted mt-1">{previewAttachment.size || 'Certified Document'} • Preview Ready</p>
+                </div>
+                <p className="text-xs text-theme-muted max-w-sm">
+                  This document is attached to this case. Click below to download and view the certified document.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-brand-orange hover:bg-[#D44E35] text-white flex items-center gap-2 px-5"
+                  onClick={() => handleDownloadSingleFile(previewAttachment.name, attachmentModalCase)}
+                >
+                  <Download className="w-4 h-4" /> Download Certified Copy
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Judgment Only Modal */}
+      <Modal
+        isOpen={Boolean(editJudgmentCase)}
+        onClose={() => setEditJudgmentCase(null)}
+        title={`Edit Judgment Only • SLD #${editJudgmentCase?.sldNumber || ''}`}
+        subtitle="Fast judgment editor - updates judgment order & decision date without loading full case form"
+        icon={ScrollText}
+        maxWidth="max-w-4xl"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2 text-xs text-theme-muted">
+              <span className="font-semibold text-brand-orange">SLD #{editJudgmentCase?.sldNumber}</span>
+              <span>•</span>
+              <span className="truncate max-w-[240px]">{editJudgmentCase?.court || 'High Court'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setEditJudgmentCase(null)}
+                disabled={isSavingJudgment}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="primary" 
+                size="sm" 
+                className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-1.5"
+                onClick={handleSaveJudgmentOnly}
+                disabled={isSavingJudgment || isLoadingJudgmentText}
+              >
+                {isSavingJudgment ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Update Judgment</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        {editJudgmentCase && (
+          <div className="space-y-4">
+            {saveJudgmentError && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{saveJudgmentError}</span>
+              </div>
+            )}
+
+            {/* Quick Metadata Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-theme-surface-alt/50 border border-theme-border rounded-xl">
+              <div>
+                <label className="text-[11px] font-semibold text-theme-muted uppercase tracking-wider block mb-1">
+                  Case Number
+                </label>
+                <div className="text-xs font-bold text-theme-main truncate">
+                  {Array.isArray(editJudgmentCase.caseNumber) && editJudgmentCase.caseNumber.length > 0 
+                    ? editJudgmentCase.caseNumber.join(', ') 
+                    : editJudgmentCase.caseNumber || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-theme-muted uppercase tracking-wider block mb-1">
+                  Court / Bench
+                </label>
+                <div className="text-xs text-theme-main font-medium truncate">
+                  {editJudgmentCase.court || 'High Court'}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-brand-orange uppercase tracking-wider block mb-1">
+                  Judgment Date (Dated)
+                </label>
+                <input 
+                  type="date"
+                  value={editJudgmentDated}
+                  onChange={(e) => setEditJudgmentDated(e.target.value)}
+                  className="w-full px-2.5 py-1 text-xs bg-theme-surface border border-theme-border rounded-lg text-theme-main focus:outline-none focus:border-brand-orange"
+                />
+              </div>
+            </div>
+
+            {/* Judgment Text Editor */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-theme-main flex items-center gap-1.5">
+                  <ScrollText className="w-3.5 h-3.5 text-brand-orange" />
+                  Operative Judgment Order Text
+                </label>
+                <span className="text-[11px] text-theme-muted">
+                  Direct quick-save (updates in database instantly)
+                </span>
+              </div>
+
+              {isLoadingJudgmentText ? (
+                <div className="p-12 text-center border border-theme-border rounded-xl bg-theme-surface">
+                  <SquareLoader text="Loading judgment text from database..." />
+                </div>
+              ) : (
+                <RichTextEditor
+                  value={editJudgmentText}
+                  onChange={setEditJudgmentText}
+                  placeholder="Type or paste the operative judgment text..."
+                  minHeight={360}
+                />
+              )}
             </div>
           </div>
         )}

@@ -1,6 +1,16 @@
 import { verifyAccessToken } from '../config/jwt.js';
 import User from '../models/User.js';
 
+// Fast in-memory user cache for authorized sessions (60 second TTL, bounded size)
+const userSessionCache = new Map();
+const USER_CACHE_TTL = 60 * 1000;
+const USER_CACHE_MAX = 500;
+
+export const clearUserSessionCache = (userId) => {
+  if (userId) userSessionCache.delete(String(userId));
+  else userSessionCache.clear();
+};
+
 /**
  * Validates JWT access token and logs user in for the request session
  */
@@ -23,8 +33,24 @@ export const protect = async (req, res, next) => {
     // Verify token
     const decoded = verifyAccessToken(token);
 
-    // Fetch user details and attach to request
-    const user = await User.findById(decoded.id).select('-password');
+    // Fast-path: Check cached session
+    const cacheKey = String(decoded.id);
+    const cachedEntry = userSessionCache.get(cacheKey);
+    let user = null;
+
+    if (cachedEntry && Date.now() < cachedEntry.expiresAt) {
+      user = cachedEntry.user;
+    } else {
+      user = await User.findById(decoded.id).select('-password');
+      if (user) {
+        if (userSessionCache.size >= USER_CACHE_MAX) {
+          const oldestKey = userSessionCache.keys().next().value;
+          userSessionCache.delete(oldestKey);
+        }
+        userSessionCache.set(cacheKey, { user, expiresAt: Date.now() + USER_CACHE_TTL });
+      }
+    }
+
     if (!user) {
       return res.status(401).json({
         success: false,

@@ -1,7 +1,15 @@
 import React, { createContext, useContext, useState } from 'react';
 import api from '../services/api.js';
 
-export const DEFAULT_AVATAR = 'https://i.pravatar.cc/150?u=a042581f4e29026704d';
+export const DEFAULT_AVATAR = '/sld-logo.jpeg';
+
+export const sanitizeUserAvatar = (userObj) => {
+  if (!userObj) return null;
+  const avatar = (!userObj.avatarUrl || userObj.avatarUrl.includes('pravatar.cc'))
+    ? DEFAULT_AVATAR
+    : userObj.avatarUrl;
+  return { ...userObj, avatarUrl: avatar };
+};
 
 const DEFAULT_USER = {
   fullName: 'Adam Admin',
@@ -30,7 +38,7 @@ export const UserProvider = ({ children }) => {
     try {
       const stored = localStorage.getItem('sld_user_profile');
       if (stored) {
-        return JSON.parse(stored);
+        return sanitizeUserAvatar(JSON.parse(stored));
       }
     } catch (e) {
       console.error('Failed to load user profile from storage', e);
@@ -44,9 +52,10 @@ export const UserProvider = ({ children }) => {
       api.get('/api/auth/me')
         .then(res => {
           if (res?.data?.data) {
-            setUser(res.data.data);
+            const sanitized = sanitizeUserAvatar(res.data.data);
+            setUser(sanitized);
             try {
-              localStorage.setItem('sld_user_profile', JSON.stringify(res.data.data));
+              localStorage.setItem('sld_user_profile', JSON.stringify(sanitized));
             } catch (e) {
               console.error(e);
             }
@@ -63,12 +72,13 @@ export const UserProvider = ({ children }) => {
 
   const loginUser = (userProfile) => {
     setIsAuthenticated(true);
-    if (userProfile) {
-      setUser(userProfile);
+    const sanitized = sanitizeUserAvatar(userProfile);
+    if (sanitized) {
+      setUser(sanitized);
     }
     try {
       localStorage.setItem('sld_auth_session', 'true');
-      localStorage.setItem('sld_user_profile', JSON.stringify(userProfile));
+      localStorage.setItem('sld_user_profile', JSON.stringify(sanitized));
     } catch (e) {
       console.error('Failed to persist auth session', e);
     }

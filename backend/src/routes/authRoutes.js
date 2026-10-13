@@ -3,7 +3,8 @@ import {
   register, verifyEmail, resendVerificationCode, login, 
   forgotPassword, verifyResetOtp, getResetPasswordForm, resetPassword, 
   googleLogin, googleSignup, getMe, updateProfile, 
-  updateAvatar, removeAvatar, refreshToken 
+  updateAvatar, removeAvatar, refreshToken,
+  changeCurrentUserPassword
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
@@ -26,6 +27,7 @@ router.post('/refresh-token', refreshToken);
 // Protected routes (Require JWT login sessions)
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
+router.put('/change-password', protect, changeCurrentUserPassword);
 router.put('/avatar', protect, updateAvatar);
 router.delete('/avatar', protect, removeAvatar);
 

@@ -43,37 +43,137 @@ const formatNotificationForFrontend = (n) => {
   };
 };
 
+const escapeRegex = (str) => {
+  if (!str) return '';
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Notification APIs Controllers
  */
 export const getNotifications = async (req, res, next) => {
   try {
-    const { query, page, limit, all, full, sortField, sortOrder } = req.query;
+    const { 
+      query, page, limit, all, full, sortField, sortOrder,
+      lawStatute, law, section, number, year, date, text, subject, department, sroNumber, exact
+    } = req.query;
 
     const filter = { isDeleted: { $ne: true } };
 
-    if (query) {
-      const q = query.trim();
-      const searchRegex = new RegExp(q, 'i');
+    // Explicit lawStatute filter (e.g. from dropdown or exact law search)
+    const targetLaw = (lawStatute || law || '').trim();
+    if (targetLaw) {
+      if (exact === 'true') {
+        filter.lawStatute = new RegExp(`^${escapeRegex(targetLaw)}$`, 'i');
+      } else {
+        filter.lawStatute = new RegExp(escapeRegex(targetLaw), 'i');
+      }
+    }
+
+    if (section && section.trim()) {
+      filter.section = new RegExp(escapeRegex(section.trim()), 'i');
+    }
+
+    if (number && number.trim()) {
+      const rawNum = number.trim();
+      // Match exact SRO number or bounded numeric sequence, avoiding partial prefixes/suffixes like 1468 or 11468
+      const isPureDigits = /^\d+$/.test(rawNum);
+      const sroBoundedRegex = isPureDigits
+        ? new RegExp(`(?:^|\\D)${escapeRegex(rawNum)}(?:\\D|$)`, 'i')
+        : new RegExp(escapeRegex(rawNum), 'i');
+
       filter.$or = [
+        { sroNumber: sroBoundedRegex },
+        { number: new RegExp(`^${escapeRegex(rawNum)}$`, 'i') },
+        { notificationId: rawNum }
+      ];
+    }
+
+    if (year && year.trim()) {
+      const yNum = parseInt(year.trim(), 10);
+      if (!isNaN(yNum)) {
+        filter.year = yNum;
+      } else {
+        filter.year = new RegExp(escapeRegex(year.trim()), 'i');
+      }
+    }
+
+    if (date && date.trim()) {
+      const dRegex = new RegExp(escapeRegex(date.trim()), 'i');
+      filter.$or = [
+        { lawDate: dRegex },
+        { 'blocks.date': dRegex }
+      ];
+    }
+
+    if (department && department.trim()) {
+      filter.department = new RegExp(escapeRegex(department.trim()), 'i');
+    }
+
+    if (sroNumber && sroNumber.trim()) {
+      filter.sroNumber = new RegExp(escapeRegex(sroNumber.trim()), 'i');
+    }
+
+    if (subject && subject.trim()) {
+      filter.subject = new RegExp(escapeRegex(subject.trim()), 'i');
+    }
+
+    if (text && text.trim()) {
+      const textRegex = new RegExp(escapeRegex(text.trim()), 'i');
+      const textOr = [
+        { subject: textRegex },
+        { 'blocks.detail': textRegex }
+      ];
+      if (filter.$or) {
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: filter.$or }, { $or: textOr });
+        delete filter.$or;
+      } else {
+        filter.$or = textOr;
+      }
+    }
+
+    // Generic query fallback
+    if (query && query.trim()) {
+      const q = query.trim().replace(/\bsaes\b/gi, 'sales');
+      const searchRegex = new RegExp(escapeRegex(q), 'i');
+      
+      const tokens = q.split(/\s+/).filter(Boolean).map(escapeRegex);
+      const tokenRegex = tokens.length > 1 
+        ? new RegExp(tokens.map(t => `(?=.*${t})`).join(''), 'i')
+        : searchRegex;
+
+      const queryOr = [
         { notificationId: searchRegex },
         { notification_id: searchRegex },
         { srNumber: searchRegex },
         { number: searchRegex },
         { sroNumber: searchRegex },
         { subject: searchRegex },
-        { lawStatute: searchRegex },
+        { lawStatute: tokenRegex },
         { section: searchRegex },
-        { department: searchRegex },
-        { 'blocks.detail': searchRegex }
+        { department: searchRegex }
       ];
+
+      // Only search inside blocks.detail if exact is not specified and no explicit law filter
+      if (!targetLaw && exact !== 'true') {
+        queryOr.push({ 'blocks.detail': searchRegex });
+      }
+
+      if (filter.$or) {
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: filter.$or }, { $or: queryOr });
+        delete filter.$or;
+      } else {
+        filter.$or = queryOr;
+      }
     }
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const isAll = all === 'true';
 
-    const safeLimit = isAll ? 500 : Math.min(Math.max(limitNum || 25, 1), 200);
+    const safeLimit = isAll ? 1000 : Math.min(Math.max(limitNum || 100, 1), 1000);
     const safePage = Math.max(pageNum || 1, 1);
 
     const total = await Notification.countDocuments(filter);
@@ -119,11 +219,13 @@ export const getNotificationById = async (req, res, next) => {
     const { id } = req.params;
 
     // Search by client ID (srNumber), notificationId, or Mongoose ID
+    const parsedSr = Number(id);
     const query = {
       $or: [
         { notificationId: id },
         { notification_id: id },
-        { srNumber: id },
+        { srNumber: String(id) },
+        ...(Number.isFinite(parsedSr) ? [{ srNumberInt: parsedSr }, { srNumber: parsedSr }] : []),
         ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
       ],
       isDeleted: { $ne: true }
@@ -165,6 +267,38 @@ export const getNotificationById = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/notifications/next-sr
+ * Returns the highest existing Notification SR # and the next sequential SR #.
+ */
+export const getNextNotificationSr = async (req, res, next) => {
+  try {
+    const topNotif = await Notification.findOne({ isDeleted: { $ne: true }, srNumberInt: { $ne: null } })
+      .sort({ srNumberInt: -1 })
+      .select('srNumber srNumberInt')
+      .lean();
+
+    let latestSr = 0;
+    if (topNotif) {
+      if (typeof topNotif.srNumberInt === 'number' && !isNaN(topNotif.srNumberInt)) {
+        latestSr = topNotif.srNumberInt;
+      } else if (topNotif.srNumber && !isNaN(parseInt(topNotif.srNumber, 10))) {
+        latestSr = parseInt(topNotif.srNumber, 10);
+      }
+    }
+
+    const nextSr = latestSr > 0 ? latestSr + 1 : 1;
+
+    return res.status(200).json({
+      success: true,
+      latestSr,
+      nextSr
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createNotification = async (req, res, next) => {
   try {
     const { 
@@ -180,18 +314,38 @@ export const createNotification = async (req, res, next) => {
       ? subDepartment.trim().toLowerCase()
       : 'federal';
 
-    if (srNumber && typeof srNumber === 'string' && srNumber.trim().length > 0) {
-      const exist = await Notification.findOne({ srNumber: srNumber.trim() });
+    let finalSr = srNumber && typeof srNumber === 'string' ? srNumber.trim() : '';
+
+    if (finalSr) {
+      const exist = await Notification.findOne({ srNumber: finalSr });
       if (exist) {
         return res.status(400).json({
           success: false,
-          message: `Notification with SR #${srNumber} already exists.`
+          message: `Notification with SR #${finalSr} already exists.`
         });
       }
+    } else {
+      // Auto-assign next sequential SR #
+      const topNotif = await Notification.findOne({ isDeleted: { $ne: true }, srNumberInt: { $ne: null } })
+        .sort({ srNumberInt: -1 })
+        .select('srNumber srNumberInt')
+        .lean();
+      let latestSr = 0;
+      if (topNotif) {
+        if (typeof topNotif.srNumberInt === 'number' && !isNaN(topNotif.srNumberInt)) {
+          latestSr = topNotif.srNumberInt;
+        } else if (topNotif.srNumber && !isNaN(parseInt(topNotif.srNumber, 10))) {
+          latestSr = parseInt(topNotif.srNumber, 10);
+        }
+      }
+      finalSr = String(latestSr > 0 ? latestSr + 1 : 1);
     }
 
+    const srInt = !isNaN(parseInt(finalSr, 10)) ? parseInt(finalSr, 10) : undefined;
+
     const newNotif = new Notification({
-      srNumber: srNumber ? srNumber.trim() : undefined,
+      srNumber: finalSr,
+      srNumberInt: srInt,
       department: normalizedDepartment,
       subDepartment: normalizedSubDepartment,
       year: year ? parseInt(year, 10) : new Date().getFullYear(),

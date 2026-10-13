@@ -2,6 +2,7 @@ import City from '../models/City.js';
 import PrincipleOfLaw from '../models/PrincipleOfLaw.js';
 import LegalMaxim from '../models/LegalMaxim.js';
 import LawSetting from '../models/LawSetting.js';
+import SectionSetting from '../models/SectionSetting.js';
 import Case from '../models/Case.js';
 import Statute from '../models/Statute.js';
 import Notification from '../models/Notification.js';
@@ -899,6 +900,234 @@ export const deleteLegalMaxim = async (req, res, next) => {
       success: true,
       message: 'Legal Maxim deleted successfully',
       data: maxim,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ==========================================
+// 9. SECTIONS CONTROLLER
+// ==========================================
+
+export const getSections = async (req, res, next) => {
+  try {
+    const { search = '', status = '', page, limit } = req.query;
+
+    const filter = {};
+    if (search.trim()) {
+      filter.name = { $regex: escapeRegex(search.trim()), $options: 'i' };
+    }
+    if (status.trim() && status !== 'All' && status !== 'all') {
+      filter.status = status.trim().toLowerCase();
+    }
+
+    const total = await SectionSetting.countDocuments(filter);
+    let query = SectionSetting.find(filter).select('name ordering law status').sort({ ordering: 1, name: 1 });
+
+    if (page && limit) {
+      const p = Math.max(1, parseInt(page, 10) || 1);
+      const l = Math.max(1, parseInt(limit, 10) || 20);
+      query = query.skip((p - 1) * l).limit(l);
+    } else if (limit) {
+      const l = Math.max(1, parseInt(limit, 10) || 10000);
+      query = query.limit(l);
+    }
+
+    const sections = await query.lean();
+
+    return res.status(200).json({
+      success: true,
+      total,
+      data: sections,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createSection = async (req, res, next) => {
+  try {
+    const { name, ordering, law = '', status } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Section Number is required.' });
+    }
+
+    const cleanName = name.replace(/^\s*(?:section|sec\.?|s\.)\s*/i, '').trim();
+
+    const existing = await SectionSetting.findOne({ name: { $regex: `^${escapeRegex(cleanName)}$`, $options: 'i' } });
+    if (existing) {
+      return res.status(400).json({ success: false, message: `Section "${cleanName}" already exists.` });
+    }
+
+    let targetOrder = Number(ordering);
+    const isManualOrder = Boolean(req.body.isManualOrdering) || (req.body.ordering !== undefined && req.body.isCustomOrdering === true);
+
+    // Intelligent sub-section placement:
+    // If admin adds e.g. "1(B)(A)", check for parent "1(B)" or "1"
+    let foundParentOrder = null;
+
+    // Extract parent candidates (e.g. 1(B)(A) -> 1(B); 1(A) -> 1)
+    const parenMatch = cleanName.match(/^(.*)(\([A-Za-z0-9]+\))$/);
+    const letterMatch = cleanName.match(/^(.*[0-9]+[A-Za-z]?)[A-Za-z]$/);
+    const candidates = [];
+    if (parenMatch && parenMatch[1].trim()) candidates.push(parenMatch[1].trim());
+    if (letterMatch && letterMatch[1].trim()) candidates.push(letterMatch[1].trim());
+
+    for (const parentCandidate of candidates) {
+      const parentSec = await SectionSetting.findOne({
+        name: { $regex: `^${escapeRegex(parentCandidate)}$`, $options: 'i' }
+      });
+      if (parentSec) {
+        // Find the last existing child or section starting with this parent candidate
+        const lastChild = await SectionSetting.findOne({
+          name: { $regex: `^${escapeRegex(parentCandidate)}`, $options: 'i' }
+        }).sort({ ordering: -1 });
+
+        foundParentOrder = (lastChild?.ordering || parentSec.ordering);
+        break;
+      }
+    }
+
+    if (foundParentOrder !== null && (!targetOrder || !isManualOrder)) {
+      targetOrder = foundParentOrder + 1;
+      // Shift all subsequent items down by 1
+      await SectionSetting.updateMany(
+        { ordering: { $gte: targetOrder } },
+        { $inc: { ordering: 1 } }
+      );
+    } else if (targetOrder && !isNaN(targetOrder) && targetOrder > 0) {
+      // Explicit manual order was provided
+      await SectionSetting.updateMany(
+        { ordering: { $gte: targetOrder } },
+        { $inc: { ordering: 1 } }
+      );
+    } else {
+      const highestSection = await SectionSetting.findOne().sort({ ordering: -1 });
+      targetOrder = (highestSection && highestSection.ordering ? highestSection.ordering : 0) + 1;
+    }
+
+    const section = await SectionSetting.create({
+      name: cleanName,
+      ordering: targetOrder,
+      law: law ? law.trim() : '',
+      status: status === 'inactive' ? 'inactive' : 'active',
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Section ${cleanName} created at order #${targetOrder}`,
+      data: section,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateSection = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, ordering, law, status } = req.body;
+
+    const section = await SectionSetting.findById(id);
+    if (!section) {
+      return res.status(404).json({ success: false, message: 'Section not found' });
+    }
+
+    if (name && name.trim()) {
+      const cleanName = name.replace(/^\s*(?:section|sec\.?|s\.)\s*/i, '').trim();
+      const existing = await SectionSetting.findOne({ 
+        name: { $regex: `^${escapeRegex(cleanName)}$`, $options: 'i' },
+        _id: { $ne: id }
+      });
+      if (existing) {
+        return res.status(400).json({ success: false, message: `Section "${cleanName}" already exists.` });
+      }
+      section.name = cleanName;
+    }
+
+    if (ordering !== undefined) {
+      const newOrder = Number(ordering);
+      if (newOrder && !isNaN(newOrder) && newOrder !== section.ordering) {
+        const oldOrder = section.ordering;
+        if (newOrder < oldOrder) {
+          // Shift items in [newOrder, oldOrder - 1] up by 1
+          await SectionSetting.updateMany(
+            { ordering: { $gte: newOrder, $lt: oldOrder }, _id: { $ne: id } },
+            { $inc: { ordering: 1 } }
+          );
+        } else if (newOrder > oldOrder) {
+          // Shift items in [oldOrder + 1, newOrder] down by 1
+          await SectionSetting.updateMany(
+            { ordering: { $gt: oldOrder, $lte: newOrder }, _id: { $ne: id } },
+            { $inc: { ordering: -1 } }
+          );
+        }
+        section.ordering = newOrder;
+      }
+    }
+
+    if (law !== undefined) {
+      section.law = law ? law.trim() : '';
+    }
+    if (status) {
+      section.status = status === 'inactive' ? 'inactive' : 'active';
+    }
+
+    await section.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Section updated successfully',
+      data: section,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteSection = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const section = await SectionSetting.findByIdAndDelete(id);
+    if (!section) {
+      return res.status(404).json({ success: false, message: 'Section not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Section deleted successfully',
+      data: { id },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const swapSectionOrdering = async (req, res, next) => {
+  try {
+    const { sectionId1, sectionId2 } = req.body;
+    if (!sectionId1 || !sectionId2) {
+      return res.status(400).json({ success: false, message: 'Both section IDs are required to swap ordering.' });
+    }
+
+    const s1 = await SectionSetting.findById(sectionId1);
+    const s2 = await SectionSetting.findById(sectionId2);
+    if (!s1 || !s2) {
+      return res.status(404).json({ success: false, message: 'One or both sections not found.' });
+    }
+
+    const temp = s1.ordering;
+    s1.ordering = s2.ordering;
+    s2.ordering = temp;
+    await s1.save();
+    await s2.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully swapped ordering between "${s1.name}" (now ${s1.ordering}) and "${s2.name}" (now ${s2.ordering}).`,
+      data: { s1, s2 }
     });
   } catch (err) {
     next(err);

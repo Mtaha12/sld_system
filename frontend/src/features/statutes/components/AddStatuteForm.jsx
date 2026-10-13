@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Layers, Paperclip } from 'lucide-react';
+import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import DatePicker from '../../../components/ui/DatePicker';
@@ -13,6 +13,7 @@ import FormFooter from '../../../components/ui/FormFooter';
 import { statuteSchema } from '../validation/statuteSchema';
 import { statuteService } from '../services/statuteService';
 import { settingService } from '../../../services/settingService';
+import { ALL_SECTIONS } from '../../../data/sections';
 
 /* ── Compact inline file-chooser, same height as the date picker ─────── */
 const CompactFileButton = ({ value, onChange }) => {
@@ -71,21 +72,7 @@ const AddStatuteForm = () => {
   const isEdit = Boolean(location.state?.isEdit || editData);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lawOptions, setLawOptions] = useState([]);
-
-  useEffect(() => {
-    let isMounted = true;
-    settingService.getLaws({ status: 'active', limit: 5000 })
-      .then(res => {
-        if (isMounted && res?.data && Array.isArray(res.data)) {
-          setLawOptions(res.data.map(l => l.name));
-        }
-      })
-      .catch(err => {
-        console.warn('Could not load dynamic laws for AddStatuteForm:', err);
-      });
-    return () => { isMounted = false; };
-  }, []);
-
+  const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
   const defaultValues = {
     srNumber: editData?.srNumber?.toString() || editData?.id?.toString() || '',
     department: editData?.department?.toLowerCase() || 'tax',
@@ -122,15 +109,116 @@ const AddStatuteForm = () => {
     })()
   };
 
+  const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || null);
+  const [loadingStatute, setLoadingStatute] = useState(false);
+  const [loadFeedback, setLoadFeedback] = useState(null);
+
   const {
     register,
     control,
     handleSubmit,
+    setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(statuteSchema),
     defaultValues,
   });
+
+  const loadStatuteBySr = React.useCallback(async (targetSr) => {
+    const cleanSr = String(targetSr ?? getValues('srNumber') ?? '').trim();
+    if (!cleanSr) return;
+
+    setLoadingStatute(true);
+    setLoadFeedback(null);
+
+    try {
+      const data = await statuteService.getStatuteById(cleanSr);
+      if (data) {
+        setCurrentRecordId(data._id || data.id);
+        setValue('srNumber', String(data.srNumber || cleanSr));
+        setValue('department', data.department?.toLowerCase() || 'tax');
+        setValue('chapter', data.chapter || '');
+        setValue('display', data.display?.toLowerCase() === 'no' ? 'no' : 'yes');
+        setValue('status', data.display === 'No' ? 'inactive' : 'active');
+        setValue('law', data.law || 'Income Tax Rules, 2002');
+        setValue('section', data.section || '');
+        setValue('heading', data.heading || '');
+        if (Array.isArray(data.blocks) && data.blocks.length > 0) {
+          setValue('blocks', data.blocks.map((b, i) => ({
+            id: b._id || `existing-${i}`,
+            sectionHeading: b.sectionHeading || '',
+            fromDate: b.fromDate ? new Date(b.fromDate) : null,
+            toDate: b.toDate ? new Date(b.toDate) : null,
+            detail: b.detail || '',
+            attachments: b.attachments || []
+          })));
+        }
+        setLoadFeedback({
+          type: 'success',
+          message: `SR #${cleanSr} loaded: ${data.heading ? (data.heading.slice(0, 32) + '...') : (data.law || 'Statute Record')}`
+        });
+      }
+    } catch (err) {
+      console.warn(`[Statute Load] SR #${cleanSr} lookup notice:`, err?.response?.data?.message || err.message);
+      // Not found in database — keep SR and allow creating new record
+      setCurrentRecordId(null);
+      setValue('srNumber', cleanSr);
+      setLoadFeedback({
+        type: 'notFound',
+        message: `SR #${cleanSr} not found in database. Ready to create new statute.`
+      });
+    } finally {
+      setLoadingStatute(false);
+      setTimeout(() => setLoadFeedback(null), 6000);
+    }
+  }, [getValues, setValue]);
+
+  const handleStepSr = (delta) => {
+    const rawVal = getValues('srNumber');
+    const currentNum = parseInt(rawVal || '1', 10);
+    const nextNum = Math.max(1, (isNaN(currentNum) ? 1 : currentNum) + delta);
+    setValue('srNumber', String(nextNum));
+    loadStatuteBySr(nextNum);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    settingService.getLaws({ status: 'active', limit: 5000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data)) {
+          setLawOptions(res.data.map(l => l.name));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic laws for AddStatuteForm:', err);
+      });
+
+    settingService.getSections({ status: 'active', limit: 10000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setSectionOptions(res.data.map(s => s.name));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic sections for AddStatuteForm:', err);
+      });
+
+    // Automatically assign next sequential SR # for new statutes
+    if (!isEdit) {
+      statuteService.getNextSr()
+        .then(res => {
+          if (isMounted && res?.nextSr) {
+            setValue('srNumber', String(res.nextSr), { shouldDirty: false });
+          }
+        })
+        .catch(err => {
+          console.warn('Could not auto-fetch next Statute SR #:', err);
+        });
+    }
+
+    return () => { isMounted = false; };
+  }, [isEdit, setValue]);
 
   const { fields: blockFields } = useFieldArray({
     control,
@@ -149,8 +237,9 @@ const AddStatuteForm = () => {
     });
 
     try {
-      if (isEdit && editData?.id) {
-        await statuteService.updateStatute(editData.id, data);
+      const targetId = currentRecordId || (isEdit && editData?.id);
+      if (targetId) {
+        await statuteService.updateStatute(targetId, data);
       } else {
         await statuteService.createStatute(data);
       }
@@ -183,6 +272,40 @@ const AddStatuteForm = () => {
           </div>
         )}
 
+        {/* Top Floating Action Bar: Sticky while scrolling */}
+        <div className="sticky top-0 z-30 mb-4 flex items-center justify-between bg-theme-surface/95 border border-theme-border px-4 py-3 rounded-xl shadow-md backdrop-blur-md">
+          <div className="text-xs text-theme-muted font-medium flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/manage-statutes')}
+              className="px-2.5 py-1.5 -ml-1 text-theme-muted hover:text-theme-main hover:bg-theme-surface border border-theme-border rounded-lg transition-colors flex items-center gap-1.5 font-semibold text-xs cursor-pointer shadow-xs mr-1"
+              title="Back to Statutes list"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+            <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Statute Form' : 'Add New Statute Form'}</span>
+            {editData?.srNumber && <span className="text-brand-orange font-semibold">SR #{editData.srNumber}</span>}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/manage-statutes')}
+              className="px-3.5 py-1.5 text-xs font-medium text-theme-muted hover:text-theme-main border border-theme-border rounded-lg hover:bg-theme-surface transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="statute-form"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+            >
+              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Record' : 'Save Record')}</span>
+            </button>
+          </div>
+        </div>
+
         <form id="statute-form" onSubmit={handleSubmit(onSubmit)} className="space-y-3">
 
           {/* Record Information */}
@@ -191,13 +314,66 @@ const AddStatuteForm = () => {
             {/* Top row: SR # · Department · Chapter — all on one line */}
             <div className="grid grid-cols-3 gap-3 items-end mb-3">
               <FormField label="SR #" required>
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  placeholder="e.g. 9339"
-                  error={errors.srNumber}
-                  {...register('srNumber')}
-                />
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <Input
+                      variant="light"
+                      inputSize="sm"
+                      placeholder="e.g. 9339"
+                      error={errors.srNumber}
+                      {...register('srNumber')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          loadStatuteBySr(e.currentTarget.value);
+                        }
+                      }}
+                    />
+                    {loadingStatute && (
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center">
+                        <Loader2 className="w-4 h-4 animate-spin text-brand-orange" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      title="Previous SR"
+                      onClick={() => handleStepSr(-1)}
+                      disabled={loadingStatute}
+                      className="p-1.5 h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Next SR"
+                      onClick={() => handleStepSr(1)}
+                      disabled={loadingStatute}
+                      className="p-1.5 h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => loadStatuteBySr()}
+                      disabled={loadingStatute}
+                      className="h-[34px] text-xs px-2.5 border border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 rounded-lg font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      {loadingStatute ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Load'}
+                    </button>
+                  </div>
+                </div>
+                {loadFeedback && (
+                  <div className={`mt-1.5 text-[11px] font-medium flex items-center gap-1 transition-all ${
+                    loadFeedback.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                    loadFeedback.type === 'notFound' ? 'text-amber-600 dark:text-amber-400' :
+                    'text-red-500'
+                  }`}>
+                    {loadFeedback.type === 'success' && <Check className="w-3.5 h-3.5 shrink-0" />}
+                    <span className="truncate">{loadFeedback.message}</span>
+                  </div>
+                )}
               </FormField>
               <FormField label="Department">
                 <Input
@@ -249,10 +425,16 @@ const AddStatuteForm = () => {
                 <Input
                   variant="light"
                   inputSize="sm"
-                  placeholder="Enter section (e.g. 231CB)..."
+                  placeholder="Select or enter Section..."
+                  list="statute-sections-list"
                   error={errors.section}
                   {...register('section')}
                 />
+                <datalist id="statute-sections-list">
+                  {sectionOptions.map((secName, idx) => (
+                    <option key={idx} value={secName} />
+                  ))}
+                </datalist>
               </FormField>
             </div>
 

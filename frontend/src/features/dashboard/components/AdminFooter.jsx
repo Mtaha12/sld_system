@@ -1,15 +1,20 @@
-import { ShieldCheck } from 'lucide-react';
-
 const AdminFooter = () => {
   return (
-    <footer className="mt-8 flex items-center justify-between text-xs text-theme-muted py-4 border-t border-theme-border">
-      <p>
-        You are using <strong className="font-semibold text-theme-main">SLD System</strong> Admin Panel
+    <footer className="mt-6 flex flex-col sm:flex-row items-center justify-between text-xs py-4 border-t border-theme-border gap-2">
+      <p className="font-bold text-theme-main tracking-tight">
+        SLD System SMC Limited
       </p>
-      <div className="flex items-center gap-1.5">
-        <span>Version 2.0.0</span>
-        <ShieldCheck className="w-4 h-4 text-brand-orange" />
-      </div>
+      <p className="text-xs text-theme-muted font-medium">
+        Powered and Designed by{' '}
+        <a 
+          href="https://www.quirksolution.dev" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="font-bold text-[#f15a24] hover:text-[#d44e35] hover:underline cursor-pointer inline-flex items-center gap-0.5 transition-colors"
+        >
+          Quirksolution
+        </a>
+      </p>
     </footer>
   );
 };

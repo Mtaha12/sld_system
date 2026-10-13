@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
+import { magazineService } from '../../../services/adminSettingsServices';
 
 const ManageCasesFilterBar = ({
   selectedCount = 0,
@@ -32,6 +33,20 @@ const ManageCasesFilterBar = ({
   const [fromYear, setFromYear] = useState('');
   const [toYear, setToYear] = useState('');
   const [magazine, setMagazine] = useState('');
+  const [magazineList, setMagazineList] = useState([]);
+
+  // Fetch active magazines dynamically from backend
+  useEffect(() => {
+    let isMounted = true;
+    magazineService.getMagazines({ status: 'active', limit: 200 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setMagazineList(res.data);
+        }
+      })
+      .catch(err => console.warn('Could not load dynamic magazines for filter bar:', err));
+    return () => { isMounted = false; };
+  }, []);
 
   // Synchronize when initialSearch prop changes (e.g. navigation from Dashboard search)
   useEffect(() => {
@@ -116,17 +131,29 @@ const ManageCasesFilterBar = ({
           />
         </div>
 
-        <div className="relative w-full sm:w-[140px] shrink-0">
+        <div className="relative w-full sm:w-[150px] shrink-0">
           <select 
             value={magazine}
             onChange={(e) => setMagazine(e.target.value)}
             className="w-full pl-3 pr-9 py-2.5 border border-theme-border rounded-lg text-sm appearance-none focus:outline-none focus:border-brand-orange bg-theme-surface text-theme-main shadow-sm cursor-pointer"
           >
             <option value="">Magazine</option>
-            <option value="SLD">SLD Law Report</option>
-            <option value="Tax">Tax Law Journal</option>
-            <option value="CLC">Civil Law Cases (CLC)</option>
-            <option value="SCMR">Supreme Court Monthly Review</option>
+            {magazineList.length > 0 ? (
+              magazineList.map((m) => (
+                <option key={m._id || m.id || m.name} value={m.name}>
+                  {m.name.toUpperCase()} {m.description ? `(${m.description})` : ''}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="SLD">SLD Law Report</option>
+                <option value="Tax">Tax Law Journal</option>
+                <option value="CLC">Civil Law Cases (CLC)</option>
+                <option value="SCMR">Supreme Court Monthly Review</option>
+                <option value="PTD">PTD</option>
+                <option value="PLD">PLD</option>
+              </>
+            )}
           </select>
           <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-theme-disabled pointer-events-none" />
         </div>

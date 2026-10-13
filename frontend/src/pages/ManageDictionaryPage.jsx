@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, BookA, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddDictionaryForm from '../features/dictionary/components/AddDictionaryForm';
@@ -11,8 +12,11 @@ const ManageDictionaryPage = () => {
   const { user } = useUser();
   const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
 
+  const [urlSearchParams] = useSearchParams();
+  const initialQuery = urlSearchParams.get('query') || urlSearchParams.get('word') || '';
+
   const [dictionaryList, setDictionaryList] = useState([]);
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState(initialQuery);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);

@@ -87,7 +87,7 @@ const ManageNotificationsTable = ({
   const [deleteError, setDeleteError] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const isServerPaginated = Boolean(serverPaginated || propTotalItems !== undefined);
-  const itemsPerPage = isServerPaginated ? 25 : 10;
+  const itemsPerPage = isServerPaginated ? 100 : 100;
   
   const handleSort = (key) => {
     setSortConfig(prev => {
@@ -101,7 +101,6 @@ const ManageNotificationsTable = ({
   };
 
   const sortedNotifications = useMemo(() => {
-    if (isServerPaginated) return notifications;
     if (!sortConfig.key || !sortConfig.direction) return notifications;
 
     const { key, direction } = sortConfig;
@@ -142,12 +141,12 @@ const ManageNotificationsTable = ({
       const result = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
       return isAsc ? result : -result;
     });
-  }, [notifications, sortConfig, isServerPaginated]);
+  }, [notifications, sortConfig]);
 
   const totalItems = isServerPaginated ? (propTotalItems !== undefined ? propTotalItems : notifications.length) : sortedNotifications.length;
   const totalPages = isServerPaginated ? (propTotalPages !== undefined ? propTotalPages : Math.ceil(totalItems / itemsPerPage) || 1) : (Math.ceil(totalItems / itemsPerPage) || 1);
   
-  const currentData = isServerPaginated ? notifications : sortedNotifications.slice(
+  const currentData = isServerPaginated ? sortedNotifications : sortedNotifications.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -239,6 +238,9 @@ const ManageNotificationsTable = ({
                 <TableHeader title="Law/Statute" sortKey="lawStatute" sortConfig={sortConfig} onSort={handleSort} />
                 <TableHeader title="Section" sortKey="section" sortConfig={sortConfig} onSort={handleSort} />
                 <th className="px-3 py-3 font-semibold text-theme-main align-top text-center">
+                  Attachment
+                </th>
+                <th className="px-3 py-3 font-semibold text-theme-main align-top text-center">
                   Action
                 </th>
               </tr>
@@ -246,19 +248,24 @@ const ManageNotificationsTable = ({
             <tbody className="divide-y divide-theme-border/50">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center">
+                  <td colSpan={12} className="py-12 text-center">
                     <SquareLoader text="Loading Notifications..." />
                   </td>
                 </tr>
               ) : currentData.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-sm text-theme-muted">
+                  <td colSpan={12} className="py-12 text-center text-sm text-theme-muted">
                     No Notifications found.
                   </td>
                 </tr>
               ) : (
                 currentData.map((item) => {
                   const isHighlighted = highlightedId === item.id;
+                  const hasAtt = (Array.isArray(item.attachments) && item.attachments.length > 0) ||
+                                 Boolean(item.attachment) ||
+                                 Boolean(item.attachmentName) ||
+                                 (Array.isArray(item.blocks) && item.blocks.some(b => Array.isArray(b?.attachments) ? b.attachments.length > 0 : Boolean(b?.attachment)));
+
                   return (
                     <tr 
                       key={item.id} 
@@ -278,6 +285,21 @@ const ManageNotificationsTable = ({
                     <td className="px-3 py-4 align-top text-theme-muted whitespace-normal break-words">{item.lawDate || '-'}</td>
                     <td className="px-3 py-4 align-top text-theme-muted whitespace-normal break-words">{item.lawStatute || '-'}</td>
                     <td className="px-3 py-4 align-top text-theme-muted whitespace-normal break-words">{item.section || '-'}</td>
+                    <td className="px-3 py-4 align-top text-center">
+                      {hasAtt ? (
+                        <button
+                          type="button"
+                          onClick={() => setViewModalItem(item)}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#7c4dff]/20 hover:bg-[#7c4dff]/30 text-[#651fff] dark:text-[#b388ff] border border-[#7c4dff]/40 shadow-sm transition-all cursor-pointer"
+                          title="View Attachment"
+                        >
+                          <Eye className="w-3 h-3 shrink-0" />
+                          <span>view</span>
+                        </button>
+                      ) : (
+                        <span className="text-theme-muted/50">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-4 align-top text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button 

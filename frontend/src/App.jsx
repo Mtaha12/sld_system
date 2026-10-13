@@ -6,6 +6,7 @@ import AuthLayout from './layouts/AuthLayout'
 import AdminLayout from './layouts/AdminLayout'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import Spinner from './components/ui/Spinner'
+import FloatingAiWatermark from './components/ui/FloatingAiWatermark'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SignupPage = lazy(() => import('./pages/SignupPage'))
@@ -35,10 +36,15 @@ const SearchCaseLawPage = lazy(() => import('./pages/SearchCaseLawPage'))
 const StatuteSearchPage = lazy(() => import('./pages/StatuteSearchPage'))
 const NotificationSearchPage = lazy(() => import('./pages/NotificationSearchPage'))
 const CaseViewPage = lazy(() => import('./pages/CaseViewPage'))
+const StatuteViewPage = lazy(() => import('./pages/StatuteViewPage'))
+const NotificationViewPage = lazy(() => import('./pages/NotificationViewPage'))
+const DictionaryViewPage = lazy(() => import('./pages/DictionaryViewPage'))
+const TaxCardViewPage = lazy(() => import('./pages/TaxCardViewPage'))
 const ManageCitiesPage = lazy(() => import('./pages/setting/ManageCitiesPage'))
 const ManagePrincipleOfLawsPage = lazy(() => import('./pages/setting/ManagePrincipleOfLawsPage'))
 const ManageLegalMaximsPage = lazy(() => import('./pages/setting/ManageLegalMaximsPage'))
 const ManageLawsPage = lazy(() => import('./pages/setting/ManageLawsPage'))
+const ManageSectionsPage = lazy(() => import('./pages/setting/ManageSectionsPage'))
 const ManageUsersPage = lazy(() => import('./pages/ManageUsersPage'))
 const CaseActivityPage = lazy(() => import('./pages/activity/CaseActivityPage'))
 const NotificationActivityPage = lazy(() => import('./pages/activity/NotificationActivityPage'))
@@ -53,6 +59,7 @@ const ManageDictionaryPage = lazy(() => import('./pages/ManageDictionaryPage'))
 import ErrorBoundary from './components/common/ErrorBoundary'
 
 const ManageNewslettersPage = lazy(() => import('./pages/ManageNewslettersPage'))
+const NewsletterViewPage = lazy(() => import('./pages/NewsletterViewPage'))
 const ManageCustomTariffsPage = lazy(() => import('./pages/ManageCustomTariffsPage'))
 const ManageInvoicesPage = lazy(() => import('./pages/ManageInvoicesPage'))
 const OtherCaseLawsPage = lazy(() => import('./pages/OtherCaseLawsPage'))
@@ -77,10 +84,18 @@ function App() {
               <Route path="/payment-review/approve/:token" element={<PaymentReviewApprovePage />} />
               <Route path="/payment-review/reject/:token" element={<PaymentReviewRejectPage />} />
             </Route>
-            
-                        {/* Standalone Document Views */}
+
+            {/* Public Shared Document Views (Accessible to anyone with the link) */}
+            <Route path="/newsletters/view/:id" element={<NewsletterViewPage />} />
+            <Route path="/newsletter-doc/:id" element={<NewsletterViewPage />} />
+
+            {/* Standalone Document Views */}
             <Route element={<ProtectedRoute />}>
               <Route path="/cases/view/:id" element={<CaseViewPage />} />
+              <Route path="/statutes/view/:id" element={<StatuteViewPage />} />
+              <Route path="/notifications/view/:id" element={<NotificationViewPage />} />
+              <Route path="/dictionary/view/:id" element={<DictionaryViewPage />} />
+              <Route path="/tax-cards/view/:id" element={<TaxCardViewPage />} />
             </Route>
 
             {/* Protected Admin Routes */}
@@ -107,6 +122,7 @@ function App() {
                 <Route path="/search-notification" element={<Navigate to="/notification-search" replace />} />
                 <Route path="/search-notifications" element={<Navigate to="/notification-search" replace />} />
                 <Route path="/manage-cases" element={<ManageCasesPage />} />
+                <Route path="/manage-case-law" element={<Navigate to="/manage-cases" replace />} />
                 <Route path="/manage-cases/add" element={<AddCaseLawPage />} />
                 <Route path="/cases/new" element={<Navigate to="/manage-cases/add" replace />} />
                 <Route path="/manage-notifications" element={<ManageNotificationsPage />} />
@@ -125,6 +141,9 @@ function App() {
                 <Route path="/manage-legal-maxims" element={<Navigate to="/setting/legal-maxims" replace />} />
                 <Route path="/setting/laws" element={<ManageLawsPage />} />
                 <Route path="/settings/laws" element={<Navigate to="/setting/laws" replace />} />
+                <Route path="/setting/sections" element={<ManageSectionsPage />} />
+                <Route path="/settings/sections" element={<Navigate to="/setting/sections" replace />} />
+                <Route path="/manage-sections" element={<Navigate to="/setting/sections" replace />} />
                 <Route path="/manage-users" element={<ManageUsersPage />} />
                 <Route path="/users" element={<Navigate to="/manage-users" replace />} />
                 <Route path="/activity/cases" element={<CaseActivityPage />} />
@@ -167,6 +186,7 @@ function App() {
           </Routes>
           </Suspense>
           </ErrorBoundary>
+          <FloatingAiWatermark />
         </BrowserRouter>
       </UserProvider>
     </ThemeProvider>

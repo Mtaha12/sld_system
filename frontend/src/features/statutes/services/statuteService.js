@@ -31,6 +31,15 @@ export const statuteService = {
   },
 
   /**
+   * Retrieves the latest existing and next sequential Statute SR #
+   * @returns {Promise<{latestSr: number, nextSr: number}>}
+   */
+  getNextSr: async () => {
+    const response = await api.get('/api/statutes/next-sr');
+    return response.data;
+  },
+
+  /**
    * Searches statutes using query text
    * @param {string} query 
    * @returns {Promise<Array>}
@@ -69,5 +78,25 @@ export const statuteService = {
   deleteStatute: async (id) => {
     const response = await api.delete(`/api/statutes/${id}`);
     return response.data;
+  },
+
+  /**
+   * Updates the latest fromDate of all statutes belonging to a law
+   * @param {string} law
+   * @param {string} date
+   * @returns {Promise<Object>}
+   */
+  updateLawDate: async (law, date) => {
+    const response = await api.post('/api/statutes/update-law-date', { law, date });
+    return response.data;
+  },
+
+  /**
+   * Retrieves all distinct law names in statutes
+   * @returns {Promise<Array<string>>}
+   */
+  getDistinctLaws: async () => {
+    const response = await api.get('/api/statutes/laws');
+    return response.data.data || [];
   }
 };

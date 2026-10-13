@@ -89,7 +89,7 @@ export const sanitizeUserPayload = (user) => ({
   city: user.city,
   companyName: user.companyName,
   address: user.address,
-  avatarUrl: user.avatarUrl
+  avatarUrl: user.avatarUrl && !user.avatarUrl.includes('pravatar') ? user.avatarUrl : '/sld-logo.jpeg'
 });
 
 /**
@@ -1046,3 +1046,38 @@ export const refreshToken = async (req, res, next) => {
     });
   }
 };
+
+export const changeCurrentUserPassword = async (req, res, next) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 4) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password is required and must be at least 4 characters.'
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User account not found.'
+      });
+    }
+
+    user.password = newPassword.trim();
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+
+    logger.info(`[User Password Changed] Password changed for ${user.username} (${user.email})`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password changed successfully.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

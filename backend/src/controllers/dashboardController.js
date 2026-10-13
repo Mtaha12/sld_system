@@ -103,10 +103,12 @@ export const getActivities = async (req, res, next) => {
 
     // Map cases to activity structures
     cases.forEach(c => {
-      const isNew = c.createdAt.getTime() === c.updatedAt.getTime();
-      const description = c.caseNumber && c.caseNumber.length > 0 
+      const createdDate = c.createdAt ? new Date(c.createdAt) : new Date();
+      const updatedDate = c.updatedAt ? new Date(c.updatedAt) : createdDate;
+      const isNew = createdDate.getTime() === updatedDate.getTime();
+      const description = Array.isArray(c.caseNumber) 
         ? c.caseNumber.join(', ') 
-        : c.sldNumber;
+        : (c.caseNumber || c.sldNumber || 'Case Record');
         
       activities.push({
         id: `case_${c._id}`,
@@ -114,28 +116,30 @@ export const getActivities = async (req, res, next) => {
         action: isNew ? 'New case added' : 'Case updated',
         description,
         court: c.court || 'Court Portal',
-        year: c.createdAt.getFullYear().toString(),
-        time: timeAgo(c.updatedAt),
-        rawTime: c.updatedAt,
-        hasAttachment: c.attachments && c.attachments.length > 0,
+        year: createdDate.getFullYear().toString(),
+        time: timeAgo(updatedDate),
+        rawTime: updatedDate,
+        hasAttachment: Array.isArray(c.attachments) && c.attachments.length > 0,
         status: c.status?.toLowerCase() || 'active'
       });
     });
 
     // Map statutes to activity structures
     statutes.forEach(s => {
-      const isNew = s.createdAt.getTime() === s.updatedAt.getTime();
+      const createdDate = s.createdAt ? new Date(s.createdAt) : new Date();
+      const updatedDate = s.updatedAt ? new Date(s.updatedAt) : createdDate;
+      const isNew = createdDate.getTime() === updatedDate.getTime();
       const sectionHeading = s.blocks && s.blocks[0] ? s.blocks[0].sectionHeading : s.sectionHeading;
       
       activities.push({
         id: `statute_${s._id}`,
         type: 'statute',
         action: isNew ? 'New statute added' : 'Statute updated',
-        description: `${s.law} - Section ${s.section} (${sectionHeading || s.heading || 'Details'})`,
+        description: `${s.law || 'Statute'} - Section ${s.section || 'General'} (${sectionHeading || s.heading || 'Details'})`,
         court: s.department || 'Tax / FBR',
-        year: s.createdAt.getFullYear().toString(),
-        time: timeAgo(s.updatedAt),
-        rawTime: s.updatedAt,
+        year: createdDate.getFullYear().toString(),
+        time: timeAgo(updatedDate),
+        rawTime: updatedDate,
         hasAttachment: false,
         status: s.status?.toLowerCase() || 'active'
       });
@@ -143,17 +147,19 @@ export const getActivities = async (req, res, next) => {
 
     // Map notifications to activity structures
     notifications.forEach(n => {
-      const isNew = n.createdAt.getTime() === n.updatedAt.getTime();
+      const createdDate = n.createdAt ? new Date(n.createdAt) : new Date();
+      const updatedDate = n.updatedAt ? new Date(n.updatedAt) : createdDate;
+      const isNew = createdDate.getTime() === updatedDate.getTime();
       
       activities.push({
         id: `notification_${n._id}`,
         type: 'notification',
         action: isNew ? 'New notification' : 'Notification updated',
-        description: `${n.subject} (${n.sroNumber || n.number})`,
+        description: `${n.subject || 'Notification'} (${n.sroNumber || n.number || 'N/A'})`,
         court: n.department || 'Federal Constitutional Court',
-        year: n.createdAt.getFullYear().toString(),
-        time: timeAgo(n.updatedAt),
-        rawTime: n.updatedAt,
+        year: createdDate.getFullYear().toString(),
+        time: timeAgo(updatedDate),
+        rawTime: updatedDate,
         hasAttachment: false,
         status: n.status?.toLowerCase() || 'active'
       });

@@ -1,13 +1,17 @@
 import express from 'express';
 import { 
-  getStatutes, getStatuteById, createStatute, 
-  updateStatute, deleteStatute 
+  getStatutes, getStatuteById, getNextStatuteSr, createStatute, 
+  updateStatute, deleteStatute, getDistinctLaws, updateLawDate
 } from '../controllers/statuteController.js';
 import { protect, requireAdmin, checkStatuteAccess } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.use(protect, checkStatuteAccess);
+
+router.get('/next-sr', getNextStatuteSr);
+router.get('/laws', getDistinctLaws);
+router.post('/update-law-date', requireAdmin, updateLawDate);
 
 router.get('/', getStatutes);
 router.get('/:id', getStatuteById);

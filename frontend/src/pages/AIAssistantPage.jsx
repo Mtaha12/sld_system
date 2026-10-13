@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import OrbitalSpinWheel from '../features/ai/components/OrbitalSpinWheel';
 import AIChatPanel from '../features/ai/components/AIChatPanel';
+import AIChatHistoryColumn from '../features/ai/components/AIChatHistoryColumn';
 import { aiChatService } from '../services/aiChatService';
 import { useUser } from '../contexts/UserContext';
 
@@ -101,6 +102,26 @@ const AIAssistantPage = () => {
       const next = !prev;
       try {
         localStorage.setItem('sld_ai_show_wheel', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  const [showHistory, setShowHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sld_ai_show_history');
+      if (saved !== null) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {}
+    return false;
+  });
+
+  const handleToggleHistory = () => {
+    setShowHistory(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sld_ai_show_history', JSON.stringify(next));
       } catch (e) {}
       return next;
     });
@@ -291,14 +312,14 @@ const AIAssistantPage = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-125px)] w-full animate-fade-in overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-112px)] w-full animate-fade-in overflow-hidden">
       
-      {/* Main Layout: Left Orbital Spin Wheel (when shown) | Right Dialogue Panel */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-hidden">
+      {/* Main Layout: Left Orbital Spin Wheel | Center Chat Dialogue Panel | Right Research History Column */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-2.5 min-h-0 overflow-hidden">
         
         {/* LEFT COLUMN: Orbital Spin Wheel (Toggled via Chatbot Header) */}
         {showWheel && (
-          <div className="w-full lg:w-[32%] shrink-0 bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-sm p-3 flex flex-col items-center justify-start overflow-y-auto no-scrollbar relative animate-fade-in transition-all">
+          <div className={`w-full ${showHistory ? 'lg:w-[28%] xl:w-[26%]' : 'lg:w-[32%] xl:w-[30%]'} shrink-0 bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-xs p-2.5 flex flex-col items-center justify-start overflow-y-auto no-scrollbar relative animate-fade-in transition-all`}>
             <OrbitalSpinWheel
               isSearching={isLoading}
               activeReferences={activeReferences}
@@ -310,8 +331,8 @@ const AIAssistantPage = () => {
           </div>
         )}
 
-        {/* RIGHT COLUMN: Multi-Session Legal Dialogue Panel (Expands to full width when wheel is hidden) */}
-        <div className={`w-full ${showWheel ? 'lg:w-[68%]' : 'lg:w-full'} flex-1 min-w-0 h-full transition-all duration-300`}>
+        {/* CENTER COLUMN: Legal Dialogue Panel */}
+        <div className="flex-1 min-w-0 h-full transition-all duration-300">
           <AIChatPanel
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -323,8 +344,22 @@ const AIAssistantPage = () => {
             isLoading={isLoading}
             showWheel={showWheel}
             onToggleWheel={handleToggleWheel}
+            showHistory={showHistory}
+            onToggleHistory={handleToggleHistory}
           />
         </div>
+
+        {/* RIGHT COLUMN: Dedicated Research & Session History Column */}
+        {showHistory && (
+          <AIChatHistoryColumn
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            onCloseSession={handleCloseSession}
+            onToggleHistory={handleToggleHistory}
+          />
+        )}
 
       </div>
 

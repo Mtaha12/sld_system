@@ -126,14 +126,26 @@ export const caseService = {
   },
 
   /**
-   * Returns the highest page number for a given year + magazine combination.
+   * Returns the highest and next page number for a given year + magazine combination.
    * Used to auto-suggest the next page number when adding a publication.
    * @param {string} year  e.g. "2026"
    * @param {string} mag   e.g. "sld"
-   * @returns {Promise<number|null>}  the max page number, or null if none found
+   * @returns {Promise<{maxPage: number|null, nextPage: number}>}
    */
   getMaxPage: async (year, mag) => {
     const response = await api.get(`/api/cases/max-page?year=${encodeURIComponent(year)}&mag=${encodeURIComponent(mag)}`);
-    return response.data.maxPage ?? null;
+    const maxPage = response.data?.maxPage ?? null;
+    const nextPage = response.data?.nextPage ?? (maxPage != null ? maxPage + 1 : 1);
+    return { maxPage, nextPage };
+  },
+
+  /**
+   * Retrieves the latest existing SLD and next sequential SLD
+   * @returns {Promise<{latestSld: number, nextSld: number}>}
+   */
+  getNextSld: async () => {
+    const response = await api.get('/api/cases/next-sld');
+    return response.data;
   }
 };
+

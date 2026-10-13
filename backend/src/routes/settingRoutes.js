@@ -17,6 +17,11 @@ import {
   updateLaw,
   deleteLaw,
   swapLawOrdering,
+  getSections,
+  createSection,
+  updateSection,
+  deleteSection,
+  swapSectionOrdering,
 } from '../controllers/settingController.js';
 import { protect, requireAdmin } from '../middleware/authMiddleware.js';
 
@@ -55,5 +60,14 @@ router.post('/laws/swap', protect, requireAdmin, swapLawOrdering);
 router.post('/laws', protect, requireAdmin, createLaw);
 router.put('/laws/:id', protect, requireAdmin, updateLaw);
 router.delete('/laws/:id', protect, requireAdmin, deleteLaw);
+
+// ==============================
+// 5. SECTIONS ROUTES
+// ==============================
+router.get('/sections', getSections);
+router.post('/sections/swap', protect, requireAdmin, swapSectionOrdering);
+router.post('/sections', protect, requireAdmin, createSection);
+router.put('/sections/:id', protect, requireAdmin, updateSection);
+router.delete('/sections/:id', protect, requireAdmin, deleteSection);
 
 export default router;

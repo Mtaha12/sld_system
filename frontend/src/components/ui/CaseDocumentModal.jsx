@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { caseService } from '../../features/cases/services/caseService';
 import Spinner from './Spinner';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, Copy, Check } from 'lucide-react';
 
 /**
  * Robust Cause Title parser for Commonwealth / Pakistani law reports
@@ -34,6 +34,15 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [copiedJudgment, setCopiedJudgment] = useState(false);
+
+  const handleCopyJudgment = () => {
+    const text = caseData?.judgment || caseData?.headNote || '';
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedJudgment(true);
+    setTimeout(() => setCopiedJudgment(false), 2400);
+  };
 
   useEffect(() => {
     if (!caseId) return;
@@ -109,9 +118,24 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
             </span>
             <button 
               onClick={() => window.print()}
-              className="flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 text-xs font-medium text-stone-700 shadow-2xs transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 text-xs font-medium text-stone-700 shadow-2xs transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5 text-amber-600" /> Print Document
+            </button>
+            <button 
+              onClick={handleCopyJudgment}
+              disabled={!caseData?.judgment && !caseData?.headNote}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 text-xs font-medium text-stone-700 shadow-2xs transition-colors cursor-pointer"
+            >
+              {copiedJudgment ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" /> Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-stone-600" /> Copy Judgment
+                </>
+              )}
             </button>
           </div>
           <button 
@@ -258,20 +282,37 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
 
               {/* Judgment Text */}
               <section className="pt-4 border-t-2 border-stone-800 space-y-3">
-                <h2 className="text-sm font-black uppercase tracking-wider text-stone-900">
-                  Judgment / Order
-                </h2>
-                <div className="text-justify leading-relaxed text-sm sm:text-[15px] space-y-3.5 pb-8">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-black uppercase tracking-wider text-stone-900">
+                    Judgment / Order of the Court
+                  </h2>
+                  <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-stone-400">
+                    Verbatim Transcript
+                  </span>
+                </div>
+                <div className="text-justify leading-relaxed text-sm sm:text-[15px] space-y-3.5 pb-8 font-serif">
                   {caseData.judgment && caseData.judgment.trim().length > 0 ? (
-                    caseData.judgment.split(/\n\s*\n/).map((para, pIdx) => {
-                      const cleanPara = para.trim();
-                      if (!cleanPara) return null;
-                      return (
-                        <p key={pIdx} className="leading-relaxed indent-5 whitespace-pre-line">
-                          {cleanPara}
-                        </p>
-                      );
-                    })
+                    caseData.judgment.includes('<p>') ? (
+                      <div 
+                        dangerouslySetInnerHTML={{ __html: caseData.judgment }}
+                        className="prose max-w-none text-stone-900 leading-relaxed font-serif prose-p:my-3"
+                      />
+                    ) : (
+                      caseData.judgment.split(/\n\s*\n/).map((para, pIdx) => {
+                        const cleanPara = para.trim();
+                        if (!cleanPara) return null;
+                        return (
+                          <p key={pIdx} className="leading-relaxed indent-5 whitespace-pre-line">
+                            {cleanPara}
+                          </p>
+                        );
+                      })
+                    )
+                  ) : caseData.headNote ? (
+                    <div className="p-4 rounded-xl bg-stone-100/70 border border-stone-200 text-stone-700 space-y-1">
+                      <p className="font-sans font-bold text-xs uppercase text-amber-800">Digest Summary</p>
+                      <p className="text-xs leading-relaxed">{caseData.headNote}</p>
+                    </div>
                   ) : (
                     <p className="italic text-stone-500 py-4 text-center">
                       Official operative ratio is summarized in the headnote above. No full verbatim transcript available for this record.

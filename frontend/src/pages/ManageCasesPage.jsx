@@ -252,6 +252,208 @@ const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '') => {
   URL.revokeObjectURL(url);
 };
 
+const downloadWordDocument = (caseItems, type = 'headnotes', customTitle = '') => {
+  const count = caseItems.length;
+  if (count === 0) return;
+
+  const isHeadNotes = type === 'headnotes';
+  const typeLabel = isHeadNotes ? 'HEAD NOTES & CITATIONS' : 'FULL JUDGMENT ORDERS';
+  const firstSld = caseItems[0].sldNumber || caseItems[0].id || '1';
+  const lastSld = caseItems[caseItems.length - 1].sldNumber || caseItems[caseItems.length - 1].id || count;
+  const fileName = `SLD_${isHeadNotes ? 'HeadNotes' : 'Judgments'}_${firstSld}_to_${lastSld}.doc`;
+
+  let html = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office" 
+      xmlns:w="urn:schemas-microsoft-com:office:word" 
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <title>${customTitle || typeLabel}</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>100</w:Zoom>
+      <w:DoNotOptimizeForBrowser/>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
+  <style>
+    body {
+      font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #111827;
+      margin: 1in;
+    }
+    .main-title {
+      font-size: 18pt;
+      font-weight: bold;
+      color: #E55C41;
+      text-align: center;
+      margin-bottom: 4pt;
+    }
+    .sub-title {
+      font-size: 11pt;
+      text-align: center;
+      color: #4B5563;
+      margin-bottom: 18pt;
+    }
+    .case-block {
+      page-break-after: always;
+      mso-break-type: section-break;
+      margin-bottom: 24pt;
+      border: 1pt solid #D1D5DB;
+      padding: 14pt;
+      background: #FFFFFF;
+    }
+    .case-block:last-child {
+      page-break-after: avoid;
+    }
+    .case-header {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #E55C41;
+      border-bottom: 1.5pt solid #E55C41;
+      padding-bottom: 4pt;
+      margin-bottom: 10pt;
+    }
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12pt;
+    }
+    .meta-table td {
+      border: 0.5pt solid #E5E7EB;
+      padding: 5pt 8pt;
+      font-size: 10pt;
+      vertical-align: top;
+    }
+    .meta-label {
+      background-color: #F3F4F6;
+      font-weight: bold;
+      width: 120pt;
+      color: #374151;
+    }
+    .section-box {
+      margin-top: 10pt;
+      margin-bottom: 12pt;
+      padding: 10pt;
+      background-color: #F9FAFB;
+      border-left: 3pt solid #E55C41;
+    }
+    .section-title {
+      font-size: 10.5pt;
+      font-weight: bold;
+      color: #E55C41;
+      text-transform: uppercase;
+      margin-bottom: 4pt;
+    }
+    .section-content {
+      font-size: 10.5pt;
+      color: #1F2937;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-title">SUPREME LAW DIGEST (SLD) SYSTEM</div>
+  <div class="sub-title">${customTitle || typeLabel} • Total Cases: ${count} • Date: ${new Date().toLocaleDateString()}</div>
+  `;
+
+  caseItems.forEach((c, idx) => {
+    const caseNumStr = Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : (c.caseNumber || 'N/A');
+    const judgesStr = Array.isArray(c.judges) ? c.judges.join(' | ') : (c.judges || 'N/A');
+    const partiesStr = Array.isArray(c.petitioners) ? c.petitioners.join(' | ') : (c.petitioners || 'N/A');
+    const citationsStr = Array.isArray(c.mapYearPage) ? c.mapYearPage.join(' | ') : (c.mapYearPage || `SLD #${c.sldNumber}`);
+
+    html += `
+    <div class="case-block">
+      <div class="case-header">
+        CASE #${idx + 1} — SLD #${c.sldNumber || 'N/A'} (Dated: ${c.dated || 'N/A'})
+      </div>
+
+      <table class="meta-table">
+        <tr>
+          <td class="meta-label">Court:</td>
+          <td><strong>${c.court || 'High Court of Record'}</strong></td>
+          <td class="meta-label">Case Number:</td>
+          <td>${caseNumStr}</td>
+        </tr>
+        <tr>
+          <td class="meta-label">Bench / Judges:</td>
+          <td colspan="3">${judgesStr}</td>
+        </tr>
+        <tr>
+          <td class="meta-label">Parties / Litigants:</td>
+          <td colspan="3">${partiesStr}</td>
+        </tr>
+        <tr>
+          <td class="meta-label">Official Citations:</td>
+          <td colspan="3"><strong>${citationsStr}</strong></td>
+        </tr>
+      </table>
+    `;
+
+    if (isHeadNotes) {
+      if (c.headNote) {
+        html += `
+        <div class="section-box">
+          <div class="section-title">Head Note</div>
+          <div class="section-content">${c.headNote}</div>
+        </div>
+        `;
+      }
+      if (c.principleLaw) {
+        html += `
+        <div class="section-box" style="border-left-color: #2563EB;">
+          <div class="section-title" style="color: #2563EB;">Principle of Law Established</div>
+          <div class="section-content">${c.principleLaw}</div>
+        </div>
+        `;
+      }
+      if (c.legalMaxim) {
+        html += `
+        <div class="section-box" style="border-left-color: #7C3AED;">
+          <div class="section-title" style="color: #7C3AED;">Legal Maxim</div>
+          <div class="section-content">${c.legalMaxim}</div>
+        </div>
+        `;
+      }
+      if (c.references) {
+        html += `
+        <div class="section-box" style="border-left-color: #4B5563;">
+          <div class="section-title" style="color: #4B5563;">Statutory References</div>
+          <div class="section-content">${c.references}</div>
+        </div>
+        `;
+      }
+    } else {
+      // Full Judgment Order
+      html += `
+      <div class="section-box" style="border-left-color: #059669; background-color: #F0FDF4;">
+        <div class="section-title" style="color: #059669;">Full Operative Judgment Order</div>
+        <div class="section-content" style="font-size: 10.5pt; line-height: 1.5;">${c.judgment || 'No judgment text recorded.'}</div>
+      </div>
+      `;
+    }
+
+    html += `</div>`;
+  });
+
+  html += `</body></html>`;
+
+  const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 const ManageCasesPage = () => {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get('search') || '';
@@ -310,7 +512,7 @@ const ManageCasesPage = () => {
     const isMag = Boolean(debouncedFilters.magazine && debouncedFilters.magazine.trim());
     const params = {
       page: currentPage,
-      limit: isMag ? 500 : 25
+      limit: isMag ? 500 : 100
     };
     if (debouncedFilters.subject) params.subject = debouncedFilters.subject;
     if (debouncedFilters.fromYear) params.fromYear = debouncedFilters.fromYear;
@@ -364,6 +566,9 @@ const ManageCasesPage = () => {
   // Head Notes & Judgment & Get Case ID Modal States
   const [actionModal, setActionModal] = useState(null); // 'headNotes' | 'judgment' | 'getCaseId' | null
   const [actionCaseNumber, setActionCaseNumber] = useState('');
+  const [actionFromNo, setActionFromNo] = useState('');
+  const [actionToNo, setActionToNo] = useState('');
+  const [isExtractingRange, setIsExtractingRange] = useState(false);
   const [actionError, setActionError] = useState('');
   const [caseIdResult, setCaseIdResult] = useState(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -427,25 +632,37 @@ const ManageCasesPage = () => {
   const handleHeadNotes = () => {
     if (selectedIds.length > 0) {
       const selectedCases = cases.filter(c => selectedIds.includes(c.id));
-      downloadCaseExport(selectedCases, 'pdf', 'HEAD NOTES & CITATIONS');
-      setToastMessage(`Generated Head Notes document for ${selectedCases.length} selected case(s).`);
+      downloadWordDocument(selectedCases, 'headnotes');
+      setToastMessage(`Downloaded Word document for ${selectedCases.length} selected case(s).`);
       setTimeout(() => setToastMessage(''), 4000);
     } else {
-      setActionCaseNumber('');
+      setActionFromNo('');
+      setActionToNo('');
       setActionError('');
       setActionModal('headNotes');
     }
   };
 
   // Judgment Action Handler
-  const handleJudgment = () => {
+  const handleJudgment = async () => {
     if (selectedIds.length > 0) {
-      const selectedCases = cases.filter(c => selectedIds.includes(c.id));
-      downloadCaseExport(selectedCases, 'pdf', 'FULL JUDGMENT ORDER');
-      setToastMessage(`Generated Judgment document for ${selectedCases.length} selected case(s).`);
+      let selectedCases = cases.filter(c => selectedIds.includes(c.id));
+      // Ensure judgments are fully loaded
+      selectedCases = await Promise.all(selectedCases.map(async (c) => {
+        if (!c.judgment || c.judgment.trim().length === 0) {
+          try {
+            const fullCase = await caseService.getCaseById(c.id || c.sldNumber);
+            if (fullCase?.judgment) return { ...c, judgment: fullCase.judgment };
+          } catch (e) {}
+        }
+        return c;
+      }));
+      downloadWordDocument(selectedCases, 'judgment');
+      setToastMessage(`Downloaded Judgments Word document for ${selectedCases.length} selected case(s).`);
       setTimeout(() => setToastMessage(''), 4000);
     } else {
-      setActionCaseNumber('');
+      setActionFromNo('');
+      setActionToNo('');
       setActionError('');
       setActionModal('judgment');
     }
@@ -465,29 +682,22 @@ const ManageCasesPage = () => {
     e?.preventDefault();
     setActionError('');
 
-    if (!actionCaseNumber.trim()) {
-      if (actionModal === 'getCaseId') {
-        setActionError('Please enter an SLD Number.');
-      } else {
-        setActionError('Please enter a Case Number (e.g. C.A. 145/2026).');
-      }
-      return;
-    }
-
-    const inputVal = actionCaseNumber.trim();
-
     // 1. Get Case ID Modal: Uses SLD Number to fetch the unique Case ID from the database
     if (actionModal === 'getCaseId') {
+      if (!actionCaseNumber.trim()) {
+        setActionError('Please enter an SLD Number.');
+        return;
+      }
+
+      const inputVal = actionCaseNumber.trim();
       const cleanSld = inputVal.replace(/^sld\s*#?/i, '').trim();
       setIsFetchingCaseId(true);
 
       try {
-        // Fetch matching record from the backend database by SLD Number / ID
         let target = null;
         try {
           target = await caseService.getCaseById(cleanSld);
         } catch (apiErr) {
-          // Fallback search in loaded cases list if API fails
           target = cases.find(c => 
             c.sldNumber?.toLowerCase() === cleanSld.toLowerCase() || 
             c.id?.toString() === cleanSld ||
@@ -525,41 +735,67 @@ const ManageCasesPage = () => {
       return;
     }
 
-    // 2. Head Notes or Judgment: Strictly works with Case Number (NOT SLD Number)
-    const cleanCaseNumber = inputVal.toLowerCase();
-
-    // Find strictly by Case Number
-    const matched = cases.find(c =>
-      Array.isArray(c.caseNumber) && c.caseNumber.some(n => n.toLowerCase().includes(cleanCaseNumber))
-    );
-
-    if (!matched) {
-      // Check if user entered an SLD number instead
-      const isSldInput = cases.some(c => 
-        c.sldNumber?.toLowerCase() === cleanCaseNumber || 
-        c.id?.toString() === cleanCaseNumber
-      );
-
-      if (isSldInput) {
-        setActionError(`"${inputVal}" is an SLD Number. Head Notes and Judgments only work with Case Numbers (e.g. C.A. 145/2026). Use 'Get Case ID' to look up Case Numbers by SLD.`);
-      } else {
-        setActionError(`No case found matching Case Number "${inputVal}". Please enter a valid Case Number.`);
-      }
+    // 2. Head Notes or Judgment: Range extraction by From No. to To No. downloaded in Word (.doc)
+    if (!actionFromNo.trim() || !actionToNo.trim()) {
+      setActionError('Please enter both From No. and To No. to extract the range.');
       return;
     }
 
-    const caseNumberDisplay = Array.isArray(matched.caseNumber) ? matched.caseNumber.join(', ') : matched.caseNumber;
+    const fromNum = parseInt(actionFromNo.trim(), 10);
+    const toNum = parseInt(actionToNo.trim(), 10);
 
-    if (actionModal === 'headNotes') {
-      downloadCaseExport([matched], 'pdf', 'HEAD NOTES & CITATIONS');
-      setToastMessage(`Generated Head Notes for Case No: ${caseNumberDisplay} (SLD #${matched.sldNumber}).`);
-    } else if (actionModal === 'judgment') {
-      downloadCaseExport([matched], 'pdf', 'FULL JUDGMENT ORDER');
-      setToastMessage(`Generated Judgment Order for Case No: ${caseNumberDisplay} (SLD #${matched.sldNumber}).`);
+    if (isNaN(fromNum) || isNaN(toNum)) {
+      setActionError('From No. and To No. must be valid numeric values.');
+      return;
     }
 
-    setActionModal(null);
-    setTimeout(() => setToastMessage(''), 4000);
+    const minNum = Math.min(fromNum, toNum);
+    const maxNum = Math.max(fromNum, toNum);
+
+    if (maxNum - minNum > 500) {
+      setActionError('To ensure optimal speed, maximum range limit is 500 cases per export.');
+      return;
+    }
+
+    setIsExtractingRange(true);
+    try {
+      const response = await caseService.getCases({
+        fromNo: minNum,
+        toNo: maxNum,
+        limit: Math.max(100, maxNum - minNum + 10)
+      });
+      let rangeCases = response.data || [];
+
+      // Sort by sldNumber ascending
+      rangeCases.sort((a, b) => (parseInt(a.sldNumber, 10) || 0) - (parseInt(b.sldNumber, 10) || 0));
+
+      if (rangeCases.length === 0) {
+        setActionError(`No cases found in range from #${minNum} to #${maxNum}.`);
+        return;
+      }
+
+      if (actionModal === 'judgment') {
+        // Ensure judgment text is loaded for all cases
+        rangeCases = await Promise.all(rangeCases.map(async (c) => {
+          if (!c.judgment || c.judgment.trim().length === 0) {
+            try {
+              const fullCase = await caseService.getCaseById(c.id || c.sldNumber);
+              if (fullCase?.judgment) return { ...c, judgment: fullCase.judgment };
+            } catch (e) {}
+          }
+          return c;
+        }));
+      }
+
+      downloadWordDocument(rangeCases, actionModal === 'headNotes' ? 'headnotes' : 'judgment');
+      setToastMessage(`Extracted & downloaded ${rangeCases.length} cases (SLD #${minNum} to #${maxNum}) in Word format (.doc).`);
+      setActionModal(null);
+      setTimeout(() => setToastMessage(''), 4000);
+    } catch (err) {
+      setActionError(`Extraction failed: ${err.message || 'Server error'}`);
+    } finally {
+      setIsExtractingRange(false);
+    }
   };
 
   return (
@@ -731,48 +967,50 @@ const ManageCasesPage = () => {
         }}
         title={
           actionModal === 'headNotes' 
-            ? 'Generate Head Notes by Case Number' 
+            ? 'Extract Head Notes (From No. to To No.)' 
             : actionModal === 'judgment' 
-            ? 'Generate Judgment by Case Number' 
+            ? 'Extract Judgments (From No. to To No.)' 
             : 'Get Case ID by SLD #'
         }
         subtitle={
           actionModal === 'getCaseId' 
             ? 'Enter an SLD Number to fetch the unique Case ID from the database' 
-            : 'Enter the Case Number to proceed (e.g. C.A. 145/2026)'
+            : 'Enter range (From No. to To No.) to extract and download in Microsoft Word (.doc) format'
         }
-        icon={actionModal === 'getCaseId' ? Hash : Printer}
+        icon={actionModal === 'getCaseId' ? Hash : FileText}
         maxWidth="max-w-md"
         footer={
           <>
             <Button 
               variant="outline" 
-              size="sm"
+              size="sm" 
               onClick={() => {
                 setActionModal(null);
                 setCaseIdResult(null);
                 setIsCopied(false);
               }}
+              disabled={isFetchingCaseId || isExtractingRange}
             >
               Close
             </Button>
             <Button 
               variant="primary" 
-              size="sm"
+              size="sm" 
               className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-1.5"
               onClick={handleActionSubmit}
-              disabled={isFetchingCaseId}
+              disabled={isFetchingCaseId || isExtractingRange}
             >
-              {actionModal === 'getCaseId' ? (
-                isFetchingCaseId ? (
+              {isFetchingCaseId || isExtractingRange ? (
+                <>
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                ) : (
-                  <Search className="w-4 h-4" />
-                )
+                  <span>{actionModal === 'getCaseId' ? 'Fetching ID...' : 'Extracting Word Document...'}</span>
+                </>
               ) : (
-                <Printer className="w-4 h-4" />
+                <>
+                  {actionModal === 'getCaseId' ? <Search className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                  <span>{actionModal === 'getCaseId' ? 'Get Case ID' : 'Download in Word (.doc)'}</span>
+                </>
               )}
-              {actionModal === 'getCaseId' ? (isFetchingCaseId ? 'Fetching ID...' : 'Get Case ID') : 'Generate Document'}
             </Button>
           </>
         }
@@ -785,79 +1023,119 @@ const ManageCasesPage = () => {
             </div>
           )}
 
-          <FormField 
-            label={actionModal === 'getCaseId' ? 'SLD Number (Required)' : 'Case Number (Required)'} 
-            required
-          >
-            <Input 
-              value={actionCaseNumber}
-              onChange={(e) => {
-                setActionCaseNumber(e.target.value);
-                if (actionError) setActionError('');
-                if (caseIdResult) setCaseIdResult(null);
-              }}
-              placeholder={
-                actionModal === 'getCaseId' 
-                  ? 'e.g. 1629516 or 1629515' 
-                  : 'e.g. C.A. 145/2026 or C.P.L.A. 3458-K/2022'
-              }
-              required
-              autoFocus
-            />
-          </FormField>
+          {actionModal === 'getCaseId' ? (
+            <>
+              <FormField label="SLD Number (Required)" required>
+                <Input 
+                  value={actionCaseNumber}
+                  onChange={(e) => {
+                    setActionCaseNumber(e.target.value);
+                    if (actionError) setActionError('');
+                    if (caseIdResult) setCaseIdResult(null);
+                  }}
+                  placeholder="e.g. 1629516 or 1629515"
+                  required
+                  autoFocus
+                />
+              </FormField>
 
-          {/* Dynamic Suggestions */}
-          <div>
-            <span className="text-[11px] text-theme-muted font-medium block mb-1.5">
-              {actionModal === 'getCaseId' ? 'Quick select SLD Number:' : 'Quick select Case Number:'}
-            </span>
-            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-              {actionModal === 'getCaseId' ? (
-                cases.slice(0, 10).map(c => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setActionCaseNumber(c.sldNumber);
+              {/* Dynamic Suggestions for SLD */}
+              <div>
+                <span className="text-[11px] text-theme-muted font-medium block mb-1.5">
+                  Quick select SLD Number:
+                </span>
+                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                  {cases.slice(0, 10).map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setActionCaseNumber(c.sldNumber);
+                        if (actionError) setActionError('');
+                        if (caseIdResult) setCaseIdResult(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                        actionCaseNumber === c.sldNumber
+                          ? 'bg-brand-orange text-white border-brand-orange'
+                          : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border-theme-border'
+                      }`}
+                    >
+                      SLD #{c.sldNumber}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="p-3 bg-brand-orange/5 border border-brand-orange/20 rounded-xl text-xs text-theme-main">
+                <span className="font-semibold text-brand-orange">
+                  Microsoft Word (.doc) Extraction
+                </span>
+                <p className="mt-1 text-theme-muted leading-relaxed">
+                  Enter the start and end SLD / Case serial range. The system will extract {actionModal === 'headNotes' ? 'Head Notes, Principles of Law and Citations' : 'Full Operative Judgment Orders'} and download a formatted Word document (.doc).
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="From No. (Required)" required>
+                  <Input 
+                    type="number"
+                    value={actionFromNo}
+                    onChange={(e) => {
+                      setActionFromNo(e.target.value);
                       if (actionError) setActionError('');
-                      if (caseIdResult) setCaseIdResult(null);
                     }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                      actionCaseNumber === c.sldNumber
-                        ? 'bg-brand-orange text-white border-brand-orange'
-                        : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border-theme-border'
-                    }`}
-                  >
-                    SLD #{c.sldNumber}
-                  </button>
-                ))
-              ) : (
-                cases
-                  .filter(c => Array.isArray(c.caseNumber) && c.caseNumber.length > 0)
-                  .slice(0, 8)
-                  .map(c => {
-                    const firstCaseNum = c.caseNumber[0];
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          setActionCaseNumber(firstCaseNum);
-                          if (actionError) setActionError('');
-                        }}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                          actionCaseNumber === firstCaseNum
-                            ? 'bg-brand-orange text-white border-brand-orange'
-                            : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border-theme-border'
-                        }`}
-                      >
-                        {firstCaseNum}
-                      </button>
-                    );
-                  })
-              )}
+                    placeholder="e.g. 100"
+                    required
+                    autoFocus
+                  />
+                </FormField>
+
+                <FormField label="To No. (Required)" required>
+                  <Input 
+                    type="number"
+                    value={actionToNo}
+                    onChange={(e) => {
+                      setActionToNo(e.target.value);
+                      if (actionError) setActionError('');
+                    }}
+                    placeholder="e.g. 110"
+                    required
+                  />
+                </FormField>
+              </div>
+
+              {/* Quick Range Presets */}
+              <div>
+                <span className="text-[11px] text-theme-muted font-medium block mb-1.5">
+                  Quick Range Suggestions:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { from: '1', to: '25' },
+                    { from: '26', to: '50' },
+                    { from: '51', to: '100' },
+                    { from: '101', to: '150' },
+                    { from: '500', to: '520' }
+                  ].map((range, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setActionFromNo(range.from);
+                        setActionToNo(range.to);
+                        if (actionError) setActionError('');
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium border bg-theme-surface-alt/60 hover:bg-brand-orange hover:text-white hover:border-brand-orange text-theme-main border-theme-border transition-colors cursor-pointer"
+                    >
+                      #{range.from} - #{range.to}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Case Number / ID Result Card with Copy Button */}
           {actionModal === 'getCaseId' && caseIdResult && (

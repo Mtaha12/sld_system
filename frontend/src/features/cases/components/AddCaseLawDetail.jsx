@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { 
   X, CheckCircle2, Scale, Plus, Upload, FileText,
-  Search, Loader2, ChevronLeft, ChevronRight, Check
+  Search, Loader2, ChevronLeft, ChevronRight, Check,
+  ArrowLeft, Trash2
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
@@ -19,6 +20,12 @@ import { caseService } from '../services/caseService';
 import { SECTION_OPTIONS } from '../../../data/sections';
 import { settingService } from '../../../services/settingService';
 import { courtService, magazineService } from '../../../services/adminSettingsServices';
+
+const safeDate = (val) => {
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
 
 /**
  * Maps raw case data from API or navigation state into clean form values.
@@ -70,7 +77,7 @@ const getInitialValues = (data = null) => {
 
   return {
     srNumber: String(data.sldNumber ?? ''),
-    dated: data.dated ? new Date(data.dated) : null,
+    dated: safeDate(data.dated),
     department: data.department || 'tax',
     court: data.court || '',
     caseNumber: Array.isArray(data.caseNumber) ? data.caseNumber.join('\n') : String(data.caseNumber || ''),
@@ -89,11 +96,24 @@ const getInitialValues = (data = null) => {
 };
 
 const AddCaseLawDetail = ({ onClose }) => {
+  const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const editData = location.state?.caseData;
+  const isNavEdit = Boolean(location.state?.isEdit || editData);
 
-  const [currentCaseId, setCurrentCaseId] = useState(editData?.id || null);
+  const handleBack = useCallback(() => {
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/manage-cases');
+    }
+  }, [onClose, navigate]);
+
+  const hasLoadedInitial = useRef(false);
+
+  const [currentCaseId, setCurrentCaseId] = useState(editData?.id || editData?._id || null);
+  const isEdit = Boolean(currentCaseId || isNavEdit);
   const [loadingCase, setLoadingCase] = useState(false);
   const [loadFeedback, setLoadFeedback] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -110,7 +130,7 @@ const AddCaseLawDetail = ({ onClose }) => {
   });
 
   const [magazineOptions, setMagazineOptions] = useState(() => {
-    const list = [];
+    const list = [{ label: 'SLD', value: 'sld' }];
     if (Array.isArray(editData?.publications)) {
       editData.publications.forEach(p => {
         const val = String(p?.mag || '').trim().toLowerCase();
@@ -189,7 +209,12 @@ const AddCaseLawDetail = ({ onClose }) => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const mags = res.data.map(m => ({ label: m.name.toUpperCase(), value: m.name.toLowerCase() }));
           setMagazineOptions(prev => {
-            const list = [...mags];
+            const list = [{ label: 'SLD', value: 'sld' }];
+            mags.forEach(m => {
+              if (!list.some(o => o.value === m.value)) {
+                list.push(m);
+              }
+            });
             const currentPubs = getValues('publications') || editData?.publications || [];
             currentPubs.forEach(p => {
               const val = String(p?.mag || '').trim().toLowerCase();
@@ -238,6 +263,44 @@ const AddCaseLawDetail = ({ onClose }) => {
       })
       .catch(err => {
         console.warn('Could not load dynamic laws for AddCaseLawDetail:', err);
+      });
+
+    // Fetch dynamic Sections from backend
+    settingService.getSections({ status: 'active', limit: 10000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const fetched = res.data.map(s => ({
+            label: String(s.name).startsWith('Section') ? String(s.name) : `Section ${s.name}`,
+            value: String(s.name)
+          }));
+          const seen = new Set();
+          const merged = [{ label: 'Select Section', value: '' }];
+          seen.add('');
+
+          fetched.forEach(item => {
+            const key = item.value.toLowerCase().trim();
+            if (!seen.has(key)) {
+              seen.add(key);
+              merged.push(item);
+            }
+          });
+
+          // Retain any section currently on the case
+          const currentLaws = getValues('laws') || editData?.laws || [];
+          currentLaws.forEach(l => {
+            const val = String(l?.section || '').trim();
+            const key = val.toLowerCase();
+            if (val && !seen.has(key)) {
+              seen.add(key);
+              merged.push({ label: val, value: val });
+            }
+          });
+
+          setSectionOptions(merged);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic sections for AddCaseLawDetail:', err);
       });
 
     // Fetch dynamic principles from backend
@@ -299,7 +362,8 @@ const AddCaseLawDetail = ({ onClose }) => {
 
   const {
     fields: publicationFields,
-    append: appendPublication
+    append: appendPublication,
+    remove: removePublication
   } = useFieldArray({
     control,
     name: 'publications'
@@ -307,7 +371,8 @@ const AddCaseLawDetail = ({ onClose }) => {
 
   const {
     fields: lawFields,
-    append: appendLaw
+    append: appendLaw,
+    remove: removeLaw
   } = useFieldArray({
     control,
     name: 'laws'
@@ -369,7 +434,9 @@ const AddCaseLawDetail = ({ onClose }) => {
       const caseData = await caseService.getCaseBySld(cleanSld);
       if (caseData) {
         applyCaseToForm(caseData);
-        setSearchParams({ sld: cleanSld }, { replace: true });
+        if (searchParams.get('sld') !== cleanSld) {
+          setSearchParams({ sld: cleanSld }, { replace: true });
+        }
         setLoadFeedback({
           type: 'success',
           message: `SLD #${cleanSld} loaded: ${caseData.court || 'Case Record'}`
@@ -383,7 +450,9 @@ const AddCaseLawDetail = ({ onClose }) => {
         ...getInitialValues(null),
         srNumber: cleanSld
       });
-      setSearchParams({ sld: cleanSld }, { replace: true });
+      if (searchParams.get('sld') !== cleanSld) {
+        setSearchParams({ sld: cleanSld }, { replace: true });
+      }
       setLoadFeedback({
         type: 'notFound',
         message: `SLD #${cleanSld} not found in database. Ready to create a new case record.`
@@ -392,7 +461,7 @@ const AddCaseLawDetail = ({ onClose }) => {
       setLoadingCase(false);
       setTimeout(() => setLoadFeedback(null), 6000);
     }
-  }, [getValues, applyCaseToForm, reset, setSearchParams]);
+  }, [getValues, applyCaseToForm, reset, searchParams, setSearchParams]);
 
   /**
    * Step to previous or next SLD number
@@ -405,15 +474,33 @@ const AddCaseLawDetail = ({ onClose }) => {
     loadCaseBySld(nextNum);
   };
 
-  // Initial load: from URL query param ?sld=... or navigation editData
+  // Initial load: run ONCE on mount, preventing re-trigger loops
   useEffect(() => {
+    if (hasLoadedInitial.current) return;
+    hasLoadedInitial.current = true;
+
     const sldQuery = searchParams.get('sld');
     if (sldQuery) {
       loadCaseBySld(sldQuery);
-    } else if (editData?.sldNumber) {
-      loadCaseBySld(editData.sldNumber);
+    } else if (editData) {
+      applyCaseToForm(editData);
+      if (editData.sldNumber && searchParams.get('sld') !== String(editData.sldNumber)) {
+        setSearchParams({ sld: String(editData.sldNumber) }, { replace: true });
+      }
+    } else if (!isNavEdit) {
+      // Auto-suggest next SLD # and next page for new case entry!
+      caseService.getNextSld()
+        .then(res => {
+          if (res?.nextSld) {
+            setValue('srNumber', String(res.nextSld), { shouldDirty: false });
+          }
+        })
+        .catch(err => console.warn('Could not auto-fetch next SLD:', err));
+
+      // Prefill initial publication page for 2026 SLD
+      autofillPublicationPage(0);
     }
-  }, [searchParams]);
+  }, []);
 
   const autofillPublicationPage = async (index) => {
     const publications = getValues('publications') || [];
@@ -421,13 +508,14 @@ const AddCaseLawDetail = ({ onClose }) => {
     if (!currentPub) return;
 
     const year = String(currentPub.year || '').trim();
-    const mag  = String(currentPub.mag  || '').trim().toLowerCase();
-    if (!year || !mag) return;
+    const mag  = String(currentPub.mag  || 'sld').trim().toLowerCase();
+    if (!year) return;
 
     try {
-      const maxPage = await caseService.getMaxPage(year, mag);
-      if (maxPage !== null) {
-        setValue(`publications.${index}.page`, String(maxPage), {
+      const res = await caseService.getMaxPage(year, mag);
+      const nextPage = res?.nextPage ?? (res?.maxPage != null ? res.maxPage + 1 : 1);
+      if (nextPage != null) {
+        setValue(`publications.${index}.page`, String(nextPage), {
           shouldDirty: true,
           shouldTouch: true,
           shouldValidate: true,
@@ -471,8 +559,6 @@ const AddCaseLawDetail = ({ onClose }) => {
     }
   };
 
-  const isEdit = Boolean(currentCaseId);
-
   return (
     <div className="flex flex-col bg-theme-surface relative">
       
@@ -493,6 +579,40 @@ const AddCaseLawDetail = ({ onClose }) => {
             </button>
           </div>
         )}
+
+        {/* Top Floating Action Bar: Sticky while scrolling */}
+        <div className="sticky top-0 z-30 mb-4 flex items-center justify-between bg-theme-surface/95 border border-theme-border px-4 py-3 rounded-xl shadow-md backdrop-blur-md">
+          <div className="text-xs text-theme-muted font-medium flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="px-2.5 py-1.5 -ml-1 text-theme-muted hover:text-theme-main hover:bg-theme-surface border border-theme-border rounded-lg transition-colors flex items-center gap-1.5 font-semibold text-xs cursor-pointer shadow-xs mr-1"
+              title="Back to Case Law list"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+            <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Case Law' : 'Add New Case Law'}</span>
+            {editData?.sldNumber && <span className="text-brand-orange font-semibold">SLD #{editData.sldNumber}</span>}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="px-3.5 py-1.5 text-xs font-medium text-theme-muted hover:text-theme-main border border-theme-border rounded-lg hover:bg-theme-surface transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="case-law-form"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+            >
+              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Case Law' : 'Save Record')}</span>
+            </button>
+          </div>
+        </div>
 
         <form id="case-law-form" onSubmit={handleSubmit(onSubmit)} className="space-y-3">
           
@@ -651,12 +771,12 @@ const AddCaseLawDetail = ({ onClose }) => {
                       {...register(`publications.${idx}.page`)}
                     />
                   </FormField>
-                  <div className="col-span-3 flex items-center gap-2">
+                  <div className="col-span-3 flex items-center gap-1.5">
                     <Button 
                       type="button" 
                       variant="outline" 
                       size="sm"
-                      className="flex-1 text-amber-600 border-amber-200 hover:bg-amber-50 h-[34px] text-xs" 
+                      className="flex-1 text-amber-600 border-amber-200 hover:bg-amber-50 h-[34px] text-xs font-semibold" 
                       onClick={() => handleAddVolume(idx)}
                     >
                       + Vol
@@ -666,13 +786,15 @@ const AddCaseLawDetail = ({ onClose }) => {
                         type="button" 
                         variant="outline" 
                         size="sm"
-                        className="flex-1 text-green-600 border-green-200 hover:bg-green-50 h-[34px] text-xs" 
+                        className="flex-1 text-green-600 border-green-200 hover:bg-green-50 h-[34px] text-xs font-semibold" 
                         onClick={() => {
+                          const newIdx = publicationFields.length;
                           appendPublication({ year: '2026', vol: '', mag: 'sld', page: '' });
                           setPublicationVolumeOpen((prev) => ({
                             ...prev,
-                            [publicationFields.length]: false,
+                            [newIdx]: false,
                           }));
+                          setTimeout(() => autofillPublicationPage(newIdx), 50);
                         }}
                       >
                         + New
@@ -680,6 +802,24 @@ const AddCaseLawDetail = ({ onClose }) => {
                     ) : (
                       <div className="flex-1" />
                     )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      title="Delete publication entry"
+                      className="text-red-500 hover:text-red-700 border-red-200 hover:bg-red-50 h-[34px] px-2.5 text-xs flex items-center justify-center shrink-0 cursor-pointer"
+                      onClick={() => {
+                        if (publicationFields.length > 1) {
+                          removePublication(idx);
+                        } else {
+                          setValue(`publications.${idx}.year`, '');
+                          setValue(`publications.${idx}.vol`, '');
+                          setValue(`publications.${idx}.page`, '');
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -768,25 +908,37 @@ const AddCaseLawDetail = ({ onClose }) => {
                       {...register(`laws.${idx}.lawStatute`)}
                     />
                   </FormField>
-                  <FormField label="Sections" className="col-span-5">
+                  <FormField label="Sections (comma-separated, e.g. 1, 1(B))" className="col-span-5">
                     <Input
                       variant="light" 
                       inputSize="sm" 
-                      type="select" 
-                      options={sectionOptions}
+                      type="text"
+                      placeholder="e.g. 1, 1(B), 231CB"
                       {...register(`laws.${idx}.section`)}
                     />
                   </FormField>
-                  <div className="col-span-2 h-[34px] flex items-center">
+                  <div className="col-span-2 h-[34px] flex items-center gap-1.5">
                     {idx === lawFields.length - 1 && (
                       <Button 
                         type="button" 
                         variant="outline" 
                         size="sm" 
-                        className="w-full text-green-600 border-green-200 hover:bg-green-50 h-full text-xs" 
+                        className="flex-1 text-green-600 border-green-200 hover:bg-green-50 h-full text-xs font-semibold" 
                         onClick={() => appendLaw({ lawStatute: '', section: '' })}
                       >
                         <Plus className="w-3.5 h-3.5" /> Add
+                      </Button>
+                    )}
+                    {lawFields.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        title="Delete law entry"
+                        className="text-red-500 hover:text-red-700 border-red-200 hover:bg-red-50 h-full px-2.5 text-xs flex items-center justify-center shrink-0 cursor-pointer"
+                        onClick={() => removeLaw(idx)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     )}
                   </div>
@@ -798,10 +950,10 @@ const AddCaseLawDetail = ({ onClose }) => {
           {/* Judgment + Attachment row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             
-            {/* Judgment — takes 2/3 */}
+            {/* Judgment — takes 2/3 (Length doubled) */}
             <div className="lg:col-span-2">
               <FormSection title="Judgment Order" icon={Scale} compact className="h-full">
-                <div className="flex-1 flex flex-col min-h-[260px] relative z-0">
+                <div className="flex-1 flex flex-col min-h-[520px] relative z-0">
                   <Controller
                     control={control}
                     name="judgment"
@@ -809,6 +961,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                       <RichTextEditor 
                         value={field.value} 
                         onChange={field.onChange} 
+                        minHeight={500}
                         placeholder="Judgment text appears here..."
                       />
                     )}
@@ -915,7 +1068,7 @@ const AddCaseLawDetail = ({ onClose }) => {
 
       <FormFooter 
         formId="case-law-form"
-        onCancel={onClose}
+        onCancel={handleBack}
         isSubmitting={isSubmitting}
         submitText={isEdit ? "Update Case Record" : "Create Case Record"}
       />

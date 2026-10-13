@@ -31,6 +31,15 @@ export const notificationService = {
   },
 
   /**
+   * Retrieves the latest existing and next sequential Notification SR #
+   * @returns {Promise<{latestSr: number, nextSr: number}>}
+   */
+  getNextSr: async () => {
+    const response = await api.get('/api/notifications/next-sr');
+    return response.data;
+  },
+
+  /**
    * Searches and filters notifications using query text
    * @param {string} query 
    * @returns {Promise<Array>}

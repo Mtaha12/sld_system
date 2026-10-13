@@ -84,16 +84,29 @@ const ManageStatutesTable = ({
   const setToastMessage = propSetToastMessage || setInternalToastMessage;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalSrNumber, setModalSrNumber] = useState('');
+  const [modalLaw, setModalLaw] = useState('');
   const [modalDate, setModalDate] = useState(null);
   const [modalError, setModalError] = useState('');
+  const [availableLaws, setAvailableLaws] = useState([]);
+  const [isUpdatingDate, setIsUpdatingDate] = useState(false);
   const [viewModalItem, setViewModalItem] = useState(null);
   const [deleteModalItem, setDeleteModalItem] = useState(null);
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
+
+  // Load distinct laws for the update date modal
+  useEffect(() => {
+    statuteService.getDistinctLaws()
+      .then(laws => {
+        if (Array.isArray(laws) && laws.length > 0) {
+          setAvailableLaws(laws);
+        }
+      })
+      .catch(err => console.warn('Could not load distinct laws:', err));
+  }, []);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const isServerPaginated = Boolean(serverPaginated || propTotalItems !== undefined);
-  const itemsPerPage = isServerPaginated ? 25 : 10;
+  const itemsPerPage = isServerPaginated ? 100 : 100;
 
   const handleSort = (key) => {
     setSortConfig(prev => {
@@ -107,7 +120,6 @@ const ManageStatutesTable = ({
   };
 
   const sortedStatutes = useMemo(() => {
-    if (isServerPaginated) return statutes;
     if (!sortConfig.key || !sortConfig.direction) return statutes;
 
     const { key, direction } = sortConfig;
@@ -148,12 +160,12 @@ const ManageStatutesTable = ({
       const result = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
       return isAsc ? result : -result;
     });
-  }, [statutes, sortConfig, isServerPaginated]);
+  }, [statutes, sortConfig]);
 
   const totalItems = isServerPaginated ? (propTotalItems !== undefined ? propTotalItems : statutes.length) : sortedStatutes.length;
   const totalPages = isServerPaginated ? (propTotalPages !== undefined ? propTotalPages : Math.max(1, Math.ceil(totalItems / itemsPerPage))) : Math.max(1, Math.ceil(totalItems / itemsPerPage));
 
-  const currentData = isServerPaginated ? statutes : sortedStatutes.slice(
+  const currentData = isServerPaginated ? sortedStatutes : sortedStatutes.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -174,37 +186,44 @@ const ManageStatutesTable = ({
     }
   }, [highlightedId]);
 
-  const handleUpdateDate = () => {
+  const handleUpdateDate = async () => {
     setModalError('');
-    if (!modalSrNumber || !modalDate) {
-      setModalError('Please provide both SR # and Date.');
+    if (!modalLaw || !modalLaw.trim() || !modalDate) {
+      setModalError('Please enter/select a Law and choose a Date.');
       return;
     }
 
-    const srNumInt = parseInt(modalSrNumber, 10);
-    const index = statutes.findIndex(s => s.id === srNumInt);
-    
-    if (index === -1) {
-      setModalError('SR # not found.');
-      return;
-    }
+    try {
+      setIsUpdatingDate(true);
+      const formattedDate = `${modalDate.getFullYear()}-${String(modalDate.getMonth() + 1).padStart(2, '0')}-${String(modalDate.getDate()).padStart(2, '0')}`;
+      const displayDate = `${String(modalDate.getMonth() + 1).padStart(2, '0')}/${String(modalDate.getDate()).padStart(2, '0')}/${modalDate.getFullYear()}`;
+      
+      const res = await statuteService.updateLawDate(modalLaw.trim(), formattedDate);
+      
+      // Update local statutes matching this law
+      setStatutes(prev => prev.map(s => {
+        if (s.law && s.law.trim().toLowerCase() === modalLaw.trim().toLowerCase()) {
+          return { ...s, dated: displayDate };
+        }
+        return s;
+      }));
 
-    // Update the date
-    const updatedStatutes = [...statutes];
-    const formattedDate = `${String(modalDate.getMonth() + 1).padStart(2, '0')}/${String(modalDate.getDate()).padStart(2, '0')}/${modalDate.getFullYear()}`;
-    
-    updatedStatutes[index].dated = formattedDate;
-    setStatutes(updatedStatutes);
-    
-    // Reset and close
-    closeModal();
+      setToastMessage(res.message || `Date updated for law "${modalLaw}" successfully.`);
+      setTimeout(() => setToastMessage(''), 4000);
+      closeModal();
+    } catch (err) {
+      setModalError(err.response?.data?.message || err.message || 'Failed to update date for law.');
+    } finally {
+      setIsUpdatingDate(false);
+    }
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
-    setModalSrNumber('');
+    setModalLaw('');
     setModalDate(null);
     setModalError('');
+    setIsUpdatingDate(false);
   };
 
   const handleEdit = (row) => {
@@ -282,25 +301,31 @@ const ManageStatutesTable = ({
                 <TableHeader title="Section Heading" sortKey="sectionHeading" sortConfig={sortConfig} onSort={handleSort} className="min-w-[250px]" />
                 <TableHeader title="Department" sortKey="department" sortConfig={sortConfig} onSort={handleSort} />
                 <TableHeader title="Heading" sortKey="heading" sortConfig={sortConfig} onSort={handleSort} className="min-w-[250px]" />
-                <th className="px-6 py-4 font-semibold text-theme-main text-center">Action</th>
+                <th className="px-4 py-4 font-semibold text-theme-main text-center">Attachment</th>
+                <th className="px-6 py-4 font-semibold text-theme-main text-center sticky right-0 bg-theme-table-header z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border/50">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center">
+                  <td colSpan={11} className="py-12 text-center">
                     <SquareLoader text="Loading Statutes..." />
                   </td>
                 </tr>
               ) : currentData.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-sm text-theme-muted">
+                  <td colSpan={11} className="py-12 text-center text-sm text-theme-muted">
                     No Statutes found.
                   </td>
                 </tr>
               ) : (
                 currentData.map((row) => {
                   const isHighlighted = highlightedId === row.id;
+                  const hasAtt = (Array.isArray(row.attachments) && row.attachments.length > 0) ||
+                                 Boolean(row.attachment) ||
+                                 Boolean(row.attachmentName) ||
+                                 (Array.isArray(row.blocks) && row.blocks.some(b => Array.isArray(b?.attachments) ? b.attachments.length > 0 : Boolean(b?.attachment)));
+
                   return (
                     <tr 
                       key={row.id} 
@@ -312,7 +337,22 @@ const ManageStatutesTable = ({
                       }`}
                     >
                     <td className="px-6 py-4 text-theme-muted">{row.id}</td>
-                    <td className="px-6 py-4 font-medium text-theme-main">{row.law}</td>
+                    <td className="px-6 py-4 font-medium text-theme-main">
+                      <div className="flex flex-col gap-0.5">
+                        <span>{row.law}</span>
+                        {row.law && (
+                          <a
+                            href={`/setting/laws?search=${encodeURIComponent(row.law)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 hover:underline cursor-pointer w-fit"
+                            title={`Edit ${row.law} master record in Law Settings`}
+                          >
+                            <Pencil className="w-2.5 h-2.5" /> Edit Law Master
+                          </a>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-theme-muted">{row.chapter}</td>
                     <td className="px-6 py-4">
                       <input 
@@ -326,7 +366,22 @@ const ManageStatutesTable = ({
                     <td className="px-6 py-4 text-theme-muted text-xs">{row.sectionHeading}</td>
                     <td className="px-6 py-4 text-theme-muted">{row.department}</td>
                     <td className="px-6 py-4 text-theme-muted text-xs">{row.heading}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 text-center">
+                      {hasAtt ? (
+                        <button
+                          type="button"
+                          onClick={() => setViewModalItem(row)}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#7c4dff]/20 hover:bg-[#7c4dff]/30 text-[#651fff] dark:text-[#b388ff] border border-[#7c4dff]/40 shadow-sm transition-all cursor-pointer"
+                          title="View Attachment"
+                        >
+                          <Eye className="w-3 h-3 shrink-0" />
+                          <span>view</span>
+                        </button>
+                      ) : (
+                        <span className="text-theme-muted/50">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 sticky right-0 bg-theme-surface z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                       <div className="flex items-center justify-center gap-1.5">
                         <button 
                           onClick={() => setViewModalItem(row)}
@@ -508,36 +563,49 @@ const ManageStatutesTable = ({
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title="Update Date"
+        title="Update Law Date"
         icon={CalendarClock}
-        maxWidth="max-w-sm"
+        maxWidth="max-w-md"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={closeModal} className="px-4">
+            <Button variant="outline" size="sm" onClick={closeModal} className="px-4" disabled={isUpdatingDate}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" onClick={handleUpdateDate} className="px-6 bg-blue-600 hover:bg-blue-700">
-              Update
+            <Button 
+              variant="primary" 
+              size="sm" 
+              onClick={handleUpdateDate} 
+              disabled={isUpdatingDate}
+              className="px-6 bg-brand-orange hover:bg-brand-orange-hover text-white shadow-sm"
+            >
+              {isUpdatingDate ? 'Updating...' : 'Update Date'}
             </Button>
           </>
         }
       >
         <div className="flex flex-col gap-4">
           {modalError && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg">
+            <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900 rounded-lg">
               {modalError}
             </div>
           )}
           
           <div className="space-y-1.5 relative">
-            <label className="text-sm font-medium text-theme-main">SR Number</label>
+            <label className="text-sm font-medium text-theme-main">Select or Enter Law</label>
             <input 
-              type="number"
-              placeholder="e.g. 9338"
-              value={modalSrNumber}
-              onChange={(e) => setModalSrNumber(e.target.value)}
-              className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors bg-theme-surface"
+              type="text"
+              list="statute-law-suggestions"
+              placeholder="e.g. Income Tax Ordinance, 2001"
+              value={modalLaw}
+              onChange={(e) => setModalLaw(e.target.value)}
+              className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors bg-theme-surface text-theme-main"
             />
+            <datalist id="statute-law-suggestions">
+              {availableLaws.map((lawName, idx) => (
+                <option key={idx} value={lawName} />
+              ))}
+            </datalist>
+            <p className="text-[11px] text-theme-muted">Updates latest from-date for this law across all sections without affecting other data.</p>
           </div>
 
           <div className="space-y-1.5 relative">

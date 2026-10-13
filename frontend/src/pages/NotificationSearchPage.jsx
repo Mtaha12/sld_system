@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, ExternalLink, Bell, AlertCircle, RotateCcw, FileText, Calendar } from 'lucide-react';
-import { caseService } from '../features/cases/services/caseService';
+import { useSearchParams } from 'react-router-dom';
+import { Eye, Bell, AlertCircle, RotateCcw, FileText, Calendar } from 'lucide-react';
 import { notificationService } from '../features/notifications/services/notificationService';
 import { settingService } from '../services/settingService';
 import { LAW_OPTIONS } from '../data/laws';
-import CaseDocumentModal from '../components/ui/CaseDocumentModal';
+import { ALL_SECTIONS } from '../data/sections';
 import Modal from '../components/ui/Modal';
 
 /* ── Shared form field styles ────────────────────────────────────────── */
 const inp =
-  'w-full bg-white text-gray-700 placeholder-gray-400 text-sm px-3 py-2 rounded-md ' +
-  'border-0 outline-none focus:ring-2 focus:ring-[#4a7a9b]/40 h-[38px] transition-all';
+  'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 placeholder-gray-400 text-sm px-3.5 py-2 rounded-lg ' +
+  'border border-slate-200/90 dark:border-slate-700 outline-none focus:ring-2 focus:ring-[#3d4a7a]/50 h-[38px] shadow-2xs transition-all';
 
 const sel =
-  'w-full bg-white text-gray-700 text-sm px-3 py-2 rounded-md ' +
-  'border-0 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#4a7a9b]/40 h-[38px] transition-all';
+  'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 text-sm pl-3.5 pr-8 py-2 rounded-lg ' +
+  'border border-slate-200/90 dark:border-slate-700 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#3d4a7a]/50 h-[38px] shadow-2xs transition-all';
 
 const SelectField = React.memo(({ value, onChange, options = [], placeholder = 'Select Law' }) => {
   const allOptions = useMemo(() => {
@@ -33,10 +33,9 @@ const SelectField = React.memo(({ value, onChange, options = [], placeholder = '
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8"
-            strokeLinecap="round" strokeLinejoin="round"/>
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 8l4 4 4-4" />
         </svg>
       </span>
     </div>
@@ -49,19 +48,50 @@ const NotificationSearchPage = () => {
   const [year, setYear] = useState('');
   const [date, setDate] = useState('');
   const [selectLaw, setSelectLaw] = useState('');
+  const [section, setSection] = useState('');
   const [text, setText] = useState('');
+  const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
 
   // Results State
-  const [caseResults, setCaseResults] = useState(null);
   const [notificationResults, setNotificationResults] = useState(null);
-  const [activeTab, setActiveTab] = useState('cases'); // 'cases' | 'notifications'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [viewId, setViewId] = useState(null);
   const [viewNotification, setViewNotification] = useState(null);
+
+  const [urlSearchParams] = useSearchParams();
 
   // Laws Options State
   const [lawOptions, setLawOptions] = useState([]);
+
+  // Auto-search if URL parameters are passed (e.g. from featured cards)
+  useEffect(() => {
+    const numQ = urlSearchParams.get('number');
+    const txtQ = urlSearchParams.get('query') || urlSearchParams.get('text');
+    const lawQ = urlSearchParams.get('law') || urlSearchParams.get('lawStatute');
+    const yrQ = urlSearchParams.get('year');
+    if (numQ || txtQ || lawQ || yrQ) {
+      if (numQ) setNumber(numQ);
+      if (txtQ) setText(txtQ);
+      if (lawQ) setSelectLaw(lawQ);
+      if (yrQ) setYear(yrQ);
+
+      setLoading(true);
+      setError(null);
+      notificationService.getNotifications({
+        limit: 100,
+        ...(numQ ? { number: numQ } : {}),
+        ...(txtQ ? { text: txtQ } : {}),
+        ...(lawQ ? { lawStatute: lawQ } : {}),
+        ...(yrQ ? { year: yrQ } : {})
+      }).then(res => {
+        setNotificationResults(Array.isArray(res) ? res : []);
+      }).catch(err => {
+        setError(err?.response?.data?.message || 'Search execution encountered an error.');
+      }).finally(() => {
+        setLoading(false);
+      });
+    }
+  }, [urlSearchParams]);
 
   // Fetch Laws from backend, with local dataset fallback
   useEffect(() => {
@@ -83,6 +113,14 @@ const NotificationSearchPage = () => {
         }
       });
 
+    settingService.getSections({ status: 'active', limit: 10000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setSectionOptions(res.data.map(s => s.name));
+        }
+      })
+      .catch(err => console.warn('Sections load warning:', err));
+
     return () => { isMounted = false; };
   }, []);
 
@@ -90,42 +128,27 @@ const NotificationSearchPage = () => {
   const handleSearch = async () => {
     setError(null);
 
-    const hasAny = Boolean(number.trim() || year.trim() || date.trim() || selectLaw.trim() || text.trim());
+    const hasAny = Boolean(number.trim() || year.trim() || date.trim() || selectLaw.trim() || section.trim() || text.trim());
     if (!hasAny) {
-      setError('Please fill in at least one field (Number, Year, Date, Law, or Text) to search.');
+      setError('Please fill in at least one field (Number, Year, Date, Law, Section, or Text) to search.');
       return;
     }
 
     setLoading(true);
-    setCaseResults(null);
     setNotificationResults(null);
 
     try {
-      // 1. Search Cases matching the notification criteria
-      const filters = {
-        number: number.trim() || undefined,
-        year: year.trim() || undefined,
-        date: date.trim() || undefined,
-        selectLaw: selectLaw.trim() || undefined,
-        keywords: text.trim() || undefined,
-      };
+      const searchParams = { limit: 100 };
+      if (selectLaw.trim()) searchParams.lawStatute = selectLaw.trim();
+      if (section.trim()) searchParams.section = section.trim();
+      if (number.trim()) searchParams.number = number.trim();
+      if (year.trim()) searchParams.year = year.trim();
+      if (date.trim()) searchParams.date = date.trim();
+      if (text.trim()) searchParams.text = text.trim();
 
-      const notifQueryStr = [number, year, date, selectLaw, text].filter(Boolean).join(' ');
+      const notifs = await notificationService.getNotifications(searchParams);
 
-      const [casesData, notifsData] = await Promise.allSettled([
-        caseService.searchCases(filters),
-        notificationService.getNotifications({
-          query: notifQueryStr,
-          limit: 50
-        })
-      ]);
-
-      const cases = casesData.status === 'fulfilled' ? (casesData.value || []) : [];
-      const notifs = notifsData.status === 'fulfilled' ? (notifsData.value || []) : [];
-
-      setCaseResults(cases);
-      setNotificationResults(notifs);
-      setActiveTab('cases');
+      setNotificationResults(Array.isArray(notifs) ? notifs : []);
     } catch (err) {
       setError(err?.response?.data?.message || 'Search execution encountered an error. Please try again.');
     } finally {
@@ -139,8 +162,8 @@ const NotificationSearchPage = () => {
     setYear('');
     setDate('');
     setSelectLaw('');
+    setSection('');
     setText('');
-    setCaseResults(null);
     setNotificationResults(null);
     setError(null);
   };
@@ -209,14 +232,28 @@ const NotificationSearchPage = () => {
             </div>
           </div>
 
-          {/* Row 2: Select Law · Enter Text (2 columns) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Row 2: Select Law · Enter Section · Enter Text (3 columns) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <SelectField
               value={selectLaw}
               onChange={(e) => setSelectLaw(e.target.value)}
               options={lawOptions}
               placeholder="Select Law"
             />
+            <div className="w-full">
+              <input
+                className={inp}
+                placeholder="Enter Section"
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+                list="notification-search-sections-list"
+              />
+              <datalist id="notification-search-sections-list">
+                {sectionOptions.map((secName, idx) => (
+                  <option key={idx} value={secName} />
+                ))}
+              </datalist>
+            </div>
             <input
               className={inp}
               placeholder="Enter Text"
@@ -254,172 +291,104 @@ const NotificationSearchPage = () => {
       </div>
 
       {/* ── Search Results ──────────────────────────────────────────────── */}
-      {(caseResults !== null || notificationResults !== null) && (
+      {/* ── Search Results: Notifications Only ───────────────────────── */}
+      {notificationResults !== null && (
         <div className="mt-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
           
-          {/* Header & Tabs */}
+          {/* Header */}
           <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 gap-3">
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setActiveTab('cases')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                  activeTab === 'cases'
-                    ? 'bg-[#3d4a7a] text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
-                }`}
-              >
-                Cases ({caseResults?.length || 0})
-              </button>
-              {notificationResults && notificationResults.length > 0 && (
-                <button
-                  onClick={() => setActiveTab('notifications')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                    activeTab === 'notifications'
-                      ? 'bg-[#3d4a7a] text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
-                  }`}
-                >
-                  Notification Records ({notificationResults.length})
-                </button>
-              )}
+              <span className="font-semibold text-xs text-gray-700 dark:text-gray-200">
+                Notification Search Results
+              </span>
             </div>
 
             <span className="px-2.5 py-1 bg-[#a8cfe0] text-[#1e3a5a] text-xs font-bold rounded-full">
-              {activeTab === 'cases'
-                ? `${caseResults?.length || 0} Case${caseResults?.length !== 1 ? 's' : ''} Found`
-                : `${notificationResults?.length || 0} Notification Record${notificationResults?.length !== 1 ? 's' : ''} Found`
-              }
+              {notificationResults.length} Notification Record{notificationResults.length !== 1 ? 's' : ''} Found
             </span>
           </div>
 
-          {/* TAB 1: Cases View Table */}
-          {activeTab === 'cases' && (
-            <div>
-              {(!caseResults || caseResults.length === 0) ? (
-                <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                  <FileText className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                  <p className="text-sm font-medium">No legal cases found matching this notification search.</p>
-                  <p className="text-xs text-gray-400 mt-1">Try searching with a broader keyword, notification number or law.</p>
-                  <button onClick={handleReset} className="mt-3 text-[#3d4a7a] dark:text-blue-400 hover:underline text-xs font-medium cursor-pointer">
-                    Clear and try another search
-                  </button>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead>
-                      <tr className="bg-[#3d4a7a] text-white">
-                        <th className="px-3 py-2.5 font-semibold">#</th>
-                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">SLD #</th>
-                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Citation</th>
-                        <th className="px-3 py-2.5 font-semibold">Court</th>
-                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Case No.</th>
-                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Date</th>
-                        <th className="px-3 py-2.5 font-semibold">Head Note</th>
-                        <th className="px-3 py-2.5 font-semibold text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {caseResults.map((c, i) => (
-                        <tr key={c.id || c._id || i} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                          <td className="px-3 py-2.5 text-gray-400">{i + 1}</td>
-                          <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
-                            {c.sldNumber || '—'}
-                          </td>
-                          <td className="px-3 py-2.5 whitespace-nowrap">
-                            {(Array.isArray(c.mapYearPage) ? c.mapYearPage : []).map((cit, j) => (
-                              <span key={j} className="inline-block mr-1 px-1.5 py-0.5 bg-[#a8cfe0]/50 dark:bg-blue-900/40 text-[#1e3a5a] dark:text-blue-200 rounded text-[11px] font-semibold">
-                                {cit}
-                              </span>
-                            ))}
-                          </td>
-                          <td className="px-3 py-2.5 text-gray-700 dark:text-gray-300 max-w-[170px] truncate">
-                            {c.court || '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400 max-w-[140px] truncate">
-                            {Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : (c.caseNumber || '—')}
-                          </td>
-                          <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                            {c.dated ? String(c.dated).split('T')[0] : '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[280px]">
-                            <p className="line-clamp-2">{c.headNote || '—'}</p>
-                          </td>
-                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => setViewId(c.id || c._id || c.sldNumber)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer"
-                                title="Quick Preview Case"
-                              >
-                                <Eye className="w-3 h-3" /> View
-                              </button>
-                              <a
-                                href={`/cases/view/${c.id || c._id || c.sldNumber}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                title="Open in new window"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+          {notificationResults.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+              <Bell className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+              <p className="text-sm font-medium">No Notifications found matching this search criteria.</p>
+              <p className="text-xs text-gray-400 mt-1">Try searching with a broader keyword, notification number, SRO # or year.</p>
+              <button onClick={handleReset} className="mt-3 text-[#3d4a7a] dark:text-blue-400 hover:underline text-xs font-medium cursor-pointer">
+                Clear and try another search
+              </button>
             </div>
-          )}
-
-          {/* TAB 2: Notification Records View */}
-          {activeTab === 'notifications' && (
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="bg-[#3d4a7a] text-white">
+                    <th className="px-3 py-2.5 font-semibold">#</th>
                     <th className="px-3 py-2.5 font-semibold">SR #</th>
                     <th className="px-3 py-2.5 font-semibold">Number</th>
                     <th className="px-3 py-2.5 font-semibold">SRO #</th>
                     <th className="px-3 py-2.5 font-semibold">Year</th>
                     <th className="px-3 py-2.5 font-semibold">Subject / Heading</th>
                     <th className="px-3 py-2.5 font-semibold">Law Date</th>
+                    <th className="px-3 py-2.5 font-semibold text-center">Attachment</th>
                     <th className="px-3 py-2.5 font-semibold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {notificationResults.map((n, idx) => (
-                    <tr key={n.id || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200">
-                        {n.srNumber || n.id}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 whitespace-nowrap">
-                        {n.number || '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-brand-orange font-semibold whitespace-nowrap">
-                        {n.sroNumber || '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                        {n.year || '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[280px]">
-                        <p className="line-clamp-2">{n.subject || '—'}</p>
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                        {n.lawDate || '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        <button
-                          onClick={() => setViewNotification(n)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3" /> View Notification
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {notificationResults.map((n, idx) => {
+                    const hasAtt = (Array.isArray(n.attachments) && n.attachments.length > 0) ||
+                                   Boolean(n.attachment) ||
+                                   Boolean(n.attachmentName) ||
+                                   (Array.isArray(n.blocks) && n.blocks.some(b => Array.isArray(b?.attachments) ? b.attachments.length > 0 : Boolean(b?.attachment)));
+
+                    return (
+                      <tr key={n.id || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                        <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
+                        <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200">
+                          {n.srNumber || n.id}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                          {n.number || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-brand-orange font-semibold whitespace-nowrap">
+                          {n.sroNumber || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                          {n.year || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[280px]">
+                          <p className="line-clamp-2">{n.subject || '—'}</p>
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                          {n.lawDate || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {hasAtt ? (
+                            <button
+                              type="button"
+                              onClick={() => setViewNotification(n)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#7c4dff]/20 hover:bg-[#7c4dff]/30 text-[#651fff] dark:text-[#b388ff] border border-[#7c4dff]/40 shadow-sm transition-all cursor-pointer"
+                              title="View Attachment"
+                            >
+                              <Eye className="w-3 h-3 shrink-0" />
+                              <span>view</span>
+                            </button>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <a
+                            href={`/notifications/view/${n.mongoId || n._id || n.id || n.notificationId || n.srNumber}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
+                          >
+                            <Eye className="w-3 h-3" /> View Notification
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -427,9 +396,6 @@ const NotificationSearchPage = () => {
 
         </div>
       )}
-
-      {/* ── Case Document Full Preview Modal ─────────────────────────────── */}
-      <CaseDocumentModal caseId={viewId} onClose={() => setViewId(null)} />
 
       {/* ── Notification Details View Modal ─────────────────────────────── */}
       <Modal
@@ -509,7 +475,27 @@ const NotificationSearchPage = () => {
                       <p className="font-semibold text-gray-500 dark:text-gray-400 mb-1">Date: {b.date}</p>
                     )}
                     {b.detail && (
-                      <p className="whitespace-pre-line text-gray-700 dark:text-gray-300 leading-relaxed">{b.detail}</p>
+                      b.detail.includes('<') && b.detail.includes('>') ? (
+                        <div dangerouslySetInnerHTML={{ __html: b.detail }} className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed text-xs" />
+                      ) : (
+                        <p className="whitespace-pre-line text-gray-700 dark:text-gray-300 leading-relaxed">{b.detail}</p>
+                      )
+                    )}
+                    {Array.isArray(b.attachments) && b.attachments.length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
+                        {b.attachments.map((att, ai) => (
+                          <a 
+                            key={ai}
+                            href={att.url || `/uploads/${att.name}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 rounded text-[11px] font-medium transition-colors"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>{att.name || 'Attachment'}</span>
+                          </a>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ))}

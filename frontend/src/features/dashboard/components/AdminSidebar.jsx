@@ -13,6 +13,7 @@ import {
   Moon,
   X,
   Search,
+  Sparkles,
   Newspaper,
   MessageSquare,
   Globe,
@@ -43,7 +44,8 @@ import {
   PinOff,
   Gauge,
   Network,
-  ExternalLink
+  ExternalLink,
+  Hash
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/SLD_Logo.png';
 import { useUser } from '../../../contexts/UserContext';
@@ -51,8 +53,8 @@ import { useUser } from '../../../contexts/UserContext';
 // Standalone top navigation items
 const TOP_NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-  { label: 'AI Legal Core', path: '/ai-assistant', icon: Bot, isHighlight: true },
   { label: 'Search Case Law', path: '/search-case-law', icon: Search },
+  { label: 'Search with AI', path: '/ai-assistant', icon: Sparkles, isHighlight: true },
   { label: 'Statute Search', path: '/statute-search', icon: FileText },
   { label: 'Notification Search', path: '/notification-search', icon: Bell },
 ];
@@ -112,6 +114,7 @@ const FOLDER_GROUPS = [
       { label: 'Manage Principle of Law', path: '/setting/principles', icon: BookOpen },
       { label: 'Manage Legal Maxim', path: '/setting/legal-maxims', icon: Scale },
       { label: 'Manage Laws / Statute', path: '/setting/laws', icon: Library },
+      { label: 'Manage Sections', path: '/setting/sections', icon: Hash },
     ]
   },
   {
@@ -149,7 +152,7 @@ const AdminSidebar = ({
   const visibleTopNavItems = React.useMemo(() => {
     return TOP_NAV_ITEMS.filter((item) => {
       if (item.path === '/dashboard') return true;
-      if (item.path === '/ai-assistant') return isAdmin && user?.aiAssistant !== false;
+      if (item.path === '/ai-assistant') return user?.aiAssistant !== false;
       if (item.path === '/search-case-law') return user?.displayCase !== false;
       if (item.path === '/statute-search') return user?.displayStatute !== false;
       if (item.path === '/notification-search') return user?.displayNotification !== false;

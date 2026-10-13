@@ -1,0 +1,1 @@
+{"level":"error","message":"Unhandled exception in runLegalIntelligenceEngine: Operation `cases.find()` buffering timed out after 10000ms","service":"sld-backend-service","timestamp":"2026-10-12 16:24:26"}

@@ -10,6 +10,10 @@ import { protect, requireAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// Public routes for sharing and viewing newsletter documents by link
+router.get('/public/:id', getNewsletterById);
+router.get('/view/:id', getNewsletterById);
+
 router.use(protect);
 
 router.get('/', getNewsletters);

@@ -10,7 +10,14 @@ import { otherCaseService } from '../features/cases/services/otherCaseService';
 const OtherCaseLawsPage = () => {
   const navigate = useNavigate();
   const [cases, setCases] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [sortConfig, setSortConfig] = useState({ key: 'otherCaseId', direction: 'asc' });
+
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [activeQuery, setActiveQuery] = useState('');
   const [judgeFilter, setJudgeFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
@@ -18,11 +25,20 @@ const OtherCaseLawsPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  const fetchCases = useCallback(async (query = '', judge = '') => {
+  const fetchCases = useCallback(async (page = 1, limit = 25, sortKey = 'srNumber', sortDir = 'asc', query = '', judge = '') => {
     setIsLoading(true);
     try {
-      const data = await otherCaseService.getOtherCases(query, judge);
-      setCases(data);
+      const res = await otherCaseService.getOtherCases(query, judge, page, limit, sortKey, sortDir);
+      if (res && Array.isArray(res.data)) {
+        setCases(res.data);
+        setTotalCount(res.total || res.data.length);
+        setTotalPages(res.totalPages || Math.ceil((res.total || res.data.length) / limit) || 1);
+        setCurrentPage(res.currentPage || page);
+      } else if (Array.isArray(res)) {
+        setCases(res);
+        setTotalCount(res.length);
+        setTotalPages(Math.ceil(res.length / limit) || 1);
+      }
     } catch (err) {
       console.error('[OtherCaseLawsPage] Fetch error:', err);
     } finally {
@@ -31,36 +47,64 @@ const OtherCaseLawsPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchCases();
-  }, [fetchCases]);
+    fetchCases(currentPage, itemsPerPage, sortConfig.key, sortConfig.direction, activeQuery, judgeFilter);
+  }, [fetchCases, currentPage, itemsPerPage, sortConfig, activeQuery, judgeFilter]);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
-    fetchCases(searchKeyword, judgeFilter);
+    setCurrentPage(1);
+    setActiveQuery(searchKeyword);
   };
 
   const handleShowAll = () => {
     setSearchKeyword('');
+    setActiveQuery('');
     setJudgeFilter('');
-    fetchCases('', '');
+    setCurrentPage(1);
+  };
+
+  const handleSortChange = (newKey) => {
+    setSortConfig(prev => {
+      let direction = 'asc';
+      if (prev.key === newKey) {
+        direction = prev.direction === 'asc' ? 'desc' : 'asc';
+      }
+      return { key: newKey, direction };
+    });
+    setCurrentPage(1);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleItemsPerPageChange = (newLimit) => {
+    setItemsPerPage(newLimit);
+    setCurrentPage(1);
   };
 
   const handleOpenAddForm = () => {
     setEditingItem(null);
     setIsFormOpen(true);
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleEditItem = (item) => {
     setEditingItem(item);
     setIsFormOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleFormSuccess = (savedItem, message) => {
     setToastMessage(message || 'Success');
     setIsFormOpen(false);
     setEditingItem(null);
-    fetchCases(searchKeyword, judgeFilter);
+    fetchCases(currentPage, itemsPerPage, sortConfig.key, sortConfig.direction, activeQuery, judgeFilter);
   };
 
   const handleItemDeleted = (deletedId) => {
@@ -69,6 +113,7 @@ const OtherCaseLawsPage = () => {
       item.mongoId !== deletedId && 
       item.otherCaseId !== deletedId
     ));
+    setTotalCount(prev => Math.max(0, prev - 1));
   };
 
   return (
@@ -80,9 +125,9 @@ const OtherCaseLawsPage = () => {
           
           <button
             type="button"
-            onClick={() => navigate('/manage-cases')}
+            onClick={() => navigate('/manage-case-law')}
             className="p-1.5 rounded-lg text-theme-muted hover:text-theme-main hover:bg-theme-surface-alt transition-colors mr-1 cursor-pointer"
-            title="Back to Manage Cases"
+            title="Back to Case Laws"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -90,6 +135,9 @@ const OtherCaseLawsPage = () => {
           <div className="flex items-center gap-2 mr-2">
             <Scale className="w-4 h-4 text-brand-orange" />
             <span className="text-sm font-bold text-theme-main whitespace-nowrap">Other Case Laws</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-orange/10 text-brand-orange border border-brand-orange/30">
+              {totalCount.toLocaleString()}
+            </span>
           </div>
 
           <div className="flex-1 min-w-[200px]">
@@ -99,7 +147,7 @@ const OtherCaseLawsPage = () => {
                 type="text"
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder="Search by Case No, Title, SC Citation, Judge..."
+                placeholder="Search 52,500+ records by Case No, Parties, Citation, Bench..."
                 className="w-full pl-9 pr-3 py-1.5 bg-theme-surface border border-theme-border rounded-lg text-xs focus:outline-none focus:border-brand-orange text-theme-main transition-colors"
               />
             </div>
@@ -159,6 +207,14 @@ const OtherCaseLawsPage = () => {
       {/* Table */}
       <ManageOtherCasesTable
         cases={cases}
+        totalItems={totalCount}
+        totalPages={totalPages}
+        currentPage={currentPage}
+        itemsPerPage={itemsPerPage}
+        sortConfig={sortConfig}
+        onSort={handleSortChange}
+        onPageChange={handlePageChange}
+        onItemsPerPageChange={handleItemsPerPageChange}
         onEdit={handleEditItem}
         onDeleted={handleItemDeleted}
         toastMessage={toastMessage}

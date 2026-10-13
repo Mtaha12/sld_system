@@ -75,8 +75,8 @@ const Pagination = ({
               onClick={() => handlePageChange(item)}
               className={`w-8 h-8 flex items-center justify-center rounded text-sm transition-colors ${
                 currentPage === item
-                  ? 'bg-[#641E16] text-white font-medium hover:bg-[#4A1610]'
-                  : 'text-theme-muted border border-theme-border hover:bg-theme-surface-alt'
+                  ? 'bg-brand-orange text-white font-bold shadow-sm hover:bg-brand-orange-hover'
+                  : 'text-theme-muted border border-theme-border hover:bg-theme-surface-alt font-medium'
               }`}
             >
               {item}

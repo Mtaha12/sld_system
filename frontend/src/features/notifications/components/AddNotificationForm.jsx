@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Layers, Paperclip } from 'lucide-react';
+import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import DatePicker from '../../../components/ui/DatePicker';
@@ -13,6 +13,7 @@ import FormFooter from '../../../components/ui/FormFooter';
 import { notificationSchema } from '../validation/notificationSchema';
 import { notificationService } from '../services/notificationService';
 import { settingService } from '../../../services/settingService';
+import { ALL_SECTIONS } from '../../../data/sections';
 
 /* ── Compact inline file-chooser, same height as the date picker ─────── */
 const CompactFileButton = ({ value, onChange }) => {
@@ -64,6 +65,83 @@ const CompactFileButton = ({ value, onChange }) => {
   );
 };
 
+export const formatNotificationParagraphs = (content) => {
+  if (!content || typeof content !== 'string') return '';
+  let str = content.trim();
+  if (!str) return '';
+
+  // Extract and preserve tables so they don't get mutilated or wrapped inside <p>
+  const tables = [];
+  str = str.replace(/<table[\s\S]*?<\/table>/gi, (match) => {
+    const placeholder = `__TABLE_PLACEHOLDER_${tables.length}__`;
+    tables.push(match);
+    return `\n\n${placeholder}\n\n`;
+  });
+
+  // Strip wrapping outer single <p> or <div> if present
+  let text = str;
+  if (/^<(?:p|div)>[\s\S]*<\/(?:p|div)>$/i.test(text.trim()) && !text.includes('</p><p>') && !text.includes('</div><div>')) {
+    text = text.trim().replace(/^<(?:p|div)>/i, '').replace(/<\/(?:p|div)>$/i, '');
+  }
+
+  // Replace <br> tags with newlines
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+
+  // Insert paragraph breaks at key notification boundaries:
+  // 1. Multiple asterisks ***** (e.g. separation between Govt header and notification body)
+  text = text.replace(/\s*\*{3,}\s*/g, '\n\n');
+
+  // 2. City / Date lines (e.g. Islamabad, the 19th May, 2026)
+  text = text.replace(/\s*((?:Islamabad|Lahore|Karachi|Peshawar|Quetta|Rawalpindi),\s*the\s+[0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+[0-9]{4})/gi, '\n\n$1\n\n');
+
+  // 3. Notification / S.R.O. headings (e.g. Notification S.R.O. 877(I)/2026.-)
+  text = text.replace(/\s*(Notification\s+(?:No\.?\s*)?S\.R\.O\.?\s*[0-9]+(?:\([A-Za-z0-9]+\))?\/[0-9]{4}[.\-]?(?:\s*\([A-Za-z0-9]+\))?)/gi, '\n\n$1\n\n');
+
+  // 4. "In exercise of the powers..." clauses
+  text = text.replace(/\s*([-\s]*(?:In|in)\s+exercise\s+of\s+the\s+powers)/gi, '\n\n$1');
+
+  // 5. "namely:-" or "namely:" introducing lists / tables / clauses
+  text = text.replace(/(namely\s*[:\-]+)\s*/gi, '$1\n\n');
+
+  // 6. Numbered clauses like "2. In aforesaid Notification..."
+  text = text.replace(/\s*([0-9]+\.\s+[A-Z])/g, '\n\n$1');
+
+  // Split into separate paragraphs on double newlines
+  const rawParts = text.split(/\n{2,}/);
+  const formattedParagraphs = [];
+
+  for (const part of rawParts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    // Check if this part contains our table placeholder
+    if (trimmed.startsWith('__TABLE_PLACEHOLDER_')) {
+      const idxMatch = trimmed.match(/__TABLE_PLACEHOLDER_(\d+)__/);
+      if (idxMatch && tables[parseInt(idxMatch[1], 10)]) {
+        formattedParagraphs.push(tables[parseInt(idxMatch[1], 10)]);
+        continue;
+      }
+    }
+
+    // If it's already an HTML element (like <p>, <div>, <h1>, <ul>)
+    if (/^<[a-z]+[^>]*>[\s\S]*<\/[a-z]+>$/i.test(trimmed)) {
+      formattedParagraphs.push(trimmed);
+    } else {
+      // Clean up internal single newlines to spaces
+      const cleanText = trimmed.replace(/\r?\n/g, ' ');
+      formattedParagraphs.push(`<p>${cleanText}</p>`);
+    }
+  }
+
+  // Restore any lingering table placeholders
+  let finalResult = formattedParagraphs.join('');
+  tables.forEach((tbl, idx) => {
+    finalResult = finalResult.replace(`__TABLE_PLACEHOLDER_${idx}__`, tbl);
+  });
+
+  return finalResult;
+};
+
 const AddNotificationForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,21 +149,7 @@ const AddNotificationForm = () => {
   const isEdit = Boolean(location.state?.isEdit || editData);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lawOptions, setLawOptions] = useState([]);
-
-  useEffect(() => {
-    let isMounted = true;
-    settingService.getLaws({ status: 'active', limit: 5000 })
-      .then(res => {
-        if (isMounted && res?.data && Array.isArray(res.data)) {
-          setLawOptions(res.data.map(l => l.name));
-        }
-      })
-      .catch(err => {
-        console.warn('Could not load dynamic laws for AddNotificationForm:', err);
-      });
-    return () => { isMounted = false; };
-  }, []);
-
+  const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
   const defaultValues = {
     srNumber: editData?.srNumber?.toString() || '',
     department: editData?.department?.toLowerCase() || 'notification',
@@ -104,31 +168,134 @@ const AddNotificationForm = () => {
       
       const existingFilled = (editData?.blocks || []).filter(b => {
         const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
-        const hasDate = b.date !== null && b.date !== '';
-        const hasAttachments = b.attachments && b.attachments.length > 0;
+        const hasDate = b.date !== null && b.date !== '' && b.date !== undefined;
+        const hasAttachments = Array.isArray(b.attachments) && b.attachments.length > 0;
         return hasDetail || hasDate || hasAttachments;
       }).map((b, i) => ({
         id: b._id || `existing-${i}`,
         date: b.date ? new Date(b.date) : null,
-        detail: b.detail || '',
+        detail: formatNotificationParagraphs(b.detail || ''),
         attachments: b.attachments || []
       }));
       
-      const res = [empty1, ...existingFilled];
-      if (res.length < 2) res.push(empty2);
-      return res;
+      if (existingFilled.length === 0) {
+        return [empty1, empty2];
+      }
+      return [...existingFilled, empty1];
     })()
   };
+
+  const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || null);
+  const [loadingNotification, setLoadingNotification] = useState(false);
+  const [loadFeedback, setLoadFeedback] = useState(null);
 
   const {
     register,
     control,
     handleSubmit,
+    setValue,
+    getValues,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(notificationSchema),
     defaultValues,
   });
+
+  const loadNotificationBySr = React.useCallback(async (targetSr) => {
+    const cleanSr = String(targetSr ?? getValues('srNumber') ?? '').trim();
+    if (!cleanSr) return;
+
+    setLoadingNotification(true);
+    setLoadFeedback(null);
+
+    try {
+      const data = await notificationService.getNotificationById(cleanSr);
+      if (data) {
+        setCurrentRecordId(data._id || data.id);
+        setValue('srNumber', String(data.srNumber || cleanSr));
+        setValue('department', data.department?.toLowerCase() || 'notification');
+        setValue('subDepartment', data.subDepartment || 'federal');
+        setValue('year', String(data.year || '2026'));
+        setValue('number', String(data.number || '14'));
+        setValue('sroNumber', data.sroNumber || '');
+        setValue('subject', data.subject || '');
+        setValue('status', data.status?.toLowerCase() || 'active');
+        setValue('lawStatute', data.lawStatute || '');
+        setValue('section', data.section || '');
+        if (Array.isArray(data.blocks) && data.blocks.length > 0) {
+          setValue('blocks', data.blocks.map((b, i) => ({
+            id: b._id || `existing-${i}`,
+            date: b.date ? new Date(b.date) : null,
+            detail: formatNotificationParagraphs(b.detail || ''),
+            attachments: b.attachments || []
+          })));
+        }
+        setLoadFeedback({
+          type: 'success',
+          message: `SR #${cleanSr} loaded: ${data.subject ? (data.subject.slice(0, 32) + '...') : 'Notification Record'}`
+        });
+      }
+    } catch (err) {
+      console.warn(`[Notification Load] SR #${cleanSr} lookup notice:`, err?.response?.data?.message || err.message);
+      // Not found in database — keep SR and allow creating new record
+      setCurrentRecordId(null);
+      setValue('srNumber', cleanSr);
+      setLoadFeedback({
+        type: 'notFound',
+        message: `SR #${cleanSr} not found in database. Ready to create new notification.`
+      });
+    } finally {
+      setLoadingNotification(false);
+      setTimeout(() => setLoadFeedback(null), 6000);
+    }
+  }, [getValues, setValue]);
+
+  const handleStepSr = (delta) => {
+    const rawVal = getValues('srNumber');
+    const currentNum = parseInt(rawVal || '1', 10);
+    const nextNum = Math.max(1, (isNaN(currentNum) ? 1 : currentNum) + delta);
+    setValue('srNumber', String(nextNum));
+    loadNotificationBySr(nextNum);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    settingService.getLaws({ status: 'active', limit: 5000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data)) {
+          setLawOptions(res.data.map(l => l.name));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic laws for AddNotificationForm:', err);
+      });
+
+    settingService.getSections({ status: 'active', limit: 10000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setSectionOptions(res.data.map(s => s.name));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load dynamic sections for AddNotificationForm:', err);
+      });
+
+    // Automatically assign next sequential SR # for new notifications
+    if (!isEdit) {
+      notificationService.getNextSr()
+        .then(res => {
+          if (isMounted && res?.nextSr) {
+            setValue('srNumber', String(res.nextSr), { shouldDirty: false });
+          }
+        })
+        .catch(err => {
+          console.warn('Could not auto-fetch next Notification SR #:', err);
+        });
+    }
+
+    return () => { isMounted = false; };
+  }, [isEdit, setValue]);
 
   const { fields: blockFields } = useFieldArray({
     control,
@@ -145,8 +312,9 @@ const AddNotificationForm = () => {
     });
 
     try {
-      if (isEdit && editData?.id) {
-        await notificationService.updateNotification(editData.id, data);
+      const targetId = currentRecordId || (isEdit && editData?.id);
+      if (targetId) {
+        await notificationService.updateNotification(targetId, data);
       } else {
         await notificationService.createNotification(data);
       }
@@ -179,71 +347,168 @@ const AddNotificationForm = () => {
           </div>
         )}
 
+        {/* Top Floating Action Bar: Sticky while scrolling */}
+        <div className="sticky top-0 z-30 mb-4 flex items-center justify-between bg-theme-surface/95 border border-theme-border px-4 py-3 rounded-xl shadow-md backdrop-blur-md">
+          <div className="text-xs text-theme-muted font-medium flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/manage-notifications')}
+              className="px-2.5 py-1.5 -ml-1 text-theme-muted hover:text-theme-main hover:bg-theme-surface border border-theme-border rounded-lg transition-colors flex items-center gap-1.5 font-semibold text-xs cursor-pointer shadow-xs mr-1"
+              title="Back to Notifications list"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+            <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Notification' : 'Add New Notification'}</span>
+            {editData?.srNumber && <span className="text-brand-orange font-semibold">SR #{editData.srNumber}</span>}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/manage-notifications')}
+              className="px-3.5 py-1.5 text-xs font-medium text-theme-muted hover:text-theme-main border border-theme-border rounded-lg hover:bg-theme-surface transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="notification-form"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+            >
+              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Record' : 'Save Record')}</span>
+            </button>
+          </div>
+        </div>
+
         <form id="notification-form" onSubmit={handleSubmit(onSubmit)} className="space-y-3">
 
           {/* Record Information */}
           <FormSection compact>
 
-            {/* Top row: SR # · Department · Sub Department · Year · Number — all on one line */}
-            <div className="grid grid-cols-5 gap-3 items-end mb-3">
-              <FormField label="SR #" required>
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  placeholder="11675"
-                  error={errors.srNumber}
-                  {...register('srNumber')}
-                />
-              </FormField>
-              <FormField label="Department" required>
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  type="select"
-                  error={errors.department}
-                  options={[
-                    { label: 'Circular', value: 'circular' },
-                    { label: 'Corporate', value: 'corporate' },
-                    { label: 'General Order', value: 'general order' },
-                    { label: 'Judge Order', value: 'judge order' },
-                    { label: 'Letter', value: 'letter' },
-                    { label: 'Notification', value: 'notification' },
-                    { label: 'Other', value: 'other' }
-                  ]}
-                  {...register('department')}
-                />
-              </FormField>
-              <FormField label="Sub Department" required>
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  type="select"
-                  error={errors.subDepartment}
-                  options={[
-                    { label: 'Federal', value: 'federal' },
-                    { label: 'Provincial', value: 'provincial' }
-                  ]}
-                  {...register('subDepartment')}
-                />
-              </FormField>
-              <FormField label="Year" required>
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  placeholder="2026"
-                  error={errors.year}
-                  {...register('year')}
-                />
-              </FormField>
-              <FormField label="Number" required>
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  placeholder="Enter number..."
-                  error={errors.number}
-                  {...register('number')}
-                />
-              </FormField>
+            {/* Top row: SR # · Department · Sub Department · Year · Number */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end mb-3">
+              <div className="lg:col-span-4 sm:col-span-2 col-span-1">
+                <FormField label="SR #" required>
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <Input
+                        variant="light"
+                        inputSize="sm"
+                        placeholder="11675"
+                        error={errors.srNumber}
+                        {...register('srNumber')}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            loadNotificationBySr(e.currentTarget.value);
+                          }
+                        }}
+                      />
+                      {loadingNotification && (
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center">
+                          <Loader2 className="w-4 h-4 animate-spin text-brand-orange" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        title="Previous SR"
+                        onClick={() => handleStepSr(-1)}
+                        disabled={loadingNotification}
+                        className="p-1.5 h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Next SR"
+                        onClick={() => handleStepSr(1)}
+                        disabled={loadingNotification}
+                        className="p-1.5 h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => loadNotificationBySr()}
+                        disabled={loadingNotification}
+                        className="h-[34px] text-xs px-2.5 border border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 rounded-lg font-semibold cursor-pointer disabled:opacity-50"
+                      >
+                        {loadingNotification ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Load'}
+                      </button>
+                    </div>
+                  </div>
+                  {loadFeedback && (
+                    <div className={`mt-1.5 text-[11px] font-medium flex items-center gap-1 transition-all ${
+                      loadFeedback.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                      loadFeedback.type === 'notFound' ? 'text-amber-600 dark:text-amber-400' :
+                      'text-red-500'
+                    }`}>
+                      {loadFeedback.type === 'success' && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      <span className="truncate">{loadFeedback.message}</span>
+                    </div>
+                  )}
+                </FormField>
+              </div>
+              <div className="lg:col-span-2">
+                <FormField label="Department" required>
+                  <Input
+                    variant="light"
+                    inputSize="sm"
+                    type="select"
+                    error={errors.department}
+                    options={[
+                      { label: 'Circular', value: 'circular' },
+                      { label: 'Corporate', value: 'corporate' },
+                      { label: 'General Order', value: 'general order' },
+                      { label: 'Judge Order', value: 'judge order' },
+                      { label: 'Letter', value: 'letter' },
+                      { label: 'Notification', value: 'notification' },
+                      { label: 'Other', value: 'other' }
+                    ]}
+                    {...register('department')}
+                  />
+                </FormField>
+              </div>
+              <div className="lg:col-span-2">
+                <FormField label="Sub Department" required>
+                  <Input
+                    variant="light"
+                    inputSize="sm"
+                    type="select"
+                    error={errors.subDepartment}
+                    options={[
+                      { label: 'Federal', value: 'federal' },
+                      { label: 'Provincial', value: 'provincial' }
+                    ]}
+                    {...register('subDepartment')}
+                  />
+                </FormField>
+              </div>
+              <div className="lg:col-span-2">
+                <FormField label="Year" required>
+                  <Input
+                    variant="light"
+                    inputSize="sm"
+                    placeholder="2026"
+                    error={errors.year}
+                    {...register('year')}
+                  />
+                </FormField>
+              </div>
+              <div className="lg:col-span-2">
+                <FormField label="Number" required>
+                  <Input
+                    variant="light"
+                    inputSize="sm"
+                    placeholder="Enter number..."
+                    error={errors.number}
+                    {...register('number')}
+                  />
+                </FormField>
+              </div>
             </div>
 
             {/* Middle row: SRO # · Subject */}
@@ -289,10 +554,16 @@ const AddNotificationForm = () => {
                 <Input
                   variant="light"
                   inputSize="sm"
-                  placeholder="Enter Section..."
+                  placeholder="Select or enter Section..."
+                  list="notification-sections-list"
                   error={errors.section}
                   {...register('section')}
                 />
+                <datalist id="notification-sections-list">
+                  {sectionOptions.map((secName, idx) => (
+                    <option key={idx} value={secName} />
+                  ))}
+                </datalist>
               </FormField>
             </div>
 

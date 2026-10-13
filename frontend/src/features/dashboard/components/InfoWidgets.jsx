@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { 
   FileText, Calendar, Building2, MapPin, Mail, Phone, 
-  Info, BookOpen, MessageSquare, Video, Play, MessageCircle, ArrowRight, Check, Copy, User, Building, Download, Globe, ExternalLink
+  Info, BookOpen, ArrowRight, Check, Copy, User, Building, Download, Globe, ExternalLink, ShieldCheck, Sparkles
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import whatsappLogo from '../../../assets/branding/dashboard/whatsapp.png';
 import youtubeLogo from '../../../assets/branding/dashboard/youtube.png';
 import sldBroucher from '../../../assets/branding/dashboard/sld_broucher.png';
+import sldEmailWhatsappBanner from '../../../assets/branding/dashboard/sld_email_whatsapp_banner.jpg';
 import Modal from '../../../components/ui/Modal';
 import AboutUsModal from './AboutUsModal';
 import { whatsappService } from '../../whatsapp/services/whatsappService';
@@ -58,56 +59,54 @@ const CopyableDetail = ({ icon: Icon, label, value }) => {
   };
 
   return (
-    <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-theme-surface-hover transition-colors group">
+    <div className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-theme-surface-hover transition-colors group">
       <div className="mt-0.5 text-[#f15a24]">
-        <Icon className="w-5 h-5" />
+        <Icon className="w-4 h-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-theme-muted font-medium mb-0.5">{label}</p>
-        <p className="text-sm text-theme-main font-semibold break-words">{value}</p>
+        <p className="text-[11px] text-theme-muted font-medium">{label}</p>
+        <p className="text-xs text-theme-main font-semibold break-words">{value}</p>
       </div>
       <button 
         onClick={handleCopy}
         title="Copy to clipboard"
-        className="p-1.5 rounded-md text-gray-400 hover:text-[#f15a24] hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all opacity-100"
+        className="p-1 rounded-md text-gray-400 hover:text-[#f15a24] hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all opacity-100"
       >
-        {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+        {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
       </button>
     </div>
   );
 };
 
-const AccountRow = ({ b, isLast }) => {
+const CompactAccountRow = ({ b }) => {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
+  const handleCopy = (e) => {
+    e.stopPropagation();
     navigator.clipboard.writeText(b.acc);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className={`flex items-start justify-between gap-2 group ${!isLast ? 'border-b border-orange-100 dark:border-orange-900/30 pb-4' : ''}`}>
-      <div className="flex gap-3">
-        <Building2 className="w-4 h-4 text-[#f15a24] mt-1 shrink-0" />
-        <div className="flex flex-col">
-          <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{b.bank}</span>
-          {b.branch && <span className="text-[11px] text-gray-500 leading-tight mt-0.5">{b.branch}</span>}
+    <div className="flex items-center justify-between gap-2 p-1.5 px-2 rounded-lg bg-white/80 dark:bg-theme-surface/80 border border-orange-100 dark:border-orange-900/30 hover:border-orange-300 dark:hover:border-orange-700/50 transition-all group shadow-2xs">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-6 h-6 rounded-md bg-orange-100/70 dark:bg-orange-950/50 flex items-center justify-center text-[#f15a24] shrink-0">
+          <Building2 className="w-3.5 h-3.5" />
+        </div>
+        <div className="flex flex-col min-w-0">
+          <span className="text-xs font-bold text-gray-900 dark:text-gray-100 leading-tight truncate font-heading">{b.bank}</span>
+          <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate leading-none mt-0.5">{b.title}</span>
         </div>
       </div>
-      <div className="flex flex-col items-end text-right">
-        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{b.title}</span>
-        <button 
-          onClick={handleCopy}
-          title="Copy Account Number"
-          className="flex items-center gap-1.5 mt-0.5 cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/20 px-1.5 py-0.5 -mr-1.5 rounded transition-colors focus:outline-none"
-        >
-          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-            {b.prefix || 'Account #'} {b.acc}
-          </span>
-          {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-gray-400 opacity-100" />}
-        </button>
-      </div>
+      <button 
+        onClick={handleCopy}
+        title="Click to copy account number"
+        className="flex items-center gap-1 cursor-pointer bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800/40 px-2 py-0.5 rounded text-[11px] font-bold text-emerald-700 dark:text-emerald-300 transition-colors shrink-0 font-mono"
+      >
+        <span>{b.prefix ? `${b.prefix} ` : ''}{b.acc}</span>
+        {copied ? <Check className="w-3 h-3 text-emerald-600 animate-pulse" /> : <Copy className="w-3 h-3 text-emerald-500/70 group-hover:text-emerald-700" />}
+      </button>
     </div>
   );
 };
@@ -167,192 +166,220 @@ const InfoWidgets = () => {
   const youtubeThumbnail = getYoutubeThumbnail(latestVideo.url, latestVideo.photo);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-6 items-stretch">
       
-      {/* Subscription Fee Column */}
-      <div className="bg-[#fff7ed] dark:bg-[#fff7ed]/5 border border-orange-100 dark:border-orange-900/30 rounded-xl overflow-hidden flex flex-col shadow-sm">
-        <div className="p-5 border-b border-orange-100 dark:border-orange-900/30 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-[#f15a24]">
-            <FileText className="w-5 h-5" />
+      {/* 1. Subscription Fee Column - Compact, Executive & Zero Waste Space */}
+      <div className="bg-gradient-to-b from-[#fffaf4] to-[#fff3e7] dark:from-[#1b1511] dark:to-[#14100c] border border-orange-200/80 dark:border-orange-900/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
+        
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-orange-200/70 dark:border-orange-900/40 flex items-center justify-between bg-white/60 dark:bg-theme-surface/50 backdrop-blur-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#f15a24] to-amber-500 flex items-center justify-center text-white shadow-xs">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-gray-900 dark:text-gray-100 font-heading tracking-tight leading-tight">Subscription Fee</h2>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium leading-none">SLD Official Annual Membership</p>
+            </div>
           </div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Subscription Fee</h2>
+          <span className="flex items-center gap-1 text-[11px] font-bold text-orange-900 dark:text-orange-200 bg-orange-100/90 dark:bg-orange-950/60 border border-orange-200/70 px-2 py-0.5 rounded-full shadow-2xs font-mono">
+            <Calendar className="w-3 h-3 text-[#f15a24]" />
+            31 AUG 2026
+          </span>
         </div>
         
-        <div className="p-5 flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
-            <Calendar className="w-4 h-4" />
-            31 AUG 2026
+        {/* Content */}
+        <div className="p-3.5 flex flex-col gap-2.5 flex-1 justify-between">
+          
+          {/* Refined Compact Price Row */}
+          <div className="py-2 px-3 rounded-xl bg-orange-500/10 dark:bg-orange-500/15 border border-orange-200/80 dark:border-orange-800/40 flex items-center justify-between">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#f15a24]">Fee:</span>
+              <span className="text-lg font-black font-heading text-gray-950 dark:text-white tracking-tight">Rs. 30,000</span>
+              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">/ Annually</span>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950/60 border border-emerald-200/80 px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+              <Check className="w-2.5 h-2.5" /> Official Rate
+            </span>
           </div>
           
-          <div className="bg-orange-100/50 dark:bg-orange-500/10 rounded-lg p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#f15a24] text-white flex items-center justify-center font-bold text-sm shrink-0">
-              Rs.
-            </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Rs.30,000<span className="text-base font-normal text-gray-500">/Annually</span>
-            </div>
+          {/* Warning Alert */}
+          <div className="flex items-start gap-1.5 text-[11px] font-semibold text-amber-900 dark:text-amber-200 bg-amber-500/10 border-l-3 border-[#f15a24] px-2.5 py-1.5 rounded-r-lg leading-snug">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#f15a24] shrink-0 mt-0.5" />
+            <span>Pay subscription fee <strong>only</strong> in company accounts below. Otherwise Company is not responsible.</span>
           </div>
           
-          <p className="text-sm font-semibold text-[#f15a24] leading-relaxed">
-            Pay your subscription fee only in the company's following account, otherwise Company will not be responsible.
-          </p>
-          
-          <div className="flex flex-col gap-4 mt-2">
+          {/* Bank Accounts Grid/List */}
+          <div className="flex flex-col gap-1.5">
             {[
-              { bank: 'Allied Bank Limited', branch: 'The Mall Road, Saddar, Rawalpindi', title: 'Super Law Data System', acc: '11050010037270730029' },
-              { bank: 'MCB Bank Limited', branch: 'Privilege Branch, Rawalpindi Cantt', title: 'Super Law Data System', acc: 'PK84MUCB1123909311000715', prefix: 'IBAN #' },
-              { bank: 'United Bank Limited', branch: 'The Mall Road, Saddar, Rawalpindi', title: 'Super Law Data System', acc: '1491-222820349' },
-              { bank: 'Jazz Cash / Easy Paisa', branch: '', title: 'Haroon Ahmad Rafiq', acc: '03215390007' }
-            ].map((b, i, arr) => (
-              <AccountRow key={i} b={b} isLast={i === arr.length - 1} />
+              { bank: 'Allied Bank Limited', title: 'Super Law Data System', acc: '11050010037270730029' },
+              { bank: 'MCB Bank Limited', title: 'Super Law Data System', acc: 'PK84MUCB1123909311000715', prefix: 'IBAN' },
+              { bank: 'United Bank Limited', title: 'Super Law Data System', acc: '1491-222820349' },
+              { bank: 'Jazz Cash / Easy Paisa', title: 'Haroon Ahmad Rafiq', acc: '03215390007' }
+            ].map((b, i) => (
+              <CompactAccountRow key={i} b={b} />
             ))}
           </div>
         </div>
         
-        <div className="mt-auto border-t border-orange-100 dark:border-orange-900/30">
-          <div className="p-4 bg-white/50 dark:bg-theme-surface">
-            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 font-medium">
-              <MapPin className="w-4 h-4 shrink-0 text-[#f15a24]" />
-              <span className="leading-snug">Head Office: Office # SO-6&7, 2nd Floor, City Centre, Bank Road, Saddar, Rawalpindi</span>
-            </div>
-            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-theme-border">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                <Phone className="w-3.5 h-3.5 text-[#f15a24]" />
-                051-8315912
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                <FileText className="w-3.5 h-3.5 text-[#f15a24]" />
-                0325-8986393
-              </div>
-            </div>
+        {/* Footer Info Strip */}
+        <div className="border-t border-orange-200/70 dark:border-orange-900/40 bg-white/70 dark:bg-theme-surface/70 px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-1 truncate max-w-[58%]">
+            <MapPin className="w-3.5 h-3.5 text-[#f15a24] shrink-0" />
+            <span className="truncate font-medium">Head Office: City Centre, Saddar, Rawalpindi</span>
           </div>
-          
-          {/* Footer Links */}
-          <div className="p-4 flex items-center justify-between">
-            <button 
-              onClick={() => setIsAboutUsModalOpen(true)}
-              className="flex items-center gap-2 text-xs font-bold text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors"
-            >
-              <Info className="w-4 h-4" /> About Us
-            </button>
-            <button 
-              onClick={() => setIsBrochureModalOpen(true)}
-              className="flex items-center gap-2 text-xs font-bold text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors"
-            >
-              <BookOpen className="w-4 h-4" /> SLD Brochure
-            </button></div>
-        </div>
-      </div>
-
-      {/* Contact Us Column */}
-      <div className="bg-[#eff6ff] dark:bg-[#eff6ff]/5 border border-blue-100 dark:border-blue-900/30 rounded-xl overflow-hidden flex flex-col shadow-sm">
-        <div className="p-5 border-b border-blue-100 dark:border-blue-900/30 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-            <Phone className="w-5 h-5 fill-current" />
-          </div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Contact Us</h2>
-        </div>
-        
-        <div className="flex flex-col flex-1">
-          {/* Contact 1 */}
-          <div className="p-5 border-b border-blue-100 dark:border-blue-900/30 flex flex-col gap-4">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">Haroon Ahmad Rafiq</span>
-                <div className="flex items-start gap-2 mt-2">
-                  <MapPin className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <span className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-4 mt-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300">
-                <Mail className="w-4 h-4 text-blue-600 fill-current" />
-                info@sldsystem.com
-              </div>
-              <div className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300">
-                <Phone className="w-4 h-4 text-blue-600 fill-current" />
-                0321-5390007-8, 051-8315912
-              </div>
-            </div>
-          </div>
-          
-          {/* Contact 2 */}
-          <div className="p-5 border-b border-blue-100 dark:border-blue-900/30 flex flex-col gap-4 flex-1">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">Abdul Sami Abbasi</span>
-                <span className="text-xs font-semibold text-blue-600 mt-0.5">Sales Manager</span>
-                <div className="flex items-start gap-2 mt-2">
-                  <MapPin className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <span className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">Karachi Branch Office No. 408, 4th Floor, Al-Ayesha Chambers, Sharar-e-Iraq, Near Passport Office, Saddar-Karachi</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row justify-between gap-4 mt-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300">
-                <Mail className="w-4 h-4 text-blue-600 fill-current" />
-                sami@sldsystem.com
-              </div>
-              <div className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300">
-                <Phone className="w-4 h-4 text-blue-600 fill-current" />
-                0325-8986393
-              </div>
-            </div>
-          </div>
-          
-          {/* Footer Links */}
-          <div className="p-4 flex items-center justify-between">
-            <button 
-              onClick={() => setIsAboutUsModalOpen(true)}
-              className="flex items-center gap-2 text-xs font-bold text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors"
-            >
-              <Info className="w-4 h-4" /> About Us
-            </button>
-            <button 
-              onClick={() => setIsBrochureModalOpen(true)}
-              className="flex items-center gap-2 text-xs font-bold text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors"
-            >
-              <BookOpen className="w-4 h-4" /> SLD Brochure
-            </button>
-            <button 
-              onClick={() => setIsContactModalOpen(true)}
-              className="flex flex-col sm:flex-row items-center gap-2 text-xs font-bold text-gray-800 dark:text-gray-200 hover:text-blue-600 text-center sm:text-left leading-tight transition-colors"
-            >
-              <Mail className="w-4 h-4" /> <span>Emails &<br/>Whatsapp Services</span>
-            </button>
+          <div className="flex items-center gap-2 font-bold text-gray-800 dark:text-gray-200 font-mono shrink-0">
+            <Phone className="w-3 h-3 text-[#f15a24]" />
+            <span>051-8315912</span>
           </div>
         </div>
       </div>
 
-      {/* Right Column (Live Updates & Youtube) */}
-      <div className="flex flex-col gap-6">
+      {/* 2. Contact Us Column - Compact, Ultra-Attractive & Executive */}
+      <div className="bg-gradient-to-b from-[#f5f9ff] to-[#eaf3ff] dark:from-[#111827] dark:to-[#0f172a] border border-blue-200/80 dark:border-blue-900/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
         
-        {/* Updates Card (Whatsapp Updates & Manage Updates) */}
-        <div className="bg-[#f2fcf5] dark:bg-[#f2fcf5]/5 border border-green-100 dark:border-green-900/30 rounded-xl overflow-hidden shadow-sm p-4">
-          <div className="flex items-center justify-between mb-3">
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-blue-200/70 dark:border-blue-900/40 flex items-center justify-between bg-white/60 dark:bg-theme-surface/50 backdrop-blur-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-xs">
+              <Phone className="w-4 h-4 fill-current" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-gray-900 dark:text-gray-100 font-heading tracking-tight leading-tight">Contact Us</h2>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium leading-none">SLD System Official Help & Representation</p>
+            </div>
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-950/70 border border-blue-200/80 px-2 py-0.5 rounded-full shadow-2xs font-mono">
+            Direct Helpline
+          </span>
+        </div>
+        
+        {/* Content */}
+        <div className="p-3.5 flex flex-col gap-2 flex-1 justify-between">
+          
+          {/* Executive 1: CEO */}
+          <div className="p-2.5 rounded-xl bg-white/80 dark:bg-theme-surface/80 border border-blue-100 dark:border-blue-900/30 shadow-2xs hover:border-blue-300 transition-colors">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 shrink-0 font-black text-xs">
+                  HR
+                </div>
+                <div className="truncate">
+                  <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight truncate">Haroon Ahmad Rafiq</h3>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
+                    <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" /> Head Office: Bank Road, Saddar-Rawalpindi
+                  </p>
+                </div>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 px-1.5 py-0.5 rounded shrink-0">
+                CEO / MD
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 mt-2">
+              <a href="mailto:info@sldsystem.com" className="flex items-center justify-center gap-1.5 p-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-100/80 text-[11px] font-bold text-blue-900 dark:text-blue-200 transition-colors truncate">
+                <Mail className="w-3 h-3 text-blue-600 shrink-0" />
+                <span className="truncate">info@sldsystem.com</span>
+              </a>
+              <a href="tel:03215390007" className="flex items-center justify-center gap-1.5 p-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-100/80 text-[11px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono">
+                <Phone className="w-3 h-3 text-blue-600 shrink-0" />
+                <span>0321-5390007-8</span>
+              </a>
+            </div>
+          </div>
+          
+          {/* Executive 2: Sales Manager */}
+          <div className="p-2.5 rounded-xl bg-white/80 dark:bg-theme-surface/80 border border-blue-100 dark:border-blue-900/30 shadow-2xs hover:border-blue-300 transition-colors">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 shrink-0 font-black text-xs">
+                  SA
+                </div>
+                <div className="truncate">
+                  <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight truncate">Abdul Sami Abbasi</h3>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
+                    <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" /> Karachi Branch: Al-Ayesha Chambers, Saddar
+                  </p>
+                </div>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/60 px-1.5 py-0.5 rounded shrink-0">
+                Sales Manager
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 mt-2">
+              <a href="mailto:sami@sldsystem.com" className="flex items-center justify-center gap-1.5 p-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-100/80 text-[11px] font-bold text-blue-900 dark:text-blue-200 transition-colors truncate">
+                <Mail className="w-3 h-3 text-blue-600 shrink-0" />
+                <span className="truncate">sami@sldsystem.com</span>
+              </a>
+              <a href="tel:03258986393" className="flex items-center justify-center gap-1.5 p-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-100/80 text-[11px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono">
+                <Phone className="w-3 h-3 text-blue-600 shrink-0" />
+                <span>0325-8986393</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Central Helpline Bar */}
+          <div className="px-3 py-1.5 rounded-lg bg-blue-100/50 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5 text-blue-950 dark:text-blue-200 font-bold truncate">
+              <Building className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span className="truncate">Helpline (Mon - Sat: 9am-6pm)</span>
+            </div>
+            <div className="flex items-center gap-3 font-semibold text-gray-700 dark:text-gray-300 shrink-0">
+              <span className="flex items-center gap-1 font-mono text-xs font-bold text-blue-800 dark:text-blue-300">
+                <Phone className="w-3 h-3 text-blue-600" /> 051-8315912
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="border-t border-blue-200/70 dark:border-blue-900/40 bg-white/70 dark:bg-theme-surface/70 px-3 py-2 flex items-center justify-between gap-1 text-[11px] font-extrabold">
+          <button 
+            onClick={() => setIsAboutUsModalOpen(true)}
+            className="flex items-center gap-1 text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors cursor-pointer px-1 py-0.5 rounded"
+          >
+            <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" /> <span>About Us</span>
+          </button>
+          <span className="text-gray-300 dark:text-gray-700">•</span>
+          <button 
+            onClick={() => setIsBrochureModalOpen(true)}
+            className="flex items-center gap-1 text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors cursor-pointer px-1 py-0.5 rounded"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" /> <span>SLD Brochure</span>
+          </button>
+          <span className="text-gray-300 dark:text-gray-700">•</span>
+          <button 
+            onClick={() => setIsContactModalOpen(true)}
+            className="flex items-center gap-1 text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors cursor-pointer px-1 py-0.5 rounded"
+          >
+            <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" /> <span>Emails & WhatsApp</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Right Column: Live Updates & Youtube Video - Balanced Height */}
+      <div className="flex flex-col gap-4 justify-between">
+        
+        {/* Updates Card (Whatsapp Updates & Legal Updates) */}
+        <div className="bg-gradient-to-b from-[#f2fcf5] to-[#e7f8ec] dark:from-[#0d1f14] dark:to-[#0a1810] border border-green-200/80 dark:border-green-900/40 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all p-3.5">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0">
                 {activeUpdatesTab === 'whatsapp' ? (
-                  <img src={whatsappLogo} alt="Whatsapp" className="w-7 h-7 object-contain" />
+                  <img src={whatsappLogo} alt="Whatsapp" className="w-6 h-6 object-contain" />
                 ) : (
-                  <Globe className="w-6 h-6 text-emerald-600" />
+                  <Globe className="w-5 h-5 text-emerald-600" />
                 )}
               </div>
               
-              {/* Tab Selector: WhatsApp vs Website Updates */}
-              <div className="flex items-center bg-white dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded-lg p-0.5 shadow-xs">
+              {/* Tab Selector: WhatsApp vs Legal Updates */}
+              <div className="flex items-center bg-white/90 dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded-lg p-0.5 shadow-2xs">
                 <button
                   onClick={() => { setActiveUpdatesTab('whatsapp'); setCurrentUpdateIndex(0); }}
-                  className={`px-2.5 py-1 text-xs font-bold rounded cursor-pointer transition-colors ${
+                  className={`px-2 py-0.5 text-[11px] font-bold rounded cursor-pointer transition-colors ${
                     activeUpdatesTab === 'whatsapp'
-                      ? 'bg-emerald-600 text-white shadow-xs'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-gray-600 dark:text-gray-300 hover:text-emerald-600'
                   }`}
                 >
@@ -360,44 +387,44 @@ const InfoWidgets = () => {
                 </button>
                 <button
                   onClick={() => { setActiveUpdatesTab('website'); setCurrentUpdateIndex(0); }}
-                  className={`px-2.5 py-1 text-xs font-bold rounded cursor-pointer transition-colors ${
+                  className={`px-2 py-0.5 text-[11px] font-bold rounded cursor-pointer transition-colors ${
                     activeUpdatesTab === 'website'
-                      ? 'bg-emerald-600 text-white shadow-xs'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-gray-600 dark:text-gray-300 hover:text-emerald-600'
                   }`}
                 >
-                  Manage Updates
+                  Legal Updates
                 </button>
               </div>
             </div>
 
             <Link 
-              to={activeUpdatesTab === 'whatsapp' ? '/whatsapp-updates' : '/manage-updates'}
-              className="px-2.5 py-1 bg-white dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded text-xs font-bold text-green-700 dark:text-green-400 flex items-center gap-1 hover:bg-green-50 transition-colors shrink-0"
+              to={activeUpdatesTab === 'whatsapp' ? '/whatsapp-updates' : '/updates'}
+              className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-emerald-200 dark:border-emerald-800/40 rounded text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 hover:bg-emerald-50 transition-colors shrink-0"
             >
               See All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           
           {/* Animated Slider of Live Records */}
-          <div className="relative overflow-hidden h-[66px] w-full mt-1">
+          <div className="relative overflow-hidden h-[54px] w-full mt-1">
             {currentList.map((update, idx) => (
               <div 
                 key={update.mongoId || update.id || idx}
-                className="absolute inset-0 flex items-start gap-3 transition-transform duration-500 ease-in-out w-full"
+                className="absolute inset-0 flex items-start gap-2.5 transition-transform duration-500 ease-in-out w-full"
                 style={{ transform: `translateX(${(idx - currentUpdateIndex) * 100}%)` }}
               >
-                <div className="w-6 h-6 rounded bg-green-100 dark:bg-green-950/40 flex items-center justify-center text-green-600 shrink-0 mt-0.5">
-                  {activeUpdatesTab === 'whatsapp' ? <FileText className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+                <div className="w-5 h-5 rounded bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 shrink-0 mt-0.5">
+                  {activeUpdatesTab === 'whatsapp' ? <FileText className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
                 </div>
-                <div className="flex flex-col gap-1 min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 leading-snug line-clamp-2">
+                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 leading-snug line-clamp-2">
                     {update.heading || update.title || update.caption}
                   </p>
-                  <div className="flex items-center gap-2 text-[11px] text-gray-500 flex-wrap">
-                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {update.dated || update.date}</span>
+                  <div className="flex items-center gap-2 text-[10px] text-gray-500 flex-wrap">
+                    <span className="flex items-center gap-1 font-mono"><Calendar className="w-2.5 h-2.5" /> {update.dated || update.date}</span>
                     {update.attachmentName && (
-                      <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-[150px]">
+                      <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.2 rounded text-[9px] font-bold truncate max-w-[140px]">
                         📎 {update.attachmentName}
                       </span>
                     )}
@@ -407,7 +434,7 @@ const InfoWidgets = () => {
                         target="_blank" 
                         rel="noreferrer" 
                         onClick={(e) => e.stopPropagation()}
-                        className="text-blue-600 hover:underline inline-flex items-center gap-0.5 text-[10px] font-semibold"
+                        className="text-blue-600 hover:underline inline-flex items-center gap-0.5 text-[9px] font-bold"
                       >
                         Visit Link ↗
                       </a>
@@ -419,54 +446,85 @@ const InfoWidgets = () => {
           </div>
         </div>
 
-        {/* Youtube Channel */}
-        <div className="bg-[#fff1f2] dark:bg-[#fff1f2]/5 border border-red-100 dark:border-red-900/30 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col">
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                <img src={youtubeLogo} alt="Youtube" className="w-8 h-8 object-contain" />
+        {/* Youtube Channel - Attractive Executive Studio Card */}
+        <div className="bg-gradient-to-b from-[#fff1f2] to-[#ffe4e6] dark:from-[#210c10] dark:to-[#17080a] border border-red-200/80 dark:border-red-900/40 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between flex-1">
+          <div className="px-3.5 py-2.5 border-b border-red-100 dark:border-red-900/30 flex items-center justify-between bg-white/70 dark:bg-theme-surface/50 backdrop-blur-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center shrink-0 shadow-xs">
+                <img src={youtubeLogo} alt="Youtube" className="w-5 h-5 object-contain" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">Youtube Channel</h2>
-                {latestVideo.dated && (
-                  <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
-                    <Calendar className="w-3 h-3" /> {latestVideo.dated}
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight">YouTube Channel</h2>
+                  <span className="flex h-1.5 w-1.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
+                  </span>
+                </div>
+                {latestVideo.dated ? (
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1 leading-none font-mono mt-0.5">
+                    <Calendar className="w-2.5 h-2.5" /> {latestVideo.dated}
                   </p>
+                ) : (
+                  <p className="text-[10px] text-gray-500 font-medium leading-none mt-0.5">SLD Official Broadcasts</p>
                 )}
               </div>
             </div>
             <Link 
               to="/youtube-updates"
-              className="px-3 py-1 bg-white dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded text-xs font-bold text-red-600 flex items-center gap-1 hover:bg-red-50 transition-colors"
+              className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-red-200 dark:border-red-800/40 rounded text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 hover:bg-red-50 hover:border-red-300 transition-colors shadow-2xs"
             >
               See All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           
-          <div className="p-4 pt-0 flex-1 flex flex-col">
+          <div className="p-3 pt-2 flex-1 flex flex-col justify-between">
             <a 
               href={latestVideo.url || 'https://www.youtube.com'} 
               target="_blank" 
               rel="noreferrer"
-              className="relative w-full flex-1 rounded-xl overflow-hidden group cursor-pointer min-h-[180px] block"
+              className="group block cursor-pointer"
               title="Click to watch on YouTube"
             >
-              <img 
-                src={youtubeThumbnail} 
-                alt={latestVideo.caption || "Youtube Thumbnail"} 
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent flex flex-col justify-end p-4">
-                <div className="absolute inset-0 flex items-center justify-center opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all">
-                  <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg">
-                    <Play className="w-5 h-5 fill-current ml-1" />
+              {/* 16:9 Uncut Video Player Frame */}
+              <div className="relative w-full aspect-[16/9] bg-black rounded-xl overflow-hidden border border-red-200/70 dark:border-red-950 shadow-sm">
+                <img 
+                  src={youtubeThumbnail} 
+                  alt={latestVideo.caption || "Youtube Thumbnail"} 
+                  className="w-full h-full object-contain bg-black transition-transform duration-500 group-hover:scale-102"
+                />
+                
+                {/* Badges on Top */}
+                <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+                  <span className="px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-white font-mono text-[9px] font-bold uppercase border border-white/20">
+                    HD Video
+                  </span>
+                </div>
+                <div className="absolute top-2 right-2 z-10">
+                  <span className="px-1.5 py-0.5 rounded bg-red-600 text-white font-mono text-[9px] font-bold shadow-xs">
+                    YouTube
+                  </span>
+                </div>
+
+                {/* Center Play Button Overlay */}
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 transition-colors flex items-center justify-center">
+                  <div className="w-11 h-11 bg-red-600 rounded-full flex items-center justify-center text-white shadow-xl group-hover:scale-110 group-hover:bg-red-500 transition-all border-2 border-white/90">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current ml-0.5"><path d="M8 5v14l11-7z"/></svg>
                   </div>
                 </div>
-                <div className="relative z-10">
-                  <p className="text-white font-semibold text-sm leading-snug line-clamp-2 drop-shadow-sm">
-                    {latestVideo.caption}
-                  </p>
-                  <span className="text-[11px] text-gray-300 mt-1 inline-flex items-center gap-1">
+              </div>
+
+              {/* Dedicated Clear & Highly Readable Title Container */}
+              <div className="mt-2.5 px-0.5 flex flex-col gap-1">
+                <p 
+                  className="text-xs sm:text-[13px] font-heading font-extrabold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors"
+                  title={latestVideo.caption}
+                >
+                  {latestVideo.caption}
+                </p>
+                <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 pt-0.5">
+                  <span className="font-medium">SLD System Channel</span>
+                  <span className="text-red-600 dark:text-red-400 font-bold group-hover:underline inline-flex items-center gap-0.5">
                     Watch on YouTube ↗
                   </span>
                 </div>
@@ -477,57 +535,35 @@ const InfoWidgets = () => {
         
       </div>
 
-      {/* Contact Services Modal */}
+      {/* Contact Services Modal - Attached Picture */}
       <Modal
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
-        title="Emails & Whatsapp Services"
-        subtitle="Get in touch with us for support and services"
+        title="Emails & WhatsApp Services"
+        subtitle="Super Law Data System Updating Service Through Email & WhatsApp"
         icon={Mail}
         maxWidth="max-w-4xl"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-theme-muted font-medium">
+              Official Email & WhatsApp Service Announcement
+            </span>
+            <a 
+              href={sldEmailWhatsappBanner} 
+              download="SLD_Email_WhatsApp_Service.jpg"
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#f15a24] hover:bg-[#d44e35] text-white rounded-lg transition-colors font-bold text-xs shadow-sm"
+            >
+              <Download className="w-3.5 h-3.5" /> Download Announcement
+            </a>
+          </div>
+        }
       >
-        <div className="flex flex-col md:flex-row gap-8 p-2">
-          {/* Left Side: Contact Details */}
-          <div className="flex-1 space-y-2">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Phone className="w-5 h-5 text-[#f15a24]" />
-              Contact Info
-            </h3>
-            
-            <div className="grid grid-cols-1 gap-1 bg-white dark:bg-theme-surface border border-theme-border rounded-xl p-4 shadow-sm">
-              <CopyableDetail icon={User} label="Name" value="Haroon Ahmad Rafiq" />
-              <div className="h-px bg-theme-border/50 mx-3 my-1"></div>
-              
-              <CopyableDetail icon={Building} label="Company" value="SLD System (Super Law Data System)" />
-              <div className="h-px bg-theme-border/50 mx-3 my-1"></div>
-              
-              <CopyableDetail icon={MapPin} label="Head Office" value="Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi" />
-              <div className="h-px bg-theme-border/50 mx-3 my-1"></div>
-              
-              <CopyableDetail icon={Phone} label="Cell" value="0321-5390007 & 8" />
-              <div className="h-px bg-theme-border/50 mx-3 my-1"></div>
-              
-              <CopyableDetail icon={Phone} label="Tel" value="051-8315912" />
-              <div className="h-px bg-theme-border/50 mx-3 my-1"></div>
-              
-              <CopyableDetail icon={Mail} label="Email" value="info@sldsystem.com" />
-            </div>
-          </div>
-
-          {/* Right Side: Message */}
-          <div className="md:w-[400px] flex items-center border-t md:border-t-0 md:border-l border-theme-border pt-6 md:pt-0 md:pl-8">
-            <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30 rounded-xl p-8 relative overflow-hidden group hover:shadow-md transition-shadow">
-              <div className="absolute top-0 right-0 p-4 opacity-10 dark:opacity-20 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
-                <Mail className="w-32 h-32 text-blue-600" />
-              </div>
-              <h3 className="text-xl md:text-2xl font-bold text-blue-800 dark:text-blue-400 leading-snug relative z-10">
-                To receive updates via email, please provide your email address so we can activate this service for you.
-              </h3>
-              <p className="text-lg font-bold text-blue-600 dark:text-blue-500 mt-6 relative z-10">
-                Thank you!
-              </p>
-            </div>
-          </div>
+        <div className="p-2 sm:p-3 bg-gray-50 dark:bg-black/20 flex flex-col items-center justify-center">
+          <img 
+            src={sldEmailWhatsappBanner} 
+            alt="Super Law Data System Updating Service Through Email & WhatsApp" 
+            className="w-full max-h-[75vh] object-contain rounded-xl border border-theme-border shadow-sm"
+          />
         </div>
       </Modal>
 

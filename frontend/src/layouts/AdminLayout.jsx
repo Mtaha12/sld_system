@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AdminSidebar from '../features/dashboard/components/AdminSidebar';
 import AdminHeader from '../features/dashboard/components/AdminHeader';
 import PageTransition from '../components/ui/PageTransition';
@@ -7,12 +7,21 @@ import PageTransition from '../components/ui/PageTransition';
 const AdminLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Side Panel Pin (Fixed) State - defaults to false (auto-hide / hover mode)
+  // Side Panel Pin (Fixed) State - defaults to true so sidebar shows by default
   const [isSidebarPinned, setIsSidebarPinned] = useState(() => {
     const saved = localStorage.getItem('sld_sidebar_pinned');
-    return saved === 'true';
+    if (saved !== null) return saved === 'true';
+    return true; // Default expanded/visible
   });
+
+  // Whenever navigating to dashboard, ensure sidebar is visible by default
+  useEffect(() => {
+    if (location.pathname === '/dashboard') {
+      setIsSidebarPinned(true);
+    }
+  }, [location.pathname]);
 
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const hoverTimeoutRef = useRef(null);

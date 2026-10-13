@@ -1,8 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, ChevronDown, LogOut, Menu, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, Sparkles, PanelLeftClose, PanelLeftOpen, KeyRound, Check, X, ShieldCheck } from 'lucide-react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { ACTIVITIES } from './RecentActivity';
 import { useUser } from '../../../contexts/UserContext';
+import api from '../../../services/api';
+import appStoreLogo from '../../../assets/branding/dashboard/app store.png';
+import playStoreLogo from '../../../assets/branding/dashboard/playstore.png';
+import aiSearchLogo from '/ai-q-search-logo.png';
+import aiBannerImg from '../../../assets/branding/dashboard/ai-banner.jpg';
 
 const PAGE_HEADERS = {
   '/dashboard': {
@@ -100,6 +105,13 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   
+  // Change Password Modal State
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  
   const notificationsRef = useRef(null);
   const profileRef = useRef(null);
 
@@ -133,6 +145,38 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
   const handleLogout = () => {
     logoutUser();
     navigate('/login', { replace: true });
+  };
+
+  const handleChangePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (!passwordForm.newPassword || passwordForm.newPassword.trim().length < 4) {
+      setPasswordError('Password must be at least 4 characters.');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    try {
+      setPasswordLoading(true);
+      await api.put('/api/auth/change-password', {
+        newPassword: passwordForm.newPassword.trim()
+      });
+      setPasswordSuccess('Password changed successfully!');
+      setPasswordForm({ newPassword: '', confirmPassword: '' });
+      setTimeout(() => {
+        setIsPasswordModalOpen(false);
+        setPasswordSuccess('');
+      }, 1500);
+    } catch (err) {
+      setPasswordError(err?.response?.data?.message || 'Failed to change password. Please try again.');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   // Header content logic - enforce strictly "Manage Notifications" on manage notifications pages
@@ -195,45 +239,72 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
         </div>
       </div>
 
-      {/* AI Search Button - Centered for Desktop */}
-      <div className="hidden md:flex flex-1 max-w-2xl px-8 items-center justify-center">
+      {/* Right Header Actions: AI Banner Button, App Store & Play Store Badges, Change Password, Notifications, User Profile */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+        {/* AI Banner Button (Click to open AI Chatbot) - Compact & Sleek */}
         <button 
+          type="button"
           onClick={() => navigate('/ai-assistant')}
-          className="w-full flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-[#1A1C23] border border-gray-200 dark:border-theme-border rounded-xl text-sm text-gray-500 hover:border-[#f15a24] hover:ring-1 hover:ring-[#f15a24] hover:text-gray-800 dark:hover:text-gray-200 transition-all group focus:outline-none shadow-sm cursor-pointer"
-          title="Open AI Legal Assistant Studio with Orbital Spin Wheel (Ctrl+K)"
+          className="h-8 sm:h-9 md:h-10 rounded-lg overflow-hidden border border-blue-400/50 hover:border-cyan-400 shadow-xs hover:shadow-md hover:shadow-cyan-500/20 active:scale-95 transition-all cursor-pointer shrink-0 bg-black flex items-center justify-center group"
+          title="Artificial Intelligence - Click to Explore AI Legal Chambers & Chat"
         >
-          <Sparkles className="w-4 h-4 text-[#f15a24]" />
-          <span>Search with the help of AI...</span>
-          <div className="ml-auto flex items-center gap-1">
-            <span className="text-[11px] text-[#f15a24] font-medium mr-1 bg-[#f15a24]/10 px-2 py-0.5 rounded group-hover:bg-[#f15a24]/20 transition-colors">Spin Wheel Studio ↗</span>
-            <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-400 bg-white dark:bg-[#14151A] border border-gray-200 dark:border-[#262833] rounded">
-              <span className="text-xs">⌘</span> K
-            </kbd>
-          </div>
+          <img 
+            src={aiBannerImg} 
+            alt="Artificial Intelligence - Click to Explore" 
+            className="h-full w-auto object-contain group-hover:brightness-110 transition-all" 
+          />
         </button>
-      </div>
 
-      <div className="flex items-center gap-3 sm:gap-6 shrink-0">
-        {/* Mobile AI Search Icon Button */}
+        {/* SLD Mobile Apps Badges: Apple App Store & Google Play Store */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <a
+            href="https://apps.apple.com/pk/app/sld-system/id6741755009"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 bg-black hover:bg-gray-800 text-white rounded-lg transition-colors shadow-2xs h-8 sm:h-9 shrink-0 border border-white/10"
+            title="Download SLD App on Apple App Store"
+          >
+            <img src={appStoreLogo} alt="App Store" className="h-4 w-4 object-contain shrink-0" />
+            <span className="text-[10px] font-bold whitespace-nowrap hidden md:inline">App Store</span>
+          </a>
+          <a
+            href="https://play.google.com/store/apps/details?id=com.sldsystem"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 bg-black hover:bg-gray-800 text-white rounded-lg transition-colors shadow-2xs h-8 sm:h-9 shrink-0 border border-white/10"
+            title="Get SLD App on Google Play Store"
+          >
+            <img src={playStoreLogo} alt="Google Play" className="h-4 w-4 object-contain shrink-0" />
+            <span className="text-[10px] font-bold whitespace-nowrap hidden md:inline">Google Play</span>
+          </a>
+        </div>
+
+        {/* CHANGE PASSWORD OPTION ON TOP RIGHT */}
         <button
-          onClick={() => navigate('/ai-assistant')}
-          className="md:hidden p-2 rounded-xl text-[#f15a24] bg-[#f15a24]/10 hover:bg-[#f15a24]/20 transition-colors cursor-pointer flex items-center gap-1.5"
-          title="Search with AI Legal Assistant"
+          type="button"
+          onClick={() => {
+            setIsPasswordModalOpen(true);
+            setPasswordError('');
+            setPasswordSuccess('');
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer shrink-0"
+          title="Change your account password"
         >
-          <Sparkles className="w-5 h-5" />
-          <span className="text-xs font-semibold">AI Search</span>
+          <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span className="hidden sm:inline whitespace-nowrap">Change Password</span>
         </button>
         
+        {/* Notifications Dropdown */}
         <div className="relative" ref={notificationsRef}>
           <button 
             onClick={() => {
               setIsNotificationsOpen(!isNotificationsOpen);
               setIsProfileOpen(false);
             }}
-            className={`relative w-11 h-11 flex items-center justify-center transition-colors rounded-full shrink-0 ${isNotificationsOpen ? 'text-theme-main bg-theme-surface-hover' : 'text-theme-muted hover:text-theme-main hover:bg-theme-surface-hover'}`}
+            className={`relative w-10 h-10 flex items-center justify-center transition-colors rounded-full shrink-0 ${isNotificationsOpen ? 'text-theme-main bg-theme-surface-hover' : 'text-theme-muted hover:text-theme-main hover:bg-theme-surface-hover'}`}
           >
-            <Bell className="w-6 h-6 shrink-0" strokeWidth={1.5} />
-            <span className="absolute top-1 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white box-content">
+            <Bell className="w-5 h-5 shrink-0" strokeWidth={1.8} />
+            <span className="absolute top-1 right-1.5 w-3.5 h-3.5 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white box-content">
               3
             </span>
           </button>
@@ -275,19 +346,20 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
           )}
         </div>
 
-        <div className="relative pl-4 border-l border-theme-border" ref={profileRef}>
+        {/* Profile Dropdown */}
+        <div className="relative pl-2 sm:pl-3 border-l border-theme-border" ref={profileRef}>
           <div 
             onClick={() => {
               setIsProfileOpen(!isProfileOpen);
               setIsNotificationsOpen(false);
             }}
-            className="flex items-center gap-3 cursor-pointer group select-none"
+            className="flex items-center gap-2.5 cursor-pointer group select-none"
           >
-            <div className="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-sm group-hover:ring-2 ring-brand-orange/20 transition-all">
-              <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
+            <div className="w-9 h-9 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-sm group-hover:ring-2 ring-brand-orange/20 transition-all">
+              <img src={user.avatarUrl && !user.avatarUrl.includes('pravatar') ? user.avatarUrl : '/sld-logo.jpeg'} alt={user.fullName} className="w-full h-full object-cover" />
             </div>
             <div className="hidden sm:flex flex-col">
-              <span className="text-sm font-semibold text-theme-main">{user.fullName}</span>
+              <span className="text-sm font-semibold text-theme-main leading-tight">{user.fullName}</span>
               <span className="text-xs text-theme-muted">{user.role || 'User'}</span>
             </div>
             <ChevronDown className={`w-4 h-4 transition-all ${isProfileOpen ? 'text-theme-main rotate-180' : 'text-theme-disabled group-hover:text-theme-muted'}`} />
@@ -299,10 +371,20 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
                 className="fixed inset-0 z-40 bg-transparent" 
                 onClick={() => setIsProfileOpen(false)} 
               />
-              <div className="absolute top-full right-0 mt-2 w-full min-w-[160px] bg-theme-surface rounded-xl shadow-xl border border-theme-border overflow-hidden z-50 p-1 animate-fade-in">
+              <div className="absolute top-full right-0 mt-2 w-52 bg-theme-surface rounded-xl shadow-xl border border-theme-border overflow-hidden z-50 p-1.5 animate-fade-in space-y-1">
+                <button 
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    setIsPasswordModalOpen(true);
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-theme-surface-hover rounded-lg flex items-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <KeyRound className="w-4 h-4 text-amber-500" /> Change Password
+                </button>
+                <div className="border-t border-theme-border my-1" />
                 <button 
                   onClick={handleLogout}
-                  className="w-full px-3 py-2 text-left text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-3 py-2 text-left text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/10 rounded-lg flex items-center gap-2.5 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" /> Logout
                 </button>
@@ -311,6 +393,101 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
           )}
         </div>
       </div>
+
+      {/* ── Change Password Modal ────────────────────────────────────────── */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white dark:bg-[#151821] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 dark:border-stone-800 relative">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-stone-800 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">Change Password</h3>
+                  <p className="text-xs text-gray-500">Update your account login password</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsPasswordModalOpen(false);
+                  setPasswordError('');
+                  setPasswordSuccess('');
+                }}
+                className="text-gray-400 hover:text-gray-600 p-1 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {passwordError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+                {passwordError}
+              </div>
+            )}
+
+            {passwordSuccess && (
+              <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600" />
+                {passwordSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1.5">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="Enter new password (min. 4 characters)"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                  required
+                  minLength={4}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-stone-700 bg-gray-50 dark:bg-stone-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1.5">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="Re-enter new password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                  required
+                  minLength={4}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-stone-700 bg-gray-50 dark:bg-stone-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPasswordModalOpen(false);
+                    setPasswordError('');
+                    setPasswordSuccess('');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-stone-800 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-60 rounded-xl shadow-sm transition-colors cursor-pointer"
+                >
+                  {passwordLoading ? 'Saving…' : 'Save New Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

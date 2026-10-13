@@ -18,6 +18,30 @@ import logger from './logger.js';
  */
 const backfillCollection = async (Model, entityName, primaryField, aliases = [], prefix = '', padLength = 6) => {
   try {
+    // 1. Ensure Counter sequence is synchronized with highest existing ID
+    let maxSeq = 0;
+    const counterDoc = await Counter.findById(entityName);
+    if (counterDoc && counterDoc.seq > maxSeq) {
+      maxSeq = counterDoc.seq;
+    }
+
+    const latestDocs = await Model.find({ [primaryField]: { $exists: true, $ne: null, $nin: [''] } })
+      .sort({ [primaryField]: -1 })
+      .limit(50)
+      .select(primaryField)
+      .lean();
+
+    for (const doc of latestDocs) {
+      const parsed = parseSequenceFromId(doc[primaryField]);
+      if (parsed && parsed > maxSeq) {
+        maxSeq = parsed;
+      }
+    }
+
+    if (maxSeq > (counterDoc?.seq || 0)) {
+      await syncCounter(entityName, maxSeq);
+    }
+
     // Fast path: Check if any records are actually missing the unique ID
     const missingCount = await Model.countDocuments({
       $or: [
@@ -29,25 +53,6 @@ const backfillCollection = async (Model, entityName, primaryField, aliases = [],
 
     if (missingCount === 0) {
       return { total: 0, backfilled: 0 };
-    }
-
-    // 1. Find existing max sequence if some records already have an ID
-    const existingWithId = await Model.find({ [primaryField]: { $exists: true, $ne: null, $nin: [''] } })
-      .select(primaryField)
-      .lean();
-
-    let maxSeq = 0;
-    for (const doc of existingWithId) {
-      const parsed = parseSequenceFromId(doc[primaryField]);
-      if (parsed && parsed > maxSeq) {
-        maxSeq = parsed;
-      }
-    }
-
-    // Check current Counter value
-    const counterDoc = await Counter.findById(entityName);
-    if (counterDoc && counterDoc.seq > maxSeq) {
-      maxSeq = counterDoc.seq;
     }
 
     // 2. Find records missing the unique ID

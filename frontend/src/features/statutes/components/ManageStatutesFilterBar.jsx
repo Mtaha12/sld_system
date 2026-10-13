@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Plus, List, Printer } from 'lucide-react';
+import { Search, Plus, List, Printer, Scale } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 
 const ManageStatutesFilterBar = ({
@@ -73,6 +73,14 @@ const ManageStatutesFilterBar = ({
             className="flex items-center justify-center font-medium transition-colors duration-200 focus:outline-none bg-green-600 hover:bg-green-700 text-white shadow-sm border border-green-600 rounded-lg text-sm gap-2 h-[42px] px-5 whitespace-nowrap"
           >
             <Plus className="w-4 h-4" /> Add Record
+          </Link>
+
+          <Link 
+            to="/setting/laws"
+            className="flex items-center justify-center font-medium transition-colors duration-200 focus:outline-none bg-blue-600 hover:bg-blue-700 text-white shadow-sm border border-blue-600 rounded-lg text-sm gap-2 h-[42px] px-5 whitespace-nowrap"
+            title="Manage and edit Laws in master settings"
+          >
+            <Scale className="w-4 h-4" /> Manage / Edit Laws
           </Link>
 
           <Button 

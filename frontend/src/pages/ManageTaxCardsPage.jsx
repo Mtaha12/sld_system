@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, CreditCard, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddTaxCardForm from '../features/tax-cards/components/AddTaxCardForm';
@@ -11,8 +12,11 @@ const ManageTaxCardsPage = () => {
   const { user } = useUser();
   const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
 
+  const [urlSearchParams] = useSearchParams();
+  const initialQuery = urlSearchParams.get('query') || urlSearchParams.get('text') || '';
+
   const [taxCards, setTaxCards] = useState([]);
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState(initialQuery);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
@@ -32,7 +36,7 @@ const ManageTaxCardsPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchTaxCards();
+    fetchTaxCards(searchKeyword);
   }, [fetchTaxCards]);
 
   const handleSearchSubmit = (e) => {

@@ -196,6 +196,10 @@ runTest('POST /api/auth/verify-email - Verifies users using DB generated OTP', a
   const userUpdated = await User.findOne({ email: testUser.email });
   assert.strictEqual(adminUpdated.isVerified, true);
   assert.strictEqual(userUpdated.isVerified, true);
+
+  // Activate accounts for integration testing
+  await User.updateOne({ email: testAdmin.email }, { status: 'ACTIVE', role: 'Administrator' });
+  await User.updateOne({ email: testUser.email }, { status: 'ACTIVE', role: 'User' });
 });
 
 // ----------------------------------------------------------------------------
@@ -308,7 +312,7 @@ runTest('POST /api/cases - Admin role succeeds in creating case (201)', async ()
 });
 
 runTest('GET /api/cases - Lists cases and filters properly', async () => {
-  const { status, data } = await makeRequest('/api/cases', {
+  const { status, data } = await makeRequest(`/api/cases?subject=audit_case_${rand}`, {
     headers: { Authorization: `Bearer ${userTokens.accessToken}` }
   });
   assert.strictEqual(status, 200);
@@ -321,7 +325,7 @@ runTest('GET /api/cases - Lists cases and filters properly', async () => {
 runTest('PUT /api/cases/:id - Updates case details', async () => {
   const updatePayload = {
     court: 'Updated High Court',
-    status: 'Inactive'
+    department: 'Constitutional Division'
   };
 
   const { status, data } = await makeRequest(`/api/cases/${testCaseId}`, {
@@ -336,7 +340,7 @@ runTest('PUT /api/cases/:id - Updates case details', async () => {
   const Case = mongoose.model('Case');
   const dbCase = await Case.findById(testCaseId);
   assert.strictEqual(dbCase.court, 'Updated High Court');
-  assert.strictEqual(dbCase.status, 'Inactive');
+  assert.strictEqual(dbCase.department, 'constitutional division');
 });
 
 runTest('DELETE /api/cases/:id - Performs persistent soft delete', async () => {

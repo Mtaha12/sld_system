@@ -9,6 +9,58 @@ const escapeRegex = (string) => {
   return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
+export const parseLegalCitation = (text) => {
+  if (!text) return null;
+  const clean = String(text).trim().replace(/^["'“‘]+|["'”’]+$/g, '').trim();
+  
+  // 1. (Year) Vol Mag Page: e.g. "(2025) 132 TAX 129"
+  const m1 = clean.match(/^\(?(\d{4})\)?\s+(\d{1,4})\s+([A-Za-z]+)\s+(\d+)$/i);
+  if (m1) {
+    return { year: m1[1], vol: m1[2], mag: m1[3].toUpperCase(), page: m1[4] };
+  }
+
+  // 2. Vol Mag Page: e.g. "132 TAX 129"
+  const m2 = clean.match(/^(\d{1,4})\s+([A-Za-z]+)\s+(\d+)$/i);
+  if (m2 && parseInt(m2[1], 10) < 1900) {
+    return { vol: m2[1], mag: m2[2].toUpperCase(), page: m2[3] };
+  }
+
+  // 3. Year Mag Page: e.g. "2025 PTD 1", "2026 SLD 1414"
+  const m3 = clean.match(/^(\d{4})\s+([A-Za-z]+)\s+(\d+)$/i);
+  if (m3) {
+    return { year: m3[1], mag: m3[2].toUpperCase(), page: m3[3] };
+  }
+
+  // 4. Mag Year Page: e.g. "PTD 2025 1"
+  const m4 = clean.match(/^([A-Za-z]+)\s+(\d{4})\s+(\d+)$/i);
+  if (m4) {
+    return { year: m4[2], mag: m4[1].toUpperCase(), page: m4[3] };
+  }
+
+  // 5. Mag Vol Page: e.g. "TAX 132 129"
+  const m5 = clean.match(/^([A-Za-z]+)\s+(\d{1,4})\s+(\d+)$/i);
+  if (m5 && parseInt(m5[2], 10) < 1900) {
+    return { vol: m5[2], mag: m5[1].toUpperCase(), page: m5[3] };
+  }
+
+  return null;
+};
+
+export const buildCitationQuery = (c) => {
+  const or = [];
+  if (c.year && c.vol) {
+    or.push({ mapYearPage: { $regex: `(?:\\(?${c.year}\\)?\\s+)?${c.vol}\\s+${c.mag}\\s+${c.page}(?:$|\\b)`, $options: 'i' } });
+    or.push({ publications: { $elemMatch: { mag: { $regex: `^${escapeRegex(c.mag)}$`, $options: 'i' }, vol: String(c.vol), page: String(c.page) } } });
+  } else if (c.vol) {
+    or.push({ mapYearPage: { $regex: `(?:\\(\\d{4}\\)\\s+)?${c.vol}\\s+${c.mag}\\s+${c.page}(?:$|\\b)`, $options: 'i' } });
+    or.push({ publications: { $elemMatch: { mag: { $regex: `^${escapeRegex(c.mag)}$`, $options: 'i' }, vol: String(c.vol), page: String(c.page) } } });
+  } else if (c.year) {
+    or.push({ mapYearPage: { $regex: `${c.year}\\s+${c.mag}\\s+${c.page}(?:$|\\b)`, $options: 'i' } });
+    or.push({ publications: { $elemMatch: { mag: { $regex: `^${escapeRegex(c.mag)}$`, $options: 'i' }, year: String(c.year), page: String(c.page) } } });
+  }
+  return { $or: or };
+};
+
 /**
  * High-speed In-Memory Case Cache (< 1ms)
  */
@@ -169,21 +221,27 @@ export const getCases = async (req, res, next) => {
     if (subject) {
       const q = subject.trim();
       if (q) {
-        const searchRegex = new RegExp(escapeRegex(q), 'i');
-        query.$or = [
-          { caseId: searchRegex },
-          { case_id: searchRegex },
-          { sldNumber: searchRegex },
-          { court: searchRegex },
-          { headNote: searchRegex },
-          { references: searchRegex },
-          { principleLaw: searchRegex },
-          { caseNumber: searchRegex },
-          { judges: searchRegex },
-          { lawyers: searchRegex },
-          { petitioners: searchRegex },
-          { mapYearPage: searchRegex }
-        ];
+        const citationParsed = parseLegalCitation(q);
+        if (citationParsed) {
+          const citQuery = buildCitationQuery(citationParsed);
+          query.$or = citQuery.$or;
+        } else {
+          const searchRegex = new RegExp(escapeRegex(q), 'i');
+          query.$or = [
+            { caseId: searchRegex },
+            { case_id: searchRegex },
+            { sldNumber: searchRegex },
+            { court: searchRegex },
+            { headNote: searchRegex },
+            { references: searchRegex },
+            { principleLaw: searchRegex },
+            { caseNumber: searchRegex },
+            { judges: searchRegex },
+            { lawyers: searchRegex },
+            { petitioners: searchRegex },
+            { mapYearPage: searchRegex }
+          ];
+        }
       }
     }
 
@@ -243,10 +301,22 @@ export const getCases = async (req, res, next) => {
       }
     }
 
-    // Pagination (allow up to 2000 if magazine search is active to retrieve all entries)
+    // Support range queries by SLD / serial number (fromNo to toNo / fromSld to toSld)
+    const fNo = parseInt(req.query.fromNo || req.query.fromSld, 10);
+    const tNo = parseInt(req.query.toNo || req.query.toSld, 10);
+    const isRangeSearch = !isNaN(fNo) || !isNaN(tNo);
+    if (!isNaN(fNo) && !isNaN(tNo)) {
+      query.sldNumberInt = { $gte: Math.min(fNo, tNo), $lte: Math.max(fNo, tNo) };
+    } else if (!isNaN(fNo)) {
+      query.sldNumberInt = { $gte: fNo };
+    } else if (!isNaN(tNo)) {
+      query.sldNumberInt = { $lte: tNo };
+    }
+
+    // Pagination (allow up to 2000 for magazine search or range extractions)
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const maxLimitAllowed = (magazine && magazine.trim()) ? 2000 : 100;
-    const defaultLimit = (magazine && magazine.trim()) ? 500 : 25;
+    const maxLimitAllowed = (magazine && magazine.trim()) ? 2000 : (isRangeSearch ? 1000 : 100);
+    const defaultLimit = (magazine && magazine.trim()) ? 500 : (isRangeSearch ? 500 : 25);
     const limitNum = Math.min(maxLimitAllowed, Math.max(1, parseInt(limit, 10) || defaultLimit));
     const skip = (pageNum - 1) * limitNum;
 
@@ -268,7 +338,7 @@ export const getCases = async (req, res, next) => {
     const [totalItems, cases] = await Promise.all([
       getTotalCasesCount(query, hasFilter),
       Case.find(query)
-        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw')
+        .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw judgment')
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
@@ -325,7 +395,16 @@ export const getMaxPage = async (req, res, next) => {
       {
         $group: {
           _id: null,
-          maxPage: { $max: { $toInt: '$publications.page' } }
+          maxPage: {
+            $max: {
+              $convert: {
+                input: '$publications.page',
+                to: 'int',
+                onError: 0,
+                onNull: 0
+              }
+            }
+          }
         }
       }
     ]);
@@ -334,9 +413,44 @@ export const getMaxPage = async (req, res, next) => {
       ? result[0].maxPage
       : null;
 
+    const nextPage = maxPage != null ? maxPage + 1 : 1;
+
     return res.status(200).json({
       success: true,
-      maxPage
+      maxPage,
+      nextPage
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/cases/next-sld
+ * Returns the latest existing SLD number and the next sequential SLD number.
+ */
+export const getNextSld = async (req, res, next) => {
+  try {
+    const topCase = await Case.findOne({ isDeleted: { $ne: true }, sldNumberInt: { $ne: null } })
+      .sort({ sldNumberInt: -1 })
+      .select('sldNumber sldNumberInt srNumber')
+      .lean();
+
+    let latestSld = 0;
+    if (topCase) {
+      if (typeof topCase.sldNumberInt === 'number' && !isNaN(topCase.sldNumberInt)) {
+        latestSld = topCase.sldNumberInt;
+      } else if (topCase.sldNumber && !isNaN(parseInt(topCase.sldNumber, 10))) {
+        latestSld = parseInt(topCase.sldNumber, 10);
+      }
+    }
+
+    const nextSld = latestSld > 0 ? latestSld + 1 : 1;
+
+    return res.status(200).json({
+      success: true,
+      latestSld,
+      nextSld
     });
   } catch (error) {
     next(error);
@@ -448,29 +562,13 @@ export const getCaseById = async (req, res, next) => {
     const cleanId = rawId.replace(/^(?:case\s*(?:id|no\.?|#)?\s*[:\-]?\s*|sld\s*(?:no\.?|#)?\s*[:\-]?\s*)/i, '').trim();
     const numInt = parseInt(cleanId, 10);
 
-    const citationMatch = rawId.match(/^(?:([A-Za-z]+)\s+(\d{4})\s+(\d+)|(\d{4})\s+([A-Za-z]+)\s+(\d+))$/i);
-    const citationMagazine = citationMatch?.[1] || citationMatch?.[5];
-    const citationYear = citationMatch?.[2] || citationMatch?.[4];
-    const citationPage = citationMatch?.[3] || citationMatch?.[6];
+    const citationParsed = parseLegalCitation(rawId);
 
     let query;
     if (mongoose.isValidObjectId(rawId)) {
       query = { _id: rawId };
-    } else if (citationMatch) {
-      query = {
-        $or: [
-          { mapYearPage: { $in: [rawId, rawId.toUpperCase()] } },
-          {
-            publications: {
-              $elemMatch: {
-                mag: { $regex: `^${escapeRegex(citationMagazine)}$`, $options: 'i' },
-                year: citationYear,
-                page: citationPage
-              }
-            }
-          }
-        ]
-      };
+    } else if (citationParsed) {
+      query = buildCitationQuery(citationParsed);
     } else {
       const orList = [
         { caseId: new RegExp(`^${escapeRegex(rawId)}$`, 'i') },
@@ -777,21 +875,9 @@ export const searchCases = async (req, res, next) => {
 
     if (filters.subject) {
       const subject = String(filters.subject).trim();
-      const citationMatch = subject.match(/^(?:([A-Za-z]+)\s+(\d{4})\s+(\d+)|(\d{4})\s+([A-Za-z]+)\s+(\d+))$/i);
-      if (citationMatch) {
-        const magazine = citationMatch[1] || citationMatch[5];
-        const year = citationMatch[2] || citationMatch[4];
-        const page = citationMatch[3] || citationMatch[6];
-        andConditions.push({
-          $or: [
-            { mapYearPage: { $regex: `^${escapeRegex(magazine)}\\s+${year}\\s+${page}$`, $options: 'i' } },
-            { publications: { $elemMatch: {
-              mag: { $regex: `^${escapeRegex(magazine)}$`, $options: 'i' },
-              year,
-              page
-            } } }
-          ]
-        });
+      const citationParsed = parseLegalCitation(subject);
+      if (citationParsed) {
+        andConditions.push(buildCitationQuery(citationParsed));
       } else {
         const subjectRegex = new RegExp(escapeRegex(subject), 'i');
         andConditions.push({
@@ -807,21 +893,47 @@ export const searchCases = async (req, res, next) => {
       }
     }
 
-        if (filters.yearVolume) {
+    // First 3 blocks validation: Year/Vol, Magazine, and Page
+    // Single field search is NOT allowed in the first three blocks
+    const hasAnyBlock123 = Boolean(
+      (filters.yearVolume && String(filters.yearVolume).trim()) ||
+      (filters.magazine && String(filters.magazine).trim()) ||
+      (filters.page && String(filters.page).trim())
+    );
+    if (hasAnyBlock123) {
+      if (
+        !filters.yearVolume || !String(filters.yearVolume).trim() ||
+        !filters.magazine || !String(filters.magazine).trim() ||
+        !filters.page || !String(filters.page).trim()
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'All 3 first blocks (Year/Vol, Magazine, and Page) must be filled together for citation search. Single field search is not allowed in the first three blocks.'
+        });
+      }
+
+      // Exact citation matching via indexed mapYearPage and publications
+      const yv = String(filters.yearVolume).trim();
+      const mg = String(filters.magazine).trim();
+      const pg = String(filters.page).trim();
+      const citPattern = new RegExp(`(^|\\s)${escapeRegex(yv)}\\s+${escapeRegex(mg)}\\s+${escapeRegex(pg)}(\\s|$)`, 'i');
       andConditions.push({
         $or: [
-          { 'publications.year': { $regex: escapeRegex(filters.yearVolume), $options: 'i' } },
-          { 'publications.vol': { $regex: escapeRegex(filters.yearVolume), $options: 'i' } }
+          { mapYearPage: citPattern },
+          {
+            publications: {
+              $elemMatch: {
+                mag: { $regex: `^${escapeRegex(mg)}$`, $options: 'i' },
+                page: pg,
+                $or: [
+                  { year: yv },
+                  { vol: yv }
+                ]
+              }
+            }
+          }
         ]
       });
-    }
-
-    if (filters.magazine) {
-      andConditions.push({ 'publications.mag': { $regex: `^${escapeRegex(filters.magazine)}$`, $options: 'i' } });
-    }
-
-    if (filters.page) {
-      andConditions.push({ 'publications.page': { $regex: escapeRegex(filters.page), $options: 'i' } });
     }
 
     const lawQuery = filters.selectLaw || filters.law;
@@ -885,6 +997,16 @@ export const searchCases = async (req, res, next) => {
 
     if (filters.date) {
       andConditions.push({ dated: { $regex: escapeRegex(filters.date), $options: 'i' } });
+    }
+
+    // Support calendar date range (fromDate & toDate)
+    if (filters.fromDate || filters.toDate) {
+      const fd = filters.fromDate ? String(filters.fromDate).trim() : '';
+      const td = filters.toDate ? String(filters.toDate).trim() : '';
+      const dateCond = {};
+      if (fd) dateCond.$gte = fd;
+      if (td) dateCond.$lte = td;
+      andConditions.push({ dated: dateCond });
     }
 
     if (filters.fromYear || filters.toYear) {
@@ -965,10 +1087,16 @@ export const searchCases = async (req, res, next) => {
     }
     const query = { $and: andConditions };
     
-    // High-performance execution: limit + field projection + .lean()
-    const searchLimit = filters.magazine ? 2000 : (parseInt(filters.limit, 10) || 100);
+    // High-performance execution: return up to 3000 results for full catalog views without arbitrary 100 limit
+    const requestedLimit = parseInt(filters.limit, 10);
+    const searchLimit = requestedLimit > 0 ? requestedLimit : 3000;
+    const hasTextSearch = Boolean(kw1 || kw2 || filters.phrase);
+    const selectFields = hasTextSearch
+      ? 'caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim judgment'
+      : 'caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim';
+
     const cases = await Case.find(query)
-      .select('caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim')
+      .select(selectFields)
       .sort({ sldNumberInt: -1, sldNumber: -1 })
       .limit(searchLimit)
       .lean();

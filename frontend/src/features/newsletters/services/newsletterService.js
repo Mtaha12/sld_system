@@ -12,6 +12,10 @@ export const newsletterService = {
     const res = await api.get(`/api/newsletters/${id}`);
     return res.data?.data;
   },
+  getPublicNewsletter: async (id) => {
+    const res = await api.get(`/api/newsletters/public/${id}`);
+    return res.data?.data;
+  },
   createNewsletter: async (data) => {
     const res = await api.post('/api/newsletters', data);
     return res.data?.data;

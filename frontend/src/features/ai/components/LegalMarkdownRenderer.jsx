@@ -448,8 +448,8 @@ function renderParsedBlocks(blocks, parentIdx) {
 
       case 'versus_divider':
         return (
-          <div key={key} className="my-2 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black tracking-widest text-amber-600 dark:text-amber-400 font-mono">
+          <div key={key} className="my-2 text-center versus-print-hide print:!hidden" data-print-hide="true">
+            <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black tracking-widest text-amber-600 dark:text-amber-400 font-mono versus-print-hide print:!hidden">
               <span>—</span>
               <span>VERSUS</span>
               <span>—</span>

@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getOtherCaseLaws,
+  getNextOtherCaseSr,
   getOtherCaseLawById,
   createOtherCaseLaw,
   updateOtherCaseLaw,
@@ -13,6 +14,7 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/', getOtherCaseLaws);
+router.get('/next-sr', getNextOtherCaseSr);
 router.get('/:id', getOtherCaseLawById);
 
 router.post('/', requireAdmin, createOtherCaseLaw);

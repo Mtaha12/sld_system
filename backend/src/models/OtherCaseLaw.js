@@ -38,22 +38,68 @@ const otherCaseLawSchema = new mongoose.Schema({
     trim: true,
     index: true,
   },
-  caseTitle: {
-    type: String,
-    required: [true, 'Case Title is required'],
-    trim: true,
-  },
-  judgmentDate: {
-    type: String,
-    required: [true, 'Judgment Date is required'],
-    trim: true,
-  },
-  orderPriority: {
+  caseNoLink: {
     type: String,
     default: '',
     trim: true,
   },
+  caseYear: {
+    type: Number,
+    index: true,
+  },
+  parties: {
+    type: String,
+    default: '',
+    trim: true,
+    index: true,
+  },
+  caseTitle: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  orderDate: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  judgmentDate: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  headNotes: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  bench: {
+    type: String,
+    default: '',
+    trim: true,
+    index: true,
+  },
   authorJudge: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  apexCourt: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  apexStatus: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  downloadLink: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  orderPriority: {
     type: String,
     default: '',
     trim: true,

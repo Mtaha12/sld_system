@@ -16,7 +16,13 @@ const connectDB = async () => {
   }
 
   try {
-    const conn = await mongoose.connect(mongoUri);
+    const conn = await mongoose.connect(mongoUri, {
+      maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE, 10) || 50,
+      minPoolSize: parseInt(process.env.DB_MIN_POOL_SIZE, 10) || 10,
+      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 10000,
+      family: 4 // Use IPv4, skip unnecessary IPv6 lookup roundtrips
+    });
     console.log(`[SLD System Backend] MongoDB Connected: ${conn.connection.host}`);
     
     // Automatically verify and backfill missing Unique IDs on existing records

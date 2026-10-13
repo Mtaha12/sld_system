@@ -123,7 +123,7 @@ const userSchema = new mongoose.Schema({
   },
   avatarUrl: {
     type: String,
-    default: '',
+    default: '/sld-logo.jpeg',
   },
   isVerified: {
     type: Boolean,

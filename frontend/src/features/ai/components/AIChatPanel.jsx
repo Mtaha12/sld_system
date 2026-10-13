@@ -6,7 +6,7 @@ import {
   Paperclip, Image as ImageIcon, FileUp, XCircle,
   PanelLeftClose, PanelLeftOpen, Gavel, BookOpen,
   ShieldCheck, FileCheck, Landmark, ChevronRight,
-  HelpCircle, ArrowUpRight
+  HelpCircle, ArrowUpRight, Download, History
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import LegalMarkdownRenderer from './LegalMarkdownRenderer';
@@ -22,6 +22,8 @@ const AIChatPanel = ({
   isLoading = false,
   showWheel = true,
   onToggleWheel,
+  showHistory = true,
+  onToggleHistory,
   className = ""
 }) => {
   const [inputText, setInputText] = useState('');
@@ -151,6 +153,115 @@ const AIChatPanel = ({
     setTimeout(() => setCopiedCitation(null), 2500);
   };
 
+  const formatWordDocumentHtml = (text, title = 'Legal Document') => {
+    if (!text) return '';
+    if (text.trim().startsWith('<html') || text.trim().startsWith('<!DOCTYPE html')) {
+      return text;
+    }
+    // Convert markdown into executive Word document HTML with legal margins
+    const lines = text.split('\n');
+    const bodyHtml = [];
+    let inTable = false;
+    let headerParsed = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
+        if (cells.every(c => /^:?-+:?$/.test(c))) continue;
+        if (!inTable) {
+          inTable = true;
+          headerParsed = false;
+          bodyHtml.push('<table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; margin:12pt 0; border:1px solid #333333; font-family:\'Times New Roman\',serif; font-size:11pt;">');
+        }
+        if (!headerParsed) {
+          bodyHtml.push('<thead><tr style="background-color:#f2f2f2; font-weight:bold;">');
+          cells.forEach(c => bodyHtml.push(`<th style="border:1px solid #333333; padding:6pt 8pt; text-align:left;">${c}</th>`));
+          bodyHtml.push('</tr></thead><tbody>');
+          headerParsed = true;
+        } else {
+          bodyHtml.push('<tr>');
+          cells.forEach(c => bodyHtml.push(`<td style="border:1px solid #333333; padding:6pt 8pt;">${c}</td>`));
+          bodyHtml.push('</tr>');
+        }
+        continue;
+      } else if (inTable) {
+        inTable = false;
+        bodyHtml.push('</tbody></table>');
+      }
+
+      if (!trimmed) {
+        bodyHtml.push('<p style="margin:0 0 6pt 0; line-height:1.5;">&nbsp;</p>');
+        continue;
+      }
+      if (/^[-*_]{3,}$/.test(trimmed)) {
+        bodyHtml.push('<hr style="border:0; border-top:1.5px solid #444444; margin:16pt 0;"/>');
+        continue;
+      }
+      if (trimmed.startsWith('#### ')) {
+        bodyHtml.push(`<h4 style="font-family:'Times New Roman',serif; font-size:12pt; font-weight:bold; margin:10pt 0 4pt 0;">${trimmed.slice(5).replace(/\*\*/g, '')}</h4>`);
+        continue;
+      }
+      if (trimmed.startsWith('### ')) {
+        const h = trimmed.slice(4).replace(/\*\*/g, '');
+        const isCenter = /^(?:IN THE|HIGH COURT|PETITION|INDEX|AFFIDAVIT|C\.M\.|MEMORANDUM|APPELLATE|VAKALATNAMA|BEFORE|GROUNDS|PRAYER)/i.test(h);
+        bodyHtml.push(`<h3 style="font-family:'Times New Roman',serif; font-size:13pt; font-weight:bold; text-align:${isCenter ? 'center' : 'left'}; text-transform:uppercase; margin:14pt 0 6pt 0; text-decoration:underline;">${h}</h3>`);
+        continue;
+      }
+      if (trimmed.startsWith('## ')) {
+        bodyHtml.push(`<h2 style="font-family:'Times New Roman',serif; font-size:14pt; font-weight:bold; text-align:center; text-transform:uppercase; margin:16pt 0 8pt 0;">${trimmed.slice(3).replace(/\*\*/g, '')}</h2>`);
+        continue;
+      }
+      if (trimmed.startsWith('# ')) {
+        bodyHtml.push(`<h1 style="font-family:'Times New Roman',serif; font-size:16pt; font-weight:bold; text-align:center; text-transform:uppercase; margin:18pt 0 10pt 0;">${trimmed.slice(2).replace(/\*\*/g, '')}</h1>`);
+        continue;
+      }
+      if (/^[•\-\*]\s+/.test(trimmed)) {
+        const bText = trimmed.replace(/^[•\-\*]\s+/, '').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        bodyHtml.push(`<p style="margin:0 0 6pt 24pt; text-indent:-14pt; line-height:1.5; font-family:'Times New Roman',serif; font-size:12pt; text-align:justify;">•&nbsp;&nbsp;${bText}</p>`);
+        continue;
+      }
+
+      const pText = trimmed
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/\*(.*?)\*/g, '<i>$1</i>')
+        .replace(/`([^`]+)`/g, '<span style="font-family:Consolas,monospace; font-size:11pt;">$1</span>');
+      bodyHtml.push(`<p style="margin:0 0 8pt 0; line-height:1.5; font-family:'Times New Roman',serif; font-size:12pt; text-align:justify;">${pText}</p>`);
+    }
+
+    if (inTable) bodyHtml.push('</tbody></table>');
+
+    return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>${title}</title>
+<style>
+@page Section1 { size: 595.3pt 841.9pt; margin: 72pt 72pt 72pt 90pt; }
+div.Section1 { page: Section1; }
+body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; text-align: justify; margin: 0; padding: 0; }
+h1, h2, h3, h4 { font-family: 'Times New Roman', Times, serif; color: #000; }
+table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-family: 'Times New Roman', Times, serif; }
+th, td { border: 1px solid #333333; padding: 6pt 8pt; font-size: 11pt; }
+th { background-color: #f2f2f2; font-weight: bold; }
+</style>
+</head>
+<body><div class="Section1">${bodyHtml.join('\n')}</div></body></html>`;
+  };
+
+  const handleDownloadCorrectedDoc = (doc) => {
+    if (!doc) return;
+    const rawContent = doc.content || '';
+    const fileName = doc.fileName || 'Corrected_Legal_Document.doc';
+    const formattedContent = formatWordDocumentHtml(rawContent, fileName);
+    const blob = new Blob([formattedContent], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName.endsWith('.doc') ? fileName : `${fileName}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -240,6 +351,23 @@ const AIChatPanel = ({
           <span>New Session</span>
         </button>
 
+        {/* START: Toggle Right History Column Button */}
+        {onToggleHistory && (
+          <button
+            type="button"
+            onClick={onToggleHistory}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap active:scale-95 shrink-0 ${
+              showHistory
+                ? 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold'
+                : 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white font-bold'
+            }`}
+            title={showHistory ? "Hide Research History" : "Show Research History"}
+          >
+            <History className="w-3.5 h-3.5 text-amber-500" />
+            <span>{showHistory ? "Hide History" : "History"}</span>
+          </button>
+        )}
+
         <div className="h-5 w-[1px] bg-slate-300 dark:bg-slate-700 mx-1 shrink-0" />
 
         {/* Followed by: All Chat Session Tabs */}
@@ -288,98 +416,19 @@ const AIChatPanel = ({
         
         {/* If fresh session, display the Prestigious Chambers Welcome & Practice Portal */}
         {isFreshSession ? (
-          <div className="max-w-4xl mx-auto py-4 space-y-6 animate-fade-in">
+          <div className="max-w-4xl mx-auto py-2 sm:py-3 space-y-4 animate-fade-in">
             
             {/* Chambers Hero Crest */}
-            <div className="text-center space-y-3 pb-4 border-b border-slate-200/80 dark:border-slate-800">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/20 mb-1">
-                <Scale className="w-8 h-8" />
+            <div className="text-center space-y-2 pb-3 border-b border-slate-200/80 dark:border-slate-800">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/20 mb-1">
+                <Scale className="w-6 h-6" />
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-wide uppercase font-serif">
+              <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-wide uppercase font-serif">
                 Superior Law Digest • AI Legal Chambers
               </h1>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xl mx-auto font-sans leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xl mx-auto font-sans leading-relaxed">
                 Autonomous Constitutional & Tax Drafting Suite and Precedent Search Engine designed exclusively for High Court & Supreme Court Advocates.
               </p>
-              
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Active Database: 162,865+ Reported Pakistani Judgments & Statutory Orders</span>
-              </div>
-            </div>
-
-            {/* 3 Core Practice Drafting Hubs */}
-            <div>
-              <div className="flex items-center justify-between mb-3 px-1">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-amber-500" />
-                  Prescribed Statutory Pleading Generators
-                </span>
-                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                  Verified Court Formats
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                
-                {/* Format 1: High Court Writ */}
-                <div 
-                  onClick={() => setQuickPrompt('Please generate High Court Writ Petition (Format 1) under Article 199 based on the attached document / details.')}
-                  className="group relative p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131620] hover:border-amber-500/50 hover:shadow-md transition-all cursor-pointer space-y-2.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                      FORMAT 1
-                    </span>
-                    <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 transition-colors" />
-                  </div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                    High Court Writ Petition
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Art. 199 Constitutional Petition with Index, 13-para petition (Nishat Hotels & Al-Hilal ratios), Stay u/s 151 CPC + Affidavit, Exemption & Vakalatnama.
-                  </p>
-                </div>
-
-                {/* Format 2: ATIR Appeal */}
-                <div 
-                  onClick={() => setQuickPrompt('Please generate ATIR Appeal Form B (Format 2) under Section 46 of Sales Tax Act 1990 / Section 34 FEA 2005.')}
-                  className="group relative p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131620] hover:border-amber-500/50 hover:shadow-md transition-all cursor-pointer space-y-2.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
-                      FORMAT 2 • FORM B
-                    </span>
-                    <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                  </div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                    ATIR Tribunal Appeal
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Appellate Tribunal Inland Revenue statutory Form "B" [Rule 7], Enclosures Table, Grounds of Appeal, and verification on oath.
-                  </p>
-                </div>
-
-                {/* Format 3: CIT IT-16 */}
-                <div 
-                  onClick={() => setQuickPrompt('Please generate CIT Appeals Form IT-16 (Format 3) based on the attached assessment order.')}
-                  className="group relative p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131620] hover:border-amber-500/50 hover:shadow-md transition-all cursor-pointer space-y-2.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                      FORMAT 3 • IT-16
-                    </span>
-                    <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-500 transition-colors" />
-                  </div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                    CIT (Appeals) Income Tax
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Form of Appeal IT-16 to Commissioner (Appeals), Tax Assessed Breakdown Table, additions challenge u/s 122(5A), and verification.
-                  </p>
-                </div>
-
-              </div>
             </div>
 
             {/* Common Case Law Precedent Queries */}
@@ -473,11 +522,47 @@ const AIChatPanel = ({
                       </div>
                     </div>
                   ) : (
-                    <LegalMarkdownRenderer text={msg.text} onCopy={() => setCopiedCitation('active')} />
+                    <>
+                      <LegalMarkdownRenderer text={msg.text} onCopy={() => setCopiedCitation('active')} />
+
+                      {/* Download Corrected Document Card */}
+                      {(msg.legalAnalysis?.downloadDoc || msg.text?.includes('COMPLETE REVISED & CORRECTED LEGAL PLEADING') || msg.text?.includes('OFFICIAL CORRECTED LEGAL DOCUMENT') || msg.text?.includes('1. DEFECTS & CORRECTIONS HIGHLIGHTED')) && (
+                        <div className="mt-3 p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/20 dark:to-emerald-900/10 border-2 border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fade-in">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                              <FileCheck className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-xs sm:text-sm text-emerald-950 dark:text-emerald-100 flex items-center gap-2">
+                                <span>Official Corrected Document Ready</span>
+                                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                                  Verified
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                                {msg.legalAnalysis?.downloadDoc?.fileName || 'Corrected_Legal_Pleading.doc'} • Registry & Court Compliant
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadCorrectedDoc(msg.legalAnalysis?.downloadDoc || {
+                              fileName: 'Corrected_Legal_Pleading.doc',
+                              content: msg.text
+                            })}
+                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download Corrected File</span>
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
 
-                  {/* Single Case Headnote Card (when case law is matched) */}
-                  {!isUser && matched && !isMultiCase && (
+                  {/* Single Case Headnote Card (when case law is matched and NOT already rendered in text above) */}
+                  {!isUser && matched && !isMultiCase && !msg.text?.includes('CASE RECORD VERIFIED') && !msg.text?.includes('Case Record Verified') && !msg.text?.includes('Key Case Details') && !msg.text?.includes('KEY CASE DETAILS') && (
                     <div className="bg-white dark:bg-[#131620] border border-amber-500/30 rounded-xl p-4 sm:p-5 shadow-md space-y-3.5 animate-fade-in">
                       
                       {/* Header Strip with SLD Badge & Court */}
@@ -707,41 +792,6 @@ const AIChatPanel = ({
             ))}
           </div>
         )}
-
-        {/* Quick Statutory Format Presets */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
-          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 shrink-0 flex items-center gap-1 uppercase tracking-wider">
-            <Scale className="w-3 h-3 text-amber-500" />
-            <span>Pleading Format:</span>
-          </span>
-          
-          <button
-            type="button"
-            onClick={() => setQuickPrompt('Please generate High Court Writ Petition (Format 1) under Article 199 based on the attached document / details.')}
-            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-500/10 hover:border-amber-500/40 text-slate-700 dark:text-slate-300 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer"
-            title="High Court Writ with Index, Stay u/s 151 CPC, Exemption & Vakalatnama"
-          >
-            📜 Format 1: High Court Writ (Art. 199)
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setQuickPrompt('Please generate ATIR Appeal Form B (Format 2) under Section 46 of Sales Tax Act 1990 based on the attached document.')}
-            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-500/10 hover:border-amber-500/40 text-slate-700 dark:text-slate-300 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer"
-            title="Form B Appeal to Appellate Tribunal Inland Revenue"
-          >
-            ⚖️ Format 2: ATIR Form B (Sec 46)
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setQuickPrompt('Please generate CIT Appeals Form IT-16 (Format 3) based on the attached document / details.')}
-            className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-500/10 hover:border-amber-500/40 text-slate-700 dark:text-slate-300 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer"
-            title="Form of Appeal IT-16 to Commissioner of Income Tax (Appeals)"
-          >
-            📑 Format 3: CIT IT-16 (Sec 122)
-          </button>
-        </div>
 
         {/* Input Bar Form */}
         <form onSubmit={handleSubmit} className="flex items-end gap-2">

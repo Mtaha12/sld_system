@@ -27,7 +27,7 @@ const ManageNotificationsPage = () => {
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    notificationService.getNotifications({ page: currentPage, limit: 25, query: searchQuery }).then(data => {
+    notificationService.getNotifications({ page: currentPage, limit: 100, query: searchQuery }).then(data => {
       if (isMounted) {
         setNotifications(data);
         setTotalItems(data.total || data.length || 0);

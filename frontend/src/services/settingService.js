@@ -97,6 +97,34 @@ export const settingService = {
     const response = await api.post('/api/settings/laws/swap', { lawId1, lawId2 });
     return response.data;
   },
+
+  // ============================
+  // SECTIONS
+  // ============================
+  getSections: async (params = {}) => {
+    const response = await api.get('/api/settings/sections', { params });
+    return response.data;
+  },
+
+  createSection: async (data) => {
+    const response = await api.post('/api/settings/sections', data);
+    return response.data;
+  },
+
+  updateSection: async (id, data) => {
+    const response = await api.put(`/api/settings/sections/${id}`, data);
+    return response.data;
+  },
+
+  deleteSection: async (id) => {
+    const response = await api.delete(`/api/settings/sections/${id}`);
+    return response.data;
+  },
+
+  swapSections: async (sectionId1, sectionId2) => {
+    const response = await api.post('/api/settings/sections/swap', { sectionId1, sectionId2 });
+    return response.data;
+  },
 };
 
 export default settingService;

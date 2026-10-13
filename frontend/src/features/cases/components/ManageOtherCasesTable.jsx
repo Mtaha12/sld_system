@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { 
   Eye, 
   Pencil, 
@@ -12,6 +12,7 @@ import {
   Scale,
   FileText,
   DownloadCloud,
+  ExternalLink,
   X
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
@@ -47,6 +48,14 @@ const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => 
 
 const ManageOtherCasesTable = ({
   cases = [],
+  totalItems = 0,
+  totalPages = 1,
+  currentPage = 1,
+  itemsPerPage = 25,
+  sortConfig = { key: 'srNumber', direction: 'asc' },
+  onSort,
+  onPageChange,
+  onItemsPerPageChange,
   onEdit,
   onDeleted,
   toastMessage,
@@ -57,52 +66,6 @@ const ManageOtherCasesTable = ({
   const [deleteModalItem, setDeleteModalItem] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
-
-  const [sortConfig, setSortConfig] = useState({ key: 'srNumber', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(15);
-
-  const handleSort = (key) => {
-    setSortConfig(prev => {
-      if (prev.key === key) {
-        if (prev.direction === 'asc') return { key, direction: 'desc' };
-        if (prev.direction === 'desc') return { key: null, direction: null };
-        return { key, direction: 'asc' };
-      }
-      return { key, direction: 'asc' };
-    });
-  };
-
-  const sortedList = useMemo(() => {
-    if (!cases || !cases.length) return [];
-    if (!sortConfig.key || !sortConfig.direction) return cases;
-
-    return [...cases].sort((a, b) => {
-      let valA = a[sortConfig.key];
-      let valB = b[sortConfig.key];
-
-      if (['srNumber', 'orderPriority'].includes(sortConfig.key)) {
-        valA = Number(valA) || 0;
-        valB = Number(valB) || 0;
-      } else {
-        valA = (valA || '').toString().toLowerCase();
-        valB = (valB || '').toString().toLowerCase();
-      }
-
-      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [cases, sortConfig]);
-
-  const totalItems = sortedList.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedList = sortedList.slice(startIndex, startIndex + itemsPerPage);
-
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
-  };
 
   const handleDeleteConfirm = async () => {
     if (!deleteModalItem) return;
@@ -122,6 +85,8 @@ const ManageOtherCasesTable = ({
     }
   };
 
+  const effectiveTotal = totalItems || cases.length;
+
   return (
     <div className="flex flex-col gap-3 w-full">
 
@@ -131,68 +96,69 @@ const ManageOtherCasesTable = ({
             <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
             <span className="font-medium">{toastMessage}</span>
           </div>
-          <button type="button" onClick={() => setToastMessage('')} className="text-green-600 p-0.5 cursor-pointer">
+          <button type="button" onClick={() => setToastMessage?.('')} className="text-green-600 p-0.5 cursor-pointer">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      {/* Spreadsheet styled container matching Image 2 */}
+      {/* Spreadsheet styled container matching Excel Screenshot */}
       <div className="bg-white dark:bg-theme-surface border border-theme-border rounded-xl shadow-sm overflow-hidden flex flex-col">
         
         {/* Header Bar */}
         <div className="px-4 py-2.5 border-b border-theme-border flex items-center justify-between bg-gray-50/60 dark:bg-theme-surface-alt/30 text-xs">
           <div className="flex items-center gap-1.5 text-theme-main font-semibold">
             <Scale className="w-3.5 h-3.5 text-brand-orange" />
-            <span>Other Case Laws Spreadsheet View ({totalItems})</span>
+            <span>Superior Courts Case Laws View ({effectiveTotal.toLocaleString()} records)</span>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className="text-theme-muted text-[11px]">Rows:</span>
+            <span className="text-theme-muted text-[11px]">Rows per page:</span>
             <select
               value={itemsPerPage}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-1.5 py-0.5 bg-theme-surface border border-theme-border rounded text-[11px] text-theme-main focus:outline-none focus:border-brand-orange"
+              onChange={(e) => onItemsPerPageChange?.(Number(e.target.value))}
+              className="px-2 py-0.5 bg-theme-surface border border-theme-border rounded text-[11px] text-theme-main focus:outline-none focus:border-brand-orange"
             >
               <option value={15}>15</option>
-              <option value={30}>30</option>
+              <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
           </div>
         </div>
 
-        {/* Table styled like Excel grid from Image 2 */}
+        {/* Table styled like Excel grid from user screenshot */}
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              {/* Column Letters matching Image 2 */}
+              {/* Column Letters matching Excel Screenshot */}
               <tr className="bg-gray-100 dark:bg-gray-800/80 border-b border-theme-border text-[10px] text-theme-muted select-none">
                 <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-14">A</th>
-                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-24">B</th>
-                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-28">C</th>
-                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-36">D</th>
-                <th className="py-1 px-3 border-r border-theme-border/40 font-mono">E</th>
+                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-20">B</th>
+                <th className="py-1 px-3 border-r border-theme-border/40 font-mono min-w-[220px]">C</th>
+                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-20">D</th>
+                <th className="py-1 px-3 border-r border-theme-border/40 font-mono min-w-[260px]">E</th>
                 <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-24">F</th>
-                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-14">G</th>
-                <th className="py-1 px-3 border-r border-theme-border/40 font-mono w-44">H</th>
-                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-28">I</th>
+                <th className="py-1 px-3 border-r border-theme-border/40 font-mono min-w-[200px]">G</th>
+                <th className="py-1 px-3 border-r border-theme-border/40 font-mono min-w-[220px]">H</th>
+                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-24">I</th>
+                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-24">J</th>
+                <th className="py-1 px-3 text-center border-r border-theme-border/40 font-mono w-28">K</th>
                 <th className="py-1 px-3 text-center font-mono w-24">Action</th>
               </tr>
-              {/* Column Names from Image 2 */}
+              {/* Column Names from User Excel Screenshot */}
               <tr className="bg-gray-800 text-gray-100 dark:bg-gray-900 border-b border-theme-border font-semibold text-xs">
-                <TableHeader title="Sr. No." sortKey="srNumber" sortConfig={sortConfig} onSort={handleSort} className="text-center w-14 text-white" />
-                <TableHeader title="Citation" sortKey="citation" sortConfig={sortConfig} onSort={handleSort} className="w-24 text-white" />
-                <TableHeader title="SC Citation" sortKey="scCitation" sortConfig={sortConfig} onSort={handleSort} className="w-28 text-white" />
-                <TableHeader title="Case No" sortKey="caseNo" sortConfig={sortConfig} onSort={handleSort} className="w-36 text-white" />
-                <TableHeader title="Case Title" sortKey="caseTitle" sortConfig={sortConfig} onSort={handleSort} className="text-white" />
-                <TableHeader title="Judgment Date" sortKey="judgmentDate" sortConfig={sortConfig} onSort={handleSort} className="text-center w-24 text-white" />
-                <TableHeader title="" sortKey="orderPriority" sortConfig={sortConfig} onSort={handleSort} className="text-center w-14 text-white" />
-                <TableHeader title="Author Judge" sortKey="authorJudge" sortConfig={sortConfig} onSort={handleSort} className="w-44 text-white" />
-                <th className="px-3 py-2.5 font-semibold text-xs tracking-wider text-white text-center w-28 border-r border-theme-border/40">Download</th>
+                <TableHeader title="S.No." sortKey="srNumber" sortConfig={sortConfig} onSort={onSort} className="text-center w-14 text-white" />
+                <TableHeader title="Citation" sortKey="citation" sortConfig={sortConfig} onSort={onSort} className="w-20 text-white" />
+                <TableHeader title="Case No." sortKey="caseNo" sortConfig={sortConfig} onSort={onSort} className="min-w-[220px] text-white" />
+                <TableHeader title="Case Year" sortKey="caseYear" sortConfig={sortConfig} onSort={onSort} className="text-center w-20 text-white" />
+                <TableHeader title="Parties" sortKey="parties" sortConfig={sortConfig} onSort={onSort} className="min-w-[260px] text-white" />
+                <TableHeader title="Order_Date" sortKey="orderDate" sortConfig={sortConfig} onSort={onSort} className="text-center w-24 text-white" />
+                <TableHeader title="Head Notes/ Tag Line" sortKey="headNotes" sortConfig={sortConfig} onSort={onSort} className="min-w-[200px] text-white" />
+                <TableHeader title="Bench" sortKey="bench" sortConfig={sortConfig} onSort={onSort} className="min-w-[220px] text-white" />
+                <TableHeader title="Apex Court" sortKey="apexCourt" sortConfig={sortConfig} onSort={onSort} className="text-center w-24 text-white" />
+                <TableHeader title="Apex Status" sortKey="apexStatus" sortConfig={sortConfig} onSort={onSort} className="text-center w-24 text-white" />
+                <th className="px-3 py-2.5 font-semibold text-xs tracking-wider text-white text-center w-28 border-r border-theme-border/40">Downloads</th>
                 <th className="px-3 py-2.5 font-semibold text-xs tracking-wider text-white text-center w-24">Action</th>
               </tr>
             </thead>
@@ -200,120 +166,150 @@ const ManageOtherCasesTable = ({
             <tbody className="divide-y divide-theme-border">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center">
+                  <td colSpan={12} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <SquareLoader />
-                      <span className="text-[11px] text-theme-muted font-medium">Loading other case laws...</span>
+                      <span className="text-[11px] text-theme-muted font-medium">Loading case law records...</span>
                     </div>
                   </td>
                 </tr>
-              ) : paginatedList.length > 0 ? (
-                paginatedList.map((item, idx) => (
-                  <tr 
-                    key={item.id || item.mongoId || idx}
-                    className="hover:bg-blue-50/40 dark:hover:bg-theme-surface-hover/50 transition-colors"
-                  >
-                    {/* A: Sr. No. */}
-                    <td className="px-3 py-2 text-center font-medium text-theme-muted border-r border-theme-border/40">
-                      {item.srNumber || (startIndex + idx + 1)}
-                    </td>
+              ) : cases.length > 0 ? (
+                cases.map((item, idx) => {
+                  const caseLink = item.caseNoLink && item.caseNoLink.trim() && item.caseNoLink !== 'Nil' ? item.caseNoLink : null;
+                  const hasDownload = item.downloadLink && item.downloadLink.trim() && item.downloadLink !== 'Nil';
+                  const downloadLink = hasDownload ? item.downloadLink : null;
 
-                    {/* B: Citation */}
-                    <td className="px-3 py-2 text-theme-main font-mono text-[11px] whitespace-nowrap border-r border-theme-border/40">
-                      {item.citation || ''}
-                    </td>
+                  return (
+                    <tr 
+                      key={item.mongoId || item.id || idx}
+                      className="hover:bg-blue-50/40 dark:hover:bg-theme-surface-hover/50 transition-colors"
+                    >
+                      {/* A: S.No. (Exact same as Excel) */}
+                      <td className="px-3 py-2 text-center font-medium text-theme-muted border-r border-theme-border/40 whitespace-nowrap">
+                        {item.srNumber != null ? item.srNumber : ((currentPage - 1) * itemsPerPage + idx + 1)}
+                      </td>
 
-                    {/* C: SC Citation */}
-                    <td className="px-3 py-2 text-theme-main font-semibold text-[11px] whitespace-nowrap border-r border-theme-border/40">
-                      {item.scCitation || ''}
-                    </td>
+                      {/* B: Citation */}
+                      <td className="px-3 py-2 text-theme-main font-mono text-[11px] whitespace-nowrap border-r border-theme-border/40">
+                        {item.citation || 'Nil'}
+                      </td>
 
-                    {/* D: Case No */}
-                    <td className="px-3 py-2 font-mono text-[11px] text-gray-800 dark:text-gray-200 whitespace-nowrap border-r border-theme-border/40">
-                      {item.caseNo}
-                    </td>
+                      {/* C: Case No. (Hyperlink enabled) */}
+                      <td className="px-3 py-2 font-medium text-[11px] border-r border-theme-border/40">
+                        {caseLink ? (
+                          <a
+                            href={caseLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 group font-mono font-medium"
+                            title={`Open case record in new tab: ${item.caseNo}`}
+                          >
+                            <span>{item.caseNo}</span>
+                            <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 shrink-0" />
+                          </a>
+                        ) : (
+                          <span className="font-mono text-gray-800 dark:text-gray-200">{item.caseNo}</span>
+                        )}
+                      </td>
 
-                    {/* E: Case Title (Blue link styled like Image 2) */}
-                    <td className="px-3 py-2 text-blue-600 dark:text-blue-400 font-medium leading-snug border-r border-theme-border/40">
-                      <button
-                        type="button"
-                        onClick={() => setViewModalItem(item)}
-                        className="hover:underline text-left cursor-pointer"
-                      >
-                        {item.caseTitle}
-                      </button>
-                    </td>
+                      {/* D: Case Year */}
+                      <td className="px-3 py-2 text-center font-mono text-[11px] text-theme-main whitespace-nowrap border-r border-theme-border/40">
+                        {item.caseYear || '-'}
+                      </td>
 
-                    {/* F: Judgment Date */}
-                    <td className="px-3 py-2 text-center whitespace-nowrap text-theme-muted font-mono text-[11px] border-r border-theme-border/40">
-                      {item.judgmentDate || 'N/A'}
-                    </td>
-
-                    {/* G: Order/Priority */}
-                    <td className="px-3 py-2 text-center text-theme-muted font-semibold text-[11px] border-r border-theme-border/40">
-                      {item.orderPriority || ''}
-                    </td>
-
-                    {/* H: Author Judge */}
-                    <td className="px-3 py-2 text-theme-main whitespace-nowrap border-r border-theme-border/40">
-                      {item.authorJudge || ''}
-                    </td>
-
-                    {/* I: Download */}
-                    <td className="px-3 py-2 text-center whitespace-nowrap border-r border-theme-border/40">
-                      {item.attachment ? (
-                        <a
-                          href={item.attachment}
-                          download={item.attachmentName || `${item.caseNo}.pdf`}
-                          className="text-cyan-600 dark:text-cyan-400 hover:underline font-mono text-[11px] inline-flex items-center gap-1 cursor-pointer"
-                          title={`Download ${item.attachmentName || 'document'}`}
-                        >
-                          <FileText className="w-3.5 h-3.5 text-red-500" />
-                          <span>PDF{item.attachmentSize || ''}</span>
-                        </a>
-                      ) : (
-                        <span className="text-theme-disabled text-[10px] italic">-</span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-3 py-2 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1">
+                      {/* E: Parties */}
+                      <td className="px-3 py-2 text-theme-main font-medium leading-snug border-r border-theme-border/40">
                         <button
                           type="button"
                           onClick={() => setViewModalItem(item)}
-                          className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
-                          title="View"
+                          className="hover:underline text-left cursor-pointer text-gray-900 dark:text-gray-100 font-serif"
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          {item.parties || item.caseTitle || '-'}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onEdit?.(item)}
-                          className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
-                          title="Edit"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteModalItem(item)}
-                          className="p-1 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+
+                      {/* F: Order Date */}
+                      <td className="px-3 py-2 text-center whitespace-nowrap text-theme-muted font-mono text-[11px] border-r border-theme-border/40">
+                        {item.orderDate || item.judgmentDate || '-'}
+                      </td>
+
+                      {/* G: Head Notes / Tag Line */}
+                      <td className="px-3 py-2 text-theme-muted text-[11px] leading-relaxed border-r border-theme-border/40 max-w-xs truncate" title={item.headNotes || ''}>
+                        {item.headNotes || '-'}
+                      </td>
+
+                      {/* H: Bench */}
+                      <td className="px-3 py-2 text-theme-main text-[11px] border-r border-theme-border/40 leading-snug">
+                        {item.bench || item.authorJudge || '-'}
+                      </td>
+
+                      {/* I: Apex Court */}
+                      <td className="px-3 py-2 text-center text-theme-muted font-semibold text-[11px] whitespace-nowrap border-r border-theme-border/40">
+                        {item.apexCourt || '-'}
+                      </td>
+
+                      {/* J: Apex Status */}
+                      <td className="px-3 py-2 text-center text-theme-muted text-[11px] whitespace-nowrap border-r border-theme-border/40">
+                        {item.apexStatus || '-'}
+                      </td>
+
+                      {/* K: Downloads (Show option only if entry exists, else show —) */}
+                      <td className="px-3 py-2 text-center whitespace-nowrap border-r border-theme-border/40">
+                        {downloadLink ? (
+                          <a
+                            href={downloadLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-cyan-600 dark:text-cyan-400 hover:underline font-mono text-[11px] inline-flex items-center gap-1 cursor-pointer font-bold"
+                            title={`Download Judgment for ${item.caseNo}`}
+                          >
+                            <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                            <span>Download PDF</span>
+                          </a>
+                        ) : (
+                          <span className="text-theme-disabled font-bold text-sm select-none">—</span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setViewModalItem(item)}
+                            className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
+                            title="View"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEdit?.(item)}
+                            className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+                            title="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteModalItem(item)}
+                            className="p-1 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-theme-muted">
+                  <td colSpan={12} className="py-12 text-center text-theme-muted">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Search className="w-6 h-6 text-theme-muted" />
                       <p className="text-xs font-semibold text-theme-main">No case law records found</p>
-                      <p className="text-[11px] text-theme-muted">Click "+ Add Other Case" to create your first entry.</p>
+                      <p className="text-[11px] text-theme-muted">Try adjusting your search criteria or click "All".</p>
                     </div>
                   </td>
                 </tr>
@@ -323,13 +319,13 @@ const ManageOtherCasesTable = ({
         </div>
 
         {/* Pagination */}
-        {!isLoading && totalItems > 0 && (
+        {!isLoading && effectiveTotal > 0 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={totalItems}
+            totalItems={effectiveTotal}
             itemsPerPage={itemsPerPage}
-            onPageChange={handlePageChange}
+            onPageChange={onPageChange}
           />
         )}
       </div>
@@ -338,8 +334,8 @@ const ManageOtherCasesTable = ({
       <Modal
         isOpen={Boolean(viewModalItem)}
         onClose={() => setViewModalItem(null)}
-        title="Case Law Details"
-        subtitle={`Case No: ${viewModalItem?.caseNo} • Date: ${viewModalItem?.judgmentDate}`}
+        title="Superior Court Judgment Details"
+        subtitle={`Case No: ${viewModalItem?.caseNo} • Order Date: ${viewModalItem?.orderDate || viewModalItem?.judgmentDate}`}
         icon={Scale}
         maxWidth="max-w-2xl"
         footer={<Button variant="outline" size="sm" onClick={() => setViewModalItem(null)}>Close</Button>}
@@ -347,64 +343,83 @@ const ManageOtherCasesTable = ({
         {viewModalItem && (
           <div className="space-y-4 text-xs">
             <div>
-              <span className="text-[10px] uppercase font-bold text-brand-orange tracking-wider">Case Title</span>
-              <h3 className="text-sm font-bold text-theme-main leading-snug mt-0.5">
-                {viewModalItem.caseTitle}
+              <span className="text-[10px] uppercase font-bold text-brand-orange tracking-wider">Parties to Suit / Case</span>
+              <h3 className="text-sm font-bold text-theme-main leading-snug mt-0.5 font-serif">
+                {viewModalItem.parties || viewModalItem.caseTitle}
               </h3>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border">
               <div>
                 <span className="text-[10px] text-theme-muted block font-semibold">Case No</span>
-                <span className="font-mono text-theme-main">{viewModalItem.caseNo}</span>
+                {viewModalItem.caseNoLink ? (
+                  <a href={viewModalItem.caseNoLink} target="_blank" rel="noopener noreferrer" className="font-mono text-blue-600 hover:underline">
+                    {viewModalItem.caseNo}
+                  </a>
+                ) : (
+                  <span className="font-mono text-theme-main">{viewModalItem.caseNo}</span>
+                )}
               </div>
               <div>
-                <span className="text-[10px] text-theme-muted block font-semibold">SC Citation</span>
-                <span className="font-semibold text-theme-main">{viewModalItem.scCitation || 'N/A'}</span>
+                <span className="text-[10px] text-theme-muted block font-semibold">Citation</span>
+                <span className="font-semibold text-theme-main">{viewModalItem.citation || 'Nil'}</span>
               </div>
               <div>
-                <span className="text-[10px] text-theme-muted block font-semibold">General Citation</span>
-                <span className="font-semibold text-theme-main">{viewModalItem.citation || 'N/A'}</span>
+                <span className="text-[10px] text-theme-muted block font-semibold">Case Year</span>
+                <span className="font-semibold text-theme-main">{viewModalItem.caseYear || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-[10px] text-theme-muted block font-semibold">Judgment Date</span>
-                <span className="font-mono text-theme-main">{viewModalItem.judgmentDate}</span>
+                <span className="text-[10px] text-theme-muted block font-semibold">Order Date</span>
+                <span className="font-mono text-theme-main">{viewModalItem.orderDate || viewModalItem.judgmentDate}</span>
               </div>
             </div>
 
-            {viewModalItem.authorJudge && (
+            {viewModalItem.bench && (
               <div>
-                <span className="text-[10px] text-theme-muted block font-semibold">Author Judge</span>
-                <span className="font-semibold text-theme-main">{viewModalItem.authorJudge}</span>
+                <span className="text-[10px] text-theme-muted block font-semibold">Bench / Coram</span>
+                <span className="font-semibold text-theme-main">{viewModalItem.bench}</span>
               </div>
             )}
 
-            {viewModalItem.attachment && (
+            {(viewModalItem.apexCourt || viewModalItem.apexStatus) && (
+              <div className="grid grid-cols-2 gap-2.5 p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border">
+                <div>
+                  <span className="text-[10px] text-theme-muted block font-semibold">Apex Court</span>
+                  <span className="font-semibold text-theme-main">{viewModalItem.apexCourt || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-theme-muted block font-semibold">Apex Status</span>
+                  <span className="font-semibold text-theme-main">{viewModalItem.apexStatus || '-'}</span>
+                </div>
+              </div>
+            )}
+
+            {(viewModalItem.downloadLink || viewModalItem.caseNoLink) && (
               <div className="p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-red-500" />
                   <div>
-                    <span className="font-semibold text-theme-main block">{viewModalItem.attachmentName || 'Judgment PDF'}</span>
-                    <span className="text-[10px] text-theme-muted">{viewModalItem.attachmentSize || ''}</span>
+                    <span className="font-semibold text-theme-main block">Official Certified Judgment Order</span>
+                    <span className="text-[10px] text-theme-muted font-mono">{viewModalItem.caseNo}.pdf</span>
                   </div>
                 </div>
                 <a
-                  href={viewModalItem.attachment}
-                  download={viewModalItem.attachmentName || `${viewModalItem.caseNo}.pdf`}
-                  className="px-3 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1 font-medium transition-colors"
+                  href={viewModalItem.downloadLink || viewModalItem.caseNoLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-1.5 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1.5 font-bold transition-colors shadow-xs"
                 >
-                  <DownloadCloud className="w-3.5 h-3.5" /> Download
+                  <DownloadCloud className="w-3.5 h-3.5" /> Download Order PDF
                 </a>
               </div>
             )}
 
-            {viewModalItem.notes && (
+            {viewModalItem.headNotes && (
               <div>
-                <span className="text-[10px] uppercase font-bold text-theme-muted block mb-1">Notes / Summary</span>
-                <div 
-                  className="p-3.5 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-60 overflow-y-auto"
-                  dangerouslySetInnerHTML={{ __html: viewModalItem.notes }}
-                />
+                <span className="text-[10px] uppercase font-bold text-theme-muted block mb-1">Head Notes / Tag Line</span>
+                <div className="p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed">
+                  {viewModalItem.headNotes}
+                </div>
               </div>
             )}
           </div>
@@ -432,7 +447,7 @@ const ManageOtherCasesTable = ({
           {deleteError && <div className="p-2 bg-red-50 text-red-600 rounded">{deleteError}</div>}
           <p className="text-theme-main">Are you sure you want to delete case:</p>
           <div className="p-2 bg-theme-surface-alt rounded border border-theme-border font-medium text-theme-main">
-            {deleteModalItem?.caseNo} – {deleteModalItem?.caseTitle}
+            {deleteModalItem?.caseNo} – {deleteModalItem?.parties || deleteModalItem?.caseTitle}
           </div>
         </div>
       </Modal>

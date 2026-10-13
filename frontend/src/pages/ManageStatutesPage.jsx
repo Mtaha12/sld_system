@@ -27,7 +27,7 @@ const ManageStatutesPage = () => {
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    statuteService.getStatutes({ page: currentPage, limit: 25, query: searchQuery }).then(data => {
+    statuteService.getStatutes({ page: currentPage, limit: 100, query: searchQuery }).then(data => {
       if (isMounted) {
         setStatutes(data);
         setTotalItems(data.total || data.length || 0);

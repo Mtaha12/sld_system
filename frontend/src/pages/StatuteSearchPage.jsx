@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, ExternalLink, BookOpen, AlertCircle, RotateCcw, X, Search as SearchIcon, FileText } from 'lucide-react';
-import { caseService } from '../features/cases/services/caseService';
+import { useSearchParams } from 'react-router-dom';
+import { Eye, BookOpen, AlertCircle, RotateCcw, X, Search as SearchIcon, FileText } from 'lucide-react';
 import { statuteService } from '../features/statutes/services/statuteService';
 import { settingService } from '../services/settingService';
 import { LAW_OPTIONS } from '../data/laws';
-import CaseDocumentModal from '../components/ui/CaseDocumentModal';
+import { ALL_SECTIONS } from '../data/sections';
 import Modal from '../components/ui/Modal';
 
 /* ── Shared form field styles ────────────────────────────────────────── */
 const inp =
-  'w-full bg-white text-gray-700 placeholder-gray-400 text-sm px-3 py-2 rounded-md ' +
-  'border-0 outline-none focus:ring-2 focus:ring-[#4a7a9b]/40 h-[38px] transition-all';
+  'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 placeholder-gray-400 text-sm px-3.5 py-2 rounded-lg ' +
+  'border border-slate-200/90 dark:border-slate-700 outline-none focus:ring-2 focus:ring-[#3d4a7a]/50 h-[38px] shadow-2xs transition-all';
 
 const sel =
-  'w-full bg-white text-gray-700 text-sm px-3 py-2 rounded-md ' +
-  'border-0 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#4a7a9b]/40 h-[38px] transition-all';
+  'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 text-sm pl-3.5 pr-8 py-2 rounded-lg ' +
+  'border border-slate-200/90 dark:border-slate-700 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#3d4a7a]/50 h-[38px] shadow-2xs transition-all';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -35,10 +35,9 @@ const SelectField = React.memo(({ value, onChange, options = [], placeholder = '
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8"
-            strokeLinecap="round" strokeLinejoin="round"/>
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 8l4 4 4-4" />
         </svg>
       </span>
     </div>
@@ -51,21 +50,48 @@ const StatuteSearchPage = () => {
   const [section, setSection] = useState('');
   const [text, setText] = useState('');
   const [text2, setText2] = useState('');
+  const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
 
   // Alphabetical Filter State
   const [activeLetter, setActiveLetter] = useState(null);
 
   // Results State
-  const [caseResults, setCaseResults] = useState(null);
   const [statuteResults, setStatuteResults] = useState(null);
-  const [activeTab, setActiveTab] = useState('cases'); // 'cases' | 'statutes'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [viewId, setViewId] = useState(null);
   const [viewStatute, setViewStatute] = useState(null);
+
+  const [urlSearchParams] = useSearchParams();
 
   // Laws Options State
   const [lawOptions, setLawOptions] = useState([]);
+
+  // Auto-search if URL parameters are passed (e.g. from featured cards)
+  useEffect(() => {
+    const lawQ = urlSearchParams.get('law') || urlSearchParams.get('query');
+    const secQ = urlSearchParams.get('section');
+    const txtQ = urlSearchParams.get('text');
+    if (lawQ || secQ || txtQ) {
+      if (lawQ) setSelectLaw(lawQ);
+      if (secQ) setSection(secQ);
+      if (txtQ) setText(txtQ);
+
+      setLoading(true);
+      setError(null);
+      statuteService.getStatutes({
+        limit: 100,
+        ...(lawQ ? { law: lawQ } : {}),
+        ...(secQ ? { section: secQ } : {}),
+        ...(txtQ ? { text: txtQ } : {})
+      }).then(res => {
+        setStatuteResults(Array.isArray(res) ? res : []);
+      }).catch(err => {
+        setError(err?.response?.data?.message || 'Search execution encountered an error.');
+      }).finally(() => {
+        setLoading(false);
+      });
+    }
+  }, [urlSearchParams]);
 
   // Fetch Laws from backend, with local dataset fallback
   useEffect(() => {
@@ -88,6 +114,14 @@ const StatuteSearchPage = () => {
         }
       });
 
+    settingService.getSections({ status: 'active', limit: 10000 })
+      .then(res => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          setSectionOptions(res.data.map(s => s.name));
+        }
+      })
+      .catch(err => console.warn('Sections load warning:', err));
+
     return () => { isMounted = false; };
   }, []);
 
@@ -108,32 +142,18 @@ const StatuteSearchPage = () => {
     }
 
     setLoading(true);
-    setCaseResults(null);
     setStatuteResults(null);
 
     try {
-      // 1. Search Cases matching the Statute / Section / Text criteria
-      const filters = {
-        selectLaw: selectLaw.trim() || undefined,
-        section: section.trim() || undefined,
-        keywords: text.trim() || undefined,
-        keywords2: text2.trim() || undefined,
-      };
+      const searchParams = { limit: 100 };
+      if (selectLaw.trim()) searchParams.law = selectLaw.trim();
+      if (section.trim()) searchParams.section = section.trim();
+      if (text.trim()) searchParams.text = text.trim();
+      if (text2.trim()) searchParams.text2 = text2.trim();
 
-      const [casesData, statutesData] = await Promise.allSettled([
-        caseService.searchCases(filters),
-        statuteService.getStatutes({
-          query: [selectLaw, section, text].filter(Boolean).join(' '),
-          limit: 50
-        })
-      ]);
+      const statutes = await statuteService.getStatutes(searchParams);
 
-      const cases = casesData.status === 'fulfilled' ? (casesData.value || []) : [];
-      const statutes = statutesData.status === 'fulfilled' ? (statutesData.value || []) : [];
-
-      setCaseResults(cases);
-      setStatuteResults(statutes);
-      setActiveTab('cases');
+      setStatuteResults(Array.isArray(statutes) ? statutes : []);
     } catch (err) {
       setError(err?.response?.data?.message || 'Search execution encountered an error. Please try again.');
     } finally {
@@ -148,7 +168,6 @@ const StatuteSearchPage = () => {
     setText('');
     setText2('');
     setActiveLetter(null);
-    setCaseResults(null);
     setStatuteResults(null);
     setError(null);
   };
@@ -217,7 +236,13 @@ const StatuteSearchPage = () => {
                 placeholder="Enter Section"
                 value={section}
                 onChange={(e) => setSection(e.target.value)}
+                list="statute-search-sections-list"
               />
+              <datalist id="statute-search-sections-list">
+                {sectionOptions.map((secName, idx) => (
+                  <option key={idx} value={secName} />
+                ))}
+              </datalist>
             </div>
           </div>
 
@@ -338,168 +363,104 @@ const StatuteSearchPage = () => {
       </div>
 
       {/* ── Search Results ──────────────────────────────────────────────── */}
-      {(caseResults !== null || statuteResults !== null) && (
+      {/* ── Search Results: Statutes Only ─────────────────────────── */}
+      {statuteResults !== null && (
         <div className="mt-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
           
-          {/* Header & Tabs */}
+          {/* Header */}
           <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 gap-3">
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setActiveTab('cases')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                  activeTab === 'cases'
-                    ? 'bg-[#3d4a7a] text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
-                }`}
-              >
-                Cases ({caseResults?.length || 0})
-              </button>
-              {statuteResults && statuteResults.length > 0 && (
-                <button
-                  onClick={() => setActiveTab('statutes')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                    activeTab === 'statutes'
-                      ? 'bg-[#3d4a7a] text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
-                  }`}
-                >
-                  Statute Provisions ({statuteResults.length})
-                </button>
-              )}
+              <span className="font-semibold text-xs text-gray-700 dark:text-gray-200">
+                Statute Provisions Search Results
+              </span>
             </div>
 
             <span className="px-2.5 py-1 bg-[#a8cfe0] text-[#1e3a5a] text-xs font-bold rounded-full">
-              {activeTab === 'cases'
-                ? `${caseResults?.length || 0} Case${caseResults?.length !== 1 ? 's' : ''} Found`
-                : `${statuteResults?.length || 0} Statute Record${statuteResults?.length !== 1 ? 's' : ''} Found`
-              }
+              {statuteResults.length} Statute Record{statuteResults.length !== 1 ? 's' : ''} Found
             </span>
           </div>
 
-          {/* TAB 1: Cases View Table */}
-          {activeTab === 'cases' && (
-            <div>
-              {(!caseResults || caseResults.length === 0) ? (
-                <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                  <FileText className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                  <p className="text-sm font-medium">No legal cases found matching this statute and section.</p>
-                  <p className="text-xs text-gray-400 mt-1">Try broadening your section number or text keywords.</p>
-                  <button onClick={handleReset} className="mt-3 text-[#3d4a7a] dark:text-blue-400 hover:underline text-xs font-medium cursor-pointer">
-                    Clear and try another search
-                  </button>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead>
-                      <tr className="bg-[#3d4a7a] text-white">
-                        <th className="px-3 py-2.5 font-semibold">#</th>
-                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">SLD #</th>
-                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Citation</th>
-                        <th className="px-3 py-2.5 font-semibold">Court</th>
-                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Case No.</th>
-                        <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Date</th>
-                        <th className="px-3 py-2.5 font-semibold">Head Note</th>
-                        <th className="px-3 py-2.5 font-semibold text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {caseResults.map((c, i) => (
-                        <tr key={c.id || c._id || i} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                          <td className="px-3 py-2.5 text-gray-400">{i + 1}</td>
-                          <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
-                            {c.sldNumber || '—'}
-                          </td>
-                          <td className="px-3 py-2.5 whitespace-nowrap">
-                            {(Array.isArray(c.mapYearPage) ? c.mapYearPage : []).map((cit, j) => (
-                              <span key={j} className="inline-block mr-1 px-1.5 py-0.5 bg-[#a8cfe0]/50 dark:bg-blue-900/40 text-[#1e3a5a] dark:text-blue-200 rounded text-[11px] font-semibold">
-                                {cit}
-                              </span>
-                            ))}
-                          </td>
-                          <td className="px-3 py-2.5 text-gray-700 dark:text-gray-300 max-w-[170px] truncate">
-                            {c.court || '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400 max-w-[140px] truncate">
-                            {Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : (c.caseNumber || '—')}
-                          </td>
-                          <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                            {c.dated ? String(c.dated).split('T')[0] : '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[280px]">
-                            <p className="line-clamp-2">{c.headNote || '—'}</p>
-                          </td>
-                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => setViewId(c.id || c._id || c.sldNumber)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer"
-                                title="Quick Preview Case"
-                              >
-                                <Eye className="w-3 h-3" /> View
-                              </button>
-                              <a
-                                href={`/cases/view/${c.id || c._id || c.sldNumber}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                title="Open in new window"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+          {statuteResults.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+              <BookOpen className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+              <p className="text-sm font-medium">No Statute Provisions found matching this search criteria.</p>
+              <p className="text-xs text-gray-400 mt-1">Try selecting a different Law or entering broader section / text keywords.</p>
+              <button onClick={handleReset} className="mt-3 text-[#3d4a7a] dark:text-blue-400 hover:underline text-xs font-medium cursor-pointer">
+                Clear and try another search
+              </button>
             </div>
-          )}
-
-          {/* TAB 2: Statute Records View */}
-          {activeTab === 'statutes' && (
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="bg-[#3d4a7a] text-white">
-                    <th className="px-3 py-2.5 font-semibold">SR #</th>
+                    <th className="px-3 py-2.5 font-semibold">#</th>
+                    <th className="px-3 py-2.5 font-semibold">ID / SR #</th>
                     <th className="px-3 py-2.5 font-semibold">Law</th>
+                    <th className="px-3 py-2.5 font-semibold">Chapter</th>
                     <th className="px-3 py-2.5 font-semibold">Section</th>
                     <th className="px-3 py-2.5 font-semibold">Heading / Subject</th>
                     <th className="px-3 py-2.5 font-semibold">Department</th>
+                    <th className="px-3 py-2.5 font-semibold text-center">Attachment</th>
                     <th className="px-3 py-2.5 font-semibold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {statuteResults.map((s, idx) => (
-                    <tr key={s.id || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200">
-                        {s.srNumber || s.id}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 max-w-[200px]">
-                        {s.law || '—'}
-                      </td>
-                      <td className="px-3 py-2.5 font-medium text-brand-orange whitespace-nowrap">
-                        Section {s.section || '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[280px]">
-                        <p className="line-clamp-2">{s.heading || s.sectionHeading || '—'}</p>
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                        {s.department || 'Tax'}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        <button
-                          onClick={() => setViewStatute(s)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3" /> View Statute
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {statuteResults.map((s, idx) => {
+                    const hasAtt = (Array.isArray(s.attachments) && s.attachments.length > 0) ||
+                                   Boolean(s.attachment) ||
+                                   Boolean(s.attachmentName) ||
+                                   (Array.isArray(s.blocks) && s.blocks.some(b => Array.isArray(b?.attachments) ? b.attachments.length > 0 : Boolean(b?.attachment)));
+
+                    return (
+                      <tr key={s.id || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                        <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
+                        <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200">
+                          {s.srNumber || s.id}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 max-w-[200px] font-medium">
+                          {s.law || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                          {s.chapter || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 font-bold text-brand-orange whitespace-nowrap">
+                          Section {s.section || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[280px]">
+                          <p className="line-clamp-2">{s.heading || s.sectionHeading || '—'}</p>
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                          {s.department || 'Tax'}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {hasAtt ? (
+                            <button
+                              type="button"
+                              onClick={() => setViewStatute(s)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#7c4dff]/20 hover:bg-[#7c4dff]/30 text-[#651fff] dark:text-[#b388ff] border border-[#7c4dff]/40 shadow-sm transition-all cursor-pointer"
+                              title="View Attachment"
+                            >
+                              <Eye className="w-3 h-3 shrink-0" />
+                              <span>view</span>
+                            </button>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <a
+                            href={`/statutes/view/${s.mongoId || s._id || s.id || s.statuteId || s.srNumber}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
+                          >
+                            <Eye className="w-3 h-3" /> View Statute
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -507,9 +468,6 @@ const StatuteSearchPage = () => {
 
         </div>
       )}
-
-      {/* ── Case Document Full Preview Modal ─────────────────────────────── */}
-      <CaseDocumentModal caseId={viewId} onClose={() => setViewId(null)} />
 
       {/* ── Statute Details View Modal ───────────────────────────────────── */}
       <Modal
@@ -571,7 +529,26 @@ const StatuteSearchPage = () => {
                       <p className="font-bold text-gray-900 dark:text-white mb-1.5">{b.sectionHeading}</p>
                     )}
                     {b.detail && (
-                      <p className="whitespace-pre-line text-gray-700 dark:text-gray-300 leading-relaxed">{b.detail}</p>
+                      b.detail.includes('<') && b.detail.includes('>') ? (
+                        <div dangerouslySetInnerHTML={{ __html: b.detail }} className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed text-xs" />
+                      ) : (
+                        <p className="whitespace-pre-line text-gray-700 dark:text-gray-300 leading-relaxed">{b.detail}</p>
+                      )
+                    )}
+                    {Array.isArray(b.attachments) && b.attachments.length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
+                        {b.attachments.map((att, ai) => (
+                          <a 
+                            key={ai}
+                            href={att.url || `/uploads/${att.name}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 rounded text-[11px] font-medium transition-colors"
+                          >
+                            <span>{att.name || 'Attachment'}</span>
+                          </a>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ))}

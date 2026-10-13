@@ -1,7 +1,7 @@
 import express from 'express';
 import { 
-  getNotifications, getNotificationById, createNotification, 
-  updateNotification, deleteNotification 
+  getNotifications, getNotificationById, getNextNotificationSr,
+  createNotification, updateNotification, deleteNotification 
 } from '../controllers/notificationController.js';
 import { protect, requireAdmin, checkNotificationAccess } from '../middleware/authMiddleware.js';
 
@@ -9,6 +9,7 @@ const router = express.Router();
 
 router.use(protect, checkNotificationAccess);
 
+router.get('/next-sr', getNextNotificationSr);
 router.get('/', getNotifications);
 router.get('/:id', getNotificationById);
 
