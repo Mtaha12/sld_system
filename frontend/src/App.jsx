@@ -63,6 +63,7 @@ const NewsletterViewPage = lazy(() => import('./pages/NewsletterViewPage'))
 const ManageCustomTariffsPage = lazy(() => import('./pages/ManageCustomTariffsPage'))
 const ManageInvoicesPage = lazy(() => import('./pages/ManageInvoicesPage'))
 const OtherCaseLawsPage = lazy(() => import('./pages/OtherCaseLawsPage'))
+const OtherCaseDocumentRedirector = lazy(() => import('./pages/OtherCaseDocumentRedirector'))
 
 
 function App() {
@@ -181,6 +182,10 @@ function App() {
                 <Route path="/manage-other-cases" element={<Navigate to="/other-caselaws" replace />} />
               </Route>
             </Route>
+
+            {/* Direct Document Viewer Bridge for Production Vercel */}
+            <Route path="/api/other-cases/view-document" element={<OtherCaseDocumentRedirector />} />
+            <Route path="/other-cases/view-document" element={<OtherCaseDocumentRedirector />} />
 
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

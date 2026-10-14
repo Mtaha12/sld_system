@@ -18,8 +18,7 @@ import {
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
-import Pagination from '../../../components/ui/Pagination';
-import { otherCaseService } from '../services/otherCaseService';
+import { otherCaseService, getOtherCaseDocumentUrl } from '../services/otherCaseService';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = Boolean(sortKey && sortConfig?.key === sortKey);
@@ -175,11 +174,11 @@ const ManageOtherCasesTable = ({
                 </tr>
               ) : cases.length > 0 ? (
                 cases.map((item, idx) => {
-                  const targetDocId = item.mongoId || item.id || item.otherCaseId;
+                  const targetDocId = item.mongoId || item.id || item.otherCaseId || item.srNumber;
                   const hasDoc = (item.caseNoLink && item.caseNoLink.trim() && item.caseNoLink !== 'Nil') ||
                                  (item.downloadLink && item.downloadLink.trim() && item.downloadLink !== 'Nil') ||
                                  (item.attachment && item.attachment.trim() && item.attachment !== 'Nil');
-                  const documentUrl = hasDoc && targetDocId ? `/api/other-cases/view-document?id=${encodeURIComponent(targetDocId)}` : null;
+                  const documentUrl = hasDoc && targetDocId ? getOtherCaseDocumentUrl(targetDocId) : null;
 
                   return (
                     <tr 
@@ -364,7 +363,7 @@ const ManageOtherCasesTable = ({
                 <span className="text-[10px] text-theme-muted block font-semibold">Case No</span>
                 {(viewModalItem.caseNoLink || viewModalItem.downloadLink || viewModalItem.attachment) ? (
                   <a
-                    href={`/api/other-cases/view-document?id=${encodeURIComponent(viewModalItem.mongoId || viewModalItem.id || viewModalItem.otherCaseId)}`}
+                    href={getOtherCaseDocumentUrl(viewModalItem.mongoId || viewModalItem.id || viewModalItem.otherCaseId || viewModalItem.srNumber)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-mono text-blue-600 hover:underline inline-flex items-center gap-1 font-semibold"
@@ -421,7 +420,7 @@ const ManageOtherCasesTable = ({
                   </div>
                 </div>
                 <a
-                  href={`/api/other-cases/view-document?id=${encodeURIComponent(viewModalItem.mongoId || viewModalItem.id || viewModalItem.otherCaseId)}`}
+                  href={getOtherCaseDocumentUrl(viewModalItem.mongoId || viewModalItem.id || viewModalItem.otherCaseId || viewModalItem.srNumber)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3.5 py-1.5 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1.5 font-bold transition-colors shadow-xs"

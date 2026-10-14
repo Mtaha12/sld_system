@@ -371,6 +371,8 @@ export const viewOtherCaseDocument = async (req, res, next) => {
     const buffer = Buffer.from(await response.arrayBuffer());
 
     // CRITICAL: Content-Disposition must be "inline" so browser opens and views in tab WITHOUT downloading!
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Content-Type', contentType.includes('pdf') ? 'application/pdf' : contentType);
     res.setHeader('Content-Disposition', `inline; filename="${caseTitle}.pdf"`);
     res.setHeader('Content-Length', buffer.length);

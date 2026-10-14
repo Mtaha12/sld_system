@@ -1,4 +1,15 @@
-import api from '../../../services/api';
+import api, { API_URL } from '../../../services/api';
+
+/**
+ * Constructs the absolute backend URL for streaming judgment documents inline in a new tab.
+ * In production (Vercel), routes directly to the Hostinger VPS backend.
+ */
+export const getOtherCaseDocumentUrl = (targetDocId) => {
+  if (!targetDocId) return null;
+  const rawBase = (API_URL || '').trim().replace(/\/+$/, '');
+  const base = rawBase || (typeof window !== 'undefined' ? window.location.origin : '');
+  return `${base}/api/other-cases/view-document?id=${encodeURIComponent(targetDocId)}`;
+};
 
 export const otherCaseService = {
   getOtherCases: async (query = '', judge = '', page = 1, limit = 25, sortField = 'srNumber', sortOrder = 'asc') => {
@@ -27,7 +38,8 @@ export const otherCaseService = {
   deleteOtherCase: async (id) => {
     const res = await api.delete(`/api/other-cases/${id}`);
     return res.data;
-  }
+  },
+  getDocumentUrl: getOtherCaseDocumentUrl
 };
 
 export default otherCaseService;
