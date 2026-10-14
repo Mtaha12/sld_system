@@ -30,9 +30,25 @@ const Pagination = ({
   const startIdx = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const endIdx = Math.min(currentPage * itemsPerPage, totalItems);
 
+  const [jumpPage, setJumpPage] = React.useState(String(currentPage));
+
+  React.useEffect(() => {
+    setJumpPage(String(currentPage));
+  }, [currentPage]);
+
   const handlePageChange = (page) => {
     if (page >= 1 && page <= safeTotalPages && page !== currentPage) {
       onPageChange?.(page);
+    }
+  };
+
+  const handleJumpSubmit = (e) => {
+    if (e) e.preventDefault();
+    const parsed = parseInt(jumpPage, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= safeTotalPages) {
+      handlePageChange(parsed);
+    } else {
+      setJumpPage(String(currentPage));
     }
   };
 
@@ -103,6 +119,27 @@ const Pagination = ({
         >
           Last
         </button>
+
+        {/* Manual Page Number Input to directly jump to required page */}
+        <form onSubmit={handleJumpSubmit} className="flex items-center gap-1.5 ml-2 pl-2 border-l border-theme-border">
+          <span className="text-xs text-theme-muted font-medium">Page</span>
+          <input
+            type="number"
+            min={1}
+            max={safeTotalPages}
+            value={jumpPage}
+            onChange={(e) => setJumpPage(e.target.value)}
+            className="w-16 h-8 text-xs text-center border border-theme-border rounded bg-theme-surface text-theme-main focus:outline-none focus:border-brand-orange"
+            placeholder={String(currentPage)}
+          />
+          <span className="text-xs text-theme-muted">of {safeTotalPages}</span>
+          <button
+            type="submit"
+            className="px-2.5 h-8 flex items-center justify-center rounded text-xs font-semibold text-brand-orange border border-brand-orange/40 hover:bg-brand-orange/10 transition-colors cursor-pointer"
+          >
+            Go
+          </button>
+        </form>
       </div>
     </div>
   );

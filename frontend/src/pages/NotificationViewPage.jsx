@@ -250,7 +250,7 @@ const NotificationViewPage = () => {
               <span>Certified Official Notification • SLD System Legal Archives</span>
             </div>
             <div className="text-[11px] font-mono">
-              SLD System SMC Limited
+              SLD System (SMC-PVT) Limited
             </div>
           </footer>
 

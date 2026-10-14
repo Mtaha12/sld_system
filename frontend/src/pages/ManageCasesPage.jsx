@@ -212,7 +212,57 @@ const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '') => {
     return;
   }
 
-  const extension = format === 'word' ? 'doc' : format === 'excel' ? 'csv' : 'txt';
+  if (format === 'excel') {
+    const fileName = count === 1 
+      ? `SLD_Case_${caseItems[0].sldNumber || caseItems[0].id}.csv`
+      : `SLD_Cases_Export_${count}_Cases.csv`;
+
+    const headers = [
+      'SLD #',
+      'Dated',
+      'Year / Mag / Page',
+      'Court',
+      'Case Number',
+      'Judges',
+      'Lawyers',
+      'Petitioners',
+      'Head Note',
+      'Judgment Order'
+    ];
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = Array.isArray(val) ? val.join('; ') : String(val);
+      return '"' + str.replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
+    };
+
+    const rows = caseItems.map(c => [
+      escapeCsv(c.sldNumber),
+      escapeCsv(c.dated),
+      escapeCsv(Array.isArray(c.mapYearPage) ? c.mapYearPage.join(' | ') : (c.mapYearPage || '')),
+      escapeCsv(c.court),
+      escapeCsv(c.caseNumber),
+      escapeCsv(c.judges),
+      escapeCsv(c.lawyers),
+      escapeCsv(c.petitioners),
+      escapeCsv(c.headNote),
+      escapeCsv(c.judgment)
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  const extension = format === 'word' ? 'doc' : 'txt';
   const fileName = count === 1 
     ? `SLD_Case_${caseItems[0].sldNumber || caseItems[0].id}.${extension}`
     : `SLD_Cases_Export_${count}_Cases.${extension}`;
@@ -240,7 +290,7 @@ const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '') => {
     content += `------------------------------------------------------------------------\n\n`;
   });
 
-  const mimeType = format === 'word' ? 'application/msword' : format === 'excel' ? 'text/csv' : 'text/plain';
+  const mimeType = format === 'word' ? 'application/msword' : 'text/plain';
   const blob = new Blob([content], { type: `${mimeType};charset=utf-8;` });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -257,10 +307,27 @@ const downloadWordDocument = (caseItems, type = 'headnotes', customTitle = '') =
   if (count === 0) return;
 
   const isHeadNotes = type === 'headnotes';
-  const typeLabel = isHeadNotes ? 'HEAD NOTES & CITATIONS' : 'FULL JUDGMENT ORDERS';
   const firstSld = caseItems[0].sldNumber || caseItems[0].id || '1';
   const lastSld = caseItems[caseItems.length - 1].sldNumber || caseItems[caseItems.length - 1].id || count;
   const fileName = `SLD_${isHeadNotes ? 'HeadNotes' : 'Judgments'}_${firstSld}_to_${lastSld}.doc`;
+
+  const formatParagraphs = (rawText) => {
+    if (!rawText || !rawText.trim()) {
+      return '<p style="margin: 0 0 12pt 0; font-size: 11.5pt; line-height: 1.5; font-family: Calibri, Times New Roman, serif;">N/A</p>';
+    }
+    const paras = rawText
+      .split(/\r?\n+/)
+      .map(p => p.trim())
+      .filter(Boolean);
+    
+    if (paras.length === 0) {
+      return '<p style="margin: 0 0 12pt 0; font-size: 11.5pt; line-height: 1.5; font-family: Calibri, Times New Roman, serif;">N/A</p>';
+    }
+
+    return paras
+      .map(p => `<p style="margin: 0 0 12pt 0; font-size: 11.5pt; line-height: 1.5; text-align: justify; font-family: Calibri, Times New Roman, serif;">${p}</p>`)
+      .join('\n');
+  };
 
   let html = `
 <html xmlns:o="urn:schemas-microsoft-com:office:office" 
@@ -268,7 +335,7 @@ const downloadWordDocument = (caseItems, type = 'headnotes', customTitle = '') =
       xmlns="http://www.w3.org/TR/REC-html40">
 <head>
   <meta charset="utf-8">
-  <title>${customTitle || typeLabel}</title>
+  <title>${isHeadNotes ? 'Head Notes' : 'Judgment'}</title>
   <!--[if gte mso 9]>
   <xml>
     <w:WordDocument>
@@ -280,168 +347,37 @@ const downloadWordDocument = (caseItems, type = 'headnotes', customTitle = '') =
   <![endif]-->
   <style>
     body {
-      font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
-      font-size: 11pt;
-      line-height: 1.4;
-      color: #111827;
+      font-family: 'Calibri', 'Times New Roman', serif;
+      font-size: 11.5pt;
+      line-height: 1.5;
+      color: #000000;
       margin: 1in;
     }
-    .main-title {
-      font-size: 18pt;
-      font-weight: bold;
-      color: #E55C41;
-      text-align: center;
-      margin-bottom: 4pt;
-    }
-    .sub-title {
-      font-size: 11pt;
-      text-align: center;
-      color: #4B5563;
-      margin-bottom: 18pt;
-    }
-    .case-block {
-      page-break-after: always;
-      mso-break-type: section-break;
-      margin-bottom: 24pt;
-      border: 1pt solid #D1D5DB;
-      padding: 14pt;
-      background: #FFFFFF;
-    }
-    .case-block:last-child {
-      page-break-after: avoid;
-    }
-    .case-header {
-      font-size: 13pt;
-      font-weight: bold;
-      color: #E55C41;
-      border-bottom: 1.5pt solid #E55C41;
-      padding-bottom: 4pt;
-      margin-bottom: 10pt;
-    }
-    .meta-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 12pt;
-    }
-    .meta-table td {
-      border: 0.5pt solid #E5E7EB;
-      padding: 5pt 8pt;
-      font-size: 10pt;
-      vertical-align: top;
-    }
-    .meta-label {
-      background-color: #F3F4F6;
-      font-weight: bold;
-      width: 120pt;
-      color: #374151;
-    }
-    .section-box {
-      margin-top: 10pt;
-      margin-bottom: 12pt;
-      padding: 10pt;
-      background-color: #F9FAFB;
-      border-left: 3pt solid #E55C41;
-    }
-    .section-title {
-      font-size: 10.5pt;
-      font-weight: bold;
-      color: #E55C41;
-      text-transform: uppercase;
-      margin-bottom: 4pt;
-    }
-    .section-content {
-      font-size: 10.5pt;
-      color: #1F2937;
-      white-space: pre-wrap;
+    p {
+      margin: 0 0 12pt 0;
+      line-height: 1.5;
     }
   </style>
 </head>
 <body>
-  <div class="main-title">SUPREME LAW DIGEST (SLD) SYSTEM</div>
-  <div class="sub-title">${customTitle || typeLabel} • Total Cases: ${count} • Date: ${new Date().toLocaleDateString()}</div>
-  `;
+`;
 
-  caseItems.forEach((c, idx) => {
-    const caseNumStr = Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : (c.caseNumber || 'N/A');
-    const judgesStr = Array.isArray(c.judges) ? c.judges.join(' | ') : (c.judges || 'N/A');
-    const partiesStr = Array.isArray(c.petitioners) ? c.petitioners.join(' | ') : (c.petitioners || 'N/A');
-    const citationsStr = Array.isArray(c.mapYearPage) ? c.mapYearPage.join(' | ') : (c.mapYearPage || `SLD #${c.sldNumber}`);
+  caseItems.forEach((c) => {
+    const sldNum = c.sldNumber || c.id || '1';
+    const mainText = isHeadNotes ? (c.headNote || '') : (c.judgment || '');
 
     html += `
-    <div class="case-block">
-      <div class="case-header">
-        CASE #${idx + 1} — SLD #${c.sldNumber || 'N/A'} (Dated: ${c.dated || 'N/A'})
-      </div>
-
-      <table class="meta-table">
-        <tr>
-          <td class="meta-label">Court:</td>
-          <td><strong>${c.court || 'High Court of Record'}</strong></td>
-          <td class="meta-label">Case Number:</td>
-          <td>${caseNumStr}</td>
-        </tr>
-        <tr>
-          <td class="meta-label">Bench / Judges:</td>
-          <td colspan="3">${judgesStr}</td>
-        </tr>
-        <tr>
-          <td class="meta-label">Parties / Litigants:</td>
-          <td colspan="3">${partiesStr}</td>
-        </tr>
-        <tr>
-          <td class="meta-label">Official Citations:</td>
-          <td colspan="3"><strong>${citationsStr}</strong></td>
-        </tr>
-      </table>
-    `;
-
-    if (isHeadNotes) {
-      if (c.headNote) {
-        html += `
-        <div class="section-box">
-          <div class="section-title">Head Note</div>
-          <div class="section-content">${c.headNote}</div>
-        </div>
-        `;
-      }
-      if (c.principleLaw) {
-        html += `
-        <div class="section-box" style="border-left-color: #2563EB;">
-          <div class="section-title" style="color: #2563EB;">Principle of Law Established</div>
-          <div class="section-content">${c.principleLaw}</div>
-        </div>
-        `;
-      }
-      if (c.legalMaxim) {
-        html += `
-        <div class="section-box" style="border-left-color: #7C3AED;">
-          <div class="section-title" style="color: #7C3AED;">Legal Maxim</div>
-          <div class="section-content">${c.legalMaxim}</div>
-        </div>
-        `;
-      }
-      if (c.references) {
-        html += `
-        <div class="section-box" style="border-left-color: #4B5563;">
-          <div class="section-title" style="color: #4B5563;">Statutory References</div>
-          <div class="section-content">${c.references}</div>
-        </div>
-        `;
-      }
-    } else {
-      // Full Judgment Order
-      html += `
-      <div class="section-box" style="border-left-color: #059669; background-color: #F0FDF4;">
-        <div class="section-title" style="color: #059669;">Full Operative Judgment Order</div>
-        <div class="section-content" style="font-size: 10.5pt; line-height: 1.5;">${c.judgment || 'No judgment text recorded.'}</div>
-      </div>
-      `;
-    }
-
-    html += `</div>`;
+  <div style="margin-bottom: 24pt; ${count > 1 ? 'page-break-after: always; mso-break-type: section-break;' : ''}">
+    <p style="font-weight: bold; font-size: 13pt; margin: 0 0 12pt 0; color: #000000; font-family: Calibri, Times New Roman, serif;">SLD # ${sldNum}</p>
+    ${formatParagraphs(mainText)}
+  </div>
+`;
   });
 
-  html += `</body></html>`;
+  html += `
+</body>
+</html>
+`;
 
   const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -478,9 +414,9 @@ const ManageCasesPage = () => {
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const debounceTimerRef = useRef(null);
 
-  // State for currentPage, sort, and highlighted case
+  // State for currentPage, sort (default descending: last number on top), and highlighted case
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  const [sortConfig, setSortConfig] = useState({ key: 'sldNumber', direction: 'desc' });
   const [highlightedId, setHighlightedId] = useState(null);
 
   // Sync if URL search param updates
@@ -559,9 +495,13 @@ const ManageCasesPage = () => {
 
   // Export Modal State (when 0 cases are selected)
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportType, setExportType] = useState('range'); // 'range' | 'single'
+  const [exportFromSld, setExportFromSld] = useState('1');
+  const [exportToSld, setExportToSld] = useState('100');
   const [exportCaseNumber, setExportCaseNumber] = useState('');
   const [exportFormat, setExportFormat] = useState('pdf');
   const [exportError, setExportError] = useState('');
+  const [isExportingModal, setIsExportingModal] = useState(false);
 
   // Head Notes & Judgment & Get Case ID Modal States
   const [actionModal, setActionModal] = useState(null); // 'headNotes' | 'judgment' | 'getCaseId' | null
@@ -583,49 +523,113 @@ const ManageCasesPage = () => {
       setToastMessage(`Successfully exported ${selectedCases.length} selected case(s) as ${format.toUpperCase()}.`);
       setTimeout(() => setToastMessage(''), 4000);
     } else {
-      // 0 cases selected -> open dialogue box asking for Case Number
+      // 0 cases selected -> open dialogue box asking for Case Range or Number
       setExportFormat(format);
       setExportCaseNumber('');
+      setExportFromSld('1');
+      setExportToSld('100');
       setExportError('');
       setExportModalOpen(true);
     }
   };
 
   // Submit Export from Dialogue Box
-  const handleExportSubmit = (e) => {
+  const handleExportSubmit = async (e) => {
     e?.preventDefault();
     setExportError('');
 
-    if (!exportCaseNumber.trim()) {
-      setExportError('Please specify or select a Case Number or SLD # to export.');
-      return;
+    if (exportType === 'range') {
+      if (!exportFromSld.toString().trim() || !exportToSld.toString().trim()) {
+        setExportError('Please enter both From SLD # and To SLD #.');
+        return;
+      }
+
+      const fromNum = parseInt(exportFromSld.toString().trim(), 10);
+      const toNum = parseInt(exportToSld.toString().trim(), 10);
+
+      if (isNaN(fromNum) || isNaN(toNum)) {
+        setExportError('From SLD # and To SLD # must be valid numbers.');
+        return;
+      }
+
+      const minNum = Math.min(fromNum, toNum);
+      const maxNum = Math.max(fromNum, toNum);
+      const rangeCount = maxNum - minNum + 1;
+
+      setIsExportingModal(true);
+      try {
+        const response = await caseService.getCases({
+          fromSld: minNum,
+          toSld: maxNum,
+          fromNo: minNum,
+          toNo: maxNum,
+          limit: rangeCount,
+          sortField: 'sldNumber',
+          sortOrder: 'asc'
+        });
+        let rangeCases = (response.data || []).filter(c => {
+          const num = parseInt(c.sldNumber, 10);
+          return !isNaN(num) && num >= minNum && num <= maxNum;
+        });
+        rangeCases.sort((a, b) => (parseInt(a.sldNumber, 10) || 0) - (parseInt(b.sldNumber, 10) || 0));
+
+        if (rangeCases.length === 0) {
+          setExportError(`No cases found in range from SLD #${minNum} to #${maxNum}.`);
+          return;
+        }
+
+        downloadCaseExport(rangeCases, exportFormat);
+        setToastMessage(`Exported ${rangeCases.length} cases (SLD #${minNum} to #${maxNum}) as ${exportFormat.toUpperCase()}.`);
+        setExportModalOpen(false);
+        setTimeout(() => setToastMessage(''), 4000);
+      } catch (err) {
+        setExportError(`Export failed: ${err.message || 'Server error'}`);
+      } finally {
+        setIsExportingModal(false);
+      }
+    } else {
+      if (!exportCaseNumber.trim()) {
+        setExportError('Please specify or select a Case Number or SLD # to export.');
+        return;
+      }
+
+      const cleanInput = exportCaseNumber.trim();
+      setIsExportingModal(true);
+      try {
+        let matched = null;
+        try {
+          matched = await caseService.getCaseById(cleanInput);
+        } catch (apiErr) {
+          matched = cases.find(c => 
+            c.sldNumber === cleanInput || 
+            c.id.toString() === cleanInput ||
+            (Array.isArray(c.caseNumber) && c.caseNumber.some(n => n.toLowerCase().includes(cleanInput.toLowerCase())))
+          );
+        }
+
+        const exportTarget = matched || {
+          id: 9999,
+          sldNumber: cleanInput,
+          dated: new Date().toISOString().split('T')[0],
+          court: 'High Court / Supreme Court of Pakistan',
+          caseNumber: [cleanInput],
+          judges: ['Honorable Bench'],
+          lawyers: ['Advocates of Supreme Court'],
+          petitioners: ['Petitioner vs. Respondent'],
+          mapYearPage: [`2025 SLD ${cleanInput}`],
+          status: 'Active'
+        };
+
+        downloadCaseExport([exportTarget], exportFormat);
+        setToastMessage(`Case "${exportTarget.sldNumber || cleanInput}" exported successfully as ${exportFormat.toUpperCase()}.`);
+        setExportModalOpen(false);
+        setTimeout(() => setToastMessage(''), 4000);
+      } catch (err) {
+        setExportError(`Export failed: ${err.message || 'Server error'}`);
+      } finally {
+        setIsExportingModal(false);
+      }
     }
-
-    const cleanInput = exportCaseNumber.trim();
-    // Search for match in cases database
-    const matched = cases.find(c => 
-      c.sldNumber === cleanInput || 
-      c.id.toString() === cleanInput ||
-      (Array.isArray(c.caseNumber) && c.caseNumber.some(n => n.toLowerCase().includes(cleanInput.toLowerCase())))
-    );
-
-    const exportTarget = matched || {
-      id: 9999,
-      sldNumber: cleanInput,
-      dated: new Date().toISOString().split('T')[0],
-      court: 'High Court / Supreme Court of Pakistan',
-      caseNumber: [cleanInput],
-      judges: ['Honorable Bench'],
-      lawyers: ['Advocates of Supreme Court'],
-      petitioners: ['Petitioner vs. Respondent'],
-      mapYearPage: [`2025 SLD ${cleanInput}`],
-      status: 'Active'
-    };
-
-    downloadCaseExport([exportTarget], exportFormat);
-    setToastMessage(`Case "${exportTarget.sldNumber || cleanInput}" exported successfully as ${exportFormat.toUpperCase()}.`);
-    setExportModalOpen(false);
-    setTimeout(() => setToastMessage(''), 4000);
   };
 
   // Head Notes Action Handler
@@ -751,8 +755,9 @@ const ManageCasesPage = () => {
 
     const minNum = Math.min(fromNum, toNum);
     const maxNum = Math.max(fromNum, toNum);
+    const rangeCount = maxNum - minNum + 1;
 
-    if (maxNum - minNum > 500) {
+    if (rangeCount > 500) {
       setActionError('To ensure optimal speed, maximum range limit is 500 cases per export.');
       return;
     }
@@ -762,11 +767,19 @@ const ManageCasesPage = () => {
       const response = await caseService.getCases({
         fromNo: minNum,
         toNo: maxNum,
-        limit: Math.max(100, maxNum - minNum + 10)
+        fromSld: minNum,
+        toSld: maxNum,
+        limit: rangeCount,
+        sortField: 'sldNumber',
+        sortOrder: 'asc',
+        includeJudgment: actionModal === 'judgment' ? 'true' : 'false'
       });
-      let rangeCases = response.data || [];
+      let rangeCases = (response.data || []).filter(c => {
+        const num = parseInt(c.sldNumber, 10);
+        return !isNaN(num) && num >= minNum && num <= maxNum;
+      });
 
-      // Sort by sldNumber ascending
+      // Sort by sldNumber ascending so SLD # 1 comes before SLD # 2
       rangeCases.sort((a, b) => (parseInt(a.sldNumber, 10) || 0) - (parseInt(b.sldNumber, 10) || 0));
 
       if (rangeCases.length === 0) {
@@ -834,36 +847,47 @@ const ManageCasesPage = () => {
       </div>
 
       <AdminFooter />
-
       {/* Export Case Dialogue Box (When No Case Selected) */}
       <Modal
         isOpen={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
         title="Export Case Law"
-        subtitle="Specify a Case Number or SLD # to export"
+        subtitle="Specify SLD Range or Single Case to export"
         icon={Download}
         maxWidth="max-w-lg"
         footer={
           <>
             <Button 
               variant="outline" 
-              size="sm"
+              size="sm" 
               onClick={() => setExportModalOpen(false)}
+              disabled={isExportingModal}
             >
               Cancel
             </Button>
             <Button 
               variant="primary" 
-              size="sm"
+              size="sm" 
               className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-1.5"
               onClick={handleExportSubmit}
+              disabled={isExportingModal}
             >
-              <Download className="w-4 h-4" /> Export Case
+              {isExportingModal ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>Exporting...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" /> 
+                  <span>Export Case{exportType === 'range' ? 's' : ''}</span>
+                </>
+              )}
             </Button>
           </>
         }
       >
-        <form onSubmit={handleExportSubmit} className="space-y-5">
+        <form onSubmit={handleExportSubmit} className="space-y-4">
           {exportError && (
             <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -871,44 +895,128 @@ const ManageCasesPage = () => {
             </div>
           )}
 
-          <div className="space-y-2">
-            <FormField label="Case Number or SLD #" required>
-              <Input 
-                value={exportCaseNumber}
-                onChange={(e) => {
-                  setExportCaseNumber(e.target.value);
-                  if (exportError) setExportError('');
-                }}
-                placeholder="e.g. 1629516 or C.P.L.A.3458-K/2022"
-                required
-                autoFocus
-              />
-            </FormField>
+          {/* Mode Selector: Range vs Single */}
+          <div className="flex rounded-lg p-1 bg-theme-surface-alt/70 border border-theme-border">
+            <button
+              type="button"
+              onClick={() => { setExportType('range'); setExportError(''); }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                exportType === 'range' 
+                  ? 'bg-brand-orange text-white shadow-xs' 
+                  : 'text-theme-muted hover:text-theme-main'
+              }`}
+            >
+              SLD # Range (From — To)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setExportType('single'); setExportError(''); }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                exportType === 'single' 
+                  ? 'bg-brand-orange text-white shadow-xs' 
+                  : 'text-theme-muted hover:text-theme-main'
+              }`}
+            >
+              Single Case / SLD #
+            </button>
+          </div>
 
-            {/* Quick Suggestions from available cases */}
-            <div className="pt-1">
-              <span className="text-[11px] text-theme-muted font-medium block mb-1.5">Quick select from database:</span>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                {cases.slice(0, 8).map(c => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setExportCaseNumber(c.sldNumber);
+          {exportType === 'range' ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="From SLD #" required>
+                  <Input 
+                    type="number"
+                    value={exportFromSld}
+                    onChange={(e) => {
+                      setExportFromSld(e.target.value);
                       if (exportError) setExportError('');
                     }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                      exportCaseNumber === c.sldNumber
-                        ? 'bg-brand-orange text-white border-brand-orange'
-                        : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border-theme-border'
-                    }`}
-                  >
-                    SLD #{c.sldNumber}
-                  </button>
-                ))}
+                    placeholder="e.g. 1"
+                    required
+                    autoFocus
+                  />
+                </FormField>
+                <FormField label="To SLD #" required>
+                  <Input 
+                    type="number"
+                    value={exportToSld}
+                    onChange={(e) => {
+                      setExportToSld(e.target.value);
+                      if (exportError) setExportError('');
+                    }}
+                    placeholder="e.g. 100"
+                    required
+                  />
+                </FormField>
+              </div>
+
+              {/* Quick Range Suggestions */}
+              <div>
+                <span className="text-[11px] text-theme-muted font-medium block mb-1.5">Quick Range Suggestions:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { from: '1', to: '50' },
+                    { from: '1', to: '100' },
+                    { from: '101', to: '200' },
+                    { from: '165200', to: '165281' }
+                  ].map((r, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => {
+                        setExportFromSld(r.from);
+                        setExportToSld(r.to);
+                        if (exportError) setExportError('');
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium border bg-theme-surface-alt/60 hover:bg-brand-orange hover:text-white hover:border-brand-orange text-theme-main border-theme-border transition-colors cursor-pointer"
+                    >
+                      #{r.from} - #{r.to}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <FormField label="Case Number or SLD #" required>
+                <Input 
+                  value={exportCaseNumber}
+                  onChange={(e) => {
+                    setExportCaseNumber(e.target.value);
+                    if (exportError) setExportError('');
+                  }}
+                  placeholder="e.g. 1629516 or C.P.L.A.3458-K/2022"
+                  required
+                  autoFocus
+                />
+              </FormField>
+
+              {/* Quick Suggestions from available cases */}
+              <div className="pt-1">
+                <span className="text-[11px] text-theme-muted font-medium block mb-1.5">Quick select from database:</span>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                  {cases.slice(0, 8).map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setExportCaseNumber(c.sldNumber);
+                        if (exportError) setExportError('');
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                        exportCaseNumber === c.sldNumber
+                          ? 'bg-brand-orange text-white border-brand-orange'
+                          : 'bg-theme-surface-alt/60 hover:bg-theme-surface-alt text-theme-main border-theme-border'
+                      }`}
+                    >
+                      SLD #{c.sldNumber}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Format Selection Cards */}
           <div className="space-y-2">

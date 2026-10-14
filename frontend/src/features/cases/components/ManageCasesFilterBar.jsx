@@ -134,7 +134,11 @@ const ManageCasesFilterBar = ({
         <div className="relative w-full sm:w-[150px] shrink-0">
           <select 
             value={magazine}
-            onChange={(e) => setMagazine(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setMagazine(val);
+              onSearch?.({ subject, fromYear, toYear, magazine: val });
+            }}
             className="w-full pl-3 pr-9 py-2.5 border border-theme-border rounded-lg text-sm appearance-none focus:outline-none focus:border-brand-orange bg-theme-surface text-theme-main shadow-sm cursor-pointer"
           >
             <option value="">Magazine</option>

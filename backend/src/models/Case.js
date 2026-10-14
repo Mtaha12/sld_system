@@ -41,7 +41,6 @@ const caseSchema = new mongoose.Schema({
     type: String,
     required: false,
     trim: true,
-    index: true,
   },
   sldNumberInt: {
     type: Number,
@@ -161,6 +160,17 @@ caseSchema.index({
   references: 'text',
   principleLaw: 'text',
 });
+caseSchema.index(
+  { sldNumber: 1 }, 
+  { 
+    unique: true, 
+    sparse: true,
+    partialFilterExpression: { 
+      isDeleted: { $ne: true }, 
+      sldNumber: { $type: 'string', $gt: '' } 
+    } 
+  }
+);
 caseSchema.index({ isDeleted: 1, sldNumberInt: -1 });
 caseSchema.index({ isDeleted: 1, sldNumberInt: 1 });
 caseSchema.index({ isDeleted: 1, sldNumberInt: -1, sldNumber: -1 });

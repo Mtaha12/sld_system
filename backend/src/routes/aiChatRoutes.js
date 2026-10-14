@@ -11,12 +11,10 @@ import {
 
 const router = express.Router();
 
-// Direct legal query endpoint (open for AI search and testing)
-router.post('/query', queryLegalCore);
-
-// Session endpoints require authentication
+// All AI chat routes require authentication
 router.use(protect);
 
+router.post('/query', queryLegalCore);
 router.post('/sessions', createSession);
 router.get('/sessions', getUserSessions);
 router.get('/sessions/:sessionId', getSessionById);

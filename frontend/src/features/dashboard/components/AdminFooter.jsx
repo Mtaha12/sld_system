@@ -2,7 +2,7 @@ const AdminFooter = () => {
   return (
     <footer className="mt-6 flex flex-col sm:flex-row items-center justify-between text-xs py-4 border-t border-theme-border gap-2">
       <p className="font-bold text-theme-main tracking-tight">
-        SLD System SMC Limited
+        SLD System (SMC-PVT) Limited
       </p>
       <p className="text-xs text-theme-muted font-medium">
         Powered and Designed by{' '}

@@ -5,11 +5,15 @@ import {
   getOtherCaseLawById,
   createOtherCaseLaw,
   updateOtherCaseLaw,
-  deleteOtherCaseLaw
+  deleteOtherCaseLaw,
+  viewOtherCaseDocument
 } from '../controllers/otherCaseLawController.js';
 import { protect, requireAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+// Public / inline document stream for new tab viewing without download
+router.get('/view-document', viewOtherCaseDocument);
 
 router.use(protect);
 

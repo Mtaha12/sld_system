@@ -468,48 +468,61 @@ RESPONSE RULES — follow these strictly:
 
 6. TONE: Professional, clear, helpful. No filler phrases. No "Great question!". No "I hope this helps!".`;
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-    let response;
-    try {
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: systemPrompt + "\n\nUser Question: " + message.trim()
-                  }
-                ]
-              }
-            ]
-          })
+    const candidateModels = [
+      process.env.GEMINI_MODEL,
+      'gemini-3.5-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-3.8-flash'
+    ].filter(Boolean);
+
+    let replyText = null;
+    let lastError = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: AbortSignal.timeout(12000),
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: systemPrompt + "\n\nUser Question: " + message.trim()
+                    }
+                  ]
+                }
+              ]
+            })
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (replyText) break;
+        } else {
+          const errText = await response.text();
+          logger.warn(`[Gemini Model ${modelName} Warning] Status: ${response.status}. Body: ${errText.slice(0, 100)}`);
         }
-      );
-    } catch (fetchError) {
-      logger.error(`[Gemini API Request Error] ${fetchError.message}`);
-      return res.status(504).json({
-        success: false,
-        message: 'The assistant timed out while processing your request. Please try again.'
-      });
+      } catch (err) {
+        logger.warn(`[Gemini Model ${modelName} Error] ${err.message}`);
+        lastError = err;
+      }
     }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      logger.error(`[Gemini API Error] Status: ${response.status}. Body: ${errText}`);
+    if (!replyText) {
       return res.status(503).json({
         success: false,
         message: 'The assistant is temporarily unavailable. Please try again in a moment.'
       });
     }
 
-    const data = await response.json();
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I apologize, but I could not formulate a response. Please try again.";
     const cleanReply = replyText.trim();
 
     // Cache the response

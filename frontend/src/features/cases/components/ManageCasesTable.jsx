@@ -135,7 +135,7 @@ const ManageCasesTable = ({
   const [attachmentModalCase, setAttachmentModalCase] = useState(null);
   const [activeCaseAttachments, setActiveCaseAttachments] = useState([]);
   const [previewAttachment, setPreviewAttachment] = useState(null);
-  const [internalSortConfig, setInternalSortConfig] = useState({ key: null, direction: null });
+  const [internalSortConfig, setInternalSortConfig] = useState({ key: 'sldNumber', direction: 'desc' });
 
   // Edit Judgment Only Modal States
   const [editJudgmentCase, setEditJudgmentCase] = useState(null);
@@ -269,12 +269,24 @@ const ManageCasesTable = ({
   };
 
   const sortedCases = useMemo(() => {
-    if (!sortConfig.key || !sortConfig.direction) return cases;
+    // Ensure all items are uniquely keyed by id or sldNumber to prevent duplicate rows
+    const seen = new Set();
+    const uniqueList = [];
+    for (const item of (cases || [])) {
+      if (!item) continue;
+      const uid = String(item.id || item._id || item.sldNumber || Math.random());
+      if (!seen.has(uid)) {
+        seen.add(uid);
+        uniqueList.push(item);
+      }
+    }
+
+    if (!sortConfig.key || !sortConfig.direction) return uniqueList;
 
     const { key, direction } = sortConfig;
     const isAsc = direction === 'asc';
 
-    return [...cases].sort((a, b) => {
+    return [...uniqueList].sort((a, b) => {
       let valA = a[key];
       let valB = b[key];
 

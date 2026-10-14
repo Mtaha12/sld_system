@@ -19,14 +19,11 @@ export const caseService = {
    */
   getCases: async (params = {}) => {
     const query = new URLSearchParams();
-    if (params.page) query.set('page', params.page);
-    if (params.limit) query.set('limit', params.limit);
-    if (params.subject) query.set('subject', params.subject);
-    if (params.fromDate) query.set('fromDate', params.fromDate);
-    if (params.toDate) query.set('toDate', params.toDate);
-    if (params.magazine) query.set('magazine', params.magazine);
-    if (params.sortField) query.set('sortField', params.sortField);
-    if (params.sortOrder) query.set('sortOrder', params.sortOrder);
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.set(key, String(val).trim());
+      }
+    });
     const qs = query.toString();
     const response = await api.get(`/api/cases${qs ? `?${qs}` : ''}`);
     return response.data;

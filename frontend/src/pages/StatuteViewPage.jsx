@@ -238,7 +238,7 @@ const StatuteViewPage = () => {
               <span>Certified Official Legal Provision • SLD System Repository</span>
             </div>
             <div className="text-[11px] font-mono">
-              SLD System SMC Limited
+              SLD System (SMC-PVT) Limited
             </div>
           </footer>
 

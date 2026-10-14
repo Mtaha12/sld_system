@@ -175,9 +175,11 @@ const ManageOtherCasesTable = ({
                 </tr>
               ) : cases.length > 0 ? (
                 cases.map((item, idx) => {
-                  const caseLink = item.caseNoLink && item.caseNoLink.trim() && item.caseNoLink !== 'Nil' ? item.caseNoLink : null;
-                  const hasDownload = item.downloadLink && item.downloadLink.trim() && item.downloadLink !== 'Nil';
-                  const downloadLink = hasDownload ? item.downloadLink : null;
+                  const targetDocId = item.mongoId || item.id || item.otherCaseId;
+                  const hasDoc = (item.caseNoLink && item.caseNoLink.trim() && item.caseNoLink !== 'Nil') ||
+                                 (item.downloadLink && item.downloadLink.trim() && item.downloadLink !== 'Nil') ||
+                                 (item.attachment && item.attachment.trim() && item.attachment !== 'Nil');
+                  const documentUrl = hasDoc && targetDocId ? `/api/other-cases/view-document?id=${encodeURIComponent(targetDocId)}` : null;
 
                   return (
                     <tr 
@@ -194,21 +196,29 @@ const ManageOtherCasesTable = ({
                         {item.citation || 'Nil'}
                       </td>
 
-                      {/* C: Case No. (Hyperlink enabled) */}
+                      {/* C: Case No. (Opens document directly in new tab without download) */}
                       <td className="px-3 py-2 font-medium text-[11px] border-r border-theme-border/40">
-                        {caseLink ? (
+                        {documentUrl ? (
                           <a
-                            href={caseLink}
+                            href={documentUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 group font-mono font-medium"
-                            title={`Open case record in new tab: ${item.caseNo}`}
+                            className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 group font-mono font-medium cursor-pointer text-left"
+                            title={`Open full judgment document in next tab: ${item.caseNo}`}
+                          >
+                            <span>{item.caseNo}</span>
+                            <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 shrink-0 text-blue-500" />
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setViewModalItem(item)}
+                            className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 group font-mono font-medium cursor-pointer text-left"
+                            title={`Open case details: ${item.caseNo}`}
                           >
                             <span>{item.caseNo}</span>
                             <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 shrink-0" />
-                          </a>
-                        ) : (
-                          <span className="font-mono text-gray-800 dark:text-gray-200">{item.caseNo}</span>
+                          </button>
                         )}
                       </td>
 
@@ -253,18 +263,18 @@ const ManageOtherCasesTable = ({
                         {item.apexStatus || '-'}
                       </td>
 
-                      {/* K: Downloads (Show option only if entry exists, else show —) */}
+                      {/* K: Downloads (View Document in new tab without downloading) */}
                       <td className="px-3 py-2 text-center whitespace-nowrap border-r border-theme-border/40">
-                        {downloadLink ? (
+                        {documentUrl ? (
                           <a
-                            href={downloadLink}
+                            href={documentUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-cyan-600 dark:text-cyan-400 hover:underline font-mono text-[11px] inline-flex items-center gap-1 cursor-pointer font-bold"
-                            title={`Download Judgment for ${item.caseNo}`}
+                            className="text-emerald-700 dark:text-emerald-400 hover:underline font-mono text-[11px] inline-flex items-center gap-1 cursor-pointer font-bold"
+                            title={`View Full Document for ${item.caseNo}`}
                           >
                             <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                            <span>Download PDF</span>
+                            <span>View Document</span>
                           </a>
                         ) : (
                           <span className="text-theme-disabled font-bold text-sm select-none">—</span>
@@ -352,9 +362,16 @@ const ManageOtherCasesTable = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border">
               <div>
                 <span className="text-[10px] text-theme-muted block font-semibold">Case No</span>
-                {viewModalItem.caseNoLink ? (
-                  <a href={viewModalItem.caseNoLink} target="_blank" rel="noopener noreferrer" className="font-mono text-blue-600 hover:underline">
-                    {viewModalItem.caseNo}
+                {(viewModalItem.caseNoLink || viewModalItem.downloadLink || viewModalItem.attachment) ? (
+                  <a
+                    href={`/api/other-cases/view-document?id=${encodeURIComponent(viewModalItem.mongoId || viewModalItem.id || viewModalItem.otherCaseId)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-blue-600 hover:underline inline-flex items-center gap-1 font-semibold"
+                    title="Open document in new tab"
+                  >
+                    <span>{viewModalItem.caseNo}</span>
+                    <ExternalLink className="w-3 h-3 text-blue-500" />
                   </a>
                 ) : (
                   <span className="font-mono text-theme-main">{viewModalItem.caseNo}</span>
@@ -394,7 +411,7 @@ const ManageOtherCasesTable = ({
               </div>
             )}
 
-            {(viewModalItem.downloadLink || viewModalItem.caseNoLink) && (
+            {(viewModalItem.downloadLink || viewModalItem.caseNoLink || viewModalItem.attachment) && (
               <div className="p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-red-500" />
@@ -404,12 +421,12 @@ const ManageOtherCasesTable = ({
                   </div>
                 </div>
                 <a
-                  href={viewModalItem.downloadLink || viewModalItem.caseNoLink}
+                  href={`/api/other-cases/view-document?id=${encodeURIComponent(viewModalItem.mongoId || viewModalItem.id || viewModalItem.otherCaseId)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3.5 py-1.5 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1.5 font-bold transition-colors shadow-xs"
                 >
-                  <DownloadCloud className="w-3.5 h-3.5" /> Download Order PDF
+                  <ExternalLink className="w-3.5 h-3.5" /> View Full Document
                 </a>
               </div>
             )}

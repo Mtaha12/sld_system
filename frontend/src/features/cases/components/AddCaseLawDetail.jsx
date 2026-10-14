@@ -114,6 +114,9 @@ const AddCaseLawDetail = ({ onClose }) => {
 
   const [currentCaseId, setCurrentCaseId] = useState(editData?.id || editData?._id || null);
   const isEdit = Boolean(currentCaseId || isNavEdit);
+  const [assignedSldNumber, setAssignedSldNumber] = useState(editData?.sldNumber ? String(editData.sldNumber) : '');
+  const [loadSldInput, setLoadSldInput] = useState('');
+  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
   const [loadingCase, setLoadingCase] = useState(false);
   const [loadFeedback, setLoadFeedback] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -424,7 +427,7 @@ const AddCaseLawDetail = ({ onClose }) => {
    * Loads case directly by SLD number from API without moving back
    */
   const loadCaseBySld = useCallback(async (targetSld) => {
-    const cleanSld = String(targetSld ?? getValues('srNumber') ?? '').trim();
+    const cleanSld = String(targetSld ?? loadSldInput ?? getValues('srNumber') ?? '').trim();
     if (!cleanSld) return;
 
     setLoadingCase(true);
@@ -434,6 +437,8 @@ const AddCaseLawDetail = ({ onClose }) => {
       const caseData = await caseService.getCaseBySld(cleanSld);
       if (caseData) {
         applyCaseToForm(caseData);
+        setAssignedSldNumber(String(caseData.sldNumber || cleanSld));
+        setLoadSldInput(String(cleanSld));
         if (searchParams.get('sld') !== cleanSld) {
           setSearchParams({ sld: cleanSld }, { replace: true });
         }
@@ -446,6 +451,7 @@ const AddCaseLawDetail = ({ onClose }) => {
       console.warn(`[Case Load] SLD #${cleanSld} lookup notice:`, err?.response?.data?.message || err.message);
       // Not found in database — keep the SLD # and clear other fields to allow creating new record
       setCurrentCaseId(null);
+      setAssignedSldNumber(cleanSld);
       reset({
         ...getInitialValues(null),
         srNumber: cleanSld
@@ -461,16 +467,16 @@ const AddCaseLawDetail = ({ onClose }) => {
       setLoadingCase(false);
       setTimeout(() => setLoadFeedback(null), 6000);
     }
-  }, [getValues, applyCaseToForm, reset, searchParams, setSearchParams]);
+  }, [getValues, applyCaseToForm, reset, searchParams, setSearchParams, loadSldInput]);
 
   /**
    * Step to previous or next SLD number
    */
   const handleStepSld = (delta) => {
-    const rawVal = getValues('srNumber');
-    const currentNum = parseInt(rawVal || '1', 10);
+    const rawVal = loadSldInput.trim() || assignedSldNumber || getValues('srNumber') || '1';
+    const currentNum = parseInt(rawVal, 10);
     const nextNum = Math.max(1, (isNaN(currentNum) ? 1 : currentNum) + delta);
-    setValue('srNumber', String(nextNum));
+    setLoadSldInput(String(nextNum));
     loadCaseBySld(nextNum);
   };
 
@@ -481,17 +487,22 @@ const AddCaseLawDetail = ({ onClose }) => {
 
     const sldQuery = searchParams.get('sld');
     if (sldQuery) {
+      setLoadSldInput(sldQuery);
       loadCaseBySld(sldQuery);
     } else if (editData) {
       applyCaseToForm(editData);
-      if (editData.sldNumber && searchParams.get('sld') !== String(editData.sldNumber)) {
-        setSearchParams({ sld: String(editData.sldNumber) }, { replace: true });
+      if (editData.sldNumber) {
+        setAssignedSldNumber(String(editData.sldNumber));
+        if (searchParams.get('sld') !== String(editData.sldNumber)) {
+          setSearchParams({ sld: String(editData.sldNumber) }, { replace: true });
+        }
       }
     } else if (!isNavEdit) {
       // Auto-suggest next SLD # and next page for new case entry!
       caseService.getNextSld()
         .then(res => {
           if (res?.nextSld) {
+            setAssignedSldNumber(String(res.nextSld));
             setValue('srNumber', String(res.nextSld), { shouldDirty: false });
           }
         })
@@ -540,6 +551,8 @@ const AddCaseLawDetail = ({ onClose }) => {
   };
 
   const onSubmit = async (data) => {
+    if (isSubmittingManual) return;
+    setIsSubmittingManual(true);
     try {
       if (currentCaseId) {
         await caseService.updateCase(currentCaseId, data);
@@ -556,6 +569,8 @@ const AddCaseLawDetail = ({ onClose }) => {
     } catch (error) {
       console.error('[Case Submit Error]', error);
       alert(error.response?.data?.message || 'Failed to save case law record.');
+    } finally {
+      setIsSubmittingManual(false);
     }
   };
 
@@ -616,25 +631,42 @@ const AddCaseLawDetail = ({ onClose }) => {
 
         <form id="case-law-form" onSubmit={handleSubmit(onSubmit)} className="space-y-3">
           
-          {/* Case Information — SLD#, Date, Court with Quick-Change Controls */}
+          {/* Case Information — Assigned SLD#, Load Case, Date, Court with Quick-Change Controls */}
           <FormSection compact>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
               
-              {/* SLD # with Fast Lookup & Stepper */}
-              <div className="md:col-span-4">
+              {/* Separate Block 1: Assigned SLD # (Always non-editable in Add Record) */}
+              <div className="md:col-span-2">
                 <FormField label="SLD #" required>
+                  <Input
+                    variant="light"
+                    inputSize="sm"
+                    readOnly
+                    disabled
+                    value={assignedSldNumber || '...'}
+                    className="bg-gray-100 dark:bg-gray-800 text-brand-orange font-bold cursor-not-allowed select-none"
+                  />
+                  <input type="hidden" {...register('srNumber')} />
+                </FormField>
+              </div>
+
+              {/* Separate Block 2: Load Existing Record (Blank by default) */}
+              <div className="md:col-span-4">
+                <FormField label="Load Record (SLD #)">
                   <div className="flex items-center gap-1.5">
                     <div className="relative flex-1">
                       <Input 
                         variant="light" 
                         inputSize="sm" 
-                        placeholder="e.g. 1" 
-                        error={errors.srNumber}
-                        {...register('srNumber')}
+                        placeholder="Enter SLD # to load..." 
+                        value={loadSldInput}
+                        onChange={(e) => setLoadSldInput(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            loadCaseBySld(e.currentTarget.value);
+                            if (loadSldInput.trim()) {
+                              loadCaseBySld(loadSldInput.trim());
+                            }
                           }
                         }}
                       />
@@ -669,8 +701,12 @@ const AddCaseLawDetail = ({ onClose }) => {
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => loadCaseBySld()}
-                        disabled={loadingCase}
+                        onClick={() => {
+                          if (loadSldInput.trim()) {
+                            loadCaseBySld(loadSldInput.trim());
+                          }
+                        }}
+                        disabled={loadingCase || !loadSldInput.trim()}
                         className="h-[34px] text-xs px-2.5 border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 font-semibold"
                       >
                         {loadingCase ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Load'}
@@ -711,7 +747,7 @@ const AddCaseLawDetail = ({ onClose }) => {
               </div>
 
               {/* Court */}
-              <div className="md:col-span-5">
+              <div className="md:col-span-3">
                 <FormField label="Court">
                   <Input
                     variant="light" 
@@ -849,12 +885,13 @@ const AddCaseLawDetail = ({ onClose }) => {
               </FormField>
             </div>
 
-            {/* Row 2: Petitioners + Lawyers */}
+            {/* Row 2: Petitioners + Lawyers (Doubled size) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               <FormField label="Petitioners">
                 <Textarea 
                   placeholder="Enter petitioners..."
-                  minHeight="64px"
+                  minHeight="140px"
+                  rows={5}
                   className="text-sm"
                   {...register('petitioners')}
                 />
@@ -862,7 +899,8 @@ const AddCaseLawDetail = ({ onClose }) => {
               <FormField label="Lawyers">
                 <Textarea 
                   placeholder="Enter lawyers..."
-                  minHeight="64px"
+                  minHeight="140px"
+                  rows={5}
                   className="text-sm"
                   {...register('lawyers')}
                 />

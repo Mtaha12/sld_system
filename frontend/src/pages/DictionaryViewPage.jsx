@@ -202,7 +202,7 @@ const DictionaryViewPage = () => {
               <span>SLD Comprehensive Legal Dictionary • Certified Definition</span>
             </div>
             <div className="text-[11px] font-mono">
-              SLD System SMC Limited
+              SLD System (SMC-PVT) Limited
             </div>
           </footer>
 

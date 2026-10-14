@@ -958,8 +958,16 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
   }
 
   // Fast, officially supported Gemini models with timeout guard
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-  const models = [primaryModel, 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash'].filter((v, i, a) => a.indexOf(v) === i);
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  const models = [
+    primaryModel,
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash'
+  ].filter((v, i, a) => a.indexOf(v) === i);
   let lastError = null;
 
   for (const model of models) {
