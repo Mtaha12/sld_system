@@ -18,6 +18,7 @@ import {
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
+import Pagination from '../../../components/ui/Pagination';
 import { otherCaseService, getOtherCaseDocumentUrl } from '../services/otherCaseService';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {

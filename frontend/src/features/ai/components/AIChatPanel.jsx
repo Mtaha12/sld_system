@@ -562,7 +562,7 @@ th { background-color: #f2f2f2; font-weight: bold; }
                   )}
 
                   {/* Single Case Headnote Card (when case law is matched and NOT already rendered in text above) */}
-                  {!isUser && matched && !isMultiCase && !msg.text?.includes('CASE RECORD VERIFIED') && !msg.text?.includes('Case Record Verified') && !msg.text?.includes('Key Case Details') && !msg.text?.includes('KEY CASE DETAILS') && (
+                  {!isUser && matched && !isMultiCase && !msg.text?.includes('CASE RECORD VERIFIED') && !msg.text?.includes('Case Record Verified') && !msg.text?.includes('Key Case Details') && !msg.text?.includes('KEY CASE DETAILS') && !msg.text?.includes('Superior Courts Judicial Archive Record') && analysis?.matchType !== 'superior_court_case' && (matched.sldNumber || matched.id) && (
                     <div className="bg-white dark:bg-[#131620] border border-amber-500/30 rounded-xl p-4 sm:p-5 shadow-md space-y-3.5 animate-fade-in">
                       
                       {/* Header Strip with SLD Badge & Court */}

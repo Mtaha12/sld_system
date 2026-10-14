@@ -75,15 +75,21 @@ export const checkIsLegalDraftingRequest = (text, attachments = []) => {
   if (!text || typeof text !== 'string') return false;
   const t = text.toLowerCase();
 
+  // If the user is specifically looking for case laws, judgments, or legal rulings,
+  // DO NOT hijack their query as a pleading drafting request!
+  const isCaseResearchQuery = /\b(?:judg(?:e)?ments?|cases?|precedents?|rulings?|authorit(?:y|ies))\b/i.test(t);
+  const isExplicitDraftAction = /\b(?:draft\s+(?:a\s+)?(?:petition|appeal|writ|pleading|notice|stay)|generate\s+(?:a\s+)?(?:petition|appeal|writ|pleading)|prepare\s+(?:a\s+)?(?:petition|appeal|writ|pleading)|format\s+[123]|vakalatnama|pleading\s+format)\b/i.test(t);
+  if (isCaseResearchQuery && !isExplicitDraftAction) {
+    return false;
+  }
+
   const draftingKeywords = [
     'format 1', 'format 2', 'format 3',
     'writ petition', 'article 199', 'petition under article 199',
     'stay petition', 'stay application', 'cm stay', 'c.m stay',
     'exemption petition', 'application for exemption', 'vakalatnama', 'vakalat nama',
-    'form b', 'form "b"', 'section 46', 'sales tax act 1990', 'appellate tribunal inland revenue',
-    'atir', 'appeal to appellate tribunal',
-    'it-16', 'it 16', 'form of appeal it', 'commissioner of income tax (appeals)',
-    'commissioner appeals', 'cit appeals', 'wealth tax appeal',
+    'form b', 'form "b"', 'appeal to appellate tribunal',
+    'it-16', 'it 16', 'form of appeal it', 'wealth tax appeal',
     'generate petition', 'generate appeal', 'draft petition', 'draft appeal',
     'draft a writ', 'generate writ', 'prepare petition', 'prepare appeal',
     'draft legal notice', 'pleading format', 'draft stay application'
