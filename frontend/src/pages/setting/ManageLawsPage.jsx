@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   FileText, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, RefreshCw, ChevronUp, ChevronDown, Calendar
+  Check, AlertCircle, RefreshCw, ChevronUp, ChevronDown, Calendar, ArrowLeft
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
@@ -246,9 +246,26 @@ const ManageLawsPage = () => {
         
         {/* Top Crimson Red Title Bar (Matching Reference Infographic) */}
         <div className="bg-[#B91C1C] text-white px-5 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 font-bold text-base tracking-wide">
-            <FileText className="w-5 h-5 text-white" />
-            <span>Manage Laws / Statutes</span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate('/manage-statutes');
+                }
+              }}
+              className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-lg transition-all flex items-center gap-1.5 font-bold text-xs cursor-pointer shadow-sm border border-white/30 active:scale-95"
+              title="Back"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+            <div className="flex items-center gap-2 font-bold text-base tracking-wide">
+              <FileText className="w-5 h-5 text-white" />
+              <span>Manage Laws / Statutes</span>
+            </div>
           </div>
         </div>
 
@@ -493,9 +510,10 @@ const ManageLawsPage = () => {
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-1.5 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-semibold text-theme-main cursor-pointer"
+              className="px-4 py-1.5 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-semibold text-theme-main flex items-center gap-1.5 cursor-pointer transition-colors"
             >
-              Closed
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
             </button>
             <button
               type="submit"

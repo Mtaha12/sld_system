@@ -11,7 +11,8 @@ import {
   ArrowDown,
   AlertTriangle, 
   CheckCircle2, 
-  FileText 
+  FileText,
+  ExternalLink 
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
@@ -383,13 +384,15 @@ const ManageStatutesTable = ({
                     </td>
                     <td className="px-6 py-4 sticky right-0 bg-theme-surface z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                       <div className="flex items-center justify-center gap-1.5">
-                        <button 
-                          onClick={() => setViewModalItem(row)}
-                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors" 
-                          title="View"
+                        <a 
+                          href={`/statutes/view/${row.srNumber || row.id || row.mongoId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs" 
+                          title="View Statute in new tab"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                        </button>
+                        </a>
                         <button 
                           onClick={() => handleEdit(row)}
                           className="p-1.5 text-theme-muted hover:text-blue-500 border border-theme-border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" 

@@ -9,6 +9,9 @@ const FormFooter = ({
   formId, 
   isSubmitting = false,
   submitIcon: SubmitIcon = Save,
+  showSaveAndNext = false,
+  onSaveAndNext,
+  saveAndNextText = "Save + Next",
   className = ""
 }) => {
   return (
@@ -29,6 +32,18 @@ const FormFooter = ({
           >
             {cancelText}
           </Button>
+        )}
+
+        {showSaveAndNext && (
+          <button
+            type="submit"
+            form={formId}
+            onClick={onSaveAndNext}
+            disabled={isSubmitting}
+            className="px-5 h-[38px] text-xs font-bold border border-brand-orange text-brand-orange hover:bg-brand-orange/10 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <span>{isSubmitting ? 'Saving...' : saveAndNextText}</span>
+          </button>
         )}
 
         <Button 

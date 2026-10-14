@@ -10,7 +10,8 @@ import {
   X, 
   AlertTriangle, 
   CheckCircle2, 
-  Bell 
+  Bell,
+  ExternalLink 
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
@@ -302,13 +303,15 @@ const ManageNotificationsTable = ({
                     </td>
                     <td className="px-3 py-4 align-top text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        <button 
-                          onClick={() => setViewModalItem(item)}
-                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors" 
-                          title="View"
+                        <a 
+                          href={`/notifications/view/${item.srNumber || item.id || item.mongoId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs" 
+                          title="View Notification in new tab"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                        </button>
+                        </a>
                         <button 
                           onClick={() => handleEdit(item)}
                           className="p-1.5 text-theme-muted hover:text-blue-500 border border-theme-border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" 

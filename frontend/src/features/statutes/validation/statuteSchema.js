@@ -13,10 +13,8 @@ const validDepartments = ['circular', 'corporate', 'general order', 'judge order
 
 export const statuteSchema = z.object({
   srNumber: z.string().optional().default(''),
-  department: z.enum(validDepartments).default('notification'),
+  department: z.string().optional().default('notification'),
   chapter: z.string().optional().default(''),
-
-
   law: z.string().optional().default(''),
   section: z.string().optional().default(''),
   heading: z.string().optional().default(''),

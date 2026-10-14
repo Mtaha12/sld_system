@@ -122,6 +122,7 @@ const DatePicker = ({
     days.push(
       <button
         key={i}
+        type="button"
         onClick={() => !isFutureDate && handleDateSelect(i)}
         disabled={isFutureDate}
         className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-colors
@@ -151,6 +152,7 @@ const DatePicker = ({
         
         {selectedDate ? (
           <button 
+            type="button"
             onClick={clearDate}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-disabled hover:text-theme-muted transition-colors p-0.5 rounded-full hover:bg-theme-surface-hover"
           >
@@ -173,6 +175,7 @@ const DatePicker = ({
           {/* Header Controls */}
           <div className="flex items-center justify-between mb-4 gap-2">
             <button 
+              type="button"
               onClick={handlePrevMonth}
               className="p-1.5 rounded-lg hover:bg-theme-surface-hover text-theme-muted transition-colors"
             >
@@ -207,6 +210,7 @@ const DatePicker = ({
             </div>
 
             <button 
+              type="button"
               onClick={handleNextMonth}
               disabled={isNextMonthDisabled}
               className={`p-1.5 rounded-lg transition-colors ${
@@ -234,12 +238,14 @@ const DatePicker = ({
           {/* Footer Actions */}
           <div className="mt-4 pt-3 border-t border-theme-border/50 flex justify-between items-center">
             <button 
+              type="button"
               onClick={clearDate}
               className="text-sm font-medium text-theme-muted hover:text-theme-main px-2 py-1 rounded hover:bg-theme-surface-hover transition-colors"
             >
               Clear
             </button>
             <button 
+              type="button"
               onClick={setToday}
               className="text-sm font-medium text-brand-orange hover:text-[#D44E35] px-2 py-1 rounded hover:bg-orange-50 dark:hover:bg-brand-orange/10 transition-colors"
             >

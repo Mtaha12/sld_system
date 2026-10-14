@@ -85,9 +85,36 @@ const NotificationViewPage = () => {
   }
 
   const subject = notification.subject || notification.title || `Notification No. ${notification.number || ''}`;
-  const department = notification.department || 'Federal Board of Revenue / Regulatory Authority';
-  const notifNumber = notification.number || notification.sroNumber || '';
-  const notifYear = notification.year || (notification.lawDate ? new Date(notification.lawDate).getFullYear() : '');
+  const notifNumber = notification.sroNumber || notification.number || '';
+  const notifDate = notification.lawDate || (notification.blocks && notification.blocks.find(b => b.date)?.date);
+  
+  const formattedDateStr = notifDate ? (() => {
+    try {
+      const d = new Date(notifDate);
+      if (!isNaN(d.getTime())) {
+        const day = d.getDate();
+        const suffix = (day % 10 === 1 && day !== 11) ? 'st' : (day % 10 === 2 && day !== 12) ? 'nd' : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+        const month = d.toLocaleString('en-US', { month: 'long' });
+        const year = d.getFullYear();
+        return `Islamabad, the ${day}${suffix} ${month}, ${year}`;
+      }
+    } catch (e) {}
+    return String(notifDate);
+  })() : '';
+
+  const sroHeaderLine = (() => {
+    let base = notifNumber ? (
+      notifNumber.toUpperCase().startsWith('SRO') || notifNumber.toUpperCase().startsWith('S.R.O')
+        ? notifNumber
+        : `S.R.O. ${notifNumber}`
+    ) : (notification.year ? `Notification ${notification.year}` : '');
+
+    if (base && formattedDateStr && !base.toLowerCase().includes('islamabad')) {
+      return `SROS: ${base}, ${formattedDateStr}`;
+    }
+    return base ? `SROS: ${base}` : 'SROS: Official Notification';
+  })();
+
   const contentBody = notification.content || notification.text || notification.description || '';
 
   return (
@@ -112,7 +139,7 @@ const NotificationViewPage = () => {
                   Official Gazette / Notification Viewer
                 </span>
                 <span className="text-sm font-extrabold text-stone-900 dark:text-white truncate block max-w-xs sm:max-w-md">
-                  {department}
+                  {notification.department || 'Federal Board of Revenue / Regulatory Authority'}
                 </span>
               </div>
             </div>
@@ -162,97 +189,91 @@ const NotificationViewPage = () => {
 
       {/* Main Document Content Area */}
       <main className="max-w-4xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
-        <div className="bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 rounded-2xl shadow-md p-6 sm:p-12 print:border-none print:shadow-none print:p-0">
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media print {
+            @page {
+              margin: 1.5cm;
+              size: auto;
+            }
+            header, .print-hidden { display: none !important; }
+            body, main, .print-container {
+              background: white !important;
+              color: black !important;
+              box-shadow: none !important;
+              border: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              font-family: "Times New Roman", Times, Georgia, serif !important;
+            }
+            .print-border-line {
+              border-top: 1.5px solid #000 !important;
+              margin-top: 1rem !important;
+              margin-bottom: 1.5rem !important;
+            }
+          }
+        `}} />
+
+        <div className="bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 rounded-2xl shadow-md p-6 sm:p-12 print-container">
           
-          {/* Official Emblem & Header */}
-          <div className="border-b border-stone-200 dark:border-stone-800 pb-6 mb-8 text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 mb-3 border border-blue-200 dark:border-blue-900/50">
-              <Building className="w-6 h-6" />
-            </div>
-            <p className="text-xs font-extrabold uppercase tracking-widest text-[#f15a24]">Government of Pakistan</p>
-            <h1 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight leading-tight mt-1">
-              {department}
-            </h1>
-            {notification.subDepartment && (
-              <p className="text-xs font-bold text-stone-500 dark:text-stone-400 mt-0.5">{notification.subDepartment}</p>
-            )}
-
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-4 text-xs font-semibold text-stone-600 dark:text-stone-300">
-              {notifNumber && (
-                <span className="px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800/40">
-                  Notification #{notifNumber}
-                </span>
-              )}
-              {notifYear && (
-                <span className="px-3 py-1 rounded-full bg-stone-100 dark:bg-stone-800">
-                  Year: {notifYear}
-                </span>
-              )}
-              {notification.lawDate && (
-                <span className="px-3 py-1 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-stone-400" />
-                  Dated: {new Date(notification.lawDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
-              )}
-            </div>
+          {/* ── 1. NOTIFICATION # ── */}
+          <div className="text-center font-bold text-base sm:text-lg text-stone-900 dark:text-stone-100 mb-2 font-serif leading-snug">
+            {sroHeaderLine}
           </div>
 
-          {/* Subject Banner */}
-          <div className="p-4 bg-stone-50 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700/60 rounded-xl mb-6">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#f15a24] block mb-1">
-              SUBJECT / TITLE
-            </span>
-            <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 leading-snug">
-              {subject}
-            </h2>
-            {notification.lawStatute && (
-              <p className="text-xs text-stone-600 dark:text-stone-400 font-medium mt-2">
-                Under Law: <strong className="text-stone-800 dark:text-stone-200">{notification.lawStatute}</strong>
-                {notification.section ? ` (Section ${notification.section})` : ''}
-              </p>
-            )}
+          {/* ── 2. SUBJECT ── */}
+          <div className="text-center font-bold text-base sm:text-lg text-stone-900 dark:text-stone-100 mb-4 font-serif leading-snug max-w-3xl mx-auto">
+            {subject}
           </div>
 
-          {/* Document Body */}
+          {/* Clean dividing line as shown in reference */}
+          <hr className="border-t border-stone-800 dark:border-stone-300 my-4 print-border-line" />
+
+          {/* ── 3. DETAIL ── */}
           <article 
-            className="prose dark:prose-invert max-w-none text-stone-800 dark:text-stone-200 font-serif leading-relaxed"
+            className="prose dark:prose-invert max-w-none text-stone-900 dark:text-stone-100 font-serif leading-relaxed pt-2"
             style={{
               fontSize: fontSizes[fontSizeIndex].fontSize,
               lineHeight: fontSizes[fontSizeIndex].lineHeight
             }}
           >
-            {contentBody ? (
-              <div 
-                className="whitespace-pre-wrap leading-relaxed text-justify"
-                dangerouslySetInnerHTML={{ __html: contentBody.replace(/\n/g, '<br/>') }}
-              />
-            ) : (
-              <p className="italic text-stone-500">Official gazette text record archived in SLD repository.</p>
-            )}
+            {(() => {
+              // Extract details from blocks or fallback to contentBody
+              const blockDetails = Array.isArray(notification.blocks) 
+                ? notification.blocks
+                    .map(b => b.detail || b.content || '')
+                    .filter(d => d && d.replace(/<[^>]*>?/gm, '').trim() !== '')
+                : [];
 
-            {/* Document Blocks if any */}
-            {Array.isArray(notification.blocks) && notification.blocks.length > 0 && (
-              <div className="mt-6 space-y-4 font-sans text-sm">
-                {notification.blocks.map((blk, idx) => (
-                  <div key={idx} className="p-4 bg-stone-50 dark:bg-stone-800/50 rounded-xl border border-stone-200 dark:border-stone-700">
-                    {blk.title && <h4 className="font-bold text-stone-900 dark:text-stone-100 mb-2">{blk.title}</h4>}
-                    {blk.content && <p className="leading-relaxed text-stone-700 dark:text-stone-300">{blk.content}</p>}
+              if (blockDetails.length > 0) {
+                return (
+                  <div className="space-y-6">
+                    {blockDetails.map((detailText, bIdx) => (
+                      <div 
+                        key={bIdx}
+                        className="leading-relaxed text-justify whitespace-pre-wrap font-serif"
+                        dangerouslySetInnerHTML={{ __html: detailText }}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </article>
+                );
+              }
 
-          {/* Official Verification Seal Footer */}
-          <footer className="mt-12 pt-6 border-t border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-500 dark:text-stone-400">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-500" />
-              <span>Certified Official Notification • SLD System Legal Archives</span>
-            </div>
-            <div className="text-[11px] font-mono">
-              SLD System (SMC-PVT) Limited
-            </div>
-          </footer>
+              if (contentBody) {
+                return (
+                  <div 
+                    className="whitespace-pre-wrap leading-relaxed text-justify font-serif"
+                    dangerouslySetInnerHTML={{ __html: contentBody.replace(/\n/g, '<br/>') }}
+                  />
+                );
+              }
+
+              return (
+                <p className="italic text-stone-500 text-center py-6">Official gazette text record archived in SLD repository.</p>
+              );
+            })()}
+          </article>
 
         </div>
       </main>

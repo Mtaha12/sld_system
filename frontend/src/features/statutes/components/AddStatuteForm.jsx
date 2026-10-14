@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check } from 'lucide-react';
+import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2 } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import DatePicker from '../../../components/ui/DatePicker';
@@ -110,8 +110,10 @@ const AddStatuteForm = () => {
   };
 
   const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || null);
+  const [autoNewSr, setAutoNewSr] = useState('');
   const [loadingStatute, setLoadingStatute] = useState(false);
   const [loadFeedback, setLoadFeedback] = useState(null);
+  const isSaveAndNextRef = useRef(false);
 
   const {
     register,
@@ -197,35 +199,54 @@ const AddStatuteForm = () => {
     settingService.getSections({ status: 'active', limit: 10000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          setSectionOptions(res.data.map(s => s.name));
+          const names = res.data.map(s => s.name).filter(Boolean);
+          const combined = Array.from(new Set([...names, ...(ALL_SECTIONS || [])]));
+          setSectionOptions(combined);
         }
       })
       .catch(err => {
         console.warn('Could not load dynamic sections for AddStatuteForm:', err);
       });
 
-    // Automatically assign next sequential SR # for new statutes
-    if (!isEdit) {
-      statuteService.getNextSr()
-        .then(res => {
-          if (isMounted && res?.nextSr) {
-            setValue('srNumber', String(res.nextSr), { shouldDirty: false });
+    // Automatically assign next sequential SR # for new statutes and set autoNewSr
+    statuteService.getNextSr()
+      .then(res => {
+        if (isMounted && res?.nextSr) {
+          const fetchedNext = String(res.nextSr);
+          setAutoNewSr(fetchedNext);
+          if (!isEdit && !editData?.srNumber) {
+            setValue('srNumber', fetchedNext, { shouldDirty: false });
           }
-        })
-        .catch(err => {
-          console.warn('Could not auto-fetch next Statute SR #:', err);
-        });
-    }
+        }
+      })
+      .catch(err => {
+        console.warn('Could not auto-fetch next Statute SR #:', err);
+      });
 
     return () => { isMounted = false; };
-  }, [isEdit, setValue]);
+  }, [isEdit, editData, setValue]);
 
-  const { fields: blockFields } = useFieldArray({
+  const memoizedLawOptions = useMemo(() => (
+    lawOptions.slice(0, 1000).map((lawName, idx) => (
+      <option key={idx} value={lawName} />
+    ))
+  ), [lawOptions]);
+
+  const memoizedSectionOptions = useMemo(() => (
+    sectionOptions.slice(0, 1500).map((secName, idx) => (
+      <option key={idx} value={secName} />
+    ))
+  ), [sectionOptions]);
+
+  const { fields: blockFields, append, insert, remove } = useFieldArray({
     control,
     name: 'blocks'
   });
 
   const onSubmit = async (data) => {
+    const wasSaveAndNext = isSaveAndNextRef.current;
+    isSaveAndNextRef.current = false;
+
     // Strip empty blocks before saving
     data.blocks = data.blocks.filter(b => {
       const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
@@ -244,10 +265,26 @@ const AddStatuteForm = () => {
         await statuteService.createStatute(data);
       }
       setShowSuccess(true);
-      setTimeout(() => {
-        setShowSuccess(false);
-        navigate('/manage-statutes');
-      }, 2500);
+
+      if (wasSaveAndNext) {
+        const currentSrNum = parseInt(data.srNumber || '1', 10);
+        const nextSr = isNaN(currentSrNum) ? 1 : currentSrNum + 1;
+        setTimeout(() => {
+          setShowSuccess(false);
+          // Refresh autoNewSr
+          statuteService.getNextSr().then(res => {
+            if (res?.nextSr) setAutoNewSr(String(res.nextSr));
+          }).catch(() => {});
+          // Advance to next SR#
+          setValue('srNumber', String(nextSr));
+          loadStatuteBySr(nextSr);
+        }, 800);
+      } else {
+        setTimeout(() => {
+          setShowSuccess(false);
+          navigate('/manage-statutes');
+        }, 2000);
+      }
     } catch (error) {
       console.error('Submission error:', error);
     }
@@ -287,121 +324,145 @@ const AddStatuteForm = () => {
             <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Statute Form' : 'Add New Statute Form'}</span>
             {editData?.srNumber && <span className="text-brand-orange font-semibold">SR #{editData.srNumber}</span>}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => navigate('/manage-statutes')}
-              className="px-3.5 py-1.5 text-xs font-medium text-theme-muted hover:text-theme-main border border-theme-border rounded-lg hover:bg-theme-surface transition-colors cursor-pointer"
+              className="px-3 py-1.5 text-xs font-medium text-theme-muted hover:text-theme-main border border-theme-border rounded-lg hover:bg-theme-surface transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
+              type="button"
+              onClick={() => {
+                isSaveAndNextRef.current = true;
+                handleSubmit(onSubmit)();
+              }}
+              disabled={isSubmitting}
+              className="px-4 py-1.5 text-xs font-bold text-brand-orange hover:bg-brand-orange/10 border border-brand-orange/60 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              title="Save current statute and advance to next SR #"
+            >
+              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update + Next' : 'Save + Next')}</span>
+            </button>
+            <button
               type="submit"
               form="statute-form"
+              onClick={() => {
+                isSaveAndNextRef.current = false;
+              }}
               disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
             >
               <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Record' : 'Save Record')}</span>
             </button>
           </div>
         </div>
 
-        <form id="statute-form" onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <form 
+          id="statute-form" 
+          onSubmit={handleSubmit(onSubmit)} 
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+              e.preventDefault();
+              if (e.target.name === 'srNumber') {
+                loadStatuteBySr(e.target.value);
+              }
+            }
+          }}
+          className="space-y-3"
+        >
 
           {/* Record Information */}
           <FormSection compact>
 
-            {/* Top row: SR # · Department · Chapter — all on one line */}
-            <div className="grid grid-cols-3 gap-3 items-end mb-3">
-              <FormField label="SR #" required>
-                <div className="flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <Input
-                      variant="light"
-                      inputSize="sm"
-                      placeholder="e.g. 9339"
-                      error={errors.srNumber}
-                      {...register('srNumber')}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          loadStatuteBySr(e.currentTarget.value);
-                        }
-                      }}
-                    />
-                    {loadingStatute && (
-                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center">
-                        <Loader2 className="w-4 h-4 animate-spin text-brand-orange" />
-                      </div>
-                    )}
+            {/* Top row: Auto New SR # · Load SR # · Chapter — Department removed per requirement */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end mb-3">
+              
+              {/* Auto New SR # (Non-editable) Generate Block */}
+              <div className="sm:col-span-3 col-span-1">
+                <FormField label="Auto New SR #">
+                  <input
+                    type="text"
+                    readOnly
+                    value={autoNewSr ? `SR #${autoNewSr}` : 'Generating...'}
+                    className="w-full h-[38px] px-3 rounded-lg border border-theme-border/80 bg-theme-surface-alt/70 text-brand-orange font-mono font-bold text-xs select-all cursor-default focus:outline-none shadow-inner"
+                    title="System Auto-Generated New Serial Number (Non-Editable)"
+                  />
+                </FormField>
+              </div>
+
+              {/* Reduced size Load SR # Block */}
+              <div className="sm:col-span-5 col-span-1">
+                <FormField label="Load SR #" required>
+                  <div className="flex items-center gap-1">
+                    <div className="relative flex-1">
+                      <Input
+                        variant="light"
+                        inputSize="sm"
+                        placeholder="e.g. 9339"
+                        error={errors.srNumber}
+                        {...register('srNumber')}
+                      />
+                      {loadingStatute && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-orange" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        title="Previous SR"
+                        onClick={() => handleStepSr(-1)}
+                        disabled={loadingStatute}
+                        className="p-1 h-[34px] w-[30px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Next SR"
+                        onClick={() => handleStepSr(1)}
+                        disabled={loadingStatute}
+                        className="p-1 h-[34px] w-[30px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => loadStatuteBySr()}
+                        disabled={loadingStatute}
+                        className="h-[34px] text-xs px-2 border border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 rounded-lg font-semibold cursor-pointer disabled:opacity-50"
+                      >
+                        {loadingStatute ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Load'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      title="Previous SR"
-                      onClick={() => handleStepSr(-1)}
-                      disabled={loadingStatute}
-                      className="p-1.5 h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      title="Next SR"
-                      onClick={() => handleStepSr(1)}
-                      disabled={loadingStatute}
-                      className="p-1.5 h-[34px] w-[34px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => loadStatuteBySr()}
-                      disabled={loadingStatute}
-                      className="h-[34px] text-xs px-2.5 border border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 rounded-lg font-semibold cursor-pointer disabled:opacity-50"
-                    >
-                      {loadingStatute ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Load'}
-                    </button>
-                  </div>
-                </div>
-                {loadFeedback && (
-                  <div className={`mt-1.5 text-[11px] font-medium flex items-center gap-1 transition-all ${
-                    loadFeedback.type === 'success' ? 'text-green-600 dark:text-green-400' :
-                    loadFeedback.type === 'notFound' ? 'text-amber-600 dark:text-amber-400' :
-                    'text-red-500'
-                  }`}>
-                    {loadFeedback.type === 'success' && <Check className="w-3.5 h-3.5 shrink-0" />}
-                    <span className="truncate">{loadFeedback.message}</span>
-                  </div>
-                )}
-              </FormField>
-              <FormField label="Department">
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  type="select"
-                  error={errors.department}
-                  options={[
-                    { label: 'Circular', value: 'circular' },
-                    { label: 'Corporate', value: 'corporate' },
-                    { label: 'General Order', value: 'general order' },
-                    { label: 'Judge Order', value: 'judge order' },
-                    { label: 'Letter', value: 'letter' },
-                    { label: 'Notification', value: 'notification' },
-                    { label: 'Other', value: 'other' }
-                  ]}
-                  {...register('department')}
-                />
-              </FormField>
-              <FormField label="Chapter">
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  placeholder="e.g. CHAPTER-XIX"
-                  error={errors.chapter}
-                  {...register('chapter')}
-                />
-              </FormField>
+                  {loadFeedback && (
+                    <div className={`mt-1.5 text-[11px] font-medium flex items-center gap-1 transition-all ${
+                      loadFeedback.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                      loadFeedback.type === 'notFound' ? 'text-amber-600 dark:text-amber-400' :
+                      'text-red-500'
+                    }`}>
+                      {loadFeedback.type === 'success' && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      <span className="truncate">{loadFeedback.message}</span>
+                    </div>
+                  )}
+                </FormField>
+              </div>
+
+              {/* Chapter */}
+              <div className="sm:col-span-4 col-span-1">
+                <FormField label="Chapter">
+                  <Input
+                    variant="light"
+                    inputSize="sm"
+                    placeholder="e.g. CHAPTER-XIX"
+                    error={errors.chapter}
+                    {...register('chapter')}
+                  />
+                </FormField>
+              </div>
             </div>
 
             {/* Middle row: Law/Statute · Section */}
@@ -416,9 +477,7 @@ const AddStatuteForm = () => {
                   {...register('law')}
                 />
                 <datalist id="statute-laws-list">
-                  {lawOptions.map((lawName, idx) => (
-                    <option key={idx} value={lawName} />
-                  ))}
+                  {memoizedLawOptions}
                 </datalist>
               </FormField>
               <FormField label="Section">
@@ -431,9 +490,7 @@ const AddStatuteForm = () => {
                   {...register('section')}
                 />
                 <datalist id="statute-sections-list">
-                  {sectionOptions.map((secName, idx) => (
-                    <option key={idx} value={secName} />
-                  ))}
+                  {memoizedSectionOptions}
                 </datalist>
               </FormField>
             </div>
@@ -454,20 +511,53 @@ const AddStatuteForm = () => {
 
           {/* Repeatable Content Blocks */}
           <FormSection compact>
-            <div className="text-brand-orange font-semibold text-sm mb-2 flex items-center gap-2">
-              <Layers className="w-4 h-4" /> Content Details
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-brand-orange font-semibold text-sm flex items-center gap-2">
+                <Layers className="w-4 h-4" /> Content Details ({blockFields.length} {blockFields.length === 1 ? 'Block' : 'Blocks'})
+              </div>
+              <button
+                type="button"
+                onClick={() => append({ id: `block-${Date.now()}-${Math.random()}`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] })}
+                className="px-3 py-1 rounded-lg text-xs font-bold bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange border border-brand-orange/40 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
+                title="Add new blank detail block"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Detail Block</span>
+              </button>
             </div>
+
             <div className="space-y-3">
               {blockFields.map((block, index) => (
                 <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-3 relative">
 
-                  {/* Block badge */}
-                  <div className="absolute top-0 right-0 bg-theme-surface-alt border-b border-l border-theme-border text-theme-muted px-2.5 py-0.5 rounded-bl-xl rounded-tr-xl text-[10px] font-bold tracking-wider">
-                    BLOCK {index + 1}
+                  {/* Block header badge & actions */}
+                  <div className="flex items-center gap-1.5 absolute top-2 right-2 z-10">
+                    <button
+                      type="button"
+                      onClick={() => insert(index + 1, { id: `block-${Date.now()}-${Math.random()}`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] })}
+                      className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 border border-brand-orange/30 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      title="Insert a new detail block right after this block"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Block Below</span>
+                    </button>
+                    {blockFields.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => remove(index)}
+                        className="p-1 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200 dark:border-red-900 cursor-pointer transition-colors"
+                        title="Remove this block"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <span className="bg-theme-surface-alt border border-theme-border text-theme-muted px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">
+                      BLOCK {index + 1}
+                    </span>
                   </div>
 
                   {/* Section Heading — full width above the split */}
-                  <div className="mb-2 pt-1">
+                  <div className="mb-2 pt-6 sm:pt-4">
                     <FormField label="Section Heading">
                       <Input
                         variant="light"
@@ -547,6 +637,18 @@ const AddStatuteForm = () => {
                 </div>
               ))}
             </div>
+
+            {/* Bottom Add Detail Block button */}
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => append({ id: `block-${Date.now()}-${Math.random()}`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] })}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange border border-brand-orange/40 flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add New Detail Block</span>
+              </button>
+            </div>
           </FormSection>
 
         </form>
@@ -556,7 +658,10 @@ const AddStatuteForm = () => {
         formId="statute-form"
         onCancel={() => navigate('/manage-statutes')}
         isSubmitting={isSubmitting}
-        submitText={isEdit ? "Update Record" : "Add Record"}
+        showSaveAndNext={true}
+        onSaveAndNext={() => { isSaveAndNextRef.current = true; }}
+        saveAndNextText={isEdit ? "Update + Next" : "Save + Next"}
+        submitText={isEdit ? "Update Record" : "Save Record"}
       />
 
     </div>
