@@ -107,7 +107,7 @@ export const searchStatutes = async (queryText) => {
 
   const searchRegex = new RegExp(escapeRegex(cleanQ), 'i');
   return await Statute.find({
-    isDeleted: { $ne: true },
+    isDeleted: false,
     $or: [
       { law: searchRegex },
       { section: searchRegex },
@@ -128,7 +128,7 @@ export const searchNotifications = async (queryText) => {
 
   const searchRegex = new RegExp(escapeRegex(cleanQ), 'i');
   return await Notification.find({
-    isDeleted: { $ne: true },
+    isDeleted: false,
     $or: [
       { subject: searchRegex },
       { number: searchRegex },
@@ -150,14 +150,14 @@ export const searchDictionary = async (queryText) => {
   const prefixRegex = new RegExp(`^${escapeRegex(cleanQ)}`, 'i');
   let results = await Dictionary.find({
     words: prefixRegex,
-    isDeleted: { $ne: true }
+    isDeleted: false
   }).limit(5).maxTimeMS(1000).lean();
 
   // 2. Fallback to containing search on words
   if (results.length === 0) {
     results = await Dictionary.find({
       words: new RegExp(escapeRegex(cleanQ), 'i'),
-      isDeleted: { $ne: true }
+      isDeleted: false
     }).limit(5).maxTimeMS(1200).lean();
   }
   return results;
@@ -173,7 +173,7 @@ export const searchTaxCards = async (queryText) => {
 
   const searchRegex = new RegExp(escapeRegex(cleanQ), 'i');
   return await TaxCard.find({
-    isDeleted: { $ne: true },
+    isDeleted: false,
     $or: [
       { heading: searchRegex },
       { detail: searchRegex }
@@ -2427,7 +2427,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         if (allSecCandidates.some(s => /^4-?c$/i.test(s))) {
           // Dedicated high-performance 4C / Super Tax query
           const sc4cConditions = [
-            { isDeleted: { $ne: true } },
+            { isDeleted: false },
             { court: { $nin: FOREIGN_COURT_NAMES } },
             {
               $or: [
@@ -2450,7 +2450,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         if (statuteCases.length === 0) {
           const secQuery = {
             'laws.section': { $in: Array.from(new Set(secTokens)) },
-            isDeleted: { $ne: true },
+            isDeleted: false,
             court: { $nin: FOREIGN_COURT_NAMES }
           };
           if (requestedCourtFilter) {
@@ -2464,7 +2464,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
           const textQuery = allSecCandidates.map(s => `"${s}"`).join(' ');
           const textCond = [
             { $text: { $search: textQuery } },
-            { isDeleted: { $ne: true } },
+            { isDeleted: false },
             { court: { $nin: FOREIGN_COURT_NAMES } }
           ];
           if (requestedCourtFilter) {
@@ -2509,7 +2509,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     if (hasSurcharge || hasGeneralTaxDoctrine) {
       try {
         const doctrineConditions = [
-          { isDeleted: { $ne: true } }
+          { isDeleted: false }
         ];
 
         if (requestedCourtFilter) {
@@ -2650,7 +2650,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
       if (sanitizedTextQuery.length >= 3) {
         const textConditions = [
           { $text: { $search: sanitizedTextQuery } },
-          { isDeleted: { $ne: true } },
+          { isDeleted: false },
           { court: { $nin: FOREIGN_COURT_NAMES } }
         ];
         if (requestedCourtFilter) {
@@ -2765,7 +2765,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         const subjectConstraint = querySubjectMatch ? querySubjectMatch[1].toLowerCase() : null;
 
         const andClauses = [
-          { isDeleted: { $ne: true } },
+          { isDeleted: false },
           { court: { $nin: FOREIGN_COURT_NAMES } }
         ];
         if (requestedCourtFilter) {

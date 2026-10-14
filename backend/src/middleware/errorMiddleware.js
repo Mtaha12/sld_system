@@ -55,12 +55,18 @@ const errorHandler = (err, req, res, next) => {
     message = 'Authentication token has expired.';
   }
 
+  // Hide raw internal details on 500 errors in production
+  if (statusCode >= 500 && process.env.NODE_ENV === 'production') {
+    message = 'An internal server error occurred. Please try again later.';
+  }
+
   // Send formatted JSON error response
   return res.status(statusCode).json({
     success: false,
     message,
     errors
   });
+
 };
 
 export default errorHandler;

@@ -44,12 +44,12 @@ export const getMetrics = async (req, res, next) => {
     }
 
     const [totalCases, activeCases, totalStatutes, totalNotifications, attachmentsAggregation] = await Promise.all([
-      Case.countDocuments({ isDeleted: { $ne: true } }),
-      Case.countDocuments({ status: 'Active', isDeleted: { $ne: true } }),
-      Statute.countDocuments({ isDeleted: { $ne: true } }),
-      Notification.countDocuments({ isDeleted: { $ne: true } }),
+      Case.countDocuments({ isDeleted: false }),
+      Case.countDocuments({ isDeleted: false, status: 'Active' }),
+      Statute.countDocuments({ isDeleted: false }),
+      Notification.countDocuments({ isDeleted: false }),
       Case.aggregate([
-        { $match: { isDeleted: { $ne: true } } },
+        { $match: { isDeleted: false } },
         { $project: { count: { $size: { $ifNull: ['$attachments', []] } } } },
         { $group: { _id: null, total: { $sum: '$count' } } }
       ])
@@ -66,7 +66,7 @@ export const getMetrics = async (req, res, next) => {
     };
 
     metricsCache = data;
-    metricsCacheExpiresAt = Date.now() + 45_000; // 45 seconds cache
+    metricsCacheExpiresAt = Date.now() + 60_000; // 60 seconds cache
 
     return res.status(200).json({
       success: true,
@@ -78,26 +78,38 @@ export const getMetrics = async (req, res, next) => {
   }
 };
 
+let activitiesCache = null;
+let activitiesCacheExpiresAt = 0;
+
 export const getActivities = async (req, res, next) => {
   try {
-    // Retrieve the latest 5 cases, statutes, and notifications concurrently with lean projections
+    if (activitiesCache && Date.now() < activitiesCacheExpiresAt) {
+      return res.status(200).json({
+        success: true,
+        message: 'Recent platform activities retrieved.',
+        data: activitiesCache
+      });
+    }
+
+    // Retrieve the latest 5 cases, statutes, and notifications concurrently with indexed projections
     const [cases, statutes, notifications] = await Promise.all([
-      Case.find({ isDeleted: { $ne: true } })
+      Case.find({ isDeleted: false })
         .select('createdAt updatedAt caseNumber sldNumber court attachments status')
         .sort({ updatedAt: -1 })
         .limit(5)
         .lean(),
-      Statute.find({ isDeleted: { $ne: true } })
+      Statute.find({ isDeleted: false })
         .select('createdAt updatedAt blocks sectionHeading heading law section department srNumber status')
         .sort({ updatedAt: -1 })
         .limit(5)
         .lean(),
-      Notification.find({ isDeleted: { $ne: true } })
+      Notification.find({ isDeleted: false })
         .select('createdAt updatedAt subject sroNumber number department status')
         .sort({ updatedAt: -1 })
         .limit(5)
         .lean()
     ]);
+
 
     const activities = [];
 

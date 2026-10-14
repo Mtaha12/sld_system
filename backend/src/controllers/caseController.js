@@ -215,7 +215,7 @@ export const getCases = async (req, res, next) => {
   try {
     const { subject, fromDate, toDate, fromYear, toYear, magazine, fromSld, toSld, page, limit, sortField, sortOrder } = req.query;
 
-    const query = { isDeleted: { $ne: true } };
+    const query = { isDeleted: false };
 
     // Apply filters
     if (subject) {
@@ -253,8 +253,67 @@ export const getCases = async (req, res, next) => {
       query.dated = { ...query.dated, $lte: toDate };
     }
 
-    // Support year to year search (fromYear to toYear)
-    if (fromYear || toYear) {
+    // Support year and magazine filtering
+    const hasYear = Boolean((fromYear && String(fromYear).trim()) || (toYear && String(toYear).trim()));
+    const hasMag = Boolean(magazine && magazine.trim());
+
+    if (hasMag && hasYear) {
+      const fy = fromYear ? String(fromYear).trim() : '';
+      const ty = toYear ? String(toYear).trim() : '';
+      const magClean = escapeRegex(magazine.trim());
+
+      const elemMatchYear = {};
+      if (fy && ty) {
+        elemMatchYear.$gte = fy;
+        elemMatchYear.$lte = ty;
+      } else if (fy) {
+        elemMatchYear.$gte = fy;
+      } else if (ty) {
+        elemMatchYear.$lte = ty;
+      }
+
+      const fromN = parseInt(fy, 10);
+      const toN = parseInt(ty, 10);
+      let yearPattern = '';
+      if (!isNaN(fromN) && !isNaN(toN) && toN >= fromN && (toN - fromN) <= 100) {
+        const yrs = [];
+        for (let y = fromN; y <= toN; y++) yrs.push(y);
+        yearPattern = `(?:${yrs.join('|')})`;
+      } else if (!isNaN(fromN) && isNaN(toN)) {
+        yearPattern = `(?:${fromN}|20[2-9][0-9])`;
+      } else if (isNaN(fromN) && !isNaN(toN)) {
+        yearPattern = `(?:19[0-9]{2}|20[0-2][0-9])`;
+      }
+
+      const mapRegexList = [];
+      if (yearPattern) {
+        mapRegexList.push(
+          new RegExp(`(^|[^0-9])(${yearPattern})[^a-zA-Z0-9]+${magClean}([^a-zA-Z0-9]|$)`, 'i'),
+          new RegExp(`^\\s*${magClean}[^a-zA-Z0-9]+(${yearPattern})[^a-zA-Z0-9]+\\d+`, 'i')
+        );
+      }
+
+      const combinedMagYearConditions = [
+        {
+          publications: {
+            $elemMatch: {
+              mag: new RegExp(magClean, 'i'),
+              year: elemMatchYear
+            }
+          }
+        },
+        ...mapRegexList.map(r => ({ mapYearPage: r }))
+      ];
+
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: combinedMagYearConditions }];
+        delete query.$or;
+      } else if (query.$and) {
+        query.$and.push({ $or: combinedMagYearConditions });
+      } else {
+        query.$or = combinedMagYearConditions;
+      }
+    } else if (hasYear) {
       const fy = fromYear ? String(fromYear).trim() : '';
       const ty = toYear ? String(toYear).trim() : '';
       const yearConditions = [];
@@ -284,9 +343,7 @@ export const getCases = async (req, res, next) => {
           query.$or = yearConditions;
         }
       }
-    }
-
-    if (magazine && magazine.trim()) {
+    } else if (hasMag) {
       const magClean = escapeRegex(magazine.trim());
       const magRegex = new RegExp(magClean, 'i');
       const magCondition = [
@@ -414,7 +471,7 @@ export const getMaxPage = async (req, res, next) => {
     }
 
     const result = await Case.aggregate([
-      { $match: { isDeleted: { $ne: true } } },
+      { $match: { isDeleted: false } },
       { $unwind: '$publications' },
       {
         $match: {
@@ -461,7 +518,7 @@ export const getMaxPage = async (req, res, next) => {
  */
 export const getNextSld = async (req, res, next) => {
   try {
-    const topCase = await Case.findOne({ isDeleted: { $ne: true }, sldNumberInt: { $ne: null } })
+    const topCase = await Case.findOne({ isDeleted: false, sldNumberInt: { $ne: null } })
       .sort({ sldNumberInt: -1 })
       .select('sldNumber sldNumberInt srNumber')
       .lean();
@@ -538,7 +595,7 @@ export const getCaseBySld = async (req, res, next) => {
 
     const c = await Case.findOne({
       $or: conditions,
-      isDeleted: { $ne: true }
+      isDeleted: false
     }).lean();
 
     if (!c) {
@@ -627,7 +684,7 @@ export const getCaseById = async (req, res, next) => {
       });
     }
 
-    const c = await Case.findOne({ ...query, isDeleted: { $ne: true } }).lean();
+    const c = await Case.findOne({ ...query, isDeleted: false }).lean();
 
     if (!c) {
       return res.status(404).json({
@@ -683,7 +740,7 @@ export const createCase = async (req, res, next) => {
 
     const cleanSld = srNumber ? String(srNumber).trim() : '';
     if (cleanSld) {
-      const exist = await Case.findOne({ sldNumber: cleanSld, isDeleted: { $ne: true } });
+      const exist = await Case.findOne({ sldNumber: cleanSld, isDeleted: false });
       if (exist) {
         return res.status(400).json({
           success: false,
@@ -757,7 +814,7 @@ export const updateCase = async (req, res, next) => {
         { sldNumber: id },
         ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
       ],
-      isDeleted: { $ne: true }
+      isDeleted: false
     };
 
     const { 
@@ -834,7 +891,7 @@ export const deleteCase = async (req, res, next) => {
         { sldNumber: id },
         ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
       ],
-      isDeleted: { $ne: true }
+      isDeleted: false
     };
 
     const c = await Case.findOne(query);

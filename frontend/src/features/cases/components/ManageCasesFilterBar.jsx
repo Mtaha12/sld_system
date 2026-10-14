@@ -21,6 +21,7 @@ const ManageCasesFilterBar = ({
   selectedCount = 0,
   initialSearch = '',
   onExport,
+  onExportCitations,
   onHeadNotes,
   onJudgment,
   onGetCaseId,
@@ -222,6 +223,19 @@ const ManageCasesFilterBar = ({
           <Printer className="w-4 h-4 mr-1.5" /> Judgment
         </Button>
         
+        {/* Dedicated Citations Excel Export Option */}
+        <Button 
+          type="button"
+          variant="outline"
+          size="sm" 
+          onClick={onExportCitations}
+          className="bg-theme-surface hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-500 h-[38px] shadow-sm flex items-center gap-1.5 font-medium cursor-pointer"
+          title="Download Excel file containing only SLD # and Citations (Year/Mag/Page)"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> 
+          Export Citations (Excel) {selectedCount > 0 ? `(${selectedCount})` : ''}
+        </Button>
+
         <div className="relative">
           <Button 
             type="button"
@@ -250,24 +264,32 @@ const ManageCasesFilterBar = ({
                 <div className="py-1">
                   <button 
                     type="button"
-                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-emerald-50 dark:hover:bg-theme-surface-alt hover:text-emerald-600 flex items-center gap-2.5 transition-colors cursor-pointer font-medium"
+                    onClick={() => handleExportClick('citations_excel')}
+                    title="Export only SLD # and Citations without full cases"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export Citations Only (.csv)
+                  </button>
+                  <button 
+                    type="button"
+                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors cursor-pointer"
+                    onClick={() => handleExportClick('excel')}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-green-500" /> Export Full Details (.csv)
+                  </button>
+                  <button 
+                    type="button"
+                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors cursor-pointer"
                     onClick={() => handleExportClick('pdf')}
                   >
                     <FileText className="w-4 h-4 text-red-500" /> Export as PDF (.pdf)
                   </button>
                   <button 
                     type="button"
-                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors cursor-pointer"
                     onClick={() => handleExportClick('word')}
                   >
                     <FileDown className="w-4 h-4 text-blue-500" /> Export as Word (.docx)
-                  </button>
-                  <button 
-                    type="button"
-                    className="w-full text-left px-3.5 py-2 text-xs sm:text-sm text-theme-main hover:bg-accent-red-light dark:hover:bg-theme-surface-alt hover:text-accent-red flex items-center gap-2.5 transition-colors"
-                    onClick={() => handleExportClick('excel')}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-green-500" /> Export as Excel (.csv)
                   </button>
                 </div>
               </div>

@@ -91,10 +91,13 @@ newsSchema.index({ isDeleted: 1, srNumber: -1, createdAt: -1 });
 newsSchema.index({ isDeleted: 1, year: -1 });
 newsSchema.index({ isDeleted: 1, date: -1 });
 
+newsSchema.index({ isDeleted: 1, updatedAt: -1 });
+
 // Soft delete query filter middleware
 newsSchema.pre(/^find/, function () {
-  this.where({ isDeleted: { $ne: true } });
+  this.where({ isDeleted: false });
 });
+
 
 const News = mongoose.model('News', newsSchema);
 export default News;

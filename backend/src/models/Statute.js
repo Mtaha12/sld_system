@@ -115,10 +115,14 @@ statuteSchema.index({ isDeleted: 1, srNumber: -1 });
 statuteSchema.index({ isDeleted: 1, department: 1 });
 statuteSchema.index({ isDeleted: 1, law: 1 });
 
+statuteSchema.index({ isDeleted: 1, updatedAt: -1 });
+statuteSchema.index({ isDeleted: 1, createdAt: -1 });
+
 // Soft delete query filter middleware
 statuteSchema.pre(/^find/, function () {
-  this.where({ isDeleted: { $ne: true } });
+  this.where({ isDeleted: false });
 });
+
 
 const Statute = mongoose.model('Statute', statuteSchema);
 export default Statute;

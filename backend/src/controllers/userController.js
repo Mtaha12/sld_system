@@ -59,8 +59,10 @@ export const getUsers = async (req, res, next) => {
 
     const users = rawUsers.map(u => ({
       ...u,
+      password: '', // Never leak bcrypt password hash
       plainPassword: u.plainPassword || (u.password && !u.password.startsWith('$2') && u.password.length < 30 ? u.password : '') || ''
     }));
+
 
     return res.status(200).json({
       success: true,

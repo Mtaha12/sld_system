@@ -19,11 +19,24 @@ const connectDB = async () => {
     const conn = await mongoose.connect(mongoUri, {
       maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE, 10) || 50,
       minPoolSize: parseInt(process.env.DB_MIN_POOL_SIZE, 10) || 10,
+      maxIdleTimeMS: 60000,
       socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
       serverSelectionTimeoutMS: 10000,
       family: 4 // Use IPv4, skip unnecessary IPv6 lookup roundtrips
     });
     console.log(`[SLD System Backend] MongoDB Connected: ${conn.connection.host}`);
+
+    // Set up connection lifecycle monitoring
+    mongoose.connection.on('disconnected', () => {
+      console.warn('[SLD System Backend] MongoDB connection lost. Driver will automatically retry...');
+    });
+    mongoose.connection.on('reconnected', () => {
+      console.log('[SLD System Backend] MongoDB reconnected successfully.');
+    });
+    mongoose.connection.on('error', (err) => {
+      console.error('[SLD System Backend] MongoDB runtime connection error:', err.message);
+    });
     
     // Automatically verify and backfill missing Unique IDs on existing records
     backfillAllMissingUniqueIds().catch((err) => {
@@ -37,5 +50,6 @@ const connectDB = async () => {
     }
   }
 };
+
 
 export default connectDB;

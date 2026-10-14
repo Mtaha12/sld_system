@@ -165,9 +165,14 @@ otherCaseLawSchema.index({
   authorJudge: 'text',
 });
 
+otherCaseLawSchema.index({ isDeleted: 1, srNumber: -1 });
+otherCaseLawSchema.index({ isDeleted: 1, caseYear: -1, srNumber: -1 });
+otherCaseLawSchema.index({ isDeleted: 1, updatedAt: -1 });
+
 otherCaseLawSchema.pre(/^find/, function () {
-  this.where({ isDeleted: { $ne: true } });
+  this.where({ isDeleted: false });
 });
+
 
 const OtherCaseLaw = mongoose.model('OtherCaseLaw', otherCaseLawSchema);
 export default OtherCaseLaw;

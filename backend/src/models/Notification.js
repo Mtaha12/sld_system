@@ -131,10 +131,14 @@ notificationSchema.index({ isDeleted: 1, srNumber: -1 });
 notificationSchema.index({ isDeleted: 1, year: -1 });
 notificationSchema.index({ isDeleted: 1, department: 1 });
 
+notificationSchema.index({ isDeleted: 1, updatedAt: -1 });
+notificationSchema.index({ isDeleted: 1, createdAt: -1 });
+
 // Soft delete query filter middleware
 notificationSchema.pre(/^find/, function () {
-  this.where({ isDeleted: { $ne: true } });
+  this.where({ isDeleted: false });
 });
+
 
 const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;

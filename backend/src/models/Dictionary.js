@@ -76,8 +76,9 @@ dictionarySchema.index({ isDeleted: 1, words: 1 });
 dictionarySchema.index({ isDeleted: 1, srNumber: -1 });
 
 dictionarySchema.pre(/^find/, function () {
-  this.where({ isDeleted: { $ne: true } });
+  this.where({ isDeleted: false });
 });
+
 
 const Dictionary = mongoose.model('Dictionary', dictionarySchema);
 export default Dictionary;

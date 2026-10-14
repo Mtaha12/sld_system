@@ -35,7 +35,7 @@ const formatItem = (d) => ({
 export const getOtherCaseLaws = async (req, res, next) => {
   try {
     const { query, judge, page, limit, sortField = 'otherCaseId', sortOrder = 'asc' } = req.query;
-    const filter = { isDeleted: { $ne: true } };
+    const filter = { isDeleted: false };
 
     if (judge) {
       filter.$or = [
@@ -100,7 +100,7 @@ export const getOtherCaseLaws = async (req, res, next) => {
 
 export const getNextOtherCaseSr = async (req, res, next) => {
   try {
-    const lastDoc = await OtherCaseLaw.findOne({ isDeleted: { $ne: true }, srNumber: { $ne: null } })
+    const lastDoc = await OtherCaseLaw.findOne({ isDeleted: false, srNumber: { $ne: null } })
       .sort({ srNumber: -1 })
       .select('srNumber')
       .lean();

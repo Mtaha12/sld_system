@@ -58,7 +58,7 @@ export const getNotifications = async (req, res, next) => {
       lawStatute, law, section, number, year, date, text, subject, department, sroNumber, exact
     } = req.query;
 
-    const filter = { isDeleted: { $ne: true } };
+    const filter = { isDeleted: false };
 
     // Explicit lawStatute filter (e.g. from dropdown or exact law search)
     const targetLaw = (lawStatute || law || '').trim();
@@ -273,7 +273,7 @@ export const getNotificationById = async (req, res, next) => {
  */
 export const getNextNotificationSr = async (req, res, next) => {
   try {
-    const topNotif = await Notification.findOne({ isDeleted: { $ne: true }, srNumberInt: { $ne: null } })
+    const topNotif = await Notification.findOne({ isDeleted: false, srNumberInt: { $ne: null } })
       .sort({ srNumberInt: -1 })
       .select('srNumber srNumberInt')
       .lean();
@@ -326,7 +326,7 @@ export const createNotification = async (req, res, next) => {
       }
     } else {
       // Auto-assign next sequential SR #
-      const topNotif = await Notification.findOne({ isDeleted: { $ne: true }, srNumberInt: { $ne: null } })
+      const topNotif = await Notification.findOne({ isDeleted: false, srNumberInt: { $ne: null } })
         .sort({ srNumberInt: -1 })
         .select('srNumber srNumberInt')
         .lean();

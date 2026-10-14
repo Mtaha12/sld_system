@@ -59,7 +59,8 @@ export const getStatutes = async (req, res, next) => {
       law, section, chapter, text, text2, heading, department, exact
     } = req.query;
 
-    const filter = { isDeleted: { $ne: true } };
+    const filter = { isDeleted: false };
+
 
     // Explicit law filter (e.g. from dropdown or exact law search)
     const targetLaw = (law || '').trim();
@@ -426,15 +427,26 @@ export const deleteStatute = async (req, res, next) => {
   }
 };
 
-/**
- * Get distinct laws from statutes
- */
+let cachedDistinctLaws = null;
+let cachedDistinctLawsExpiresAt = 0;
+
 export const getDistinctLaws = async (req, res, next) => {
   try {
-    const laws = await Statute.distinct('law', { isDeleted: { $ne: true } });
+    const now = Date.now();
+    if (cachedDistinctLaws && now < cachedDistinctLawsExpiresAt) {
+      return res.status(200).json({
+        success: true,
+        data: cachedDistinctLaws
+      });
+    }
+
+    const laws = await Statute.distinct('law', { isDeleted: false });
     const cleanLaws = Array.from(
       new Set(laws.filter(Boolean).map(l => String(l).trim()).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b));
+
+    cachedDistinctLaws = cleanLaws;
+    cachedDistinctLawsExpiresAt = now + 10 * 60 * 1000; // 10 minutes cache
 
     return res.status(200).json({
       success: true,
@@ -444,6 +456,7 @@ export const getDistinctLaws = async (req, res, next) => {
     next(error);
   }
 };
+
 
 /**
  * Update latest fromDate of all statutes belonging to a specified law

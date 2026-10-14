@@ -22,7 +22,7 @@ import FormField from '../components/ui/FormField';
 import { caseService } from '../features/cases/services/caseService';
 
 // Helper function to generate and download file bundles
-const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '') => {
+const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '', customOptions = {}) => {
   const count = caseItems.length;
 
   if (format === 'pdf') {
@@ -209,6 +209,75 @@ const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '') => {
 
     printWindow.document.write(html);
     printWindow.document.close();
+    return;
+  }
+
+  if (format === 'citations_excel' || format === 'citations' || (format === 'excel' && customOptions?.isMagazineSearch)) {
+    const cleanMag = customOptions?.searchMagazine ? customOptions.searchMagazine.trim() : '';
+    const magTag = cleanMag ? `_${cleanMag.toUpperCase()}` : '';
+    const fileName = count === 1 
+      ? `SLD_Citation_${caseItems[0].sldNumber || caseItems[0].id}${magTag}.csv`
+      : `SLD_Citations${magTag}_${count}_Cases.csv`;
+
+    const headers = [
+      'SLD #',
+      'Year / Mag / Page'
+    ];
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = Array.isArray(val) ? val.join('; ') : String(val);
+      return '"' + str.replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"';
+    };
+
+    const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const magRegex = cleanMag ? new RegExp(`(^|[^a-zA-Z0-9])${escapeRegex(cleanMag)}([^a-zA-Z0-9]|$)`, 'i') : null;
+
+    const rows = caseItems.map(c => {
+      let cit = '';
+      if (cleanMag) {
+        const rawList = Array.isArray(c.mapYearPage) && c.mapYearPage.length > 0 
+          ? c.mapYearPage.filter(Boolean) 
+          : [];
+        let matching = rawList.filter(l => magRegex.test(l));
+        if (matching.length === 0 && Array.isArray(c.publications) && c.publications.length > 0) {
+          const pubs = c.publications.filter(p => p?.mag && p.mag.trim().toLowerCase() === cleanMag.toLowerCase());
+          matching = pubs.map(p => [p.year || p.vol, p.mag?.toUpperCase(), p.page].filter(Boolean).join(' '));
+        }
+        if (customOptions?.fromYear || customOptions?.toYear) {
+          const fy = customOptions.fromYear ? parseInt(customOptions.fromYear, 10) : null;
+          const ty = customOptions.toYear ? parseInt(customOptions.toYear, 10) : null;
+          matching = matching.filter(line => {
+            const ym = line.match(/^\s*(?:(?:\(\s*)?(\d{4})(?:\s*\))?|(?:[a-zA-Z]+)\s+(\d{4}))/);
+            const yrStr = ym ? (ym[1] || ym[2]) : null;
+            if (!yrStr) return true;
+            const y = parseInt(yrStr, 10);
+            if (fy && !isNaN(fy) && y < fy) return false;
+            if (ty && !isNaN(ty) && y > ty) return false;
+            return true;
+          });
+        }
+        cit = matching.join(' | ') || (Array.isArray(c.mapYearPage) ? c.mapYearPage.join(' | ') : (c.mapYearPage || ''));
+      } else {
+        cit = Array.isArray(c.mapYearPage) ? c.mapYearPage.join(' | ') : (c.mapYearPage || '');
+      }
+
+      return [
+        escapeCsv(c.sldNumber),
+        escapeCsv(cit)
+      ];
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     return;
   }
 
@@ -445,10 +514,9 @@ const ManageCasesPage = () => {
     const requestId = ++fetchRequestRef.current;
     setIsLoading(true);
 
-    const isMag = Boolean(debouncedFilters.magazine && debouncedFilters.magazine.trim());
     const params = {
       page: currentPage,
-      limit: isMag ? 500 : 100
+      limit: 100
     };
     if (debouncedFilters.subject) params.subject = debouncedFilters.subject;
     if (debouncedFilters.fromYear) params.fromYear = debouncedFilters.fromYear;
@@ -516,11 +584,20 @@ const ManageCasesPage = () => {
 
   // Main Export Handler
   const handleExport = (format = 'pdf') => {
+    if (format === 'citations_excel') {
+      handleExportCitations();
+      return;
+    }
     if (selectedIds.length > 0) {
       // 1 or more cases selected -> direct export
       const selectedCases = cases.filter(c => selectedIds.includes(c.id));
-      downloadCaseExport(selectedCases, format);
-      setToastMessage(`Successfully exported ${selectedCases.length} selected case(s) as ${format.toUpperCase()}.`);
+      downloadCaseExport(selectedCases, format, '', {
+        searchMagazine: filters.magazine,
+        fromYear: filters.fromYear,
+        toYear: filters.toYear,
+        isMagazineSearch: Boolean(filters.magazine && filters.magazine.trim())
+      });
+      setToastMessage(`Successfully exported ${selectedCases.length} selected case(s).`);
       setTimeout(() => setToastMessage(''), 4000);
     } else {
       // 0 cases selected -> open dialogue box asking for Case Range or Number
@@ -530,6 +607,61 @@ const ManageCasesPage = () => {
       setExportToSld('100');
       setExportError('');
       setExportModalOpen(true);
+    }
+  };
+
+  // Citations Only Export Handler
+  const handleExportCitations = async () => {
+    if (selectedIds.length > 0) {
+      const selectedCases = cases.filter(c => selectedIds.includes(c.id));
+      downloadCaseExport(selectedCases, 'citations_excel', '', {
+        searchMagazine: filters.magazine,
+        fromYear: filters.fromYear,
+        toYear: filters.toYear,
+        isMagazineSearch: Boolean(filters.magazine && filters.magazine.trim())
+      });
+      setToastMessage(`Exported citations for ${selectedCases.length} selected case(s) as Excel (.csv).`);
+      setTimeout(() => setToastMessage(''), 4000);
+    } else {
+      // 0 cases selected: export all search results
+      setIsLoading(true);
+      try {
+        const params = {
+          limit: 2000
+        };
+        if (filters.subject) params.subject = filters.subject;
+        if (filters.fromYear) params.fromYear = filters.fromYear;
+        if (filters.toYear) params.toYear = filters.toYear;
+        if (filters.fromDate) params.fromDate = filters.fromDate;
+        if (filters.toDate) params.toDate = filters.toDate;
+        if (filters.magazine) params.magazine = filters.magazine;
+        if (sortConfig.key && sortConfig.direction) {
+          params.sortField = sortConfig.key;
+          params.sortOrder = sortConfig.direction;
+        }
+
+        const response = await caseService.getCases(params);
+        const allMatchingCases = response.data || [];
+        if (allMatchingCases.length === 0) {
+          setToastMessage('No cases found to export citations.');
+          setTimeout(() => setToastMessage(''), 4000);
+          return;
+        }
+
+        downloadCaseExport(allMatchingCases, 'citations_excel', '', {
+          searchMagazine: filters.magazine,
+          fromYear: filters.fromYear,
+          toYear: filters.toYear,
+          isMagazineSearch: Boolean(filters.magazine && filters.magazine.trim())
+        });
+        setToastMessage(`Exported citations for all ${allMatchingCases.length} search result(s) as Excel (.csv).`);
+        setTimeout(() => setToastMessage(''), 4000);
+      } catch (err) {
+        setToastMessage(`Failed to export citations: ${err.message || 'Server error'}`);
+        setTimeout(() => setToastMessage(''), 4000);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -817,6 +949,7 @@ const ManageCasesPage = () => {
         selectedCount={selectedIds.length}
         initialSearch={filters.subject}
         onExport={handleExport}
+        onExportCitations={handleExportCitations}
         onHeadNotes={handleHeadNotes}
         onJudgment={handleJudgment}
         onGetCaseId={handleGetCaseId}
@@ -843,6 +976,9 @@ const ManageCasesPage = () => {
           isLoading={isLoading}
           serverPaginated={true}
           isMagazineSearch={Boolean(filters.magazine && filters.magazine.trim())}
+          searchMagazine={filters.magazine || ''}
+          fromYear={filters.fromYear || ''}
+          toYear={filters.toYear || ''}
         />
       </div>
 

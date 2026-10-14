@@ -17,6 +17,7 @@ import {
   Download, 
   Upload, 
   FileDown,
+  FileSpreadsheet,
   ScrollText
 } from 'lucide-react';
 
@@ -100,7 +101,10 @@ const ManageCasesTable = ({
   onExportSelection,
   isLoading = false,
   serverPaginated = false,
-  isMagazineSearch = false
+  isMagazineSearch = false,
+  searchMagazine = '',
+  fromYear = '',
+  toYear = ''
 }) => {
   const navigate = useNavigate();
   const [internalCases, setInternalCases] = useState([]);
@@ -493,13 +497,23 @@ const ManageCasesTable = ({
             </div>
             <div className="flex items-center gap-2">
               {onExportSelection && (
-                <button
-                  type="button"
-                  onClick={() => onExportSelection('pdf')}
-                  className="px-2.5 py-1 rounded-lg bg-brand-orange hover:bg-[#D44E35] text-white text-xs font-medium transition-colors flex items-center gap-1 shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5" /> Export ({selectedIds.length})
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onExportSelection('citations_excel')}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
+                    title="Export only SLD # and Citations as Excel (.csv)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" /> Export Citations ({selectedIds.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onExportSelection('pdf')}
+                    className="px-2.5 py-1 rounded-lg bg-brand-orange hover:bg-[#D44E35] text-white text-xs font-medium transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Export ({selectedIds.length})
+                  </button>
+                </>
               )}
               <button
                 onClick={() => setSelectedIds([])}
@@ -546,7 +560,10 @@ const ManageCasesTable = ({
                 </th>
                 <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName={isMagazineSearch ? "w-24" : "w-16 text-center"} />
                 {isMagazineSearch ? (
-                  <TableHeader title="Year / Mag / Vol (All Entries)" widthClassName="w-auto" />
+                  <TableHeader 
+                    title={searchMagazine ? `Year / Mag / Vol (${searchMagazine.toUpperCase()})` : "Year / Mag / Vol (All Entries)"} 
+                    widthClassName="w-auto" 
+                  />
                 ) : (
                   <>
                     <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-24 text-center" />
@@ -605,16 +622,71 @@ const ManageCasesTable = ({
                     {isMagazineSearch ? (
                       <td className="px-2 py-2.5 align-top text-theme-main">
                         <div className="flex flex-wrap gap-1 max-h-[64px] overflow-y-auto">
-                          {(Array.isArray(item.mapYearPage) && item.mapYearPage.length > 0 ? item.mapYearPage.filter(Boolean) : [item.yearVolume || '—'])
-                            .reduce((unique, line) => {
+                          {(() => {
+                            const rawList = Array.isArray(item.mapYearPage) && item.mapYearPage.length > 0 
+                              ? item.mapYearPage.filter(Boolean) 
+                              : [item.yearVolume || '—'];
+                            
+                            const uniqueList = rawList.reduce((unique, line) => {
                               if (!unique.includes(line)) unique.push(line);
                               return unique;
-                            }, [])
-                            .map((line, i) => (
+                            }, []);
+
+                            if (!searchMagazine || !searchMagazine.trim()) {
+                              return uniqueList.map((line, i) => (
+                                <span key={`${line}-${i}`} className="inline-flex items-center px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-brand-orange border border-brand-orange/30 rounded text-xs font-semibold">
+                                  {line}
+                                </span>
+                              ));
+                            }
+
+                            const cleanMag = searchMagazine.trim();
+                            const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const magRegex = new RegExp(`(^|[^a-zA-Z0-9])${escapeRegex(cleanMag)}([^a-zA-Z0-9]|$)`, 'i');
+
+                            let filtered = uniqueList.filter(line => magRegex.test(line));
+
+                            // Fallback: check item.publications if mapYearPage didn't yield matches
+                            if (filtered.length === 0 && Array.isArray(item.publications) && item.publications.length > 0) {
+                              const matchingPubs = item.publications.filter(p => 
+                                p?.mag && p.mag.trim().toLowerCase() === cleanMag.toLowerCase()
+                              );
+                              if (matchingPubs.length > 0) {
+                                filtered = matchingPubs.map(p => {
+                                  const parts = [p.year || p.vol, p.mag?.toUpperCase(), p.page].filter(Boolean);
+                                  return parts.join(' ');
+                                });
+                              }
+                            }
+
+                            // If year range is specified, also filter the citations to only display those matching the year range
+                            if (fromYear || toYear) {
+                              const fy = fromYear ? parseInt(fromYear, 10) : null;
+                              const ty = toYear ? parseInt(toYear, 10) : null;
+                              const yearFiltered = filtered.filter(line => {
+                                const ym = line.match(/^\s*(?:(?:\(\s*)?(\d{4})(?:\s*\))?|(?:[a-zA-Z]+)\s+(\d{4}))/);
+                                const yrStr = ym ? (ym[1] || ym[2]) : null;
+                                if (!yrStr) return true;
+                                const y = parseInt(yrStr, 10);
+                                if (fy && !isNaN(fy) && y < fy) return false;
+                                if (ty && !isNaN(ty) && y > ty) return false;
+                                return true;
+                              });
+                              if (yearFiltered.length > 0) {
+                                filtered = yearFiltered;
+                              }
+                            }
+
+                            if (filtered.length === 0) {
+                              filtered = uniqueList;
+                            }
+
+                            return filtered.map((line, i) => (
                               <span key={`${line}-${i}`} className="inline-flex items-center px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-brand-orange border border-brand-orange/30 rounded text-xs font-semibold">
                                 {line}
                               </span>
-                            ))}
+                            ));
+                          })()}
                         </div>
                       </td>
                     ) : (
