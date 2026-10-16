@@ -345,8 +345,8 @@ const LegalMarkdownRenderer = ({ text, onCopy }) => {
     setTimeout(() => setCopiedKey(null), 2500);
   };
 
-  // Detect whether this response contains an authoritative legal document/pleading
-  const isPleading = /HIGH\s*COURT|W\.?\s*P\.?\s*NO|ARTICLE\s*199|FORM\s*[“"']?B[”"']?|IT\s*-\s*16|VAKALAT\s*NAMA|PETITION\s*UNDER|BEFORE\s*THE\s*APPELLATE\s*TRIBUNAL/i.test(text);
+  // Detect whether this response contains an authoritative drafted legal document/pleading
+  const isPleading = /(?:PETITION\s*UNDER\s*ARTICLE\s*199|MEMO\s*OF\s*APPEAL|FORM\s*[“"']?B[”"']?\s*\[RULE\s*7\]|FORM\s*OF\s*APPEAL\s*IT\s*-\s*16|VAKALAT\s*NAMA|BEFORE\s*THE\s*APPELLATE\s*TRIBUNAL\s*INLAND\s*REVENUE|GROUNDS\s*OF\s*APPEAL\s*:|PRAYER\s*CLAUSE\s*:|IN\s*THE\s*HON'?BLE\s*HIGH\s*COURT\s*OF[\s\S]{1,100}WRIT\s*PETITION\s*NO)/i.test(text);
 
   // Clean raw text: strip unneeded triple asterisks or stray trailing **
   const cleanedSourceText = text

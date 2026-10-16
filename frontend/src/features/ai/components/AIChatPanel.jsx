@@ -681,7 +681,7 @@ th { background-color: #f2f2f2; font-weight: bold; }
                                 <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono">
                                   SLD #{c.sldNumber || c.id}
                                 </span>
-                                {c.dated && (
+                                {c.dated && !String(c.dated).startsWith('1970') && !String(c.dated).startsWith('0000') && (
                                   <span className="text-[10px] text-slate-400">
                                     {String(c.dated).split('T')[0]}
                                   </span>
@@ -691,7 +691,7 @@ th { background-color: #f2f2f2; font-weight: bold; }
                                 {Array.isArray(c.citations) && c.citations.length > 0 ? c.citations.join(' = ') : `Case ${cIdx + 1}`}
                               </div>
                               <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
-                                {c.court || 'High Court of Record'}
+                                {c.court || 'Superior Court of Record'}
                               </p>
                             </div>
                             <div className="pt-1 border-t border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between">
