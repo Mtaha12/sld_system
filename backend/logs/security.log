@@ -623,3 +623,13 @@
 {"level":"warn","message":"Verbatim excerpt search notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-16 14:34:33"}
 {"level":"warn","message":"Keyword fallback notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-16 14:34:35"}
 {"level":"warn","message":"Omni-channel search warning: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-16 14:34:40"}
+{"level":"warn","message":"Verbatim excerpt search notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-16 14:45:37"}
+{"level":"warn","message":"Keyword fallback notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-16 14:45:39"}
+{"level":"warn","message":"Omni-channel search warning: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-16 14:45:42"}
+{"level":"warn","message":"Gemini model gemini-3.8-flash call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-16 14:45:54"}
+{"level":"warn","message":"Gemini fallback synthesis notice: Fallback Gemini timeout","service":"sld-backend-service","timestamp":"2026-10-16 14:45:55"}
+{"level":"warn","message":"Gemini model gemini-3.5-flash-lite call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-16 14:46:06"}
+{"level":"warn","message":"Gemini model gemini-flash-lite-latest call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-16 14:46:19"}
+{"level":"warn","message":"Gemini model gemini-3.7-flash returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-16 14:46:20"}
+{"level":"warn","message":"Gemini model gemini-3.6-flash call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-16 14:46:32"}
+{"level":"warn","message":"Gemini model gemini-3.5-flash call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-16 14:46:44"}
