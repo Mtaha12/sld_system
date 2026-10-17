@@ -13,7 +13,7 @@ const OtherCaseLawsPage = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
   const [sortConfig, setSortConfig] = useState({ key: 'otherCaseId', direction: 'asc' });
 
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -25,7 +25,7 @@ const OtherCaseLawsPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  const fetchCases = useCallback(async (page = 1, limit = 25, sortKey = 'srNumber', sortDir = 'asc', query = '', judge = '') => {
+  const fetchCases = useCallback(async (page = 1, limit = 100, sortKey = 'srNumber', sortDir = 'asc', query = '', judge = '') => {
     setIsLoading(true);
     try {
       const res = await otherCaseService.getOtherCases(query, judge, page, limit, sortKey, sortDir);

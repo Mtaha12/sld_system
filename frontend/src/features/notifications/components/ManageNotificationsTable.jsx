@@ -204,6 +204,39 @@ const ManageNotificationsTable = ({
     setTimeout(() => setToastMessage(''), 3500);
   };
 
+  const getNotificationAttachmentUrl = (item) => {
+    if (!item) return null;
+    let target = null;
+    if (Array.isArray(item.attachments) && item.attachments.length > 0) {
+      target = item.attachments[0];
+    } else if (item.attachment) {
+      target = item.attachment;
+    } else if (item.attachmentName) {
+      target = item.attachmentName;
+    } else if (Array.isArray(item.blocks)) {
+      for (const b of item.blocks) {
+        if (Array.isArray(b?.attachments) && b.attachments.length > 0) {
+          target = b.attachments[0];
+          break;
+        } else if (b?.attachment) {
+          target = b.attachment;
+          break;
+        }
+      }
+    }
+
+    if (target) {
+      if (typeof target === 'string') {
+        return (target.startsWith('http') || target.startsWith('data:') || target.startsWith('blob:'))
+          ? target
+          : `/uploads/${target}`;
+      }
+      if (target.url) return target.url;
+      if (target.name) return `/uploads/${target.name}`;
+    }
+    return null;
+  };
+
   return (
     <div className="flex flex-col mb-8 animate-fade-in relative">
       
@@ -290,9 +323,16 @@ const ManageNotificationsTable = ({
                       {hasAtt ? (
                         <button
                           type="button"
-                          onClick={() => setViewModalItem(item)}
+                          onClick={() => {
+                            const attUrl = getNotificationAttachmentUrl(item);
+                            if (attUrl) {
+                              window.open(attUrl, '_blank', 'noopener,noreferrer');
+                            } else {
+                              window.open(`/notifications/view/${item.srNumber || item.id || item.mongoId}`, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
                           className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#7c4dff]/20 hover:bg-[#7c4dff]/30 text-[#651fff] dark:text-[#b388ff] border border-[#7c4dff]/40 shadow-sm transition-all cursor-pointer"
-                          title="View Attachment"
+                          title="View Attachment in new tab"
                         >
                           <Eye className="w-3 h-3 shrink-0" />
                           <span>view</span>

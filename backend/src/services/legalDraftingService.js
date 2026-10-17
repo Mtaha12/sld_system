@@ -957,23 +957,28 @@ Dated: _________________
 /**
  * Call Gemini API with Token Limitizer & Fallback
  */
-export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, inlineParts = []) => {
+export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, inlineParts = [], config = {}) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  // Fast, officially supported Gemini models with timeout guard
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  const {
+    temperature = 0.2,
+    maxOutputTokens = 2000,
+    timeoutMs = 12000
+  } = config;
+
+  // Officially supported high-speed models with free-tier efficiency
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
   const models = [
     primaryModel,
-    'gemini-3.5-flash-lite',
     'gemini-flash-lite-latest',
-    'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
-    'gemini-3.5-flash'
-  ].filter((v, i, a) => a.indexOf(v) === i);
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-3.8-flash'
+  ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+
   let lastError = null;
 
   for (const model of models) {
@@ -993,12 +998,12 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(12000), // 12-second timeout ensures reliable completion without truncation
+        signal: AbortSignal.timeout(timeoutMs),
         body: JSON.stringify({
           contents,
           generationConfig: {
-            temperature: 0.15,
-            maxOutputTokens: 2500, // Token limitizer prevents excessive generation
+            temperature,
+            maxOutputTokens,
             topP: 0.95
           }
         })
@@ -1012,6 +1017,10 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
       if (data.error) {
         logger.warn(`Gemini model ${model} returned error: ${data.error.message || data.error.code}`);
         lastError = new Error(data.error.message || `API error ${data.error.code}`);
+        // If rate limited or quota exceeded, small jittered backoff before next model
+        if (data.error.code === 429 || (data.error.message && data.error.message.includes('quota'))) {
+          await new Promise(r => setTimeout(r, 250 + Math.random() * 200));
+        }
       }
     } catch (err) {
       logger.warn(`Gemini model ${model} call error: ${err.message}`);

@@ -269,7 +269,7 @@ const AddCaseLawDetail = ({ onClose }) => {
       });
 
     // Fetch dynamic Sections from backend
-    settingService.getSections({ status: 'active', limit: 10000 })
+    settingService.getSections({ status: 'active', limit: 30000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const fetched = res.data.map(s => ({
@@ -280,7 +280,12 @@ const AddCaseLawDetail = ({ onClose }) => {
           const merged = [{ label: 'Select Section', value: '' }];
           seen.add('');
 
-          fetched.forEach(item => {
+          const combinedSections = [
+            ...(SECTION_OPTIONS || []),
+            ...fetched
+          ];
+
+          combinedSections.forEach(item => {
             const key = item.value.toLowerCase().trim();
             if (!seen.has(key)) {
               seen.add(key);
@@ -388,8 +393,14 @@ const AddCaseLawDetail = ({ onClose }) => {
     if (!caseData) return;
 
     setCurrentCaseId(caseData.id || caseData._id || null);
+    if (caseData.sldNumber) {
+      setAssignedSldNumber(String(caseData.sldNumber));
+    }
     const formVals = getInitialValues(caseData);
     reset(formVals);
+    if (caseData.sldNumber) {
+      setValue('srNumber', String(caseData.sldNumber), { shouldDirty: false });
+    }
 
     // Track which publications have volume open
     const volMap = {};
@@ -438,6 +449,7 @@ const AddCaseLawDetail = ({ onClose }) => {
       if (caseData) {
         applyCaseToForm(caseData);
         setAssignedSldNumber(String(caseData.sldNumber || cleanSld));
+        setValue('srNumber', String(caseData.sldNumber || cleanSld), { shouldDirty: false });
         setLoadSldInput(String(cleanSld));
         if (searchParams.get('sld') !== cleanSld) {
           setSearchParams({ sld: cleanSld }, { replace: true });
@@ -493,6 +505,7 @@ const AddCaseLawDetail = ({ onClose }) => {
       applyCaseToForm(editData);
       if (editData.sldNumber) {
         setAssignedSldNumber(String(editData.sldNumber));
+        setValue('srNumber', String(editData.sldNumber), { shouldDirty: false });
         if (searchParams.get('sld') !== String(editData.sldNumber)) {
           setSearchParams({ sld: String(editData.sldNumber) }, { replace: true });
         }
@@ -554,15 +567,41 @@ const AddCaseLawDetail = ({ onClose }) => {
     if (isSubmittingManual) return;
     setIsSubmittingManual(true);
     try {
-      if (currentCaseId) {
-        await caseService.updateCase(currentCaseId, data);
-        setSuccessMessage(`SLD #${data.srNumber || currentCaseId} updated successfully.`);
+      const targetSld = assignedSldNumber || data.srNumber || editData?.sldNumber || '';
+      const payload = {
+        ...data,
+        srNumber: targetSld
+      };
+
+      let targetId = currentCaseId;
+      // If editing an existing case but ID was lost/not cached, look up by previous SLD number
+      if (!targetId && targetSld) {
+        try {
+          const existing = await caseService.getCaseBySld(targetSld);
+          if (existing?.id || existing?._id) {
+            targetId = existing.id || existing._id;
+            setCurrentCaseId(targetId);
+          }
+        } catch {
+          // not found as existing record
+        }
+      }
+
+      if (targetId) {
+        await caseService.updateCase(targetId, payload);
+        setAssignedSldNumber(targetSld);
+        setValue('srNumber', targetSld, { shouldDirty: false });
+        setSuccessMessage(`SLD #${targetSld || targetId} updated successfully.`);
       } else {
-        const created = await caseService.createCase(data);
+        const created = await caseService.createCase(payload);
         if (created?.data?.id) {
           setCurrentCaseId(created.data.id);
         }
-        setSuccessMessage(`SLD #${data.srNumber} created successfully.`);
+        if (created?.data?.sldNumber) {
+          setAssignedSldNumber(String(created.data.sldNumber));
+          setValue('srNumber', String(created.data.sldNumber), { shouldDirty: false });
+        }
+        setSuccessMessage(`SLD #${targetSld || created?.data?.sldNumber} created successfully.`);
       }
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3500);

@@ -6,6 +6,7 @@ import {
   ArrowLeft, Printer, Landmark, Copy, Check, 
   Calendar, FileText, Download, ShieldCheck, ExternalLink
 } from 'lucide-react';
+import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -201,8 +202,12 @@ const TaxCardViewPage = () => {
           >
             {detail ? (
               <div 
-                className="whitespace-pre-wrap leading-relaxed text-justify"
-                dangerouslySetInnerHTML={{ __html: detail.replace(/\n/g, '<br/>') }}
+                className="word-document-content text-stone-800 dark:text-stone-200 font-serif leading-relaxed"
+                style={{
+                  fontSize: fontSizes[fontSizeIndex].fontSize,
+                  lineHeight: fontSizes[fontSizeIndex].lineHeight
+                }}
+                dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(detail) }}
               />
             ) : (
               <p className="italic text-stone-500">Official Finance Act schedules and tax rates table record.</p>

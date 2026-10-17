@@ -346,7 +346,7 @@ export const updateStatute = async (req, res, next) => {
       isDeleted: { $ne: true }
     };
 
-    const { srNumber, department, chapter, law, section, heading, blocks } = req.body;
+    const { srNumber, department, chapter, law, section, heading, blocks, display, status } = req.body;
 
     const s = await Statute.findOne(query);
     if (!s) {
@@ -356,15 +356,24 @@ export const updateStatute = async (req, res, next) => {
       });
     }
 
-    if (srNumber && srNumber !== s.srNumber) {
-      const exist = await Statute.findOne({ srNumber, _id: { $ne: s._id } });
+    // Strictly preserve original srNumber on edit: never reassign to a new counter or generated ID
+    const originalSr = s.srNumber;
+    if (srNumber && String(srNumber).trim() && String(srNumber).trim() !== String(s.srNumber).trim()) {
+      const cleanSr = String(srNumber).trim();
+      const exist = await Statute.findOne({ srNumber: cleanSr, _id: { $ne: s._id }, isDeleted: { $ne: true } });
       if (exist) {
         return res.status(400).json({
           success: false,
-          message: `Statute with SR #${srNumber} already exists.`
+          message: `Statute with SR #${cleanSr} already exists.`
         });
       }
-      s.srNumber = srNumber;
+      s.srNumber = cleanSr;
+    } else {
+      s.srNumber = originalSr;
+    }
+    if (s.srNumber) {
+      const parsed = parseInt(String(s.srNumber).replace(/\D+/g, ''), 10);
+      s.srNumberInt = !isNaN(parsed) ? parsed : null;
     }
 
     if (department !== undefined) s.department = department;

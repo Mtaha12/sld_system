@@ -42,7 +42,10 @@ const ManageCasesFilterBar = ({
     magazineService.getMagazines({ status: 'active', limit: 200 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          setMagazineList(res.data);
+          const sorted = [...res.data].sort((a, b) => 
+            String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+          );
+          setMagazineList(sorted);
         }
       })
       .catch(err => console.warn('Could not load dynamic magazines for filter bar:', err));
@@ -151,12 +154,12 @@ const ManageCasesFilterBar = ({
               ))
             ) : (
               <>
+                <option value="CLC">Civil Law Cases (CLC)</option>
+                <option value="PLD">PLD</option>
+                <option value="PTD">PTD</option>
+                <option value="SCMR">Supreme Court Monthly Review (SCMR)</option>
                 <option value="SLD">SLD Law Report</option>
                 <option value="Tax">Tax Law Journal</option>
-                <option value="CLC">Civil Law Cases (CLC)</option>
-                <option value="SCMR">Supreme Court Monthly Review</option>
-                <option value="PTD">PTD</option>
-                <option value="PLD">PLD</option>
               </>
             )}
           </select>

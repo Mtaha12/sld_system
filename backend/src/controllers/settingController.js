@@ -930,7 +930,7 @@ export const getSections = async (req, res, next) => {
       const l = Math.max(1, parseInt(limit, 10) || 20);
       query = query.skip((p - 1) * l).limit(l);
     } else if (limit) {
-      const l = Math.max(1, parseInt(limit, 10) || 10000);
+      const l = Math.max(1, parseInt(limit, 10) || 30000);
       query = query.limit(l);
     }
 

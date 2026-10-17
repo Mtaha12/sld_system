@@ -4,6 +4,7 @@ import { caseService } from '../features/cases/services/caseService';
 import { settingService } from '../services/settingService';
 import { magazineService, courtService } from '../services/adminSettingsServices';
 import CaseDocumentModal from '../components/ui/CaseDocumentModal';
+import DatePicker from '../components/ui/DatePicker';
 import { ALL_SECTIONS } from '../data/sections';
 
 /* ── Shared form field styles ────────────────────────────────────────────── */
@@ -13,7 +14,7 @@ const inp =
 
 const sel =
   'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 text-sm pl-3.5 pr-8 py-2 rounded-lg ' +
-  'border border-slate-200/90 dark:border-slate-700 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#3d4a7a]/50 h-[38px] shadow-2xs transition-all';
+  'border border-slate-200/90 dark:border-slate-700 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-brand-orange/40 focus:border-brand-orange hover:border-brand-orange/40 h-[38px] shadow-2xs transition-all';
 
 const SelectField = React.memo(({ value, onChange, options = [] }) => {
   const allOptions = useMemo(() => {
@@ -21,17 +22,49 @@ const SelectField = React.memo(({ value, onChange, options = [] }) => {
     if (value && !list.some(o => o.value === value)) {
       list.push({ value, label: value });
     }
-    return list;
+
+    // Keep placeholder at top, sort regular options in clean natural alphabetical order
+    const placeholders = [];
+    const regular = [];
+    const seen = new Set();
+
+    for (const opt of list) {
+      if (!opt) continue;
+      const key = String(opt.value ?? '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const isPlaceholder = opt.value === '' || opt.value === 'all' || 
+        String(opt.label || '').toLowerCase().startsWith('select ') || 
+        String(opt.label || '').toLowerCase().startsWith('choose ');
+      if (isPlaceholder) {
+        placeholders.push(opt);
+      } else {
+        regular.push(opt);
+      }
+    }
+
+    regular.sort((a, b) => 
+      String(a.label || a.value || '').localeCompare(
+        String(b.label || b.value || ''), 
+        undefined, 
+        { numeric: true, sensitivity: 'base' }
+      )
+    );
+
+    return [...placeholders, ...regular];
   }, [options, value]);
 
   return (
     <div className="relative w-full">
       <select className={sel} value={value} onChange={onChange}>
         {allOptions.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value} className="bg-theme-surface text-theme-main py-1">
+            {o.label}
+          </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 flex items-center justify-center">
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 8l4 4 4-4" />
         </svg>
@@ -171,9 +204,12 @@ const SearchCaseLawPage = () => {
     magazineService.getMagazines({ status: 'active' })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const sortedMags = res.data
+            .map(m => ({ value: m.name, label: m.name }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
           setMagazineOptions([
             { value: '', label: 'Select Magazine' },
-            ...res.data.map(m => ({ value: m.name, label: m.name }))
+            ...sortedMags
           ]);
         }
       })
@@ -182,9 +218,12 @@ const SearchCaseLawPage = () => {
     courtService.getCourts({ status: 'active' })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const sortedCourts = res.data
+            .map(c => ({ value: c.name, label: c.name }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
           setCourtOptions([
             { value: '', label: 'Select Court' },
-            ...res.data.map(c => ({ value: c.name, label: c.name }))
+            ...sortedCourts
           ]);
         }
       })
@@ -193,7 +232,9 @@ const SearchCaseLawPage = () => {
     settingService.getLaws({ status: 'active', limit: 5000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          const fetchedLaws = res.data.map(l => ({ value: l.name, label: l.name }));
+          const fetchedLaws = res.data
+            .map(l => ({ value: l.name, label: l.name }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
           setLawOptions([
             { value: '', label: 'Select Law' },
             ...fetchedLaws
@@ -206,16 +247,36 @@ const SearchCaseLawPage = () => {
       })
       .catch(err => console.warn('Laws load warning:', err));
 
-    settingService.getSections({ status: 'active', limit: 10000 })
+    settingService.getSections({ status: 'active', limit: 30000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          setSectionOptions(res.data.map(s => s.name));
+          const names = res.data.map(s => s.name).filter(Boolean);
+          const combined = Array.from(new Set([...names, ...(ALL_SECTIONS || [])])).sort((a, b) =>
+            String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+          );
+          setSectionOptions(combined);
         }
       })
       .catch(err => console.warn('Sections load warning:', err));
 
     return () => { isMounted = false; };
   }, []);
+
+  const sectionSelectOptions = useMemo(() => [
+    { value: '', label: 'Select Section' },
+    ...sectionOptions.map(s => ({
+      value: String(s),
+      label: String(s).startsWith('Section') ? String(s) : `Section ${s}`
+    }))
+  ], [sectionOptions]);
+
+  const section2SelectOptions = useMemo(() => [
+    { value: '', label: 'Select Section 2' },
+    ...sectionOptions.map(s => ({
+      value: String(s),
+      label: String(s).startsWith('Section') ? String(s) : `Section ${s}`
+    }))
+  ], [sectionOptions]);
 
   const set = field => e => setF(p => ({ ...p, [field]: e.target.value }));
 
@@ -471,34 +532,17 @@ const SearchCaseLawPage = () => {
             </div>
           </div>
 
-          {/* ── Row 2: Select Law (wide) · Enter Section · Enter Section 2 ─ */}
+          {/* ── Row 2: Select Law (wide) · Select Section · Select Section 2 ─ */}
           <div className="flex gap-4 mb-3 items-center">
             <div className="w-[58%]">
               <SelectField value={f.selectLaw} onChange={set('selectLaw')} options={lawOptions} />
             </div>
             <div className="flex-1">
-              <input 
-                className={inp} 
-                placeholder="Enter Section" 
-                value={f.section} 
-                onChange={set('section')} 
-                list="case-sections-list"
-              />
+              <SelectField value={f.section} onChange={set('section')} options={sectionSelectOptions} />
             </div>
             <div className="flex-1">
-              <input 
-                className={inp} 
-                placeholder="Enter Section 2" 
-                value={f.section2} 
-                onChange={set('section2')} 
-                list="case-sections-list"
-              />
+              <SelectField value={f.section2} onChange={set('section2')} options={section2SelectOptions} />
             </div>
-            <datalist id="case-sections-list">
-              {sectionOptions.map((secName, idx) => (
-                <option key={idx} value={secName} />
-              ))}
-            </datalist>
           </div>
 
           {/* ── Row 3: Select Court · Enter Case # · From Date · To Date (Calendar Selectors) ─ */}
@@ -510,28 +554,20 @@ const SearchCaseLawPage = () => {
               <input className={inp} placeholder="Enter Case #" value={f.caseNumber} onChange={set('caseNumber')} />
             </div>
             <div className="w-full sm:w-[16%]">
-              <div className="relative">
-                <input 
-                  className={inp} 
-                  type="date" 
-                  placeholder="From Date" 
-                  value={f.fromDate} 
-                  onChange={set('fromDate')} 
-                  title="From Date Calendar Selection"
-                />
-              </div>
+              <DatePicker 
+                selectedDate={f.fromDate}
+                onChange={(val) => setF(p => ({ ...p, fromDate: val }))}
+                placeholder="From Date"
+                className="w-full"
+              />
             </div>
             <div className="w-full sm:w-[16%]">
-              <div className="relative">
-                <input 
-                  className={inp} 
-                  type="date" 
-                  placeholder="To Date" 
-                  value={f.toDate} 
-                  onChange={set('toDate')} 
-                  title="To Date Calendar Selection"
-                />
-              </div>
+              <DatePicker 
+                selectedDate={f.toDate}
+                onChange={(val) => setF(p => ({ ...p, toDate: val }))}
+                placeholder="To Date"
+                className="w-full"
+              />
             </div>
           </div>
 

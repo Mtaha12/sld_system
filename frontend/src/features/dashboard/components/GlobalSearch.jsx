@@ -71,9 +71,12 @@ const GlobalSearch = ({
     courtService.getCourts({ status: 'active' })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const sorted = res.data
+            .map(c => ({ value: c.name, label: c.name }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
           setCourtsList([
             { value: 'all', label: 'All Courts & Jurisdictions' },
-            ...res.data.map(c => ({ value: c.name, label: c.name }))
+            ...sorted
           ]);
         }
       })

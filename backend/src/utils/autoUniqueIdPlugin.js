@@ -48,13 +48,26 @@ export const autoUniqueIdPlugin = (schema, options = {}) => {
     if (this.isNew || !this[primaryField]) {
       if (!this[primaryField]) {
         const session = this.$session ? this.$session() : null;
-        const generatedId = await generateUniqueId({
+        let generatedId = await generateUniqueId({
           entityName,
           prefix,
           padLength,
           delimiter,
           session
         });
+
+        // Concurrency & collision safety: ensure ID does not already exist
+        let attempts = 0;
+        while (attempts < 50 && await this.constructor.exists({ [primaryField]: generatedId })) {
+          attempts++;
+          generatedId = await generateUniqueId({
+            entityName,
+            prefix,
+            padLength,
+            delimiter,
+            session
+          });
+        }
 
         this[primaryField] = generatedId;
 

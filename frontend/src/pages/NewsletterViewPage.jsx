@@ -7,6 +7,7 @@ import {
   Mail, Calendar, Tag, Paperclip, Download, Copy, Check, 
   Printer, ArrowLeft, ShieldCheck, ExternalLink, FileText, Share2 
 } from 'lucide-react';
+import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
 const NewsletterViewPage = () => {
   const { id } = useParams();
@@ -172,8 +173,8 @@ const NewsletterViewPage = () => {
           <div className="p-6 sm:p-8">
             {newsletter.message ? (
               <div 
-                className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 leading-relaxed text-[15px] sm:text-[16px]"
-                dangerouslySetInnerHTML={{ __html: newsletter.message }}
+                className="word-document-content max-w-none text-slate-700 dark:text-slate-200 leading-relaxed text-[15px] sm:text-[16px]"
+                dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(newsletter.message) }}
               />
             ) : (
               <div className="text-sm text-slate-400 italic">No document text description provided.</div>

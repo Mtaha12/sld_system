@@ -1,1 +1,3 @@
 {"level":"error","message":"Unhandled exception in runLegalIntelligenceEngine: Operation `cases.find()` buffering timed out after 10000ms","service":"sld-backend-service","timestamp":"2026-10-12 16:24:26"}
+{"level":"warn","message":"Case number query notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-16 16:05:36"}
+{"level":"warn","message":"Case number query notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-16 16:05:47"}

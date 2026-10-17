@@ -19,7 +19,7 @@ const API_URL = 'http://localhost:5000';
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Mock user credentials
-const rand = Math.floor(Math.random() * 100000);
+const rand = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 const testAdmin = {
   fullName: 'Test Auditor Admin',
   username: `audit_admin_${rand}`,

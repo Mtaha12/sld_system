@@ -5,6 +5,7 @@ import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
 import FormFooter from '../../../components/ui/FormFooter';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
+import DatePicker from '../../../components/ui/DatePicker';
 import { otherCaseService } from '../services/otherCaseService';
 
 const getTodayDateString = () => {
@@ -24,24 +25,24 @@ const formatFileSize = (bytes) => {
 
 const APEX_COURT_OPTIONS = [
   'Supreme Court of Pakistan',
-  'Lahore High Court',
-  'Sindh High Court',
-  'Peshawar High Court',
-  'Islamabad High Court',
-  'High Court of Balochistan',
+  'Appellate Tribunal',
   'Federal Shariat Court',
-  'Appellate Tribunal'
+  'High Court of Balochistan',
+  'Islamabad High Court',
+  'Lahore High Court',
+  'Peshawar High Court',
+  'Sindh High Court'
 ];
 
 const APEX_STATUS_OPTIONS = [
-  'Disposed of',
-  'Decided',
-  'Pending',
   'Allowed',
+  'Converted into Appeal',
+  'Decided',
   'Dismissed',
+  'Disposed of',
   'Leave Granted',
   'Leave Refused',
-  'Converted into Appeal'
+  'Pending'
 ];
 
 const AddOtherCaseForm = ({
@@ -222,8 +223,22 @@ const AddOtherCaseForm = ({
 
     setIsSubmitting(true);
     try {
+      const targetSr = srNumber ? Number(srNumber) : (editData?.srNumber ? Number(editData.srNumber) : undefined);
+      let targetId = currentId || (editData && (editData.mongoId || editData.id || editData.otherCaseId));
+      if (!targetId && targetSr) {
+        try {
+          const existing = await otherCaseService.getOtherCaseById(targetSr);
+          if (existing?.id || existing?.mongoId || existing?.otherCaseId || existing?._id) {
+            targetId = existing.mongoId || existing.id || existing._id || existing.otherCaseId;
+            setCurrentId(targetId);
+          }
+        } catch {
+          // not found as existing record
+        }
+      }
+
       const payload = {
-        srNumber: srNumber ? Number(srNumber) : undefined,
+        srNumber: targetSr,
         citation: citation.trim(),
         caseNo: caseNo.trim(),
         caseYear: caseYear ? Number(caseYear) : undefined,
@@ -244,9 +259,11 @@ const AddOtherCaseForm = ({
       };
 
       let result;
-      const targetId = currentId || (editData && (editData.mongoId || editData.id || editData.otherCaseId));
       if (targetId) {
         result = await otherCaseService.updateOtherCase(targetId, payload);
+        if (targetSr) {
+          setSrNumber(String(targetSr));
+        }
       } else {
         result = await otherCaseService.createOtherCase(payload);
       }
@@ -456,15 +473,14 @@ const AddOtherCaseForm = ({
             {/* Column F: Order_Date */}
             <div className="sm:col-span-3">
               <FormField label="Order_Date" required>
-                <Input
-                  type="date"
-                  inputSize="sm"
-                  value={orderDate}
-                  onChange={(e) => {
-                    setOrderDate(e.target.value);
+                <DatePicker
+                  selectedDate={orderDate}
+                  onChange={(val) => {
+                    setOrderDate(val);
                     if (errors.orderDate) setErrors(prev => ({ ...prev, orderDate: null }));
                   }}
-                  error={Boolean(errors.orderDate)}
+                  placeholder="Order Date"
+                  className="w-full"
                 />
                 {errors.orderDate && <span className="text-[11px] text-red-500">{errors.orderDate}</span>}
               </FormField>

@@ -25,7 +25,7 @@ const NewsPage = () => {
   const fetchNews = useCallback(async (page = 1, query = '') => {
     setIsLoading(true);
     try {
-      const data = await newsService.getNews({ page, limit: 25, query });
+      const data = await newsService.getNews({ page, limit: 100, query });
       setNewsList(data);
       setTotalItems(data.total || data.length || 0);
       setTotalPages(data.totalPages || 1);
@@ -63,11 +63,13 @@ const NewsPage = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleFormSuccess = (savedItem, message) => {
+  const handleFormSuccess = (savedItem, message, options = {}) => {
     setToastMessage(message || 'Success');
-    setIsFormOpen(false);
-    setEditingItem(null);
     fetchNews(currentPage, searchKeyword);
+    if (!options?.keepOpen) {
+      setIsFormOpen(false);
+      setEditingItem(null);
+    }
   };
 
   const handleItemDeleted = (deletedId) => {

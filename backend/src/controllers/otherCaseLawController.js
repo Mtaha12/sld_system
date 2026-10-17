@@ -66,7 +66,7 @@ export const getOtherCaseLaws = async (req, res, next) => {
     }
 
     const safePage = Math.max(1, parseInt(page, 10) || 1);
-    const safeLimit = Math.min(1000, Math.max(1, parseInt(limit, 10) || 25));
+    const safeLimit = Math.min(1000, Math.max(1, parseInt(limit, 10) || 100));
     const skip = (safePage - 1) * safeLimit;
 
     const sortDir = sortOrder === 'desc' ? -1 : 1;
@@ -236,7 +236,17 @@ export const updateOtherCaseLaw = async (req, res, next) => {
       return res.status(404).json({ success: false, message: `Record '${id}' not found.` });
     }
 
-    if (srNumber !== undefined && !isNaN(Number(srNumber))) item.srNumber = Number(srNumber);
+    // Strictly preserve original srNumber on edit: never reassign to a new counter or generated ID
+    const originalSr = item.srNumber;
+    if (srNumber !== undefined && !isNaN(Number(srNumber)) && Number(srNumber) > 0 && Number(srNumber) !== Number(item.srNumber)) {
+      const exist = await OtherCaseLaw.findOne({ srNumber: Number(srNumber), _id: { $ne: item._id }, isDeleted: { $ne: true } });
+      if (exist) {
+        return res.status(400).json({ success: false, message: `Record with SR #${srNumber} already exists.` });
+      }
+      item.srNumber = Number(srNumber);
+    } else {
+      item.srNumber = originalSr;
+    }
     if (citation !== undefined) item.citation = citation.trim();
     if (scCitation !== undefined) item.scCitation = scCitation.trim();
     if (caseNo !== undefined) item.caseNo = caseNo.trim();

@@ -5,6 +5,7 @@ import {
   AlignRight, AlignJustify, List, ListOrdered, Link2, Code, 
   Heading1, Heading2, Table, Undo, Redo, Sparkles
 } from 'lucide-react';
+import { cleanWordPasteHtml, formatWordDocumentDisplay } from '../../utils/wordFormatter';
 import './RichTextEditor.css';
 
 // Fallback high-fidelity WYSIWYG toolbar when CKEditor is loading or unavailable
@@ -26,6 +27,17 @@ const FallbackRichEditor = ({ value, onChange, placeholder, minHeight, isDark })
   };
 
   const handleInput = () => {
+    if (editorRef.current) {
+      onChange?.(editorRef.current.innerHTML);
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const html = e.clipboardData?.getData('text/html');
+    const text = e.clipboardData?.getData('text/plain');
+    const cleaned = html ? cleanWordPasteHtml(html) : formatWordDocumentDisplay(text);
+    document.execCommand('insertHTML', false, cleaned);
     if (editorRef.current) {
       onChange?.(editorRef.current.innerHTML);
     }
@@ -134,9 +146,10 @@ const FallbackRichEditor = ({ value, onChange, placeholder, minHeight, isDark })
           contentEditable
           onInput={handleInput}
           onBlur={handleInput}
+          onPaste={handlePaste}
           style={{ minHeight: `${minHeight}px` }}
           data-placeholder={placeholder}
-          className="w-full p-3 text-xs text-theme-main focus:outline-none overflow-y-auto leading-relaxed"
+          className="w-full p-3 text-xs text-theme-main focus:outline-none overflow-y-auto leading-relaxed word-document-content"
         />
       )}
     </div>
@@ -194,11 +207,40 @@ const RichTextEditor = ({
               background-color: ${isDark ? '#14151A' : '#ffffff'} !important;
               color: ${isDark ? '#F3F4F6' : '#111827'} !important;
               caret-color: ${isDark ? '#F3F4F6' : '#111827'} !important;
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Calibri", "Cambria", sans-serif !important;
+              font-size: 14px !important;
             }
             body.cke_editable {
               background-color: ${isDark ? '#14151A' : '#ffffff'} !important;
               color: ${isDark ? '#F3F4F6' : '#111827'} !important;
+              padding: 12px 14px !important;
+              text-align: justify !important;
+              text-justify: inter-word !important;
+              line-height: 1.6 !important;
+            }
+            /* Word-like professional paragraph spacing across all forms */
+            p, div, li {
+              margin: 0 0 6px 0 !important;
+              line-height: 1.6 !important;
+            }
+            p:empty, p:has(> br:only-child) {
+              margin: 0 0 2px 0 !important;
+              min-height: 0.8em !important;
+            }
+            .cke_editable blockquote {
+              margin: 6px 0 8px 16px !important;
+              padding: 2px 0 2px 8px !important;
+              border-left: 3px solid #cbd5e1 !important;
+              font-style: italic !important;
+            }
+            table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              margin: 8px 0 !important;
+            }
+            th, td {
+              border: 1px solid #e2e8f0 !important;
+              padding: 6px 10px !important;
             }
           `;
         }
@@ -245,6 +287,12 @@ const RichTextEditor = ({
           editorInstanceRef.current = evt.editor;
           evt.editor.on('contentDom', () => {
             applyThemeToIframe(evt.editor);
+          });
+          evt.editor.on('paste', (pasteEvt) => {
+            let html = pasteEvt.data?.dataValue;
+            if (typeof html === 'string') {
+              pasteEvt.data.dataValue = cleanWordPasteHtml(html);
+            }
           });
           applyThemeToIframe(evt.editor);
         }}

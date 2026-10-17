@@ -6,6 +6,7 @@ import { settingService } from '../services/settingService';
 import { LAW_OPTIONS } from '../data/laws';
 import { ALL_SECTIONS } from '../data/sections';
 import Modal from '../components/ui/Modal';
+import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
 /* ── Shared form field styles ────────────────────────────────────────── */
 const inp =
@@ -14,7 +15,7 @@ const inp =
 
 const sel =
   'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 text-sm pl-3.5 pr-8 py-2 rounded-lg ' +
-  'border border-slate-200/90 dark:border-slate-700 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#3d4a7a]/50 h-[38px] shadow-2xs transition-all';
+  'border border-slate-200/90 dark:border-slate-700 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-brand-orange/40 focus:border-brand-orange hover:border-brand-orange/40 h-[38px] shadow-2xs transition-all';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -24,18 +25,49 @@ const SelectField = React.memo(({ value, onChange, options = [], placeholder = '
     if (value && !list.some(o => o.value === value)) {
       list.push({ value, label: value });
     }
-    return list;
+
+    const placeholders = [];
+    const regular = [];
+    const seen = new Set();
+
+    for (const opt of list) {
+      if (!opt) continue;
+      const key = String(opt.value ?? '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const isPlaceholder = opt.value === '' || opt.value === 'all' || 
+        String(opt.label || '').toLowerCase().startsWith('select ') || 
+        String(opt.label || '').toLowerCase().startsWith('choose ');
+      if (isPlaceholder) {
+        placeholders.push(opt);
+      } else {
+        regular.push(opt);
+      }
+    }
+
+    regular.sort((a, b) => 
+      String(a.label || a.value || '').localeCompare(
+        String(b.label || b.value || ''), 
+        undefined, 
+        { numeric: true, sensitivity: 'base' }
+      )
+    );
+
+    return [...placeholders, ...regular];
   }, [options, value]);
 
   return (
     <div className="relative w-full">
       <select className={sel} value={value} onChange={onChange}>
-        <option value="">{placeholder}</option>
+        <option value="" className="bg-theme-surface text-theme-main py-1">{placeholder}</option>
         {allOptions.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value} className="bg-theme-surface text-theme-main py-1">
+            {o.label}
+          </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 flex items-center justify-center">
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 8l4 4 4-4" />
         </svg>
@@ -99,31 +131,49 @@ const StatuteSearchPage = () => {
     settingService.getLaws({ status: 'active', limit: 5000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          const list = res.data.map(l => ({ value: l.name, label: l.name }));
+          const list = res.data
+            .map(l => ({ value: l.name, label: l.name }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
           setLawOptions(list);
         } else {
           // Fallback to static law options
-          const fallback = LAW_OPTIONS.filter(l => l.value).map(l => ({ value: l.value, label: l.label }));
+          const fallback = LAW_OPTIONS.filter(l => l.value)
+            .map(l => ({ value: l.value, label: l.label }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
           setLawOptions(fallback);
         }
       })
       .catch(() => {
         if (isMounted) {
-          const fallback = LAW_OPTIONS.filter(l => l.value).map(l => ({ value: l.value, label: l.label }));
+          const fallback = LAW_OPTIONS.filter(l => l.value)
+            .map(l => ({ value: l.value, label: l.label }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
           setLawOptions(fallback);
         }
       });
 
-    settingService.getSections({ status: 'active', limit: 10000 })
+    settingService.getSections({ status: 'active', limit: 30000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          setSectionOptions(res.data.map(s => s.name));
+          const names = res.data.map(s => s.name).filter(Boolean);
+          const combined = Array.from(new Set([...names, ...(ALL_SECTIONS || [])])).sort((a, b) =>
+            String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+          );
+          setSectionOptions(combined);
         }
       })
       .catch(err => console.warn('Sections load warning:', err));
 
     return () => { isMounted = false; };
   }, []);
+
+  const sectionSelectOptions = useMemo(() => [
+    { value: '', label: 'Select Section' },
+    ...sectionOptions.map(s => ({
+      value: String(s),
+      label: String(s).startsWith('Section') ? String(s) : `Section ${s}`
+    }))
+  ], [sectionOptions]);
 
   // Filtered laws by selected alphabetical letter
   const lawsForActiveLetter = useMemo(() => {
@@ -231,18 +281,12 @@ const StatuteSearchPage = () => {
               />
             </div>
             <div className="w-full sm:flex-1">
-              <input
-                className={inp}
-                placeholder="Enter Section"
+              <SelectField
                 value={section}
                 onChange={(e) => setSection(e.target.value)}
-                list="statute-search-sections-list"
+                options={sectionSelectOptions}
+                placeholder="Select Section"
               />
-              <datalist id="statute-search-sections-list">
-                {sectionOptions.map((secName, idx) => (
-                  <option key={idx} value={secName} />
-                ))}
-              </datalist>
             </div>
           </div>
 
@@ -529,11 +573,10 @@ const StatuteSearchPage = () => {
                       <p className="font-bold text-gray-900 dark:text-white mb-1.5">{b.sectionHeading}</p>
                     )}
                     {b.detail && (
-                      b.detail.includes('<') && b.detail.includes('>') ? (
-                        <div dangerouslySetInnerHTML={{ __html: b.detail }} className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed text-xs" />
-                      ) : (
-                        <p className="whitespace-pre-line text-gray-700 dark:text-gray-300 leading-relaxed">{b.detail}</p>
-                      )
+                      <div 
+                        dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(b.detail) }} 
+                        className="word-document-content text-gray-700 dark:text-gray-300 leading-relaxed text-xs" 
+                      />
                     )}
                     {Array.isArray(b.attachments) && b.attachments.length > 0 && (
                       <div className="mt-2.5 pt-2 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">

@@ -4,7 +4,7 @@ import autoUniqueIdPlugin from '../utils/autoUniqueIdPlugin.js';
 const notificationBlockSchema = new mongoose.Schema({
   date: { type: String, default: null },
   detail: { type: String, default: '' },
-  attachments: { type: [String], default: [] }
+  attachments: { type: [mongoose.Schema.Types.Mixed], default: [] }
 });
 
 const notificationSchema = new mongoose.Schema({

@@ -64,7 +64,7 @@ const ManageTaxCardsTable = ({
 
   const [sortConfig, setSortConfig] = useState({ key: 'srNumber', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
 
   const handleSort = (key) => {
     setSortConfig(prev => {
@@ -160,9 +160,10 @@ const ManageTaxCardsTable = ({
               }}
               className="px-1.5 py-0.5 bg-theme-surface border border-theme-border rounded text-[11px] text-theme-main focus:outline-none focus:border-brand-orange"
             >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
+              <option value={25}>25</option>
               <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
             </select>
           </div>
         </div>
@@ -226,14 +227,15 @@ const ManageTaxCardsTable = ({
                     </td>
                     <td className="px-4 py-2 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setViewModalItem(item)}
-                          className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
-                          title="View"
+                        <a
+                          href={`/tax-cards/view/${item.srNumber || item.mongoId || item.id || item.taxCardId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs"
+                          title="View tax card in new tab"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                        </button>
+                        </a>
                         {isAdmin && (
                           <>
                             <button

@@ -48,7 +48,7 @@ export const getNews = async (req, res, next) => {
     const limitNum = parseInt(limit, 10);
     const isAll = all === 'true';
 
-    const safeLimit = isAll ? 1000 : Math.min(Math.max(limitNum || 25, 1), 200);
+    const safeLimit = isAll ? 1000 : Math.min(Math.max(limitNum || 100, 1), 1000);
     const safePage = Math.max(pageNum || 1, 1);
 
     const total = await News.countDocuments(filter);

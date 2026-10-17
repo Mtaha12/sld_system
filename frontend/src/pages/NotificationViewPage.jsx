@@ -6,6 +6,7 @@ import {
   ArrowLeft, Printer, Bell, Copy, Check, 
   Calendar, FileText, Download, Building, ShieldCheck, ExternalLink
 } from 'lucide-react';
+import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -248,12 +249,12 @@ const NotificationViewPage = () => {
 
               if (blockDetails.length > 0) {
                 return (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {blockDetails.map((detailText, bIdx) => (
                       <div 
                         key={bIdx}
-                        className="leading-relaxed text-justify whitespace-pre-wrap font-serif"
-                        dangerouslySetInnerHTML={{ __html: detailText }}
+                        className="word-document-content text-stone-800 dark:text-stone-200 font-serif leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(detailText) }}
                       />
                     ))}
                   </div>
@@ -263,8 +264,8 @@ const NotificationViewPage = () => {
               if (contentBody) {
                 return (
                   <div 
-                    className="whitespace-pre-wrap leading-relaxed text-justify font-serif"
-                    dangerouslySetInnerHTML={{ __html: contentBody.replace(/\n/g, '<br/>') }}
+                    className="word-document-content text-stone-800 dark:text-stone-200 font-serif leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(contentBody) }}
                   />
                 );
               }

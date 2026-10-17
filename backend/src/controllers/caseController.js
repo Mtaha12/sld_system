@@ -836,15 +836,24 @@ export const updateCase = async (req, res, next) => {
       });
     }
 
-    if (srNumber && srNumber !== c.sldNumber) {
-      const exist = await Case.findOne({ sldNumber: srNumber, _id: { $ne: c._id } });
+    // Preserve existing SLD number on edit: never reassign to a new counter or generated ID
+    const originalSld = c.sldNumber;
+    if (srNumber && String(srNumber).trim() && String(srNumber).trim() !== String(c.sldNumber).trim()) {
+      const cleanSr = String(srNumber).trim();
+      const exist = await Case.findOne({ sldNumber: cleanSr, _id: { $ne: c._id }, isDeleted: false });
       if (exist) {
         return res.status(400).json({
           success: false,
-          message: `Case law with SLD/SR #${srNumber} already exists.`
+          message: `Case law with SLD/SR #${cleanSr} already exists.`
         });
       }
-      c.sldNumber = srNumber;
+      c.sldNumber = cleanSr;
+    } else {
+      c.sldNumber = originalSld;
+    }
+    if (c.sldNumber) {
+      const parsed = parseInt(String(c.sldNumber).replace(/\D+/g, ''), 10);
+      c.sldNumberInt = !isNaN(parsed) ? parsed : null;
     }
 
     if (dated !== undefined) c.dated = dated;

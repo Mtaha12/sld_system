@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { caseService } from '../../features/cases/services/caseService';
 import Spinner from './Spinner';
 import { Printer, X, Copy, Check } from 'lucide-react';
+import { formatWordDocumentDisplay } from '../../utils/wordFormatter';
 
 /**
  * Robust Cause Title parser for Commonwealth / Pakistani law reports
@@ -290,24 +291,12 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
                     Verbatim Transcript
                   </span>
                 </div>
-                <div className="text-justify leading-relaxed text-sm sm:text-[15px] space-y-3.5 pb-8 font-serif">
+                <div className="text-justify leading-relaxed text-sm sm:text-[15px] pb-8 font-serif">
                   {caseData.judgment && caseData.judgment.trim().length > 0 ? (
-                    caseData.judgment.includes('<p>') ? (
-                      <div 
-                        dangerouslySetInnerHTML={{ __html: caseData.judgment }}
-                        className="prose max-w-none text-stone-900 leading-relaxed font-serif prose-p:my-3"
-                      />
-                    ) : (
-                      caseData.judgment.split(/\n\s*\n/).map((para, pIdx) => {
-                        const cleanPara = para.trim();
-                        if (!cleanPara) return null;
-                        return (
-                          <p key={pIdx} className="leading-relaxed indent-5 whitespace-pre-line">
-                            {cleanPara}
-                          </p>
-                        );
-                      })
-                    )
+                    <div 
+                      dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(caseData.judgment) }}
+                      className="word-document-content max-w-none text-stone-900 leading-relaxed font-serif"
+                    />
                   ) : caseData.headNote ? (
                     <div className="p-4 rounded-xl bg-stone-100/70 border border-stone-200 text-stone-700 space-y-1">
                       <p className="font-sans font-bold text-xs uppercase text-amber-800">Digest Summary</p>

@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   ScrollText
 } from 'lucide-react';
+import DatePicker from '../../../components/ui/DatePicker';
 
 const formatLawReferences = (laws = []) => {
   const grouped = new Map();
@@ -1285,11 +1286,11 @@ const ManageCasesTable = ({
                 <label className="text-[11px] font-semibold text-brand-orange uppercase tracking-wider block mb-1">
                   Judgment Date (Dated)
                 </label>
-                <input 
-                  type="date"
-                  value={editJudgmentDated}
-                  onChange={(e) => setEditJudgmentDated(e.target.value)}
-                  className="w-full px-2.5 py-1 text-xs bg-theme-surface border border-theme-border rounded-lg text-theme-main focus:outline-none focus:border-brand-orange"
+                <DatePicker 
+                  selectedDate={editJudgmentDated}
+                  onChange={setEditJudgmentDated}
+                  placeholder="YYYY-MM-DD"
+                  className="w-full"
                 />
               </div>
             </div>

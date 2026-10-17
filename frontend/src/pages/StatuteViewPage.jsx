@@ -6,6 +6,7 @@ import {
   ArrowLeft, Printer, Scale, Copy, Check, 
   FileText, Calendar, BookOpen, ExternalLink, ShieldCheck
 } from 'lucide-react';
+import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -213,8 +214,12 @@ const StatuteViewPage = () => {
           >
             {contentBody ? (
               <div 
-                className="whitespace-pre-wrap leading-relaxed text-justify"
-                dangerouslySetInnerHTML={{ __html: contentBody.replace(/\n/g, '<br/>') }}
+                className="word-document-content text-stone-800 dark:text-stone-200 font-serif leading-relaxed"
+                style={{
+                  fontSize: fontSizes[fontSizeIndex].fontSize,
+                  lineHeight: fontSizes[fontSizeIndex].lineHeight
+                }}
+                dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(contentBody) }}
               />
             ) : (
               <p className="italic text-stone-500">Full statutory provision text is maintained under the primary Act catalog.</p>

@@ -7,6 +7,7 @@ import { userService } from '../services/userService';
 import { settingService } from '../services/settingService';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import Modal from '../components/ui/Modal';
+import DatePicker from '../components/ui/DatePicker';
 import { useUser } from '../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -686,20 +687,20 @@ const ManageUsersPage = () => {
             </div>
             <div>
               <label className="block text-[11px] font-bold text-theme-main mb-1">Active Date</label>
-              <input
-                type="date"
-                value={modalForm.activeDate}
-                onChange={(e) => setModalForm({ ...modalForm, activeDate: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+              <DatePicker
+                selectedDate={modalForm.activeDate}
+                onChange={(d) => setModalForm({ ...modalForm, activeDate: d })}
+                placeholder="Active Date"
+                className="w-full"
               />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-theme-main mb-1">Inactive Date</label>
-              <input
-                type="date"
-                value={modalForm.inactiveDate}
-                onChange={(e) => setModalForm({ ...modalForm, inactiveDate: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+              <DatePicker
+                selectedDate={modalForm.inactiveDate}
+                onChange={(d) => setModalForm({ ...modalForm, inactiveDate: d })}
+                placeholder="Inactive Date"
+                className="w-full"
               />
             </div>
           </div>

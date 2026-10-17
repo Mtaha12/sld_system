@@ -301,3 +301,18 @@
   border: 1px solid var(--border-default) !important;
   color: var(--text-main) !important;
 }
+
+/* Word-like compact paragraph spacing across all content blocks & previews */
+.rich-text-preview p,
+.rich-text-content p,
+.cke_editable p {
+  margin: 0 0 4px 0 !important;
+  line-height: 1.45 !important;
+}
+
+.rich-text-preview p:empty,
+.rich-text-content p:empty,
+.cke_editable p:empty {
+  margin: 0 0 2px 0 !important;
+}
+

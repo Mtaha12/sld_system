@@ -58,11 +58,13 @@ const DownloadsPage = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleFormSuccess = (savedItem, message) => {
+  const handleFormSuccess = (savedItem, message, options = {}) => {
     setToastMessage(message || 'Success');
-    setIsFormOpen(false);
-    setEditingItem(null);
     fetchDownloads(searchKeyword, selectedCategory);
+    if (!options?.keepOpen) {
+      setIsFormOpen(false);
+      setEditingItem(null);
+    }
   };
 
   const handleItemDeleted = (deletedId) => {

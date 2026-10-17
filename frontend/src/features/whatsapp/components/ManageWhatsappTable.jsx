@@ -70,7 +70,7 @@ const ManageWhatsappTable = ({
   const [sortConfig, setSortConfig] = useState({ key: 'srNumber', direction: 'desc' });
   const [internalCurrentPage, setInternalCurrentPage] = useState(1);
   const isServerPaginated = Boolean(serverPaginated || propTotalItems !== undefined);
-  const itemsPerPage = isServerPaginated ? 25 : 10;
+  const [itemsPerPage, setItemsPerPage] = useState(100);
 
   const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalCurrentPage;
   const setCurrentPage = propSetCurrentPage || setInternalCurrentPage;
@@ -170,9 +170,10 @@ const ManageWhatsappTable = ({
               }}
               className="px-1.5 py-0.5 bg-theme-surface border border-theme-border rounded text-[11px] text-theme-main focus:outline-none focus:border-brand-orange"
             >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
+              <option value={25}>25</option>
               <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
             </select>
           </div>
         </div>

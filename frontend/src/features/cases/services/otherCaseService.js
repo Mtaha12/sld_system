@@ -12,7 +12,7 @@ export const getOtherCaseDocumentUrl = (targetDocId) => {
 };
 
 export const otherCaseService = {
-  getOtherCases: async (query = '', judge = '', page = 1, limit = 25, sortField = 'srNumber', sortOrder = 'asc') => {
+  getOtherCases: async (query = '', judge = '', page = 1, limit = 100, sortField = 'srNumber', sortOrder = 'asc') => {
     const params = { page, limit, sortField, sortOrder };
     if (query) params.query = query;
     if (judge) params.judge = judge;

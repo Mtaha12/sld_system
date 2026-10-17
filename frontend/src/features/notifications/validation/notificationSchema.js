@@ -7,7 +7,7 @@ export const notificationBlockSchema = z.object({
   attachments: z.array(z.any()).optional().default([]),
 });
 
-const validDepartments = ['circular', 'corporate', 'general order', 'judge order', 'letter', 'notification', 'other'];
+const validDepartments = ['circular', 'corporate', 'general order', 'judge order', 'letter', 'notification', 'notifications', 'other'];
 const validSubDepartments = ['federal', 'provincial'];
 
 export const notificationSchema = z.object({

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2 } from 'lucide-react';
+import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import DatePicker from '../../../components/ui/DatePicker';
@@ -15,10 +15,28 @@ import { notificationService } from '../services/notificationService';
 import { settingService } from '../../../services/settingService';
 import { ALL_SECTIONS } from '../../../data/sections';
 
-/* ── Compact inline file-chooser, same height as the date picker ─────── */
+/* ── Compact inline file-chooser with View and Remove actions ─────── */
 const CompactFileButton = ({ value, onChange }) => {
   const ref = useRef(null);
   const files = Array.isArray(value) ? value : (value ? [value] : []);
+
+  const handleViewFile = (f) => {
+    if (!f) return;
+    let url = '';
+    if (typeof f === 'string') {
+      url = f.startsWith('http') || f.startsWith('data:') || f.startsWith('blob:') ? f : `/uploads/${f}`;
+    } else if (f instanceof File) {
+      url = URL.createObjectURL(f);
+    } else if (f.url) {
+      url = f.url;
+    } else if (f.name) {
+      url = `/uploads/${f.name}`;
+    }
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-1">
       <input
@@ -27,11 +45,29 @@ const CompactFileButton = ({ value, onChange }) => {
         multiple
         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
         className="hidden"
-        onChange={(e) => {
-          const incoming = Array.from(e.target.files || []);
+        onChange={async (e) => {
+          const incomingFiles = Array.from(e.target.files || []);
+          const readPromises = incomingFiles.map(file => {
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                resolve({
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                  url: reader.result
+                });
+              };
+              reader.onerror = () => {
+                resolve({ name: file.name, size: file.size });
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+          const processed = await Promise.all(readPromises);
           const merged = [
             ...files,
-            ...incoming.filter(f => !files.some(x => x.name === f.name && x.size === f.size))
+            ...processed.filter(f => !files.some(x => (x.name || x) === f.name))
           ];
           onChange(merged);
           e.target.value = '';
@@ -47,18 +83,32 @@ const CompactFileButton = ({ value, onChange }) => {
       </button>
       {files.length > 0 && (
         <div className="space-y-0.5 max-h-20 overflow-y-auto">
-          {files.map((f, i) => (
-            <div key={i} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded text-[10px] bg-theme-surface-alt border border-theme-border/60">
-              <span className="truncate text-theme-muted max-w-[110px]">{f.name || `File ${i + 1}`}</span>
-              <button
-                type="button"
-                onClick={() => onChange(files.filter((_, j) => j !== i))}
-                className="shrink-0 text-theme-disabled hover:text-red-500"
-              >
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </div>
-          ))}
+          {files.map((f, i) => {
+            const fileName = typeof f === 'string' ? f : (f.name || `File ${i + 1}`);
+            return (
+              <div key={i} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded text-[10px] bg-theme-surface-alt border border-theme-border/60">
+                <span className="truncate text-theme-muted max-w-[95px]" title={fileName}>{fileName}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleViewFile(f)}
+                    className="text-brand-orange hover:text-orange-600 p-0.5"
+                    title="View file in new window"
+                  >
+                    <Eye className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange(files.filter((_, j) => j !== i))}
+                    className="text-theme-disabled hover:text-red-500 p-0.5"
+                    title="Remove file"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -67,79 +117,7 @@ const CompactFileButton = ({ value, onChange }) => {
 
 export const formatNotificationParagraphs = (content) => {
   if (!content || typeof content !== 'string') return '';
-  let str = content.trim();
-  if (!str) return '';
-
-  // Extract and preserve tables so they don't get mutilated or wrapped inside <p>
-  const tables = [];
-  str = str.replace(/<table[\s\S]*?<\/table>/gi, (match) => {
-    const placeholder = `__TABLE_PLACEHOLDER_${tables.length}__`;
-    tables.push(match);
-    return `\n\n${placeholder}\n\n`;
-  });
-
-  // Strip wrapping outer single <p> or <div> if present
-  let text = str;
-  if (/^<(?:p|div)>[\s\S]*<\/(?:p|div)>$/i.test(text.trim()) && !text.includes('</p><p>') && !text.includes('</div><div>')) {
-    text = text.trim().replace(/^<(?:p|div)>/i, '').replace(/<\/(?:p|div)>$/i, '');
-  }
-
-  // Replace <br> tags with newlines
-  text = text.replace(/<br\s*\/?>/gi, '\n');
-
-  // Insert paragraph breaks at key notification boundaries:
-  // 1. Multiple asterisks ***** (e.g. separation between Govt header and notification body)
-  text = text.replace(/\s*\*{3,}\s*/g, '\n\n');
-
-  // 2. City / Date lines (e.g. Islamabad, the 19th May, 2026)
-  text = text.replace(/\s*((?:Islamabad|Lahore|Karachi|Peshawar|Quetta|Rawalpindi),\s*the\s+[0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+[0-9]{4})/gi, '\n\n$1\n\n');
-
-  // 3. Notification / S.R.O. headings (e.g. Notification S.R.O. 877(I)/2026.-)
-  text = text.replace(/\s*(Notification\s+(?:No\.?\s*)?S\.R\.O\.?\s*[0-9]+(?:\([A-Za-z0-9]+\))?\/[0-9]{4}[.\-]?(?:\s*\([A-Za-z0-9]+\))?)/gi, '\n\n$1\n\n');
-
-  // 4. "In exercise of the powers..." clauses
-  text = text.replace(/\s*([-\s]*(?:In|in)\s+exercise\s+of\s+the\s+powers)/gi, '\n\n$1');
-
-  // 5. "namely:-" or "namely:" introducing lists / tables / clauses
-  text = text.replace(/(namely\s*[:\-]+)\s*/gi, '$1\n\n');
-
-  // 6. Numbered clauses like "2. In aforesaid Notification..."
-  text = text.replace(/\s*([0-9]+\.\s+[A-Z])/g, '\n\n$1');
-
-  // Split into separate paragraphs on double newlines
-  const rawParts = text.split(/\n{2,}/);
-  const formattedParagraphs = [];
-
-  for (const part of rawParts) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-
-    // Check if this part contains our table placeholder
-    if (trimmed.startsWith('__TABLE_PLACEHOLDER_')) {
-      const idxMatch = trimmed.match(/__TABLE_PLACEHOLDER_(\d+)__/);
-      if (idxMatch && tables[parseInt(idxMatch[1], 10)]) {
-        formattedParagraphs.push(tables[parseInt(idxMatch[1], 10)]);
-        continue;
-      }
-    }
-
-    // If it's already an HTML element (like <p>, <div>, <h1>, <ul>)
-    if (/^<[a-z]+[^>]*>[\s\S]*<\/[a-z]+>$/i.test(trimmed)) {
-      formattedParagraphs.push(trimmed);
-    } else {
-      // Clean up internal single newlines to spaces
-      const cleanText = trimmed.replace(/\r?\n/g, ' ');
-      formattedParagraphs.push(`<p>${cleanText}</p>`);
-    }
-  }
-
-  // Restore any lingering table placeholders
-  let finalResult = formattedParagraphs.join('');
-  tables.forEach((tbl, idx) => {
-    finalResult = finalResult.replace(`__TABLE_PLACEHOLDER_${idx}__`, tbl);
-  });
-
-  return finalResult;
+  return content;
 };
 
 const AddNotificationForm = () => {
@@ -150,9 +128,15 @@ const AddNotificationForm = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [lawOptions, setLawOptions] = useState([]);
   const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
+  const normalizeDepartment = (dept) => {
+    const d = String(dept || '').trim().toLowerCase();
+    if (d === 'notifications' || d === 'notification' || !d) return 'notification';
+    return d;
+  };
+
   const defaultValues = {
     srNumber: editData?.srNumber?.toString() || '',
-    department: editData?.department?.toLowerCase() || 'notification',
+    department: normalizeDepartment(editData?.department),
     subDepartment: editData?.subDepartment || 'federal',
     year: editData?.year?.toString() || '2026',
     number: editData?.number?.toString() || '14',
@@ -189,7 +173,6 @@ const AddNotificationForm = () => {
   const [autoNewSr, setAutoNewSr] = useState('');
   const [loadingNotification, setLoadingNotification] = useState(false);
   const [loadFeedback, setLoadFeedback] = useState(null);
-  const isSaveAndNextRef = useRef(false);
 
   const {
     register,
@@ -216,7 +199,7 @@ const AddNotificationForm = () => {
       if (data) {
         setCurrentRecordId(data._id || data.id);
         setValue('srNumber', String(data.srNumber || cleanSr));
-        setValue('department', data.department?.toLowerCase() || 'notification');
+        setValue('department', normalizeDepartment(data.department));
         setValue('subDepartment', data.subDepartment || 'federal');
         setValue('year', String(data.year || '2026'));
         setValue('number', String(data.number || '14'));
@@ -266,17 +249,25 @@ const AddNotificationForm = () => {
     settingService.getLaws({ status: 'active', limit: 5000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data)) {
-          setLawOptions(res.data.map(l => l.name));
+          const sorted = res.data
+            .map(l => l.name)
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+          setLawOptions(sorted);
         }
       })
       .catch(err => {
         console.warn('Could not load dynamic laws for AddNotificationForm:', err);
       });
 
-    settingService.getSections({ status: 'active', limit: 10000 })
+    settingService.getSections({ status: 'active', limit: 30000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          setSectionOptions(res.data.map(s => s.name));
+          const names = res.data.map(s => s.name).filter(Boolean);
+          const combined = Array.from(new Set([...names, ...(ALL_SECTIONS || [])])).sort((a, b) =>
+            String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+          );
+          setSectionOptions(combined);
         }
       })
       .catch(err => {
@@ -307,11 +298,13 @@ const AddNotificationForm = () => {
     ))
   ), [lawOptions]);
 
-  const memoizedSectionOptions = useMemo(() => (
-    sectionOptions.slice(0, 1500).map((secName, idx) => (
-      <option key={idx} value={secName} />
-    ))
-  ), [sectionOptions]);
+  const sectionSelectOptions = useMemo(() => [
+    { value: '', label: 'Select Section' },
+    ...sectionOptions.map(s => ({
+      value: String(s),
+      label: String(s).startsWith('Section') ? String(s) : `Section ${s}`
+    }))
+  ], [sectionOptions]);
 
   const { fields: blockFields, append, insert, remove } = useFieldArray({
     control,
@@ -319,9 +312,6 @@ const AddNotificationForm = () => {
   });
 
   const onSubmit = async (data) => {
-    const wasSaveAndNext = isSaveAndNextRef.current;
-    isSaveAndNextRef.current = false;
-
     // Strip empty blocks before saving
     data.blocks = data.blocks.filter(b => {
       const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
@@ -331,33 +321,62 @@ const AddNotificationForm = () => {
     });
 
     try {
-      const targetId = currentRecordId || (isEdit && editData?.id);
+      const targetSr = String(data.srNumber || editData?.srNumber || '').trim();
+      let targetId = currentRecordId || (isEdit && (editData?.id || editData?._id || editData?.mongoId));
+      if (!targetId && targetSr) {
+        try {
+          const existing = await notificationService.getNotificationById(targetSr);
+          if (existing?.id || existing?._id || existing?.mongoId) {
+            targetId = existing.id || existing._id || existing.mongoId;
+            setCurrentRecordId(targetId);
+          }
+        } catch {
+          // not found as existing record
+        }
+      }
+
+      const payload = {
+        ...data,
+        srNumber: targetSr || data.srNumber
+      };
+
       if (targetId) {
-        await notificationService.updateNotification(targetId, data);
+        await notificationService.updateNotification(targetId, payload);
+        if (targetSr) {
+          setValue('srNumber', targetSr, { shouldDirty: false });
+        }
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+        }, 3500);
       } else {
         await notificationService.createNotification(data);
-      }
-      setShowSuccess(true);
-
-      if (wasSaveAndNext) {
-        // Compute next SR#
-        const currentSrNum = parseInt(data.srNumber || '1', 10);
-        const nextSr = isNaN(currentSrNum) ? 1 : currentSrNum + 1;
+        setShowSuccess(true);
+        // Advance to new SR# for new entry (do not go to list)
+        try {
+          const res = await notificationService.getNextSr();
+          const currentSrNum = parseInt(data.srNumber || '1', 10);
+          const nextSr = res?.nextSr ? String(res.nextSr) : String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+          setAutoNewSr(nextSr);
+          setValue('srNumber', nextSr);
+        } catch {
+          const currentSrNum = parseInt(data.srNumber || '1', 10);
+          const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+          setAutoNewSr(nextSr);
+          setValue('srNumber', nextSr);
+        }
+        setValue('number', '');
+        setValue('sroNumber', '');
+        setValue('subject', '');
+        setValue('department', 'notification');
+        setValue('blocks', [
+          { id: `new-block-${Date.now()}-1`, date: null, detail: '', attachments: [] },
+          { id: `new-block-${Date.now()}-2`, date: null, detail: '', attachments: [] }
+        ]);
+        setCurrentRecordId(null);
         setTimeout(() => {
           setShowSuccess(false);
-          // Refresh autoNewSr
-          notificationService.getNextSr().then(res => {
-            if (res?.nextSr) setAutoNewSr(String(res.nextSr));
-          }).catch(() => {});
-          // Load or switch to next SR#
-          setValue('srNumber', String(nextSr));
-          loadNotificationBySr(nextSr);
-        }, 800);
-      } else {
-        setTimeout(() => {
-          setShowSuccess(false);
-          navigate('/manage-notifications');
-        }, 2000);
+        }, 4000);
       }
     } catch (error) {
       console.error('Submission error:', error);
@@ -374,7 +393,7 @@ const AddNotificationForm = () => {
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5" />
               <span className="font-medium">
-                SUCCESS: {isEdit ? 'Record updated successfully.' : 'Record added successfully.'}
+                SUCCESS: {isEdit ? 'Record updated successfully.' : 'Record added successfully. Ready for new entry.'}
               </span>
             </div>
             <button type="button" onClick={() => setShowSuccess(false)}>
@@ -383,7 +402,7 @@ const AddNotificationForm = () => {
           </div>
         )}
 
-        {/* Top Floating Action Bar: Sticky while scrolling */}
+        {/* Top Action Bar: Clean header with Back and Save/Update Record only */}
         <div className="sticky top-0 z-30 mb-4 flex items-center justify-between bg-theme-surface/95 border border-theme-border px-4 py-3 rounded-xl shadow-md backdrop-blur-md">
           <div className="text-xs text-theme-muted font-medium flex items-center gap-2">
             <button
@@ -400,30 +419,8 @@ const AddNotificationForm = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              type="button"
-              onClick={() => navigate('/manage-notifications')}
-              className="px-3 py-1.5 text-xs font-medium text-theme-muted hover:text-theme-main border border-theme-border rounded-lg hover:bg-theme-surface transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                isSaveAndNextRef.current = true;
-                handleSubmit(onSubmit)();
-              }}
-              disabled={isSubmitting}
-              className="px-4 py-1.5 text-xs font-bold text-brand-orange hover:bg-brand-orange/10 border border-brand-orange/60 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
-              title="Save current notification and advance to next SR #"
-            >
-              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update + Next' : 'Save + Next')}</span>
-            </button>
-            <button
               type="submit"
               form="notification-form"
-              onClick={() => {
-                isSaveAndNextRef.current = false;
-              }}
               disabled={isSubmitting}
               className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
             >
@@ -532,12 +529,13 @@ const AddNotificationForm = () => {
                     type="select"
                     error={errors.department}
                     options={[
+                      { label: 'Notification', value: 'notification' },
+                      { label: 'Notifications', value: 'notifications' },
                       { label: 'Circular', value: 'circular' },
                       { label: 'Corporate', value: 'corporate' },
                       { label: 'General Order', value: 'general order' },
                       { label: 'Judge Order', value: 'judge order' },
                       { label: 'Letter', value: 'letter' },
-                      { label: 'Notification', value: 'notification' },
                       { label: 'Other', value: 'other' }
                     ]}
                     {...register('department')}
@@ -622,16 +620,13 @@ const AddNotificationForm = () => {
               </FormField>
               <FormField label="Section 1">
                 <Input
+                  type="select"
                   variant="light"
                   inputSize="sm"
-                  placeholder="Select or enter Section..."
-                  list="notification-sections-list"
+                  options={sectionSelectOptions}
                   error={errors.section}
                   {...register('section')}
                 />
-                <datalist id="notification-sections-list">
-                  {memoizedSectionOptions}
-                </datalist>
               </FormField>
             </div>
 
@@ -643,15 +638,6 @@ const AddNotificationForm = () => {
               <div className="text-brand-orange font-semibold text-sm flex items-center gap-2">
                 <Layers className="w-4 h-4" /> Content Details ({blockFields.length} {blockFields.length === 1 ? 'Block' : 'Blocks'})
               </div>
-              <button
-                type="button"
-                onClick={() => append({ id: `block-${Date.now()}-${Math.random()}`, date: null, detail: '', attachments: [] })}
-                className="px-3 py-1 rounded-lg text-xs font-bold bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange border border-brand-orange/40 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
-                title="Add new blank detail block"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Add Detail Block</span>
-              </button>
             </div>
 
             <div className="space-y-3">
@@ -660,15 +646,6 @@ const AddNotificationForm = () => {
 
                   {/* Block header badge & actions */}
                   <div className="flex items-center gap-1.5 absolute top-2 right-2 z-10">
-                    <button
-                      type="button"
-                      onClick={() => insert(index + 1, { id: `block-${Date.now()}-${Math.random()}`, date: null, detail: '', attachments: [] })}
-                      className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 border border-brand-orange/30 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                      title="Insert a new detail block right after this block"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Block Below</span>
-                    </button>
                     {blockFields.length > 1 && (
                       <button
                         type="button"

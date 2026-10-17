@@ -6,6 +6,7 @@ import {
   ArrowLeft, Printer, Scale, Copy, Check, 
   FileText, Calendar, Gavel, Award
 } from 'lucide-react';
+import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
 /**
  * Robust Cause Title parser for Commonwealth / Pakistani law reports
@@ -523,27 +524,15 @@ const CaseViewPage = () => {
             
             {/* Operative Transcript Flow with Dynamic Font Size Rescaling */}
             <div 
-              className="font-serif text-stone-900 dark:text-stone-100 space-y-4 text-justify print:text-black transition-all"
+              className="word-document-content font-serif text-stone-900 dark:text-stone-100 text-justify print:text-black transition-all"
               style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
             >
               {caseData.judgment && caseData.judgment.trim().length > 0 ? (
-                caseData.judgment.includes('<p>') ? (
-                  <div 
-                    dangerouslySetInnerHTML={{ __html: caseData.judgment }}
-                    className="prose dark:prose-invert max-w-none prose-p:my-3 prose-p:leading-relaxed prose-headings:font-serif"
-                    style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
-                  />
-                ) : (
-                  caseData.judgment.split(/\n\s*\n/).map((para, pIdx) => {
-                    const cleanPara = para.trim();
-                    if (!cleanPara) return null;
-                    return (
-                      <p key={pIdx} className="indent-6 whitespace-pre-line">
-                        {cleanPara}
-                      </p>
-                    );
-                  })
-                )
+                <div 
+                  dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(caseData.judgment) }}
+                  className="word-document-content font-serif"
+                  style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
+                />
               ) : (
                 <div className="p-6 rounded-xl bg-stone-100/60 dark:bg-stone-900/50 border border-stone-200 dark:border-stone-800 text-center space-y-2 my-4">
                   <h3 className="text-sm font-serif font-bold text-stone-800 dark:text-stone-200">

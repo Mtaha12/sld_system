@@ -6,6 +6,7 @@ import {
   ArrowLeft, Printer, BookOpen, Copy, Check, 
   Bookmark, ShieldCheck
 } from 'lucide-react';
+import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -189,8 +190,8 @@ const DictionaryViewPage = () => {
                 Legal Definition & Judicial Application
               </h3>
               <div 
-                className="whitespace-pre-wrap leading-relaxed text-justify"
-                dangerouslySetInnerHTML={{ __html: meaning.replace(/\n/g, '<br/>') }}
+                className="word-document-content text-stone-800 dark:text-stone-200 font-serif leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(meaning) }}
               />
             </div>
           </article>

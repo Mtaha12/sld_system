@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import dns from 'dns';
 import morgan from 'morgan';
 import compression from 'compression';
+import path from 'path';
 
 // Configure public DNS servers to resolve MongoDB Atlas SRV/TXT records securely
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -129,6 +130,7 @@ if (process.env.NODE_ENV === 'development') {
 // Global API rate limiting
 app.use('/api', globalLimiter);
 app.use('/api/chat', chatLimiter);
+app.use('/api/ai-chat', chatLimiter);
 
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
@@ -168,6 +170,9 @@ app.use('/api/custom-tariffs', customTariffRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/other-cases', otherCaseLawRoutes);
 app.use('/api/other-caselaws', otherCaseLawRoutes);
+
+// Static uploads serving
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

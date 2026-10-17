@@ -20,6 +20,7 @@ import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { otherCaseService, getOtherCaseDocumentUrl } from '../services/otherCaseService';
+import { formatWordDocumentDisplay } from '../../../utils/wordFormatter';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = Boolean(sortKey && sortConfig?.key === sortKey);
@@ -51,7 +52,7 @@ const ManageOtherCasesTable = ({
   totalItems = 0,
   totalPages = 1,
   currentPage = 1,
-  itemsPerPage = 25,
+  itemsPerPage = 100,
   sortConfig = { key: 'srNumber', direction: 'asc' },
   onSort,
   onPageChange,
@@ -284,14 +285,15 @@ const ManageOtherCasesTable = ({
                       {/* Actions */}
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setViewModalItem(item)}
-                            className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
-                            title="View"
+                          <a
+                            href={`/other-cases/view/${item.srNumber || item.mongoId || item.id || item.otherCaseId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs"
+                            title="View Case Law in new tab"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                          </button>
+                          </a>
                           <button
                             type="button"
                             onClick={() => onEdit?.(item)}
@@ -434,9 +436,10 @@ const ManageOtherCasesTable = ({
             {viewModalItem.headNotes && (
               <div>
                 <span className="text-[10px] uppercase font-bold text-theme-muted block mb-1">Head Notes / Tag Line</span>
-                <div className="p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed">
-                  {viewModalItem.headNotes}
-                </div>
+                <div 
+                  className="p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main word-document-content font-serif leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(viewModalItem.headNotes) }}
+                />
               </div>
             )}
           </div>

@@ -6,7 +6,7 @@ const statuteBlockSchema = new mongoose.Schema({
   fromDate: { type: String, default: null },
   toDate: { type: String, default: null },
   detail: { type: String, default: '' },
-  attachments: { type: [String], default: [] }
+  attachments: { type: [mongoose.Schema.Types.Mixed], default: [] }
 });
 
 const statuteSchema = new mongoose.Schema({

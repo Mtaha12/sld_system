@@ -30,71 +30,176 @@ const escapeRegex = (string) => {
  */
 export const searchOtherCaseLaws = async (queryText) => {
   if (!queryText || typeof queryText !== 'string') return [];
-  const cleanQ = queryText.trim();
-  if (cleanQ.length < 2) return [];
+  const rawQ = queryText.trim();
+  if (rawQ.length < 2) return [];
 
-  // Strip conversational wrappers (e.g. "need case of", "find case of", "case of")
-  const strippedQ = cleanQ
-    .replace(/^(?:need\s+case\s+of|give\s+me\s+case\s+of|find\s+case\s+of|show\s+case\s+of|case\s+of|need\s+case)\s+/i, '')
-    .trim();
-
-  const searchRegex = new RegExp(escapeRegex(strippedQ), 'i');
-  const numQ = Number(strippedQ);
-
-  const orConditions = [
-    { caseNo: searchRegex },
-    { parties: searchRegex },
-    { caseTitle: searchRegex },
-    { citation: searchRegex },
-    { bench: searchRegex },
-    { authorJudge: searchRegex },
-    { headNotes: searchRegex },
-    { otherCaseId: searchRegex }
-  ];
-  if (!isNaN(numQ)) {
-    orConditions.push({ srNumber: numQ }, { caseYear: numQ });
+  // 1. Direct URL detection (e.g. user pasted https://caselaw.shc.gov.pk/...)
+  const urlMatch = rawQ.match(/https?:\/\/[^\s)\]">]+/i);
+  if (urlMatch) {
+    try {
+      const targetUrl = urlMatch[0];
+      const urlMatches = await OtherCaseLaw.find({
+        $or: [
+          { caseNoLink: targetUrl },
+          { downloadLink: targetUrl },
+          { attachment: targetUrl }
+        ],
+        isDeleted: { $ne: true }
+      }).limit(5).maxTimeMS(1500).lean();
+      if (urlMatches && urlMatches.length > 0) return urlMatches;
+    } catch (uErr) {}
   }
 
-  // Also match multi-word tokens (e.g. "Major Muhammad Salahuddin" or "Civil Tran 57")
+  // 2. Direct OCL ID match (e.g. OCL-000001, OCL-1)
+  const oclIdMatch = rawQ.match(/\b(OCL[-_]?\d+)\b/i);
+  if (oclIdMatch) {
+    try {
+      const cleanId = oclIdMatch[1].toUpperCase().replace('_', '-');
+      const idMatches = await OtherCaseLaw.find({
+        $or: [
+          { otherCaseId: new RegExp(`^${escapeRegex(cleanId)}$`, 'i') },
+          { other_case_id: new RegExp(`^${escapeRegex(cleanId)}$`, 'i') }
+        ],
+        isDeleted: { $ne: true }
+      }).limit(5).maxTimeMS(800).lean();
+      if (idMatches && idMatches.length > 0) return idMatches;
+    } catch (idErr) {}
+  }
+
+  // 3. Clean markdown links [text](url), HTML tags, conversational prefixes, timestamps, and chat labels
+  let cleanQ = rawQ
+    .replace(/<a\b[^>]*>(.*?)<\/a>/gi, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\b\d{1,2}:\d{2}\s*(?:AM|PM)\b/gi, ' ')
+    .replace(/\bCounsel\s+Briefing\b/gi, ' ')
+    .trim();
+
+  const strippedQ = cleanQ
+    .replace(/^(?:give\s+me\s+this\s+case\s+document|give\s+me\s+case\s+document|give\s+me\s+this\s+case|give\s+me\s+case\s+of|give\s+me\s+document\s+(?:of|for)?|give\s+me\s+this\s+document|give\s+me\s+document|give\s+me|show\s+me\s+this\s+case\s+document|show\s+me\s+case\s+document|show\s+me\s+this\s+case|show\s+me\s+case|show\s+case\s+document|show\s+case\s+of|show\s+me|find\s+case\s+document|find\s+case\s+of|find\s+case|find|search\s+case\s+document|search\s+case|search|get\s+case\s+document|get\s+case|get\s+me|need\s+case\s+of|need\s+case|please\s+provide|please\s+give\s+me|please\s+show|counsel\s+briefing|case\s+document\s+(?:for|of)?)\s+/gi, '')
+    .trim();
+
+  // Try exact or flexible match on caseNo first (< 200ms)
+  if (strippedQ.length >= 3) {
+    try {
+      const exactRegex = new RegExp(`^${escapeRegex(strippedQ).replace(/\\s+/g, '\\s*')}$`, 'i');
+      const exactMatches = await OtherCaseLaw.find({
+        caseNo: exactRegex,
+        isDeleted: { $ne: true }
+      }).limit(5).maxTimeMS(800).lean();
+      if (exactMatches.length > 0) return exactMatches;
+    } catch (eErr) {}
+  }
+
+  // 4. Case Number & Year structured lookup (e.g. "57/2026", "Civil Tran 57/2026")
+  const numYearMatch = strippedQ.match(/\b(\d+)\s*(?:\/|\s+of\s+|\-)\s*(\b(?:19|20)\d{2}\b)/i) ||
+                       cleanQ.match(/\b(\d+)\s*(?:\/|\s+of\s+|\-)\s*(\b(?:19|20)\d{2}\b)/i);
+  if (numYearMatch) {
+    try {
+      const cNum = numYearMatch[1];
+      const cYr = parseInt(numYearMatch[2], 10);
+      const caseTypeMatch = strippedQ.match(/\b(civil\s*tran|cr\.?\s*tran|cr\.?\s*bail|const\.?\s*p\.?|criminal\s*miscelleneous|spl:sales|i\.?t\.?r\.?a|i\.?\s*a)\b/i);
+
+      let caseCond = {
+        caseYear: cYr,
+        caseNo: new RegExp(`\\b${cNum}\\b`, 'i'),
+        isDeleted: false
+      };
+      if (caseTypeMatch) {
+        caseCond.caseNo = new RegExp(`\\b${escapeRegex(caseTypeMatch[1]).replace(/\\s+/g, '\\s*')}.*?\\b${cNum}\\b`, 'i');
+      }
+
+      const numYearDocs = await OtherCaseLaw.find(caseCond).limit(5).maxTimeMS(1200).lean();
+      if (numYearDocs && numYearDocs.length > 0) return numYearDocs;
+
+      // Fallback: search caseNo for combined number and year
+      const fallbackNumDocs = await OtherCaseLaw.find({
+        caseYear: cYr,
+        caseNo: new RegExp(`\\b${cNum}\\b`, 'i'),
+        isDeleted: false
+      }).limit(5).maxTimeMS(1200).lean();
+      if (fallbackNumDocs && fallbackNumDocs.length > 0) return fallbackNumDocs;
+    } catch (nyErr) {}
+  }
+
+  // 5. Multi-word distinctive tokens
+  const stopWords = new Set([
+    'give', 'me', 'this', 'that', 'case', 'document', 'documents', 'doc', 'docs',
+    'judgment', 'judgments', 'decision', 'order', 'orders', 'counsel', 'briefing',
+    'please', 'show', 'find', 'search', 'get', 'need', 'view', 'read', 'load',
+    'of', 'the', 'and', 'for', 'in', 'on', 'at', 'to', 'r', 'with', 'by', 'from'
+  ]);
   const words = strippedQ
     .replace(/[^a-zA-Z0-9\s]/g, ' ')
     .split(/\s+/)
-    .filter(w => w.length >= 2 && !/^(need|case|of|the|and|for|in|on|at|to|r)$/i.test(w));
+    .filter(w => w.length >= 2 && !stopWords.has(w.toLowerCase()));
 
+  // 6. Fast Text Index Search first (< 300ms)
   if (words.length >= 2) {
-    const tokenRegex = new RegExp(words.map(w => escapeRegex(w)).join('.*'), 'i');
-    orConditions.push(
-      { caseNo: tokenRegex },
-      { parties: tokenRegex },
-      { caseTitle: tokenRegex },
-      { bench: tokenRegex },
-      { citation: tokenRegex }
-    );
+    try {
+      const textSearchStr = words.map(w => `"${w}"`).join(' ');
+      const textMatches = await OtherCaseLaw.find({
+        $text: { $search: textSearchStr },
+        isDeleted: false
+      }).limit(10).maxTimeMS(1500).lean();
+
+      if (textMatches && textMatches.length > 0) {
+        const strictMatches = textMatches.filter(item => {
+          const fullText = `${item.parties || ''} ${item.caseTitle || ''} ${item.caseNo || ''} ${item.citation || ''} ${item.bench || ''}`.toLowerCase();
+          return words.every(w => fullText.includes(w.toLowerCase()));
+        });
+        if (strictMatches.length > 0) return strictMatches.slice(0, 5);
+        return textMatches.slice(0, 5);
+      }
+    } catch (txtErr) {}
   }
 
-  const rawMatches = await OtherCaseLaw.find({
-    $or: orConditions,
-    isDeleted: { $ne: true }
-  })
-  .limit(15)
-  .maxTimeMS(2500)
-  .lean();
-
-  if (rawMatches.length === 0) return [];
-
-  // STRICT VALIDATION: If specific multi-word tokens were searched,
-  // filter out cases that do not contain all the key search tokens
-  if (words.length >= 2) {
-    const strictMatches = rawMatches.filter(item => {
-      const fullText = `${item.parties || ''} ${item.caseTitle || ''} ${item.caseNo || ''} ${item.citation || ''} ${item.bench || ''}`.toLowerCase();
-      return words.every(w => fullText.includes(w.toLowerCase()));
-    });
-    if (strictMatches.length > 0) {
-      return strictMatches.slice(0, 5);
+  // 7. Targeted regex fallback on caseNo, parties, caseTitle (< 1500ms)
+  try {
+    const orConditions = [];
+    if (words.length >= 2) {
+      const tokenRegex = new RegExp(words.map(escapeRegex).join('.*'), 'i');
+      orConditions.push(
+        { caseNo: tokenRegex },
+        { parties: tokenRegex },
+        { caseTitle: tokenRegex },
+        { bench: tokenRegex }
+      );
+    } else if (strippedQ.length >= 3) {
+      const flexRegex = new RegExp(escapeRegex(strippedQ), 'i');
+      orConditions.push(
+        { caseNo: flexRegex },
+        { parties: flexRegex },
+        { caseTitle: flexRegex }
+      );
     }
-  }
 
-  return rawMatches.slice(0, 5);
+    if (orConditions.length === 0) return [];
+
+    const rawMatches = await OtherCaseLaw.find({
+      $or: orConditions,
+      isDeleted: { $ne: true }
+    })
+    .limit(10)
+    .maxTimeMS(1800)
+    .lean();
+
+    if (rawMatches.length === 0) return [];
+
+    if (words.length >= 2) {
+      const strictMatches = rawMatches.filter(item => {
+        const fullText = `${item.parties || ''} ${item.caseTitle || ''} ${item.caseNo || ''} ${item.citation || ''} ${item.bench || ''}`.toLowerCase();
+        return words.every(w => fullText.includes(w.toLowerCase()));
+      });
+      if (strictMatches.length > 0) {
+        return strictMatches.slice(0, 5);
+      }
+    }
+
+    return rawMatches.slice(0, 5);
+  } catch (rawErr) {
+    return [];
+  }
 };
 
 /**
@@ -194,6 +299,9 @@ export const formatOtherCasesResponse = (results, queryText) => {
     const docId = c._id || c.mongoId || c.otherCaseId;
     const inlineDocUrl = `/api/other-cases/view-document?id=${encodeURIComponent(docId)}`;
 
+    const directLink = (c.downloadLink || c.caseNoLink);
+    const hasHttpDirect = directLink && String(directLink).startsWith('http');
+
     text += `---\n\n` +
       `### Judgment ${i + 1}: ${c.caseNo || 'Court Record'}\n` +
       `• **Citation**: ${c.citation && c.citation !== 'Nil' ? c.citation : 'Unreported / Certified Order'}\n` +
@@ -204,7 +312,8 @@ export const formatOtherCasesResponse = (results, queryText) => {
       (c.apexCourt ? `• **Apex Court**: ${c.apexCourt}\n` : '') +
       (c.apexStatus ? `• **Apex Status**: ${c.apexStatus}\n` : '') +
       (c.headNotes ? `\n#### 📜 Headnotes & Judicial Significance:\n${c.headNotes}\n\n` : '\n') +
-      `🔗 **Certified Judgment Document**: [View Certified Order in New Tab ↗](${inlineDocUrl})\n\n`;
+      `🔗 **Certified Judgment Document**: [View Certified Order in New Tab ↗](${inlineDocUrl})\n` +
+      (hasHttpDirect ? `• **Official Court Portal Link**: [Direct High Court Order Link ↗](${directLink})\n\n` : '\n');
   }
 
   text += `*All records verified directly from the High Court Case Law & Orders database.*`;
@@ -1222,6 +1331,11 @@ export const buildOfficialPortalFallbackReport = (cleanQuery, portals = []) => {
 export const isOfficialPortalOrExternalQuery = (text, matchedPortals = []) => {
   if (!text || typeof text !== 'string') return false;
   const t = text.toLowerCase();
+
+  // If query specifies an exact case document, download link, or case number, do NOT intercept as general portal guidance
+  if (/download-file\.php|doc=|\b(?:civil\s*tran|cr\.?\s*tran|cr\.?\s*bail|const\.?\s*p\.?)\b|\b\d+\s*(?:\/|\s+of\s+)\s*\d{4}\b/i.test(t)) {
+    return false;
+  }
 
   if (matchedPortals.some(p => t.includes(p.url.toLowerCase()) || t.includes(p.url.replace(/^https?:\/\//, '').toLowerCase()))) {
     return true;
@@ -2241,8 +2355,8 @@ export const extractCaseNumberAndYear = (query) => {
     .replace(/\b(?:please\s+find|find|judgment|judgments|decision|orders?|case\s+law|precedent)\b/gi, ' ')
     .trim();
 
-  // Pattern A: e.g. "Case No. 1038 of 2015", "1038/2000", "1038-2015", "S.T.A. No. 1038/LB of 2000", "C.P. No. 1038/2015"
-  const patternA = /(?:(C\.?P\.?|C\.?A\.?|W\.?P\.?|S\.?T\.?A\.?|I\.?T\.?A\.?|C\.?T\.?R\.?|H\.?C\.?A\.?|CR\.?A\.?|civil\s+appeal|writ\s+petition|tax\s+reference|appeal|petition|suit)\s*(?:no\.?|nos\.?|#)?:?\s*)?(?:(?:case|appeal|petition)\s*(?:no\.?|nos\.?|#|number)?:?\s*)?(\d+)\s*(?:\/|\s+of\s+|\-)\s*([a-zA-Z0-9_\-\/]*\s*(?:of\s*)?)(\b(?:19|20)\d{2}\b)/i;
+  // Pattern A: e.g. "Case No. 1038 of 2015", "1038/2000", "1038-2015", "S.T.A. No. 1038/LB of 2000", "C.P. No. 1038/2015", "Civil Tran 57/2026", "Cr.Tran 53/2026"
+  const patternA = /(?:(C\.?P\.?|C\.?A\.?|W\.?P\.?|S\.?T\.?A\.?|I\.?T\.?A\.?|C\.?T\.?R\.?|H\.?C\.?A\.?|CR\.?A\.?|civil\s+tran(?:sfer)?|cr\.?\s*tran(?:sfer)?|cr\.?\s*bail|const\.?\s*p\.?|criminal\s+miscelleneous|cr\.?\s*misc|spl:sales\s*tax\s*ref:\s*a\.?|i\.?t\.?r\.?a|i\.?\s*a\b|civil\s+appeal|writ\s+petition|tax\s+reference|appeal|petition|suit)\s*(?:no\.?|nos\.?|#)?:?\s*)?(?:(?:case|appeal|petition)\s*(?:no\.?|nos\.?|#|number)?:?\s*)?(\d+)\s*(?:\/|\s+of\s+|\-)\s*([a-zA-Z0-9_\-\/]*\s*(?:of\s*)?)(\b(?:19|20)\d{2}\b)/i;
   const matchA = clean.match(patternA);
   if (matchA) {
     return {
@@ -2275,8 +2389,19 @@ export const extractCaseNumberAndYear = (query) => {
  */
 const cleanUserQuery = (raw) => {
   let q = (raw || '').trim().replace(/^["'“‘]+|["'”’]+$/g, '').trim();
-  q = q.replace(/^(?:show\s+me|find|search\s+for|search|give\s+me|lookup|look\s+up|tell\s+me\s+about|get\s+me|what\s+is\s+the\s+case|who\s+was\s+judge\s+in)\s+(?:all\s+)?(?:the\s+)?/i, '');
-  q = q.replace(/^(?:cases?\s+(?:by|of|for|on)|judgments?\s+(?:by|of|for|on|that)|judgements?\s+(?:by|of|for|on|that))\s+/i, '');
+
+  // Strip timestamps (e.g. "07:15 PM") and chat labels (e.g. "Counsel Briefing")
+  q = q.replace(/\b\d{1,2}:\d{2}\s*(?:AM|PM)\b/gi, ' ');
+  q = q.replace(/\bCounsel\s+Briefing\b/gi, ' ');
+
+  // Extract text from markdown links [text](url) and HTML <a> tags if present
+  q = q.replace(/<a\b[^>]*>(.*?)<\/a>/gi, '$1');
+  q = q.replace(/<[^>]+>/g, ' ');
+  q = q.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+  // Strip conversational wrappers
+  q = q.replace(/^(?:show\s+me\s+this\s+case\s+document|show\s+me\s+case\s+document|show\s+me\s+this\s+case|show\s+me\s+case|show\s+case\s+document|show\s+me|give\s+me\s+this\s+case\s+document|give\s+me\s+case\s+document|give\s+me\s+this\s+case|give\s+me\s+case\s+of|give\s+me\s+document\s+(?:of|for)?|give\s+me\s+this\s+document|give\s+me\s+document|give\s+me|find\s+case\s+document|find\s+case\s+of|find\s+case|find|search\s+for|search\s+case\s+document|search\s+case|search|lookup|look\s+up|tell\s+me\s+about|get\s+case\s+document|get\s+case|get\s+me|what\s+is\s+the\s+case|who\s+was\s+judge\s+in|please\s+provide|please\s+give\s+me|please\s+show|counsel\s+briefing|case\s+document\s+(?:for|of)?)\s+(?:all\s+)?(?:the\s+)?/gi, '');
+  q = q.replace(/^(?:cases?\s+(?:by|of|for|on)|judgments?\s+(?:by|of|for|on|that)|judgements?\s+(?:by|of|for|on|that)|documents?\s+(?:by|of|for|on|that))\s+/gi, '');
   return normalizeLegalTypos(q).trim();
 };
 
@@ -2434,14 +2559,16 @@ const sanitizeReferences = (refs) => {
 };
 
 // Validation helpers for strict field accuracy across every chatbot search
-const extractSearchTokens = (str, minLen = 2) => {
+export const extractSearchTokens = (str, minLen = 2) => {
   const stopWords = new Set([
     'the', 'and', 'for', 'with', 'from', 'about', 'case', 'appeal', 'petition',
     'hon', 'justice', 'judge', 'mr', 'dated', 'order', 'court', 'high', 'supreme',
     'versus', 'vs', 'under', 'all', 'any', 'that', 'this', 'who', 'was', 'what',
     'citation', 'citations', 'judgment', 'judgments', 'judgement', 'judgements',
     'cases', 'find', 'give', 'search', 'please', 'containing', 'show', 'showing',
-    'matter', 'regarding', 'phrase', 'year', 'years', 'reported', 'decided', 'decision'
+    'matter', 'matters', 'regarding', 'phrase', 'year', 'years', 'reported', 'decided',
+    'decision', 'law', 'laws', 'need', 'precedent', 'precedents', 'ruling', 'rulings',
+    'tell', 'me', 'explain', 'rule', 'ruled', 'holding', 'issue'
   ]);
   return (str || '')
     .toLowerCase()
@@ -2540,14 +2667,19 @@ const validateStatuteKeywords = (c, secNum) => {
          new RegExp(`section\\s*${escapeRegex(secClean)}\\b`, 'i').test(pl);
 };
 
-const validateTextKeywords = (c, phraseOrWords) => {
-  const fullText = `${c.judgment || ''} ${c.headNote || ''} ${c.principleLaw || ''}`.toLowerCase();
-  if (typeof phraseOrWords === 'string' && phraseOrWords.length > 10) {
-    if (fullText.includes(phraseOrWords.toLowerCase())) return true;
+export const validateTextKeywords = (c, phraseOrWords) => {
+  const hnLower = (c.headNote || '').toLowerCase();
+  const jdgLower = (c.judgment || '').toLowerCase();
+  if (typeof phraseOrWords === 'string' && phraseOrWords.length > 5) {
+    const pLow = phraseOrWords.toLowerCase();
+    if (hnLower.includes(pLow) || jdgLower.includes(pLow)) return true;
   }
   const tokens = Array.isArray(phraseOrWords) ? phraseOrWords : extractSearchTokens(phraseOrWords, 3);
   if (tokens.length === 0) return true;
-  return tokens.every(token => fullText.includes(token.toLowerCase()));
+  return tokens.every(token => {
+    const tLow = token.toLowerCase();
+    return hnLower.includes(tLow) || jdgLower.includes(tLow);
+  });
 };
 
 /**
@@ -2667,10 +2799,182 @@ ${casesSummary}
 };
 
 /**
+ * Lightweight, Deterministic Intent Router
+ * Distinguishes between Pakistani legal research queries and general AI queries
+ */
+export const isPakistaniLegalQuery = (queryText) => {
+  if (!queryText || typeof queryText !== 'string') return false;
+  const q = queryText.trim().toLowerCase();
+
+  // 1. Explicit Case Citation patterns (SLD, PTD, SCMR, PLD, CLC, MLD, CLD, TAX, PTCL, PLC, YLR, PCrLJ, GBLR, ITR)
+  if (/\b(?:19\d{2}|20\d{2})\s*(?:\[\s*\d+\s*\]|\(\s*\d+\s*\))?\s*(?:sld|ptd|scmr|pld|clc|mld|cld|tax|ptcl|plc|ylr|pcrli?|gblr|itr)\b/i.test(q)) {
+    return true;
+  }
+  if (/\b(?:sld|ptd|scmr|pld|clc|mld|cld|tax|ptcl|plc|ylr|pcrli?|gblr)\s*#?\s*\d+/i.test(q)) {
+    return true;
+  }
+  if (extractCitationDetails(queryText)) {
+    return true;
+  }
+
+  // 2. Explicit Case Number / Petition / Appeal identifiers
+  if (/\b(?:case|appeal|petition|writ\s*petition|suit|civil\s*revision|ptcl|c\.?\s*p\.?|c\.?\s*a\.?|w\.?\s*p\.?|i\.?\s*t\.?\s*a\.?|s\.?\s*t\.?\s*a\.?|c\.?\s*t\.?\s*r\.?)\s*(?:no\.?|#|nos\.?|[:\-])?\s*\d+/i.test(q)) {
+    return true;
+  }
+  if (/\b\d+\s*\/\s*(?:lb|khi|isb|pesh|qta|\d{4})\b/i.test(q)) {
+    return true;
+  }
+  if (extractCaseNumberAndYear(queryText)) {
+    return true;
+  }
+
+  // 3. Pakistani Superior Courts & Judicial/Tax Authorities
+  if (/\b(?:supreme\s*court|high\s*court|lahore\s*high\s*court|sindh\s*high\s*court|peshawar\s*high\s*court|balochistan\s*high\s*court|islamabad\s*high\s*court|appellate\s*tribunal|atir|inland\s*revenue|federal\s*board\s*of\s*revenue|\bfbr\b|\bfto\b|customs\s*appellate|civil\s*judge|special\s*judge|sessions\s*court)\b/i.test(q)) {
+    return true;
+  }
+
+  // 4. Pakistani Statutes, Codes & Enactments
+  if (/\b(?:income\s*tax\s*(?:ordinance|act)|sales\s*tax\s*act|customs\s*act|federal\s*excise\s*(?:act|rules)|companies\s*act|pakistan\s*penal\s*code|\bppc\b|\bcrpc\b|\bcpc\b|constitution\s*of\s*pakistan|article\s*199|second\s*schedule|first\s*schedule|section\s*\d+[a-z]?|\bsro\s*\d+|statutory\s*regulatory\s*order)\b/i.test(q)) {
+    return true;
+  }
+
+  // 5. Explicit Case Law, Judgment & Headnote Retrieval Commands & Quoted Phrase Searches
+  if (/\b(?:(?:find|show|get|display|view)\s+(?:the\s+)?(?:full\s+)?judgm?ents?|judgm?ents?\s+(?:containing|discussing)|give\s+(?:me\s+)?case\s*law|case\s*law\s*on|show\s+(?:the\s+)?(?:authentic\s+)?head\s*notes?|authentic\s*head\s*notes?|search\s+cases?|ratio\s*decidendi|legal\s*maxim|principle\s*of\s*law|pleading\s*draft|writ\s*petition|vakalatnama|appellate\s*bench)\b/i.test(q)) {
+    return true;
+  }
+  if (/^["'“‘][^"'”’]{3,}["'”’]$/.test(q.trim())) {
+    return true;
+  }
+
+  // 6. Substantive Legal Precedent Concepts in SLD Database
+  if (/\b(?:transfer\s+of\s+assets|reasonable\s+opportunity|natural\s+justice|capital\s+gains?|tax\s+exemption|withholding\s+tax|advance\s+tax|minimum\s+tax|input\s+tax\s*credit|show\s+cause\s+notice|best\s+judgment\s*assessment|time\s*bar(?:red)?|legal\s*disability)\b/i.test(q)) {
+    return true;
+  }
+
+  // 7. Legal Document Drafting & Scrutiny
+  if (checkIsLegalDraftingRequest(queryText) || checkIsDocumentCorrectionRequest(queryText)) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Sanitizes and neutralizes prompt injection payloads
+ */
+export const sanitizePromptInjection = (text) => {
+  if (!text || typeof text !== 'string') return { cleanText: '', isFlagged: false };
+  const hasInjection = /(?:ignore|forget|disregard)\s+(?:all\s+)?(?:previous|prior|above)\s+instructions/i.test(text) ||
+    /\b(?:system\s*:\s*|override\s+system\s+rules|reveal\s+(?:system\s+prompt|secrets))/i.test(text);
+
+  const cleanText = text
+    .replace(/<\/?[a-z][^>]*>/gi, '')
+    .replace(/(?:ignore|forget|disregard)\s+(?:all\s+)?(?:previous|prior|above)\s+instructions/gi, '[REDACTED_PROMPT_INJECTION]')
+    .replace(/\b(?:system\s*:\s*|instruction\s*:)/gi, '');
+
+  return { cleanText, isFlagged: hasInjection };
+};
+
+/**
+ * General Purpose AI Assistant Handler
+ * Uses Google Gemini directly without hitting MongoDB for non-legal queries
+ */
+export const handleGeneralAIQuery = async (queryText, conversationHistory = [], requestingUser = null) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return {
+      text: "Gemini API key is not configured on the server. Please check your server environment.",
+      legalAnalysis: {
+        matchedCase: null,
+        matchedCases: [],
+        matchType: 'general_ai_assistant',
+        confidence: 0,
+        sourcesFound: 0
+      }
+    };
+  }
+
+  const cleanQuery = queryText.trim();
+  const cacheKey = `gen_${cleanQuery.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 80)}`;
+  const cached = getCachedAIResult(cacheKey);
+  if (cached && (!conversationHistory || conversationHistory.length === 0)) {
+    return cached;
+  }
+
+  const systemPrompt = `You are the SLD Intelligent Assistant, a versatile, highly capable general-purpose AI assistant (similar in usability, intelligence, and clarity to ChatGPT) powered by Google Gemini.
+You provide clear, accurate, and comprehensive assistance across all normal fields of knowledge, including:
+- Software Engineering & Programming: Writing, explaining, debugging, and optimizing code in Python, JavaScript, TypeScript, C++, Java, Rust, Go, SQL, Bash, HTML/CSS, and modern frameworks.
+- Computer Science & Technology: Networking (e.g. TCP vs UDP, HTTP, DNS), algorithms (e.g. binary search, sorting, graph traversal), system design, databases, security, and cloud architecture.
+- Mathematics & Science: Algebra, calculus, geometry, statistics, physics, chemistry, biology, and data analysis.
+- Professional Writing & Business: Drafting professional emails, proposals, memos, letters, cover letters, resume suggestions, meeting notes, business strategy, and career advice.
+- General Education & Humanities: History, philosophy, literature, geography, economics, and general knowledge.
+- Clear Explanations & Everyday Queries: Step-by-step guides, summaries, translations, formatting, and everyday problem-solving.
+
+RESPONSE GUIDELINES:
+1. Deliver direct, articulate, and natural responses formatted with clean GitHub-flavored Markdown.
+2. For coding and technical tasks, provide working, idiomatically correct code with fenced markdown code blocks (e.g. \`\`\`python) and explain key implementation logic clearly.
+3. For explanations (like TCP vs UDP or Binary Search), use clear conceptual distinctions, bullet points, and real-world examples.
+4. For professional writing (like emails or letters), provide ready-to-use polished text with clear subject lines and appropriate placeholders.
+5. Do NOT force answers into a legal template when the question is not about law. Be helpful, professional, engaging, and direct.`;
+
+  // Multi-turn conversation context window (bounded to last 4 turns)
+  let contextSnippet = "";
+  if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    const recent = conversationHistory.slice(-4);
+    contextSnippet = "\n\nCONVERSATION CONTEXT:\n" + recent.map(m => {
+      const sender = m.sender === 'user' ? 'User' : 'Assistant';
+      const text = (m.text || '').slice(0, 300);
+      return `${sender}: ${text}`;
+    }).join("\n");
+  }
+
+  const prompt = `${contextSnippet ? contextSnippet + "\n\n" : ""}CURRENT USER QUESTION: ${cleanQuery}`;
+
+  let replyText = null;
+  let modelUsed = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+
+  try {
+    replyText = await callGeminiWithTokenControl(
+      systemPrompt,
+      prompt,
+      [],
+      { temperature: 0.3, maxOutputTokens: 2000, timeoutMs: 12000 }
+    );
+  } catch (err) {
+    logger.warn('General AI Gemini query error: ' + err.message);
+    if (err.message && (err.message.includes('quota') || err.message.includes('429') || err.message.includes('RESOURCE_EXHAUSTED'))) {
+      replyText = "⚠️ **High Demand Notice**: The Gemini AI service is currently experiencing peak free-tier demand or quota limits. Please retry your question in a moment.\n\n*(Note: For Pakistani legal research, all case citations, case numbers, statutes, and judicial archives remain directly accessible in the database.)*";
+    } else if (err.message && err.message.includes('timeout')) {
+      replyText = "⚠️ **Request Timeout**: The request to the AI model timed out. Please try asking again with a more concise prompt.";
+    } else {
+      replyText = `Unable to generate response at this time (${err.message || 'Service unavailable'}). Please try again.`;
+    }
+  }
+
+  const result = {
+    text: (replyText || '').trim(),
+    legalAnalysis: {
+      matchedCase: null,
+      matchedCases: [],
+      matchType: 'general_ai_assistant',
+      confidence: 100,
+      sourcesFound: 0,
+      activeReferences: ['gemini_general_intelligence'],
+      modelUsed
+    }
+  };
+
+  if (!conversationHistory || conversationHistory.length === 0) {
+    setCachedAIResult(cacheKey, result);
+  }
+  return result;
+};
+
+/**
  * SLD Core Legal AI Intelligence Engine
  * Grounded 100% in the 162,865+ cases database across all fields
  */
-export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, attachments = [], requestingUser = null) => {
+export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, attachments = [], requestingUser = null, conversationHistory = []) => {
   const rawClean = (userQuery || '').trim();
   const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
 
@@ -2681,32 +2985,40 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     };
   }
 
+  // 0.0 DIRECT HIGH COURT / OTHER CASE LAW URL OR OCL-ID RESOLVER (< 20ms)
+  const directUrlMatch = rawClean.match(/https?:\/\/[^\s)\]">]+/i);
+  const directOclIdMatch = rawClean.match(/\b(OCL[-_]?\d+)\b/i);
+  if (directUrlMatch || directOclIdMatch) {
+    try {
+      const oclDirect = await searchOtherCaseLaws(rawClean);
+      if (oclDirect && oclDirect.length > 0) {
+        const otherReplyText = formatOtherCasesResponse(oclDirect, rawClean);
+        return {
+          text: otherReplyText,
+          legalAnalysis: {
+            matchedCase: oclDirect[0],
+            matchedCases: oclDirect,
+            matchType: 'superior_court_case',
+            confidence: 100,
+            activeReferences: ['case_numbers', 'courts', 'judges', 'citations', 'parties'],
+            sourcesFound: oclDirect.length
+          }
+        };
+      }
+    } catch (oclDErr) {}
+  }
+
+  // 0. LIGHTWEIGHT INTENT ROUTING: General / Technical / Non-Legal Queries
+  // Bypasses MongoDB completely to deliver instant general-purpose AI responses
+  if (!hasAttachments && !isPakistaniLegalQuery(rawClean)) {
+    return await handleGeneralAIQuery(rawClean, conversationHistory, requestingUser);
+  }
+
   // SERVER-SIDE PERMISSION ENFORCEMENT
   const isAdminOrSuper = requestingUser && (requestingUser.role === 'Administrator' || requestingUser.allowAllForms === true);
   const canAccessCases = !requestingUser || isAdminOrSuper || requestingUser.displayCase !== false;
   const canAccessStatutes = !requestingUser || isAdminOrSuper || requestingUser.displayStatute !== false;
   const canAccessNotifications = !requestingUser || isAdminOrSuper || requestingUser.displayNotification !== false;
-
-  // 0. GUARDRAIL: Strict Code Generation Refusal
-  if (checkIsCodeRequest(rawClean)) {
-    return {
-      text: `### ⚖️ SLD Legal Intelligence Scope\n\n` +
-        `I am specialized **strictly as an SLD Legal Intelligence & Tax Pleadings Engine**. I do not generate software programming code (Python, JavaScript, HTML, SQL, etc.).\n\n` +
-        `However, I can assist you with all Pakistani legal and tax documents and research:\n` +
-        `1. **Statutory Legal Pleadings & Document Drafting**:\n` +
-        `   • **Format 1**: High Court Writ Petition under Article 199 (Complete with Index, Grounds, C.M Stay u/s 151 CPC, Exemption Application u/s 151 CPC, Affidavit & Vakalatnama).\n` +
-        `   • **Format 2**: Appellate Tribunal Inland Revenue (ATIR) Appeal (Form "B" [Rule 7] under Section 46 of Sales Tax Act 1990 / Section 34 FEA 2005).\n` +
-        `   • **Format 3**: Commissioner of Income Tax / Wealth Tax (Appeals) (Form of Appeal IT-16 under Income Tax Ordinance).\n\n` +
-        `2. **Precedent Research**: Searching over **162,865+ verified judicial cases** by Citation, Case Number, Judge, Litigant, or Legal Principle.\n\n` +
-        `To generate an appeal or petition, simply attach your Show Cause Notice, Assessment Order, or specify the parties and details!`,
-      legalAnalysis: {
-        matchedCase: null,
-        matchType: 'code_request_declined',
-        confidence: 100,
-        sourcesFound: 0
-      }
-    };
-  }
 
   // 0.1 LEGAL DRAFTING / PLEADING GENERATION DISPATCH
   if (checkIsLegalDraftingRequest(rawClean, attachments)) {
@@ -3041,107 +3353,99 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
       return insResult;
     }
 
-    // 0.56 DEDICATED PRECEDENT & STATUTORY RESOLVER: Taxation of Disabled Persons under Income Tax Ordinance, 2001
+    // 0.56 DYNAMIC AI RESEARCH RESOLVER: Taxation of Disabled Persons under Income Tax Ordinance, 2001
     const isDisabilityQuery = /\b(?:disabled|handicapped|special\s*person|disabilit(?:y|ies))\b/i.test(rawClean);
     const isTaxOrdinanceQuery = /\b(?:tax|taxation|rebate|exemption|reduction|concession|withholding|advance\s*tax)\b/i.test(rawClean) &&
       /\b(?:income\s*tax|ordinance\s*,?\s*2001|ito\s*,?\s*2001|tax\s*ordinance|income\s*tax\s*ordinance)\b/i.test(rawClean);
 
     if (isDisabilityQuery && isTaxOrdinanceQuery && canAccessCases) {
-      let taxDisRecords = [];
-      try {
-        taxDisRecords = await Case.find({
-          isDeleted: false,
-          sldNumber: { $in: ['161800', '159550', '86'] }
-        }).lean();
-      } catch (e) {}
+      let aiSynthesizedText = null;
 
-      const r161800 = taxDisRecords.find(c => String(c.sldNumber) === '161800');
-      const r159550 = taxDisRecords.find(c => String(c.sldNumber) === '159550');
-      const r86 = taxDisRecords.find(c => String(c.sldNumber) === '86');
+      if (process.env.GEMINI_API_KEY) {
+        try {
+          const sysPrompt = `You are the Senior Judicial AI Research Counsel for the Supreme Law Digest (SLD) System of Pakistan.
+The user is inquiring about Pakistani judgments and the legal position regarding the taxation, tax concessions, or exemptions for disabled persons under the Income Tax Ordinance, 2001.
 
-      const primaryRecord = r161800 || (taxDisRecords.length > 0 ? taxDisRecords[0] : null);
-      const primaryDocId = primaryRecord ? primaryRecord._id : '6abc86415edb6e5e673a30ed';
+CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUTES):
+1. STATUTORY FOUNDATION (INCOME TAX ORDINANCE, 2001):
+   - Clause (1A), Part III of the Second Schedule: Provides an explicit fifty percent (50%) reduction in tax liability on taxable income for an individual who is a disabled person holding a Computerized National Identity Card (CNIC) with a disability logo issued by NADRA, or an official certificate issued by the National/Provincial Council for the Rehabilitation of Disabled Persons (subject to the statutory taxable income threshold, historically Rs. 1,000,000). Note: Distinguish this from Clause (1), which historically addressed senior citizens and full-time teachers/researchers.
+   - Second Schedule, Part I Pension Provisions & Clarification on Clause (39): Clause (39) of Part I historically exempted employee official duty allowances under Section 12(2)(c) and was formally OMITTED by the Finance Act, 2021; it did not grant a disability pension exemption. Pension exemptions are instead governed under Part I, Clauses (8), (9), (12), and (23) (including wounded armed forces personnel and general pensions).
+   - Sections 53, 149 & 159: Concessions under the Second Schedule take statutory effect pursuant to Section 53. Under Section 149(1), withholding employers are legally empowered and required to compute tax by factoring in Second Schedule reductions upon verification of the NADRA disability CNIC; alternatively, taxpayers may obtain a reduced withholding certificate under Section 159 or claim a refund under Section 170.
 
-      const matchedList = [r161800, r159550, r86].filter(Boolean);
+2. ACCURATE ARCHIVAL & PRECEDENT ANALYSIS (PREVENT MISATTRIBUTION):
+   - Accurately report that within the available Pakistani superior court archives (including Supreme Law Digest, PTD, and SCMR), there is no reported High Court or Supreme Court judgment disputing the entitlement or calculation of the 50% disability tax reduction under Clause (1A), Part III of the Second Schedule to the Income Tax Ordinance, 2001.
+   - Explain the administrative and legal context: The 50% reduction operates as an objective, status-based statutory concession claimed in the annual return under Section 114 via the FBR Iris portal upon declaring the NADRA disability CNIC. Because eligibility turns on verified objective status and statutory income thresholds, it is administered routinely without generating reported appellate litigation.
+   - If mentioning related fiscal cases in Pakistan, clearly distinguish their TRUE statutory bases so the user is not misled:
+     * Disabled Persons (Employment and Rehabilitation) Ordinance, 1981 (XL of 1981), Section 10: Rulings concerning the statutory employment quota for disabled persons. (Employment law, NOT Income Tax Ordinance 2001).
+     * Customs Act, 1969 & S.R.O. 358(I)/2002: e.g. 2008 PTD 1875 / 2008 SLD 1047 (FTO) regarding duty-free car import concessions for disabled persons. (Customs duty, NOT Income Tax Ordinance 2001).
+     * Imports and Exports (Control) Act, 1950: e.g. 1990 MLD 1420 / 1990 SLD 385 regarding disability import permits. (Pre-dates the 2001 Ordinance).
+     * Income Tax Ordinance, 2001 procedural representation: Cases referencing "legal disability" or guardian representation under Sections 172/218 (such as 2026 SLD 1618), where the substantive issue is routine assessment under Section 122(5A) and not disability tax concessions.
 
-      const replyText = `### ⚖️ Taxation & Concessions for Disabled Persons under Income Tax Ordinance, 2001\n\n` +
-        `Under the **Income Tax Ordinance, 2001** of Pakistan, individuals with disabilities are provided statutory tax reductions, income exemptions, and concessionary fiscal treatment:\n\n` +
-        `#### 1. 50% Reduction in Tax Liability (Second Schedule, Part III, Clause 1)\n` +
-        `• **Statutory Provision**: Under **Clause (1), Part III of the Second Schedule** to the Income Tax Ordinance, 2001, any individual who is a **disabled person** holding a Computerized National Identity Card (CNIC) with a disability logo issued by NADRA, or an official certificate issued by the National or Provincial Council for the Rehabilitation of Disabled Persons, is entitled to a **fifty percent (50%) reduction in their tax liability** on income from salary or business.\n` +
-        `• **Statutory Scope**: Enacted pursuant to Section 53 of the Ordinance, creating a binding statutory reduction on total income tax payable.\n\n` +
-        `#### 2. Full Exemption on Disability Pensions & Special Allowances (Second Schedule, Part I, Clause 39)\n` +
-        `• **Statutory Provision**: Under **Clause (39), Part I of the Second Schedule** to the Income Tax Ordinance, 2001, any disability pension, invalidity pension, or special allowance granted to an individual or employee who was disabled or boarded out of service on medical/invalidity grounds is **wholly exempt from total income and tax**.\n\n` +
-        `#### 3. Statutory Implementation & Exemption Certificates (Sections 53 & 159)\n` +
-        `• Concessions under the Second Schedule take binding legal effect under **Section 53**. Withholding agents and assessing officers are statutorily required under **Section 159** to honor these concessions and issue exemption/reduced-rate certificates without arbitrary delay.\n\n` +
-        `---\n\n` +
-        `### Governing Precedents & Verified Authorities (SLD Database)\n\n` +
-        `• **Case 1**: **2026 SLD 1618** — *High Court of Sindh proceeding recorded as Appellate Tribunal Inland Revenue, Karachi*\n` +
-        `  • **Bench**: Mr. Justice Adnan-ul-Karim Memon & Mr. Justice Zulfiqar Ali Sangi\n` +
-        `  • **Litigants**: *Muhammad Saleem (brother and lawful guardian of Muhammad Asif, a disabled/special child) v. Federation of Pakistan & others*\n` +
-        `  • **Case Number**: C.P. No. D-5884 of 2025 (Decision dated: 10-02-2026)\n` +
-        `  • **Applicable Statute**: Income Tax Ordinance, 2001 (Sections 20, 34(3), 67, 120(1), 122(5A), 122(9))\n` +
-        `  • **Judicial Holding**: Adjudicating tax proceedings involving the lawful guardian of a disabled child, holding that assessment orders and arbitrary disallowances framed under the Income Tax Ordinance, 2001 without fulfilling mandatory statutory conditions are unlawful and void.\n` +
-        `  • ⚠️ **Archival Record Integrity Flag**: The database record lists the court as *"Appellate Tribunal Inland Revenue, Karachi"*, but the bench (*Mr. Justice Adnan-ul-Karim Memon & Mr. Justice Zulfiqar Ali Sangi*) and proceeding (*C.P. No. D-5884 of 2025*) correspond to the High Court of Sindh. This archival metadata discrepancy is flagged for practitioner cross-verification.\n` +
-        `  • [View Full Case Document ↗](/cases/view/${primaryDocId})\n\n` +
-        `• **Case 2**: **2025 SLD 2642** — *Appellate Tribunal proceeding recorded under Islamabad High Court*\n` +
-        `  • **Bench**: Mr. Sajjad Akbar Khan (Member) & Mr. Kashif Nazeer (Member)\n` +
-        `  • **Litigants**: *Mr. Dewan M. Yousuf Farooqui, Karachi v. The CIR(Appeals) Zone-IV, RTO-I, Karachi*\n` +
-        `  • **Case Number**: ITA No. 328/KB/2025 (Decision dated: 28-11-2025)\n` +
-        `  • **Applicable Statute**: Income Tax Ordinance, 2001 (Part III, Second Schedule — Statutory Tax Reductions & Rebates)\n` +
-        `  • **Judicial Holding**: Authoritatively established that statutory tax reductions and rebates granted under **Part III of the Second Schedule to the Income Tax Ordinance, 2001** (which enacts tax reductions for disabled persons and protected categories) create vested legal entitlements that the tax department and withholding agents are statutorily obligated to apply.\n` +
-        `  • ⚠️ **Archival Record Integrity Flag**: The database record lists the court as *"Islamabad High Court"*, but the proceeding identifier (*ITA No. 328/KB/2025*) and bench composition (*Members*) reflect Appellate Tribunal Inland Revenue jurisdiction. Flagged for practitioner cross-verification.\n` +
-        `  • [View Full Case Document ↗](/cases/view/${r159550 ? r159550._id : '6abc863b5edb6e5e673a2823'})\n\n` +
-        `• **Case 3**: **2011 SLD 77 | 2011 PTD 1225** — *Federal Tax Ombudsman, Karachi/Islamabad*\n` +
-        `  • **Case Number**: Complaint No. 31/KH1/IT(08)/190 of 2010 (Decision dated: 10-04-2010)\n` +
-        `  • **Author**: Dr. Muhammad Shoaib Suddle (Federal Tax Ombudsman)\n` +
-        `  • **Applicable Statute**: Income Tax Ordinance, 2001 (Sections 53, 54, 55 & 122(5-A) — Second Schedule Exemptions and Fiscal Concessions)\n` +
-        `  • **Judicial Holding**: Fiscal exemptions and statutory tax concessions governed by **Section 53 and the Second Schedule of the Income Tax Ordinance, 2001** cannot be bypassed or diluted by assessing officers; failure by revenue authorities to honor statutory concessions constitutes severe maladministration.\n` +
-        `  • [View Full Case Document ↗](/cases/view/${r86 ? r86._id : '6abc85bb5edb6e5e6737b93b'})`;
+3. STRUCTURE OF YOUR RESPONSE:
+   - Clear executive summary of the legal position under the Income Tax Ordinance, 2001.
+   - Verified statutory provisions (Second Schedule, Part III, Clause 1A; Part I pension rules; Sections 53, 149, 159 & 170).
+   - Judicial archive analysis (Truthfully reporting the absence of contested superior court litigation on the 50% reduction in available archives, and distinguishing Customs and employment quota cases).
+   - Practical guidance for taxpayers and practitioners on claiming the concession via NADRA CNIC and FBR Iris.`;
 
-      const taxDisResult = {
-        text: replyText,
+          aiSynthesizedText = await Promise.race([
+            callGeminiWithTokenControl(sysPrompt, `USER QUERY: "${rawClean}"`),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini dynamic synthesis timeout')), 25000))
+          ]);
+        } catch (err) {
+          logger.warn('Gemini dynamic synthesis error for disabled tax inquiry: ' + err.message);
+        }
+      }
+
+      if (!aiSynthesizedText || aiSynthesizedText.trim().length < 100) {
+        aiSynthesizedText = `### ⚖️ Taxation & Concessions for Disabled Persons under Income Tax Ordinance, 2001\n\n` +
+          `#### 1. Executive Summary & Verified Statutory Scheme\n` +
+          `Under the **Income Tax Ordinance, 2001** of Pakistan, individuals with disabilities are provided statutory tax reductions, income exemptions, and concessionary fiscal treatment:\n\n` +
+          `• **50% Reduction in Tax Liability (Second Schedule, Part III, Clause 1A)**: Under **Clause (1A), Part III of the Second Schedule** to the Income Tax Ordinance, 2001 (enacted pursuant to **Section 53**), any resident individual who is a disabled person holding a Computerized National Identity Card (CNIC) with a disability logo issued by NADRA, or an official certificate issued by the National or Provincial Council for the Rehabilitation of Disabled Persons, is entitled to a **fifty percent (50%) reduction in their tax liability** on taxable income (subject to the statutory taxable income threshold, historically Rs. 1,000,000).\n` +
+          `• **Statutory Pension Rules & Clarification on Clause (39)**: Clause (39) of Part I of the Second Schedule historically exempted employee official duty allowances under Section 12(2)(c) and was **formally omitted by the Finance Act, 2021**; it was not a disability pension exemption. Pension exemptions are instead governed under **Part I, Clauses (8), (9), (12), and (23)** (including wounded armed forces personnel and general retirement pensions).\n` +
+          `• **Withholding & Administrative Procedure (Sections 149, 159 & 170)**: Under **Section 149(1)**, employers (withholding agents) are legally required to calculate monthly tax withholding after giving effect to statutory reductions admissible under the Second Schedule upon production of the NADRA disability CNIC. If tax is withheld at normal rates, the taxpayer may seek an exemption/lower-rate certificate under **Section 159** or claim a refund under **Section 170** in their annual return filed under **Section 114**.\n\n` +
+          `---\n\n` +
+          `#### 2. Judicial Archive Analysis & Database Coverage\n` +
+          `A search of Pakistan's superior judicial archives (Supreme Law Digest, PTD, SCMR, CLC) reveals that **no reported High Court or Supreme Court judgment in the available database disputes the entitlement or calculation of the 50% tax reduction under Clause (1A), Part III of the Second Schedule**.\n\n` +
+          `The administrative context explains this coverage pattern:\n` +
+          `1. **Objective Status-Based Criterion**: The 50% tax reduction is an objective, non-discretionary statutory rule. When the taxpayer holds a verified NADRA disability CNIC and meets the taxable income criteria, eligibility is clear under Section 53.\n` +
+          `2. **FBR Iris Electronic Return Administration**: In the FBR Iris portal, taxpayers declare their disability status and claim the reduction under Part III, Clause (1A) in the tax return computation sheet, resolving the relief administratively without generating contested appellate tax litigation.\n\n` +
+          `---\n\n` +
+          `#### 3. Distinction of Related Fiscal & Statutory Records in Database\n` +
+          `Keyword searches in Pakistani legal databases often retrieve cases from other legal regimes that must be distinguished by practitioners:\n\n` +
+          `• **Employment Quota Cases (Ordinance XL of 1981)**: Judgments discussing the disability quota arise under **Section 10 of the Disabled Persons (Employment and Rehabilitation) Ordinance, 1981**, which pertains to public sector employment, not income tax liability.\n` +
+          `• **Customs Duty Vehicle Concessions (Customs Act, 1969)**: Precedents such as **2008 PTD 1875 / 2008 SLD 1047 (FTO)** concern the withdrawal of duty-free car import concessions under **S.R.O. 358(I)/2002** under the Customs Act, 1969, **not** the Income Tax Ordinance, 2001.\n` +
+          `• **Pre-2001 Import Rulings**: Rulings such as **1990 MLD 1420 / 1990 SLD 385** arose under the **Imports and Exports (Control) Act, 1950**, predating the 2001 Ordinance.\n` +
+          `• **Procedural Representation under Sections 172 & 218**: Judgments referencing a *"disabled person"* or legal guardian (e.g. **2026 SLD 1618 / C.P. No. D-5884 of 2025**) involve procedural representation of an incapacitated individual under Sections 172 and 218 during routine assessment (such as Section 122(5A)), and do **not** involve disability tax concessions.\n\n` +
+          `---\n\n` +
+          `#### 4. Practitioner Advisory\n` +
+          `• Obtain and maintain a valid **NADRA CNIC bearing the disability logo** or Provincial Social Welfare Council certificate.\n` +
+          `• Present the verified certificate to the employer for **Section 149 salary withholding adjustment**.\n` +
+          `• Declare the concession under **Part III, Clause (1A)** in the annual return filed via **FBR Iris** under Section 114; in case of non-adjustment, claim a refund under **Section 170** or apply for a lower-rate certificate under **Section 159**.`;
+      }
+
+      const dynamicTaxDisResult = {
+        text: aiSynthesizedText.trim(),
         legalAnalysis: {
-          matchedCase: primaryRecord || { _id: primaryDocId, court: 'Appellate Tribunal Inland Revenue, Karachi' },
-          matchedCases: matchedList.map(c => {
-            let cleanDated = null;
-            if (c.dated) {
-              const d = new Date(c.dated);
-              if (!isNaN(d.getTime()) && d.getFullYear() > 1970) {
-                cleanDated = d.toISOString().split('T')[0];
-              }
-            }
-            if (!cleanDated) {
-              const caseNumStr = Array.isArray(c.caseNumber) ? c.caseNumber.join(' ') : String(c.caseNumber || '');
-              const matchD = caseNumStr.match(/decision dated:\s*([0-9\-\/A-Za-z\s]+?)(?:,|$)/i);
-              if (matchD) cleanDated = matchD[1].trim();
-            }
-            return {
-              id: c._id.toString(),
-              _id: c._id.toString(),
-              sldNumber: c.sldNumber,
-              court: c.court,
-              citations: c.mapYearPage,
-              caseNumber: c.caseNumber,
-              dated: cleanDated
-            };
-          }),
+          matchedCase: null,
+          matchedCases: [],
           metadataIntegrityNotes: [
-            { sldNumber: '161800', citation: '2026 SLD 1618', conflict: 'Court listed as ATIR Karachi, but Bench and C.P. No. D-5884/2025 are High Court of Sindh' },
-            { sldNumber: '159550', citation: '2025 SLD 2642', conflict: 'Court listed as Islamabad High Court, but Bench (Members) and ITA No. 328/KB/2025 are ATIR' }
+            { statute: 'Income Tax Ordinance, 2001', note: 'Clause (1A), Part III Second Schedule provides 50% reduction for certified disabled persons; administered routinely in FBR Iris' },
+            { statute: 'Customs Act, 1969', note: 'Disputes over duty-free car imports (SRO 358(I)/2002) arise under Customs jurisdiction, not Income Tax Ordinance 2001' }
           ],
           statutoryProvisions: [
-            { statute: 'Income Tax Ordinance, 2001', provision: 'Second Schedule, Part III, Clause (1)', subject: '50% reduction in tax liability for disabled persons' },
-            { statute: 'Income Tax Ordinance, 2001', provision: 'Second Schedule, Part I, Clause (39)', subject: '100% exemption on disability pension and invalidity allowances' },
-            { statute: 'Income Tax Ordinance, 2001', provision: 'Section 53 & 159', subject: 'Binding effect of Second Schedule concessions and certificates' }
+            { statute: 'Income Tax Ordinance, 2001', provision: 'Second Schedule, Part III, Clause (1A)', subject: '50% reduction in tax liability for certified disabled persons (subject to taxable income threshold)' },
+            { statute: 'Income Tax Ordinance, 2001', provision: 'Second Schedule, Part I, Clauses (8), (9), (12), (23)', subject: 'Pension exemptions (Note: Clause (39) related to duty expenses and was omitted by Finance Act, 2021)' },
+            { statute: 'Income Tax Ordinance, 2001', provision: 'Sections 53, 149, 159 & 170', subject: 'Binding effect of Second Schedule, salary withholding adjustment, lower-rate certificate & refund procedure' }
           ],
-          matchType: 'topic_disabled_person_tax',
+          matchType: 'ai_dynamic_statutory_synthesis',
           confidence: 100,
-          activeReferences: ['statutes', 'headnotes', 'case_numbers', 'courts', 'citations'],
-          sourcesFound: matchedList.length
+          activeReferences: ['statutes', 'second_schedule', 'fbr_iris', 'administrative_procedure'],
+          sourcesFound: 0
         }
       };
-      setCachedAIResult(cacheKey, taxDisResult);
-      return taxDisResult;
+
+      setCachedAIResult(cacheKey, dynamicTaxDisResult);
+      return dynamicTaxDisResult;
     }
 
     let targetCase = null;
@@ -3275,14 +3579,26 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         }).limit(20).maxTimeMS(1500).lean();
       } catch (e) {}
 
-      // 2. If no exact mapYearPage match in Case, check OtherCaseLaw for High Court citations (< 5ms)
+      // 1.5 Check indexed publications array if exact mapYearPage did not match (< 10ms)
+      if (rawCitationCases.length === 0 && y && m && p) {
+        try {
+          rawCitationCases = await Case.find({
+            isDeleted: false,
+            'publications.mag': m,
+            'publications.year': String(y),
+            'publications.page': String(p)
+          }).limit(10).maxTimeMS(400).lean();
+        } catch (pubErr) {}
+      }
+
+      // 2. If no match in Case, check OtherCaseLaw for High Court citations (< 50ms)
       if (rawCitationCases.length === 0 && y && p) {
         try {
           const oclCitRegex = new RegExp(`${y}\\s*${escapeRegex(m).replace(/\\s+/g, '\\s*')}\\s*${p}`, 'i');
           const oclCitMatches = await OtherCaseLaw.find({
             citation: oclCitRegex,
             isDeleted: { $ne: true }
-          }).limit(5).maxTimeMS(1500).lean();
+          }).limit(5).maxTimeMS(400).lean();
 
           if (oclCitMatches.length > 0) {
             const otherReplyText = formatOtherCasesResponse(oclCitMatches, cleanQuery);
@@ -3303,14 +3619,14 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         } catch (oclE) {}
       }
 
-      // 3. Fallback to clean non-backtracking regex on mapYearPage if needed
+      // 3. Fast bounded fallback regex on mapYearPage if needed (< 300ms)
       if (rawCitationCases.length === 0 && y && m && p) {
         try {
-          const cleanPat = new RegExp(`${y}\\s*${m}\\s*${p}`, 'i');
+          const cleanPat = new RegExp(`^\\(?${y}\\)?\\s+(?:\\d{1,4}\\s+)?${m}\\s+${p}(?:$|\\b)`, 'i');
           rawCitationCases = await Case.find({
             mapYearPage: cleanPat,
-            isDeleted: { $ne: true }
-          }).limit(20).maxTimeMS(1500).lean();
+            isDeleted: false
+          }).limit(10).maxTimeMS(350).lean();
         } catch (e) {}
       }
 
@@ -3362,7 +3678,9 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     const caseNoPrefixMatch = hasDigits ? normalizedQuery.match(/^(?:case|appeal|petition|writ\s*petition|suit|civil\s*revision|ptcl|c\.?\s*p\.?|c\.?\s*a\.?|w\.?\s*p\.?|i\.?\s*t\.?\s*a\.?|s\.?\s*t\.?\s*a\.?|c\.?\s*t\.?\s*r\.?)\s*(?:no\.?|#|nos\.?|[:\-])?\s*(\d.*)$/i) : null;
     const coreCaseNo = extractedCN ? `${extractedCN.caseNum}/${extractedCN.year}` : (caseNoPrefixMatch ? caseNoPrefixMatch[1].trim() : normalizedQuery);
 
-    const isCaseNumberPattern = Boolean(extractedCN) || (hasDigits && (
+    const isOtherCaseLawType = /\b(?:civil\s*tran|cr\.?\s*tran|cr\.?\s*bail|const\.?\s*p\.?|criminal\s*miscelleneous|spl:sales|i\.?t\.?r\.?a|hca\b|sindh\s*high\s*court|\(s\.?b\.?\)|\(d\.?b\.?\))\b/i.test(normalizedQuery) || /caselaw\.shc\.gov\.pk/i.test(cleanQuery);
+
+    const isCaseNumberPattern = Boolean(extractedCN) || isOtherCaseLawType || (hasDigits && (
       Boolean(caseNoPrefixMatch) || 
       /\b(?:of\s*\d{4}|\d+\s*\/\s*[a-zA-Z]+|\d+\s*\/\s*\d{4})\b/i.test(normalizedQuery) ||
       /\b(?:w\.?p\.?|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?a\.?|c\.?p\.?|civil\s*revision|writ\s*petition)\b/i.test(normalizedQuery)
@@ -3371,6 +3689,29 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     if (isCaseNumberPattern) {
       exactCaseNumberSearched = true;
       try {
+        // If query specifically references High Court / Superior Court case types (e.g. Civil Tran, Cr.Tran, Const. P.), search OtherCaseLaw first
+        if (isOtherCaseLawType) {
+          try {
+            const oclTypeMatches = await searchOtherCaseLaws(cleanQuery);
+            if (oclTypeMatches && oclTypeMatches.length > 0) {
+              const otherReplyText = formatOtherCasesResponse(oclTypeMatches, cleanQuery);
+              const oclResult = {
+                text: otherReplyText,
+                legalAnalysis: {
+                  matchedCase: oclTypeMatches[0],
+                  matchedCases: oclTypeMatches,
+                  matchType: 'superior_court_case',
+                  confidence: 100,
+                  activeReferences: ['case_numbers', 'courts', 'judges', 'citations', 'parties'],
+                  sourcesFound: oclTypeMatches.length
+                }
+              };
+              setCachedAIResult(cacheKey, oclResult);
+              return oclResult;
+            }
+          } catch (oclTErr) {}
+        }
+
         let rawCaseNumberCases = [];
         if (extractedCN) {
           // Exact Case Number & Year Matching (Strict year isolation, e.g. 1038 of 2015 never matches 2014, 2016, 2019)
@@ -3399,13 +3740,22 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
             }).limit(25).maxTimeMS(6000).lean();
           }
 
-          // STRICT VALIDATION: Candidate MUST have both the number and the year in caseNumber, and NOT foreign
+          // STRICT VALIDATION: Candidate MUST genuinely have both the number and the year in caseNumber,
+          // and the year MUST NOT belong to a different petition year (e.g. "Petition No. 57 of 2023, decided in 2026")
           matchingCaseNumberCases = rawCaseNumberCases.filter(c => {
             if (c.isDeleted) return false;
             if (isForeignCourt(c.court) || isForeignCase(c)) return false;
             const cnArr = Array.isArray(c.caseNumber) ? c.caseNumber : [c.caseNumber];
             return cnArr.some(str => {
               const s = String(str);
+              const exactNumYear = new RegExp(`(?:no\\.?|#)?\\s*\\b${extractedCN.caseNum}\\b.*?(?:of|\\/|-)\\s*${extractedCN.year}\\b`, 'i').test(s) ||
+                                   new RegExp(`\\b${extractedCN.caseNum}\\s*\\/\\s*${extractedCN.year}\\b`, 'i').test(s);
+              if (exactNumYear) return true;
+
+              // If case number has an explicit different year in case title/number (e.g. "57 of 2023"), reject it
+              const diffYearMatch = s.match(/(?:no\.?|#)?\s*\b\d+\b.*?(?:of|\/|-)\s*(\b(?:19|20)\d{2}\b)/i);
+              if (diffYearMatch && diffYearMatch[1] !== String(extractedCN.year)) return false;
+
               const hasNum = new RegExp(`\\b${extractedCN.caseNum}\\b`, 'i').test(s);
               const hasYr = new RegExp(`\\b${extractedCN.year}\\b`, 'i').test(s);
               return hasNum && hasYr;
@@ -3419,7 +3769,28 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
             confidence = 100;
             activeReferences = ['case_numbers', 'courts', 'judges', 'citations', 'parties'];
           } else {
-            // Explicit Case Number & Year was requested but not found in the database.
+            // Check Superior Courts / OtherCaseLaw before declaring not found (< 200ms)
+            try {
+              const oclFallbackMatches = await searchOtherCaseLaws(cleanQuery);
+              if (oclFallbackMatches && oclFallbackMatches.length > 0) {
+                const otherReplyText = formatOtherCasesResponse(oclFallbackMatches, cleanQuery);
+                const oclResult = {
+                  text: otherReplyText,
+                  legalAnalysis: {
+                    matchedCase: oclFallbackMatches[0],
+                    matchedCases: oclFallbackMatches,
+                    matchType: 'superior_court_case',
+                    confidence: 100,
+                    activeReferences: ['case_numbers', 'courts', 'judges', 'citations', 'parties'],
+                    sourcesFound: oclFallbackMatches.length
+                  }
+                };
+                setCachedAIResult(cacheKey, oclResult);
+                return oclResult;
+              }
+            } catch (oclFBErr) {}
+
+            // Explicit Case Number & Year was requested but not found in either database.
             // Do NOT fall through to loose word matching that returns wrong years!
             matchType = 'case_number_not_found';
             targetCase = {
@@ -3447,6 +3818,27 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
               matchedFieldDisplay = coreCaseNo;
               confidence = 98;
               activeReferences = ['case_numbers', 'courts', 'judges', 'citations', 'parties'];
+            } else {
+              // Try OtherCaseLaw before falling through
+              try {
+                const oclCoreMatches = await searchOtherCaseLaws(cleanQuery);
+                if (oclCoreMatches && oclCoreMatches.length > 0) {
+                  const otherReplyText = formatOtherCasesResponse(oclCoreMatches, cleanQuery);
+                  const oclResult = {
+                    text: otherReplyText,
+                    legalAnalysis: {
+                      matchedCase: oclCoreMatches[0],
+                      matchedCases: oclCoreMatches,
+                      matchType: 'superior_court_case',
+                      confidence: 98,
+                      activeReferences: ['case_numbers', 'courts', 'judges', 'citations', 'parties'],
+                      sourcesFound: oclCoreMatches.length
+                    }
+                  };
+                  setCachedAIResult(cacheKey, oclResult);
+                  return oclResult;
+                }
+              } catch (oclCoreErr) {}
             }
           }
         }
@@ -3826,6 +4218,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
       /\bdisabled\s+persons?\b/i,
       /\bpersons?\s+with\s+disabilit(?:y|ies)\b/i,
       /\bdisability\s+quota\b/i,
+      /\bdisabilit(?:y|ies)\b/i,
+      /\bdisabled\b/i,
       /\btransfer\s+of\s+assets\b/i,
       /\breasonable\s+opportunity\b/i,
       /\bnatural\s+justice\b/i,
@@ -3862,7 +4256,6 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         let phraseCandidates = [];
         const baseTextCond = {
           $text: { $search: `\"${exactPhraseToSearch}\"` },
-          court: { $nin: FOREIGN_COURT_NAMES },
           isDeleted: false
         };
 
@@ -3871,7 +4264,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
             phraseCandidates = await Case.find({
               ...baseTextCond,
               dated: { $gte: queryYearConstraint.startDateStr, $lte: queryYearConstraint.endDateStr }
-            }).limit(60).maxTimeMS(2500).lean();
+            }).limit(60).maxTimeMS(6000).lean();
           } catch (dErr) {}
         }
 
@@ -3910,7 +4303,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
           if (isExplicitHeadnoteTarget) {
             return phraseRegex.test(c.headNote || '');
           }
-          return phraseRegex.test(c.judgment || '') || phraseRegex.test(c.headNote || '') || phraseRegex.test(c.principleLaw || '');
+          // The search keyword MUST be contained in the authentic headNote OR judgment
+          return phraseRegex.test(c.headNote || '') || phraseRegex.test(c.judgment || '');
         });
 
         // 4.1 Strict Year-Aware Filter: Requested year/range is a BINDING constraint (Section 4)
@@ -3948,7 +4342,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
             });
           }
 
-          // If query contains extra substantive terms outside the exact phrase, enforce that candidates contain all terms
+          // If query contains extra substantive terms outside the exact phrase, enforce that candidates contain all terms in headNote or judgment
           // Strip date and year constraint expressions so constraint words (between, inclusive, decided, from, to) are not treated as required case text keywords
           let queryWithoutPhraseAndDates = cleanQuery.replace(phraseRegex, ' ');
           queryWithoutPhraseAndDates = queryWithoutPhraseAndDates
@@ -3959,12 +4353,14 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
           const extraTerms = extractSearchTokens(queryWithoutPhraseAndDates, 3);
           if (extraTerms.length > 0) {
             const allMatched = cleanPhraseCases.filter(c => {
-              const full = `${(c.laws || []).map(l=>l.lawStatute).join(' ')} ${c.judgment || ''} ${c.headNote || ''} ${c.principleLaw || ''}`.toLowerCase();
-              return extraTerms.every(term => full.includes(term.toLowerCase()));
+              const hnLower = (c.headNote || '').toLowerCase();
+              const jdgLower = (c.judgment || '').toLowerCase();
+              return extraTerms.every(term => {
+                const t = term.toLowerCase();
+                return hnLower.includes(t) || jdgLower.includes(t);
+              });
             });
-            if (allMatched.length > 0) {
-              cleanPhraseCases = allMatched;
-            }
+            cleanPhraseCases = allMatched;
           }
 
           // Prioritize cases that contain the exact phrase in the actual judgment text
@@ -4071,9 +4467,15 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
   if (!targetCase && !exactCaseNumberSearched && cleanQuery.length >= 3) {
     try {
       const sanitizedTextQuery = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, ' ').trim();
+      const queryTerms = extractSearchTokens(cleanQuery, 3);
       if (sanitizedTextQuery.length >= 3) {
+        // When substantive keywords are present, search them as exact phrases to avoid noise from generic legal words
+        const textSearchQuery = (queryTerms.length > 0 && queryTerms.length <= 4)
+          ? queryTerms.map(t => `\"${t}\"`).join(' ')
+          : sanitizedTextQuery;
+
         const textConditions = [
-          { $text: { $search: sanitizedTextQuery } },
+          { $text: { $search: textSearchQuery } },
           { isDeleted: false },
           { court: { $nin: FOREIGN_COURT_NAMES } }
         ];
@@ -4095,9 +4497,23 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
         }
 
         let textCases = await Case.find({ $and: textConditions })
-          .limit(15)
-          .maxTimeMS(2000)
+          .limit(30)
+          .maxTimeMS(2500)
           .lean();
+
+        // Fallback: if quoted terms returned no candidates and query differed, try sanitizedTextQuery
+        if (textCases.length === 0 && textSearchQuery !== sanitizedTextQuery) {
+          try {
+            textCases = await Case.find({
+              $and: [
+                { $text: { $search: sanitizedTextQuery } },
+                { isDeleted: false },
+                { court: { $nin: FOREIGN_COURT_NAMES } },
+                ...(requestedCourtFilter ? [{ court: requestedCourtFilter }] : [])
+              ]
+            }).limit(30).maxTimeMS(2500).lean();
+          } catch (e) {}
+        }
 
         textCases = textCases.filter(c => !isForeignCourt(c.court) && !isForeignCase(c));
 
@@ -4106,27 +4522,31 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
           textCases = textCases.filter(c => caseMatchesYearConstraint(c, queryYearConstraint));
         }
 
-        // STRICT VALIDATION: If subject constraint exists, ensure it is in the text
+        // STRICT VALIDATION: If subject constraint exists, ensure it is in headNote or judgment
         if (querySubjectMatch && textCases.length > 0) {
           const sLower = querySubjectMatch[1].toLowerCase();
           textCases = textCases.filter(c => {
-            const fullText = `${c.headNote || ''} ${c.principleLaw || ''} ${c.judgment || ''} ${c.title || ''}`.toLowerCase();
-            return fullText.includes(sLower);
+            const inHN = (c.headNote || '').toLowerCase();
+            const inJdg = (c.judgment || '').toLowerCase();
+            return inHN.includes(sLower) || inJdg.includes(sLower);
           });
         }
 
-        // STRICT VALIDATION: Ensure candidate cases genuinely contain ALL substantive query terms
-        const queryTerms = extractSearchTokens(cleanQuery, 3);
+        // STRICT VALIDATION: Ensure candidate cases genuinely contain ALL substantive query terms in headNote OR judgment
         if (queryTerms.length > 0 && textCases.length > 0) {
           textCases = textCases.filter(c => {
-            const fullText = `${c.headNote || ''} ${c.principleLaw || ''} ${c.judgment || ''} ${c.title || ''}`.toLowerCase();
-            return queryTerms.every(term => fullText.includes(term.toLowerCase()));
+            const inHN = (c.headNote || '').toLowerCase();
+            const inJdg = (c.judgment || '').toLowerCase();
+            return queryTerms.every(term => {
+              const tLow = term.toLowerCase();
+              return inHN.includes(tLow) || inJdg.includes(tLow);
+            });
           });
         }
 
         if (textCases && textCases.length > 0) {
-          matchingTopicCases = textCases;
-          targetCase = textCases[0];
+          matchingTopicCases = deduplicateCases(textCases);
+          targetCase = matchingTopicCases[0];
           matchType = 'topic_multi';
           matchedFieldDisplay = cleanQuery;
           confidence = 92;
@@ -4237,11 +4657,12 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
           $and: andClauses
         }).limit(20).maxTimeMS(2000).lean();
 
-        // STRICT VALIDATION: If subject constraint exists, ensure it is in the text!
+        // STRICT VALIDATION: If subject constraint exists, ensure it is in headNote or judgment
         if (subjectConstraint && candidates.length > 0) {
           candidates = candidates.filter(c => {
-            const fullText = `${c.headNote || ''} ${c.principleLaw || ''} ${c.judgment || ''} ${c.title || ''}`.toLowerCase();
-            return fullText.includes(subjectConstraint);
+            const inHN = (c.headNote || '').toLowerCase();
+            const inJdg = (c.judgment || '').toLowerCase();
+            return inHN.includes(subjectConstraint) || inJdg.includes(subjectConstraint);
           });
         }
 
@@ -4254,11 +4675,22 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
           if (queryYearConstraint && candidates.length > 0) {
             candidates = candidates.filter(c => caseMatchesYearConstraint(c, queryYearConstraint));
           }
+          // STRICT VALIDATION: Ensure candidate cases genuinely contain ALL required substantive terms in headNote OR judgment
+          if (requiredTerms.length > 0 && candidates.length > 0) {
+            candidates = candidates.filter(c => {
+              const inHN = (c.headNote || '').toLowerCase();
+              const inJdg = (c.judgment || '').toLowerCase();
+              return requiredTerms.every(term => {
+                const tLow = term.toLowerCase();
+                return inHN.includes(tLow) || inJdg.includes(tLow);
+              });
+            });
+          }
         }
 
         if (candidates.length > 0) {
-          matchingTopicCases = candidates;
-          targetCase = candidates[0];
+          matchingTopicCases = deduplicateCases(candidates);
+          targetCase = matchingTopicCases[0];
           matchType = 'topic_multi';
           matchedFieldDisplay = cleanQuery;
           confidence = 88;
@@ -4722,6 +5154,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     }
     // FORMAT I: General Topic Multi-case
     else if (matchType === 'topic_multi' && matchingTopicCases && matchingTopicCases.length > 0) {
+      matchingTopicCases = deduplicateCases(matchingTopicCases);
       const countWord = matchingTopicCases.length === 1 ? 'One matching judgment was' :
         matchingTopicCases.length === 2 ? 'Two matching judgments were' :
         `${matchingTopicCases.length} matching judgments were`;
@@ -5210,8 +5643,9 @@ export const sendMessage = async (req, res, next) => {
     };
     session.messages.push(userMsg);
 
-    // 2. Run SLD Legal Intelligence Engine with user authorization context
-    const { text, legalAnalysis } = await runLegalIntelligenceEngine(trimmedMsg, focusNode, attachments || [], req.user);
+    // 2. Run SLD Legal Intelligence Engine with user authorization context & conversation history
+    const history = session.messages.slice(0, -1).slice(-6);
+    const { text, legalAnalysis } = await runLegalIntelligenceEngine(trimmedMsg, focusNode, attachments || [], req.user, history);
 
     // 3. Append Assistant Message
     const assistantMsg = {

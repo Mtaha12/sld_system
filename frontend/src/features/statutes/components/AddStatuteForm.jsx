@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2 } from 'lucide-react';
+import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import DatePicker from '../../../components/ui/DatePicker';
@@ -15,10 +15,28 @@ import { statuteService } from '../services/statuteService';
 import { settingService } from '../../../services/settingService';
 import { ALL_SECTIONS } from '../../../data/sections';
 
-/* ── Compact inline file-chooser, same height as the date picker ─────── */
+/* ── Compact inline file-chooser with View and Remove actions ─────── */
 const CompactFileButton = ({ value, onChange }) => {
   const ref = useRef(null);
   const files = Array.isArray(value) ? value : (value ? [value] : []);
+
+  const handleViewFile = (f) => {
+    if (!f) return;
+    let url = '';
+    if (typeof f === 'string') {
+      url = f.startsWith('http') || f.startsWith('data:') || f.startsWith('blob:') ? f : `/uploads/${f}`;
+    } else if (f instanceof File) {
+      url = URL.createObjectURL(f);
+    } else if (f.url) {
+      url = f.url;
+    } else if (f.name) {
+      url = `/uploads/${f.name}`;
+    }
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-1">
       <input
@@ -27,11 +45,29 @@ const CompactFileButton = ({ value, onChange }) => {
         multiple
         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
         className="hidden"
-        onChange={(e) => {
-          const incoming = Array.from(e.target.files || []);
+        onChange={async (e) => {
+          const incomingFiles = Array.from(e.target.files || []);
+          const readPromises = incomingFiles.map(file => {
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                resolve({
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                  url: reader.result
+                });
+              };
+              reader.onerror = () => {
+                resolve({ name: file.name, size: file.size });
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+          const processed = await Promise.all(readPromises);
           const merged = [
             ...files,
-            ...incoming.filter(f => !files.some(x => x.name === f.name && x.size === f.size))
+            ...processed.filter(f => !files.some(x => (x.name || x) === f.name))
           ];
           onChange(merged);
           e.target.value = '';
@@ -47,18 +83,32 @@ const CompactFileButton = ({ value, onChange }) => {
       </button>
       {files.length > 0 && (
         <div className="space-y-0.5 max-h-20 overflow-y-auto">
-          {files.map((f, i) => (
-            <div key={i} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded text-[10px] bg-theme-surface-alt border border-theme-border/60">
-              <span className="truncate text-theme-muted max-w-[110px]">{f.name || `File ${i + 1}`}</span>
-              <button
-                type="button"
-                onClick={() => onChange(files.filter((_, j) => j !== i))}
-                className="shrink-0 text-theme-disabled hover:text-red-500"
-              >
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </div>
-          ))}
+          {files.map((f, i) => {
+            const fileName = typeof f === 'string' ? f : (f.name || `File ${i + 1}`);
+            return (
+              <div key={i} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded text-[10px] bg-theme-surface-alt border border-theme-border/60">
+                <span className="truncate text-theme-muted max-w-[95px]" title={fileName}>{fileName}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleViewFile(f)}
+                    className="text-brand-orange hover:text-orange-600 p-0.5"
+                    title="View file in new window"
+                  >
+                    <Eye className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange(files.filter((_, j) => j !== i))}
+                    className="text-theme-disabled hover:text-red-500 p-0.5"
+                    title="Remove file"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -79,8 +129,8 @@ const AddStatuteForm = () => {
     chapter: editData?.chapter || '',
     display: editData?.display?.toLowerCase() === 'no' ? 'no' : 'yes',
     status: editData?.display === 'No' ? 'inactive' : 'active',
-    law: editData?.law || 'Income Tax Rules, 2002',
-    section: editData?.section || '231CB',
+    law: editData?.law || '',
+    section: editData?.section || '',
     heading: editData?.heading || '',
     blocks: (() => {
       const empty1 = { id: 'new-block-1', sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] };
@@ -189,18 +239,24 @@ const AddStatuteForm = () => {
     settingService.getLaws({ status: 'active', limit: 5000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data)) {
-          setLawOptions(res.data.map(l => l.name));
+          const sorted = res.data
+            .map(l => l.name)
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+          setLawOptions(sorted);
         }
       })
       .catch(err => {
         console.warn('Could not load dynamic laws for AddStatuteForm:', err);
       });
 
-    settingService.getSections({ status: 'active', limit: 10000 })
+    settingService.getSections({ status: 'active', limit: 30000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const names = res.data.map(s => s.name).filter(Boolean);
-          const combined = Array.from(new Set([...names, ...(ALL_SECTIONS || [])]));
+          const combined = Array.from(new Set([...names, ...(ALL_SECTIONS || [])])).sort((a, b) =>
+            String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+          );
           setSectionOptions(combined);
         }
       })
@@ -232,11 +288,13 @@ const AddStatuteForm = () => {
     ))
   ), [lawOptions]);
 
-  const memoizedSectionOptions = useMemo(() => (
-    sectionOptions.slice(0, 1500).map((secName, idx) => (
-      <option key={idx} value={secName} />
-    ))
-  ), [sectionOptions]);
+  const sectionSelectOptions = useMemo(() => [
+    { value: '', label: 'Select Section' },
+    ...sectionOptions.map(s => ({
+      value: String(s),
+      label: String(s).startsWith('Section') ? String(s) : `Section ${s}`
+    }))
+  ], [sectionOptions]);
 
   const { fields: blockFields, append, insert, remove } = useFieldArray({
     control,
@@ -244,9 +302,6 @@ const AddStatuteForm = () => {
   });
 
   const onSubmit = async (data) => {
-    const wasSaveAndNext = isSaveAndNextRef.current;
-    isSaveAndNextRef.current = false;
-
     // Strip empty blocks before saving
     data.blocks = data.blocks.filter(b => {
       const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
@@ -258,32 +313,60 @@ const AddStatuteForm = () => {
     });
 
     try {
-      const targetId = currentRecordId || (isEdit && editData?.id);
+      const targetSr = String(data.srNumber || editData?.srNumber || '').trim();
+      let targetId = currentRecordId || (isEdit && (editData?.id || editData?._id));
+      if (!targetId && targetSr) {
+        try {
+          const existing = await statuteService.getStatuteById(targetSr);
+          if (existing?.id || existing?._id) {
+            targetId = existing.id || existing._id;
+            setCurrentRecordId(targetId);
+          }
+        } catch {
+          // not found as existing record
+        }
+      }
+
+      const payload = {
+        ...data,
+        srNumber: targetSr || data.srNumber
+      };
+
       if (targetId) {
-        await statuteService.updateStatute(targetId, data);
+        await statuteService.updateStatute(targetId, payload);
+        if (targetSr) {
+          setValue('srNumber', targetSr, { shouldDirty: false });
+        }
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+        }, 3500);
       } else {
         await statuteService.createStatute(data);
-      }
-      setShowSuccess(true);
-
-      if (wasSaveAndNext) {
-        const currentSrNum = parseInt(data.srNumber || '1', 10);
-        const nextSr = isNaN(currentSrNum) ? 1 : currentSrNum + 1;
+        setShowSuccess(true);
+        // Advance to new SR# for next entry (remain on page)
+        try {
+          const res = await statuteService.getNextSr();
+          const currentSrNum = parseInt(data.srNumber || '1', 10);
+          const nextSr = res?.nextSr ? String(res.nextSr) : String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+          setAutoNewSr(nextSr);
+          setValue('srNumber', nextSr);
+        } catch {
+          const currentSrNum = parseInt(data.srNumber || '1', 10);
+          const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+          setAutoNewSr(nextSr);
+          setValue('srNumber', nextSr);
+        }
+        setValue('section', '');
+        setValue('heading', '');
+        setValue('blocks', [
+          { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] },
+          { id: `new-block-${Date.now()}-2`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] }
+        ]);
+        setCurrentRecordId(null);
         setTimeout(() => {
           setShowSuccess(false);
-          // Refresh autoNewSr
-          statuteService.getNextSr().then(res => {
-            if (res?.nextSr) setAutoNewSr(String(res.nextSr));
-          }).catch(() => {});
-          // Advance to next SR#
-          setValue('srNumber', String(nextSr));
-          loadStatuteBySr(nextSr);
-        }, 800);
-      } else {
-        setTimeout(() => {
-          setShowSuccess(false);
-          navigate('/manage-statutes');
-        }, 2000);
+        }, 4000);
       }
     } catch (error) {
       console.error('Submission error:', error);
@@ -300,7 +383,7 @@ const AddStatuteForm = () => {
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5" />
               <span className="font-medium">
-                SUCCESS: {isEdit ? 'Record updated successfully.' : 'Record added successfully.'}
+                SUCCESS: {isEdit ? 'Record updated successfully.' : 'Record added successfully. Ready for new entry.'}
               </span>
             </div>
             <button type="button" onClick={() => setShowSuccess(false)}>
@@ -309,7 +392,7 @@ const AddStatuteForm = () => {
           </div>
         )}
 
-        {/* Top Floating Action Bar: Sticky while scrolling */}
+        {/* Top Action Bar: Clean header with Back and Save/Update Record only */}
         <div className="sticky top-0 z-30 mb-4 flex items-center justify-between bg-theme-surface/95 border border-theme-border px-4 py-3 rounded-xl shadow-md backdrop-blur-md">
           <div className="text-xs text-theme-muted font-medium flex items-center gap-2">
             <button
@@ -326,30 +409,8 @@ const AddStatuteForm = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              type="button"
-              onClick={() => navigate('/manage-statutes')}
-              className="px-3 py-1.5 text-xs font-medium text-theme-muted hover:text-theme-main border border-theme-border rounded-lg hover:bg-theme-surface transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                isSaveAndNextRef.current = true;
-                handleSubmit(onSubmit)();
-              }}
-              disabled={isSubmitting}
-              className="px-4 py-1.5 text-xs font-bold text-brand-orange hover:bg-brand-orange/10 border border-brand-orange/60 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
-              title="Save current statute and advance to next SR #"
-            >
-              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update + Next' : 'Save + Next')}</span>
-            </button>
-            <button
               type="submit"
               form="statute-form"
-              onClick={() => {
-                isSaveAndNextRef.current = false;
-              }}
               disabled={isSubmitting}
               className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
             >
@@ -482,16 +543,13 @@ const AddStatuteForm = () => {
               </FormField>
               <FormField label="Section">
                 <Input
+                  type="select"
                   variant="light"
                   inputSize="sm"
-                  placeholder="Select or enter Section..."
-                  list="statute-sections-list"
+                  options={sectionSelectOptions}
                   error={errors.section}
                   {...register('section')}
                 />
-                <datalist id="statute-sections-list">
-                  {memoizedSectionOptions}
-                </datalist>
               </FormField>
             </div>
 
@@ -515,15 +573,6 @@ const AddStatuteForm = () => {
               <div className="text-brand-orange font-semibold text-sm flex items-center gap-2">
                 <Layers className="w-4 h-4" /> Content Details ({blockFields.length} {blockFields.length === 1 ? 'Block' : 'Blocks'})
               </div>
-              <button
-                type="button"
-                onClick={() => append({ id: `block-${Date.now()}-${Math.random()}`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] })}
-                className="px-3 py-1 rounded-lg text-xs font-bold bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange border border-brand-orange/40 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
-                title="Add new blank detail block"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Add Detail Block</span>
-              </button>
             </div>
 
             <div className="space-y-3">
@@ -532,15 +581,6 @@ const AddStatuteForm = () => {
 
                   {/* Block header badge & actions */}
                   <div className="flex items-center gap-1.5 absolute top-2 right-2 z-10">
-                    <button
-                      type="button"
-                      onClick={() => insert(index + 1, { id: `block-${Date.now()}-${Math.random()}`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] })}
-                      className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 border border-brand-orange/30 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                      title="Insert a new detail block right after this block"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Block Below</span>
-                    </button>
                     {blockFields.length > 1 && (
                       <button
                         type="button"

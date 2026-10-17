@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Newspaper, AlertCircle } from 'lucide-react';
+import { X, Newspaper, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Input from '../../../components/ui/Input';
+import DatePicker from '../../../components/ui/DatePicker';
 import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
@@ -26,10 +27,28 @@ const AddNewsForm = ({
   const [date, setDate] = useState(getTodayDateString());
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [detail, setDetail] = useState('');
+  const [nextSr, setNextSr] = useState(null);
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Fetch highest news SR# to show Auto New SR #
+  useEffect(() => {
+    let mounted = true;
+    if (!isEdit) {
+      newsService.getNews({ limit: 1 })
+        .then(res => {
+          if (mounted && Array.isArray(res) && res.length > 0) {
+            const topSr = Number(res[0]?.srNumber) || 0;
+            setNextSr(topSr + 1);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => { mounted = false; };
+  }, [isEdit]);
 
   useEffect(() => {
     if (editData) {
@@ -43,21 +62,27 @@ const AddNewsForm = ({
       }
       setDetail(editData.detail || '');
     } else {
-      const todayStr = getTodayDateString();
+      // In add mode, keep previously selected date/year if already entered by user
       setHeading('');
-      setDate(todayStr);
-      setYear(todayStr.slice(0, 4));
       setDetail('');
     }
     setErrors({});
     setServerError('');
   }, [editData]);
 
-  const handleDateChange = (e) => {
-    const val = e.target.value;
-    setDate(val);
-    if (val && val.length >= 4) {
-      const parsedYear = val.slice(0, 4);
+  const handleDateChange = (val) => {
+    let dateStr = '';
+    if (val instanceof Date && !isNaN(val)) {
+      const y = val.getFullYear();
+      const m = String(val.getMonth() + 1).padStart(2, '0');
+      const d = String(val.getDate()).padStart(2, '0');
+      dateStr = `${y}-${m}-${d}`;
+    } else if (typeof val === 'string') {
+      dateStr = val;
+    }
+    setDate(dateStr);
+    if (dateStr && dateStr.length >= 4) {
+      const parsedYear = dateStr.slice(0, 4);
       if (!isNaN(Number(parsedYear))) {
         setYear(parsedYear);
       }
@@ -77,13 +102,14 @@ const AddNewsForm = ({
   const handleSubmit = async (e) => {
     e?.preventDefault();
     setServerError('');
+    setSuccessMessage('');
     if (!validate()) return;
 
     setIsSubmitting(true);
     try {
       const payload = {
         heading: heading.trim(),
-        date: date.trim(),
+        date: String(date).trim(),
         year: parseInt(year, 10),
         detail: detail || ''
       };
@@ -92,14 +118,24 @@ const AddNewsForm = ({
       if (isEdit) {
         const targetId = editData.mongoId || editData.id || editData.newsId;
         result = await newsService.updateNews(targetId, payload);
+        if (onSuccess) {
+          onSuccess(result, 'News record updated.');
+        }
+        if (onClose) onClose();
       } else {
         result = await newsService.createNews(payload);
+        const createdSr = result?.srNumber || nextSr;
+        const upcomingSr = (Number(createdSr) || 0) + 1;
+        setNextSr(upcomingSr);
+        setSuccessMessage(`News record added successfully (SR #${createdSr}). Advanced to next SR #${upcomingSr}.`);
+        // Clear heading and detail for next entry, RETAIN previously entered date and year
+        setHeading('');
+        setDetail('');
+        if (onSuccess) {
+          onSuccess(result, 'News record added.', { keepOpen: true });
+        }
+        setTimeout(() => setSuccessMessage(''), 5000);
       }
-
-      if (onSuccess) {
-        onSuccess(result, isEdit ? 'News record updated.' : 'News record added.');
-      }
-      if (onClose) onClose();
     } catch (err) {
       setServerError(err.response?.data?.message || err.message || 'Failed to save news record.');
     } finally {
@@ -115,7 +151,7 @@ const AddNewsForm = ({
         <div className="flex items-center gap-2">
           <Newspaper className="w-4 h-4 text-brand-orange" />
           <h2 className="text-sm font-semibold text-theme-main">
-            {isEdit ? 'Edit News Detail' : 'Add News Detail'}
+            {isEdit ? `Edit News Detail (SR #${editData?.srNumber || editData?.id})` : `Add News Detail${nextSr ? ` (Auto New SR #${nextSr})` : ''}`}
           </h2>
         </div>
         {onClose && (
@@ -139,6 +175,13 @@ const AddNewsForm = ({
           </div>
         )}
 
+        {successMessage && (
+          <div className="p-2.5 bg-green-50 dark:bg-green-950/30 border border-green-200 text-green-700 dark:text-green-300 rounded-lg text-xs flex items-center gap-2 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         {/* Row 1: Heading (full width) */}
         <FormField label="Heading" required>
           <Input
@@ -155,15 +198,14 @@ const AddNewsForm = ({
           {errors.heading && <span className="text-[11px] text-red-500">{errors.heading}</span>}
         </FormField>
 
-        {/* Row 2: Date and Year side by side */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Row 2: Date (with manual typing and table picker) and Year */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
           <FormField label="Date" required>
-            <Input
-              type="date"
-              inputSize="sm"
-              value={date}
+            <DatePicker
+              selectedDate={date}
               onChange={handleDateChange}
-              error={Boolean(errors.date)}
+              placeholder="yyyy-mm-dd or dd/mm/yyyy"
+              className="w-full h-[38px]"
             />
             {errors.date && <span className="text-[11px] text-red-500">{errors.date}</span>}
           </FormField>

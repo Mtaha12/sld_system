@@ -64,6 +64,11 @@ const ManageCustomTariffsPage = lazy(() => import('./pages/ManageCustomTariffsPa
 const ManageInvoicesPage = lazy(() => import('./pages/ManageInvoicesPage'))
 const OtherCaseLawsPage = lazy(() => import('./pages/OtherCaseLawsPage'))
 const OtherCaseDocumentRedirector = lazy(() => import('./pages/OtherCaseDocumentRedirector'))
+const OtherCaseViewPage = lazy(() => import('./pages/OtherCaseViewPage'))
+const NewsViewPage = lazy(() => import('./pages/NewsViewPage'))
+const DownloadViewPage = lazy(() => import('./pages/DownloadViewPage'))
+const CustomTariffViewPage = lazy(() => import('./pages/CustomTariffViewPage'))
+const InvoiceViewPage = lazy(() => import('./pages/InvoiceViewPage'))
 
 
 function App() {
@@ -97,6 +102,16 @@ function App() {
               <Route path="/notifications/view/:id" element={<NotificationViewPage />} />
               <Route path="/dictionary/view/:id" element={<DictionaryViewPage />} />
               <Route path="/tax-cards/view/:id" element={<TaxCardViewPage />} />
+              <Route path="/other-cases/view/:id" element={<OtherCaseViewPage />} />
+              <Route path="/other-caselaws/view/:id" element={<OtherCaseViewPage />} />
+              <Route path="/news/view/:id" element={<NewsViewPage />} />
+              <Route path="/manage-news/view/:id" element={<NewsViewPage />} />
+              <Route path="/downloads/view/:id" element={<DownloadViewPage />} />
+              <Route path="/manage-downloads/view/:id" element={<DownloadViewPage />} />
+              <Route path="/custom-tariffs/view/:id" element={<CustomTariffViewPage />} />
+              <Route path="/manage-custom-tariffs/view/:id" element={<CustomTariffViewPage />} />
+              <Route path="/invoices/view/:id" element={<InvoiceViewPage />} />
+              <Route path="/manage-invoices/view/:id" element={<InvoiceViewPage />} />
             </Route>
 
             {/* Protected Admin Routes */}

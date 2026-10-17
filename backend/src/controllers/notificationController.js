@@ -412,15 +412,24 @@ export const updateNotification = async (req, res, next) => {
       });
     }
 
-    if (srNumber && srNumber !== n.srNumber) {
-      const exist = await Notification.findOne({ srNumber, _id: { $ne: n._id } });
+    // Strictly preserve original srNumber on edit: never reassign to a new counter or generated ID
+    const originalSr = n.srNumber;
+    if (srNumber && String(srNumber).trim() && String(srNumber).trim() !== String(n.srNumber).trim()) {
+      const cleanSr = String(srNumber).trim();
+      const exist = await Notification.findOne({ srNumber: cleanSr, _id: { $ne: n._id }, isDeleted: { $ne: true } });
       if (exist) {
         return res.status(400).json({
           success: false,
-          message: `Notification with SR #${srNumber} already exists.`
+          message: `Notification with SR #${cleanSr} already exists.`
         });
       }
-      n.srNumber = srNumber;
+      n.srNumber = cleanSr;
+    } else {
+      n.srNumber = originalSr;
+    }
+    if (n.srNumber) {
+      const parsed = parseInt(String(n.srNumber).replace(/\D+/g, ''), 10);
+      n.srNumberInt = !isNaN(parsed) ? parsed : null;
     }
 
     if (department !== undefined) n.department = normalizedDepartment ?? n.department;

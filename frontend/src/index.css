@@ -145,3 +145,108 @@ html, body, #root {
   background: rgba(107, 114, 128, 0.8);
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   Universal Word Document Formatting & Typography
+   Emulates clean Microsoft Word document layout across the website:
+   - Consistent, readable paragraph margins (no skipped lines/gaps)
+   - Clean line height (1.6) and justified legal alignment
+   - Proper table, list, and quotation styling
+═══════════════════════════════════════════════════════════════════ */
+.word-document-content {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Calibri", "Cambria", "Georgia", serif;
+  color: inherit;
+  line-height: 1.6;
+  text-align: justify;
+  text-justify: inter-word;
+  word-break: break-word;
+}
+
+.word-document-content p,
+.word-document-content div.word-p {
+  margin: 0 0 0.55rem 0 !important;
+  line-height: 1.6 !important;
+}
+
+.word-document-content p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.word-document-content p:empty,
+.word-document-content p:has(> br:only-child) {
+  margin: 0 0 0.25rem 0 !important;
+  min-height: 0.8em !important;
+}
+
+.word-document-content h1, 
+.word-document-content h2, 
+.word-document-content h3, 
+.word-document-content h4 {
+  font-weight: 700;
+  margin-top: 1rem !important;
+  margin-bottom: 0.4rem !important;
+  line-height: 1.3 !important;
+  color: inherit;
+}
+
+.word-document-content h1 { font-size: 1.35rem; }
+.word-document-content h2 { font-size: 1.2rem; }
+.word-document-content h3 { font-size: 1.1rem; }
+.word-document-content h4 { font-size: 1.0rem; }
+
+.word-document-content ul, 
+.word-document-content ol {
+  margin: 0.25rem 0 0.65rem 1.5rem !important;
+  padding: 0 !important;
+}
+
+.word-document-content ul {
+  list-style-type: disc !important;
+}
+
+.word-document-content ol {
+  list-style-type: decimal !important;
+}
+
+.word-document-content li {
+  margin-bottom: 0.25rem !important;
+  line-height: 1.55 !important;
+}
+
+.word-document-content blockquote {
+  margin: 0.6rem 0 0.75rem 1.25rem !important;
+  padding: 0.35rem 0 0.35rem 0.85rem !important;
+  border-left: 3px solid #cbd5e1 !important;
+  font-style: italic;
+}
+.dark .word-document-content blockquote {
+  border-left-color: #475569 !important;
+}
+
+.word-document-content table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 0.85rem 0 !important;
+}
+
+.word-document-content th, 
+.word-document-content td {
+  border: 1px solid #e2e8f0 !important;
+  padding: 6px 10px !important;
+  text-align: left !important;
+  font-size: 0.9em !important;
+  line-height: 1.45 !important;
+}
+.dark .word-document-content th,
+.dark .word-document-content td {
+  border-color: #334155 !important;
+}
+
+.word-document-content th {
+  background-color: rgba(241, 245, 249, 0.7) !important;
+  font-weight: 600 !important;
+}
+.dark .word-document-content th {
+  background-color: rgba(30, 41, 59, 0.7) !important;
+}
+
+

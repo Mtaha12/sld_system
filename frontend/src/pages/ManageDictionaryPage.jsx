@@ -29,7 +29,7 @@ const ManageDictionaryPage = () => {
   const fetchDictionary = useCallback(async (page = 1, query = '') => {
     setIsLoading(true);
     try {
-      const data = await dictionaryService.getDictionary({ page, limit: 25, query });
+      const data = await dictionaryService.getDictionary({ page, limit: 100, query });
       setDictionaryList(data);
       setTotalItems(data.total || data.length || 0);
       setTotalPages(data.totalPages || 1);
