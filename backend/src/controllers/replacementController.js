@@ -25,39 +25,78 @@ export const executeReplacement = async (req, res, next) => {
     const cleanReplace = replaceWith != null ? String(replaceWith) : '';
     const findRegex = new RegExp(escapeRegex(cleanFind), 'gi');
 
-    const fromNum = fromId ? parseInt(fromId.replace(/\D/g, ''), 10) : 0;
-    const toNum = parseInt(String(toId).replace(/\D/g, ''), 10) || 99999999;
+    const fromNum = fromId ? parseInt(String(fromId).replace(/\D/g, ''), 10) : 0;
+    const toNum = toId ? parseInt(String(toId).replace(/\D/g, ''), 10) : 99999999;
+    const escapedFind = escapeRegex(cleanFind);
 
     // Build query to find matching cases within ID range
-    const caseQuery = { isDeleted: { $ne: true } };
+    const caseQuery = {
+      isDeleted: { $ne: true },
+      $or: [
+        { sldNumberInt: { $gte: fromNum, $lte: toNum } },
+        { 
+          sldNumberInt: { $exists: false },
+          sldNumber: { $gte: String(fromNum), $lte: String(toNum) }
+        }
+      ]
+    };
 
-    // Select candidate cases
-    const candidates = await Case.find(caseQuery).limit(5000);
+    // Add field-level regex filter for performance and precision
+    switch (updateFor) {
+      case 'Head Note':
+        caseQuery.headNote = { $regex: escapedFind, $options: 'i' };
+        break;
+      case 'Judgment':
+        caseQuery.judgment = { $regex: escapedFind, $options: 'i' };
+        break;
+      case 'Judges':
+        caseQuery.judges = { $regex: escapedFind, $options: 'i' };
+        break;
+      case 'Petitioners':
+        caseQuery.petitioners = { $regex: escapedFind, $options: 'i' };
+        break;
+      case 'Case #':
+        caseQuery.caseNumber = { $regex: escapedFind, $options: 'i' };
+        break;
+      case 'Laws':
+        caseQuery['laws.lawStatute'] = { $regex: escapedFind, $options: 'i' };
+        break;
+      case 'References':
+        caseQuery.references = { $regex: escapedFind, $options: 'i' };
+        break;
+      default:
+        break;
+    }
+
+    // Select candidate cases matching range and field pattern
+    const candidates = await Case.find(caseQuery);
 
     let affectedCount = 0;
     const modifiedCasesInfo = [];
+    const bulkOps = [];
 
     for (const c of candidates) {
-      // Check numeric range by sldNumber or numeric portion of caseId
-      const currentNum = parseInt(String(c.sldNumber || c.caseId || '').replace(/\D/g, ''), 10);
-      if (!isNaN(currentNum) && (currentNum < fromNum || currentNum > toNum)) {
-        continue;
-      }
-
       let isModified = false;
+      const updateFields = {};
 
       switch (updateFor) {
         case 'Head Note':
           if (c.headNote && findRegex.test(c.headNote)) {
-            c.headNote = c.headNote.replace(findRegex, cleanReplace);
-            isModified = true;
+            const updated = c.headNote.replace(findRegex, () => cleanReplace);
+            if (updated !== c.headNote) {
+              updateFields.headNote = updated;
+              isModified = true;
+            }
           }
           break;
 
         case 'Judgment':
           if (c.judgment && findRegex.test(c.judgment)) {
-            c.judgment = c.judgment.replace(findRegex, cleanReplace);
-            isModified = true;
+            const updated = c.judgment.replace(findRegex, () => cleanReplace);
+            if (updated !== c.judgment) {
+              updateFields.judgment = updated;
+              isModified = true;
+            }
           }
           break;
 
@@ -66,11 +105,13 @@ export const executeReplacement = async (req, res, next) => {
             const newJudges = c.judges.map(j => {
               if (findRegex.test(j)) {
                 isModified = true;
-                return j.replace(findRegex, cleanReplace);
+                return j.replace(findRegex, () => cleanReplace);
               }
               return j;
             });
-            if (isModified) c.judges = newJudges;
+            if (isModified) {
+              updateFields.judges = newJudges;
+            }
           }
           break;
 
@@ -79,11 +120,13 @@ export const executeReplacement = async (req, res, next) => {
             const newPet = c.petitioners.map(p => {
               if (findRegex.test(p)) {
                 isModified = true;
-                return p.replace(findRegex, cleanReplace);
+                return p.replace(findRegex, () => cleanReplace);
               }
               return p;
             });
-            if (isModified) c.petitioners = newPet;
+            if (isModified) {
+              updateFields.petitioners = newPet;
+            }
           }
           break;
 
@@ -92,29 +135,41 @@ export const executeReplacement = async (req, res, next) => {
             const newNums = c.caseNumber.map(n => {
               if (findRegex.test(n)) {
                 isModified = true;
-                return n.replace(findRegex, cleanReplace);
+                return n.replace(findRegex, () => cleanReplace);
               }
               return n;
             });
-            if (isModified) c.caseNumber = newNums;
+            if (isModified) {
+              updateFields.caseNumber = newNums;
+            }
           }
           break;
 
         case 'Laws':
           if (Array.isArray(c.laws)) {
-            c.laws.forEach(l => {
-              if (l.lawStatute && findRegex.test(l.lawStatute)) {
-                l.lawStatute = l.lawStatute.replace(findRegex, cleanReplace);
-                isModified = true;
+            let lawModified = false;
+            const newLaws = c.laws.map(l => {
+              const lObj = l.toObject ? l.toObject() : { ...l };
+              if (lObj.lawStatute && findRegex.test(lObj.lawStatute)) {
+                lObj.lawStatute = lObj.lawStatute.replace(findRegex, () => cleanReplace);
+                lawModified = true;
               }
+              return lObj;
             });
+            if (lawModified) {
+              updateFields.laws = newLaws;
+              isModified = true;
+            }
           }
           break;
 
         case 'References':
           if (c.references && findRegex.test(c.references)) {
-            c.references = c.references.replace(findRegex, cleanReplace);
-            isModified = true;
+            const updated = c.references.replace(findRegex, () => cleanReplace);
+            if (updated !== c.references) {
+              updateFields.references = updated;
+              isModified = true;
+            }
           }
           break;
 
@@ -123,7 +178,12 @@ export const executeReplacement = async (req, res, next) => {
       }
 
       if (isModified) {
-        await c.save();
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: c._id },
+            update: { $set: updateFields }
+          }
+        });
         affectedCount++;
         if (modifiedCasesInfo.length < 50) {
           modifiedCasesInfo.push({
@@ -132,6 +192,13 @@ export const executeReplacement = async (req, res, next) => {
             field: updateFor
           });
         }
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      for (let i = 0; i < bulkOps.length; i += 500) {
+        const chunk = bulkOps.slice(i, i + 500);
+        await Case.bulkWrite(chunk, { ordered: false });
       }
     }
 

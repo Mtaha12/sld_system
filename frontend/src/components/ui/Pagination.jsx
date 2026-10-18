@@ -45,8 +45,12 @@ const Pagination = ({
   const handleJumpSubmit = (e) => {
     if (e) e.preventDefault();
     const parsed = parseInt(jumpPage, 10);
-    if (!isNaN(parsed) && parsed >= 1 && parsed <= safeTotalPages) {
-      handlePageChange(parsed);
+    if (!isNaN(parsed) && parsed >= 1) {
+      const targetPage = Math.min(parsed, safeTotalPages);
+      setJumpPage(String(targetPage));
+      if (targetPage !== currentPage) {
+        onPageChange?.(targetPage);
+      }
     } else {
       setJumpPage(String(currentPage));
     }

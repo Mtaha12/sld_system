@@ -71,6 +71,13 @@ const notificationSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  laws: {
+    type: [{
+      lawStatute: { type: String, default: '' },
+      section: { type: String, default: '' }
+    }],
+    default: []
+  },
   lawDate: {
     type: String,
     default: '',

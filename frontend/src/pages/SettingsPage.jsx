@@ -194,11 +194,11 @@ const SettingsPage = () => {
                 className="relative shrink-0 cursor-pointer group"
                 title="Click to change profile photo"
               >
-                <div className="w-16 h-16 rounded-full border-2 border-theme-border overflow-hidden bg-theme-surface-alt shadow-sm group-hover:ring-2 ring-brand-orange transition-all">
+                <div className="w-16 h-16 rounded-full border-2 border-theme-border overflow-hidden bg-white dark:bg-theme-surface-alt shadow-sm group-hover:ring-2 ring-brand-orange transition-all p-1">
                   <img 
                     src={user.avatarUrl} 
                     alt={watchedValues.fullName || user.fullName} 
-                    className="w-full h-full object-cover" 
+                    className="w-full h-full object-contain rounded-full" 
                   />
                 </div>
                 

@@ -11,13 +11,20 @@ import { statuteService } from '../../statutes/services/statuteService';
 
 const extractReference = (text) => {
   if (!text) return null;
+  const trimmed = text.trim();
+
+  // If the user's entire prompt is just a number (e.g. "9862" or "104")
+  if (/^\d{1,8}$/.test(trimmed)) {
+    return trimmed;
+  }
+
   // Citation matches: "2011 104 TAX 78", "(2011) 104 TAX 78", "2001 SLD 1", "SLD 2001 1"
-  const standardCitationMatch = text.match(/\b([a-z]+)\s+(\d{4})\s+(\d+)\b/i);
+  const standardCitationMatch = text.match(/\b([a-z]{2,})\s+(\d{4})\s+(\d+)\b/i);
   if (standardCitationMatch) {
     return `${standardCitationMatch[1].toUpperCase()} ${standardCitationMatch[2]} ${standardCitationMatch[3]}`;
   }
 
-  const reversedCitationMatch = text.match(/\b(\d{4})\s+([a-z]+)\s+(\d+)\b/i);
+  const reversedCitationMatch = text.match(/\b(\d{4})\s+([a-z]{2,})\s+(\d+)\b/i);
   if (reversedCitationMatch) {
     return `${reversedCitationMatch[2].toUpperCase()} ${reversedCitationMatch[1]} ${reversedCitationMatch[3]}`;
   }
@@ -28,15 +35,15 @@ const extractReference = (text) => {
     return prefixedMatch[1].toUpperCase();
   }
 
-  // "case 1629482", "case id: 1", "sld #9862", "case# 123"
+  // "case 1629482", "case id: 1", "sld #9862", "case# 123", "statute #45"
   const idWithPrefixMatch = text.match(/\b(?:case|sld|notif|statute)\s*(?:id|no\.?|#)?\s*[:\-]?\s*([A-Za-z0-9_\-]+)\b/i);
   if (idWithPrefixMatch) {
     return idWithPrefixMatch[1].trim();
   }
 
-  // Standard multi-digit or standalone ID
-  const idMatch = text.match(/(?:CASE-[A-Za-z0-9_\-]+|\b\d{1,8}\b)/i);
-  return idMatch ? idMatch[0].toUpperCase() : null;
+  // Standalone prefixed CASE token
+  const caseIdMatch = text.match(/\bCASE-[A-Za-z0-9_\-]+\b/i);
+  return caseIdMatch ? caseIdMatch[0].toUpperCase() : null;
 };
 
 const AIChatDrawer = ({ isOpen, onClose }) => {
@@ -259,12 +266,12 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
         }
       }
 
-      // If we don't have a context at all
-      if (!targetCaseNumber) {
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: "Please provide the SLD/case number you want me to analyze." 
-        }]);
+      // If we don't have a case context, query the Legal Core / AI engine directly
+      if (!targetCaseNumber && !targetSessionId) {
+        const queryRes = await aiChatService.queryLegalCore(userText);
+        const answerContent = queryRes?.text || queryRes?.reply?.text || (typeof queryRes === 'string' ? queryRes : 'No response compiled.');
+        const sourceList = queryRes?.legalAnalysis?.matchedCases || queryRes?.sources || [];
+        setMessages(prev => [...prev, { role: 'assistant', content: answerContent, sources: sourceList }]);
         setIsLoading(false);
         return;
       }

@@ -94,7 +94,7 @@ async function runHybridTestSuite() {
   const q7Text = '2099 SLD 99999';
   const res7 = await runLegalIntelligenceEngine(q7Text);
   record('Returns citation_not_found matchType', res7.legalAnalysis?.matchType === 'citation_not_found');
-  record('Truthfully states not verified in database', res7.text.includes('could not be verified in the Supreme Law Digest database'));
+  record('Truthfully states not verified in database', res7.text.includes('could not be verified in the SLD System database'));
   record('Zero phantom cases returned', res7.legalAnalysis?.sourcesFound === 0);
 
   // 8. An exact phrase absent from the source text

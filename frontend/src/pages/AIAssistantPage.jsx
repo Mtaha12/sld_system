@@ -5,26 +5,19 @@ import AIChatHistoryColumn from '../features/ai/components/AIChatHistoryColumn';
 import { aiChatService } from '../services/aiChatService';
 import { useUser } from '../contexts/UserContext';
 
-const INITIAL_MESSAGE = {
-  sender: 'assistant',
-  text: '### SLD AI Legal Neural Engine Initialized\n\n' +
-    'I am trained directly on **over 162,865 verified judicial cases** in the SLD database. You can:\n' +
-    '• **Paste a line from any judgment** — I will locate where it appears, cite the case, and explain the ruling.\n' +
-    '• **Enter an SLD # or Citation** (e.g., `2006 SLD 282`, `2006 PTD 2726`).\n' +
-    '• **Attach a file or order** to generate statutory appeals & petitions:\n' +
-    '   - **Format 1**: High Court Writ Petition under Art. 199 (Complete with Index, Stay u/s 151 CPC, Exemption & Vakalatnama)\n' +
-    '   - **Format 2**: Appellate Tribunal Inland Revenue (ATIR) Appeal (Form "B" [Rule 7] under Section 46 STA / FEA)\n' +
-    '   - **Format 3**: Commissioner of Income Tax / Wealth Tax (Appeals) (Form of Appeal IT-16)\n' +
-    '• **Ask legal statutory questions** (e.g., *Section 7E Super Tax, Sales Tax exemptions*).\n\n' +
-    'All legal pleadings follow strict statutory court formats and verified precedent rulings.',
-  legalAnalysis: null
+const stripLegacyIntroMessages = (msgs) => {
+  if (!Array.isArray(msgs)) return [];
+  return msgs.filter(m => !(
+    m.sender === 'assistant' && 
+    (m.text?.includes('SLD AI Legal Neural Engine') || m.text?.includes('162,865') || m.text?.includes('27,500') || m.text?.includes('Welcome to the **SLD AI Legal Core**'))
+  ));
 };
 
-const createNewSession = (title = 'New Research') => ({
+const createNewSession = (title = 'New Session') => ({
   id: 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
   backendSessionId: null,
   title,
-  messages: [INITIAL_MESSAGE],
+  messages: [],
   lastMatchedCase: null,
   matchType: null,
   activeReferences: [
@@ -40,19 +33,30 @@ const AIAssistantPage = () => {
   const userStorageKey = `sld_ai_chat_sessions_${currentUserId}`;
 
   // Multi-tab chat sessions state with user-scoped localStorage persistence
+  // By default, start with a fresh new session without showing previous chat/records
   const [sessions, setSessions] = useState(() => {
     try {
       const saved = localStorage.getItem(userStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const cleaned = parsed.map(s => ({
+            ...s,
+            messages: stripLegacyIntroMessages(s.messages)
+          }));
+          const first = cleaned[0];
+          const isFresh = first && (!first.messages || first.messages.length === 0);
+          if (isFresh) {
+            return cleaned;
+          }
+          const fresh = createNewSession('New Session');
+          return [fresh, ...cleaned];
         }
       }
     } catch (e) {
       console.warn('Failed to load user-scoped local sessions:', e);
     }
-    return [createNewSession('Research Session 1')];
+    return [createNewSession('New Session')];
   });
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
@@ -61,11 +65,14 @@ const AIAssistantPage = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed[0].id;
+          const first = parsed[0];
+          const msgs = stripLegacyIntroMessages(first.messages);
+          const isFresh = !msgs || msgs.length === 0;
+          if (isFresh) return first.id;
         }
       }
     } catch (e) {}
-    return 'sess_default';
+    return '';
   });
 
   // Switch chat sessions immediately when user changes / logs in
@@ -75,13 +82,25 @@ const AIAssistantPage = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setSessions(parsed);
-          setActiveSessionId(parsed[0].id);
+          const cleaned = parsed.map(s => ({
+            ...s,
+            messages: stripLegacyIntroMessages(s.messages)
+          }));
+          const first = cleaned[0];
+          const isFresh = first && (!first.messages || first.messages.length === 0);
+          if (isFresh) {
+            setSessions(cleaned);
+            setActiveSessionId(first.id);
+            return;
+          }
+          const fresh = createNewSession('New Session');
+          setSessions([fresh, ...cleaned]);
+          setActiveSessionId(fresh.id);
           return;
         }
       }
     } catch (e) {}
-    const fresh = [createNewSession('Research Session 1')];
+    const fresh = [createNewSession('New Session')];
     setSessions(fresh);
     setActiveSessionId(fresh[0].id);
   }, [userStorageKey]);
@@ -198,8 +217,11 @@ const AIAssistantPage = () => {
 
       const assistantMsg = {
         sender: 'assistant',
-        text: replyData?.text || 'No authoritative answer could be compiled.',
+        text: (replyData?.text && replyData.text.trim()) 
+          ? replyData.text 
+          : (replyData?.legalAnalysis?.matchedCase ? '' : 'No authoritative answer could be compiled.'),
         legalAnalysis: replyData?.legalAnalysis || null,
+        followUpQuestions: replyData?.followUpQuestions || replyData?.legalAnalysis?.followUpSuggestions || [],
         timestamp: new Date()
       };
 
@@ -265,7 +287,7 @@ const AIAssistantPage = () => {
     e?.stopPropagation();
     if (sessions.length <= 1) {
       // Reset if closing the last remaining tab
-      const fresh = createNewSession('Research Session 1');
+      const fresh = createNewSession('New Session');
       setSessions([fresh]);
       setActiveSessionId(fresh.id);
       return;

@@ -355,8 +355,12 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
             }}
             className="flex items-center gap-2.5 cursor-pointer group select-none"
           >
-            <div className="w-9 h-9 rounded-full bg-brand-orange text-white flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-sm group-hover:ring-2 ring-brand-orange/20 transition-all">
-              <img src={user.avatarUrl && !user.avatarUrl.includes('pravatar') ? user.avatarUrl : '/sld-logo.jpeg'} alt={user.fullName} className="w-full h-full object-cover" />
+            <div className="w-9 h-9 rounded-full bg-white dark:bg-theme-surface-alt border border-theme-border/80 flex items-center justify-center shrink-0 overflow-hidden shadow-xs group-hover:ring-2 ring-brand-orange/30 transition-all p-0.5">
+              <img 
+                src={user.avatarUrl && !user.avatarUrl.includes('pravatar') ? user.avatarUrl : '/sld-logo.jpeg'} 
+                alt={user.fullName} 
+                className="w-full h-full object-contain rounded-full" 
+              />
             </div>
             <div className="hidden sm:flex flex-col">
               <span className="text-sm font-semibold text-theme-main leading-tight">{user.fullName}</span>

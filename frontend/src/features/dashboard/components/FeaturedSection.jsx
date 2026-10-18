@@ -15,7 +15,7 @@ const fallbackCards = [
   {
     id: 'case_laws',
     title: 'Case Laws',
-    count: '165,278',
+    count: '393,870',
     icon: Scale,
     image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=400',
     link: '/cases/view/165278',
@@ -101,20 +101,26 @@ const FeaturedSection = () => {
 
     const fetchLatestRecords = async () => {
       try {
-        const [casesRes, statutesRes, notifsRes, dictRes, taxRes] = await Promise.allSettled([
+        const [casesRes, statutesRes, notifsRes, dictRes, taxRes, dbCountsRes] = await Promise.allSettled([
           caseService.getCases({ limit: 5 }),
           statuteService.getStatutes({ limit: 5 }),
           notificationService.getNotifications({ limit: 5 }),
           dictionaryService.getDictionary({ limit: 5 }),
-          taxCardService.getTaxCards()
+          taxCardService.getTaxCards(),
+          caseService.getDatabaseCounts()
         ]);
 
         if (!isMounted) return;
 
         setCardsList(prevCards => {
           return prevCards.map(card => {
-            if (card.id === 'case_laws' && casesRes.status === 'fulfilled') {
-              const rawCases = casesRes.value?.data || (Array.isArray(casesRes.value) ? casesRes.value : []);
+            if (card.id === 'case_laws') {
+              const rawCases = casesRes.status === 'fulfilled'
+                ? (casesRes.value?.data || (Array.isArray(casesRes.value) ? casesRes.value : []))
+                : [];
+              const dbCounts = dbCountsRes.status === 'fulfilled' ? dbCountsRes.value : null;
+              const displayCount = dbCounts?.displayCount || (dbCounts?.totalCitationsWithOtherLaws ? dbCounts.totalCitationsWithOtherLaws.toLocaleString() : '393,870');
+
               if (rawCases.length > 0) {
                 const latest5 = rawCases.slice(0, 5).map(c => {
                   const citation = c.mapYearPage?.[0] || `${c.dated ? new Date(c.dated).getFullYear() : '2026'} SLD ${c.sldNumber}`;
@@ -128,8 +134,13 @@ const FeaturedSection = () => {
                 return {
                   ...card,
                   link: latest5[0]?.link || card.link,
-                  count: casesRes.value?.pagination?.total ? casesRes.value.pagination.total.toLocaleString() : card.count,
+                  count: displayCount,
                   items: latest5
+                };
+              } else {
+                return {
+                  ...card,
+                  count: displayCount
                 };
               }
             }

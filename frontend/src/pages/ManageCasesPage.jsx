@@ -957,7 +957,7 @@ const ManageCasesPage = () => {
         onShowAll={() => setFilters({ subject: '', fromYear: '', toYear: '', magazine: '' })}
       />
 
-      <div className="flex-1">
+      <div className="flex-1 w-full min-w-0 max-w-full">
         <ManageCasesTable 
           cases={cases}
           setCases={setCases}

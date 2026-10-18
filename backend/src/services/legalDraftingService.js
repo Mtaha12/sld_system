@@ -1057,7 +1057,7 @@ export const generatePleadingDocument = async (queryText, attachments = []) => {
 
   // 3. Try LLM Generation with strict system instruction
   try {
-    const systemInstruction = `You are the Senior Pakistani Constitutional & Tax Drafting Specialist at the Superior Law Digest (SLD).
+    const systemInstruction = `You are the Senior Pakistani Constitutional & Tax Drafting Specialist at the SLD System.
 STRICT RULES:
 1. NEVER generate software code (no Python, Javascript, HTML, SQL). Only generate authoritative legal pleadings.
 2. NEVER invent fake citations or imaginary facts. Strictly ground the document in the provided details or document.

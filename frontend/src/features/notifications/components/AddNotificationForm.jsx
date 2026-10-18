@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
+import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
-import DatePicker from '../../../components/ui/DatePicker';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
@@ -14,6 +13,18 @@ import { notificationSchema } from '../validation/notificationSchema';
 import { notificationService } from '../services/notificationService';
 import { settingService } from '../../../services/settingService';
 import { ALL_SECTIONS } from '../../../data/sections';
+
+/* ── Format date to YYYY-MM-DD for native input ────────────────── */
+const formatDateForInput = (val) => {
+  if (!val) return '';
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return typeof val === 'string' ? val : '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 /* ── Compact inline file-chooser with View and Remove actions ─────── */
 const CompactFileButton = ({ value, onChange }) => {
@@ -38,7 +49,7 @@ const CompactFileButton = ({ value, onChange }) => {
   };
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 w-full">
       <input
         ref={ref}
         type="file"
@@ -87,7 +98,7 @@ const CompactFileButton = ({ value, onChange }) => {
             const fileName = typeof f === 'string' ? f : (f.name || `File ${i + 1}`);
             return (
               <div key={i} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded text-[10px] bg-theme-surface-alt border border-theme-border/60">
-                <span className="truncate text-theme-muted max-w-[95px]" title={fileName}>{fileName}</span>
+                <span className="truncate text-theme-muted max-w-[120px]" title={fileName}>{fileName}</span>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
@@ -99,11 +110,11 @@ const CompactFileButton = ({ value, onChange }) => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => onChange(files.filter((_, j) => j !== i))}
-                    className="text-theme-disabled hover:text-red-500 p-0.5"
+                    onClick={() => onChange(files.filter((_, idx) => idx !== i))}
+                    className="text-red-500 hover:text-red-700 p-0.5"
                     title="Remove file"
                   >
-                    <X className="w-2.5 h-2.5" />
+                    <X className="w-3 h-3" />
                   </button>
                 </div>
               </div>
@@ -115,19 +126,28 @@ const CompactFileButton = ({ value, onChange }) => {
   );
 };
 
-export const formatNotificationParagraphs = (content) => {
-  if (!content || typeof content !== 'string') return '';
-  return content;
+/* ── Helpers to format paragraphs and word layout ────────────────── */
+const formatNotificationParagraphs = (html) => {
+  if (!html) return '';
+  return html
+    .replace(/(<(?:p|div)[^>]*>)\s*(\(\d+\)|\d+\.)\s*/gi, '$1&nbsp;&nbsp;&nbsp;&nbsp;<b>$2</b> ')
+    .replace(/(<br\s*\/?>)\s*(\(\d+\)|\d+\.)\s*/gi, '$1&nbsp;&nbsp;&nbsp;&nbsp;<b>$2</b> ')
+    .replace(/\s+/g, ' ');
 };
 
 const AddNotificationForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const isEdit = Boolean(location.state?.isEdit);
   const editData = location.state?.notificationData;
-  const isEdit = Boolean(location.state?.isEdit || editData);
+
   const [showSuccess, setShowSuccess] = useState(false);
   const [lawOptions, setLawOptions] = useState([]);
   const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
+
+  const isSaveAndNextRef = useRef(false);
+
   const normalizeDepartment = (dept) => {
     const d = String(dept || '').trim().toLowerCase();
     if (d === 'notifications' || d === 'notification' || !d) return 'notification';
@@ -145,10 +165,12 @@ const AddNotificationForm = () => {
     status: editData?.status?.toLowerCase() || 'active',
     lawStatute: editData?.lawStatute || '',
     section: editData?.section || '',
+    laws: Array.isArray(editData?.laws) && editData.laws.length > 0 
+      ? editData.laws 
+      : [{ lawStatute: editData?.lawStatute || '', section: editData?.section || '' }],
     blocks: (() => {
-      const empty1 = { id: 'new-block-1', date: null, detail: '', attachments: [] };
-      const empty2 = { id: 'new-block-2', date: null, detail: '', attachments: [] };
-      if (!isEdit) return [empty1, empty2];
+      const empty1 = { id: 'new-block-1', date: '', detail: '', attachments: [] };
+      if (!isEdit) return [empty1];
       
       const existingFilled = (editData?.blocks || []).filter(b => {
         const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
@@ -157,15 +179,12 @@ const AddNotificationForm = () => {
         return hasDetail || hasDate || hasAttachments;
       }).map((b, i) => ({
         id: b._id || `existing-${i}`,
-        date: b.date ? new Date(b.date) : null,
+        date: formatDateForInput(b.date),
         detail: formatNotificationParagraphs(b.detail || ''),
         attachments: b.attachments || []
       }));
       
-      if (existingFilled.length === 0) {
-        return [empty1, empty2];
-      }
-      return [...existingFilled, empty1];
+      return existingFilled.length > 0 ? existingFilled : [empty1];
     })()
   };
 
@@ -208,13 +227,20 @@ const AddNotificationForm = () => {
         setValue('status', data.status?.toLowerCase() || 'active');
         setValue('lawStatute', data.lawStatute || '');
         setValue('section', data.section || '');
+        if (Array.isArray(data.laws) && data.laws.length > 0) {
+          setValue('laws', data.laws);
+        } else {
+          setValue('laws', [{ lawStatute: data.lawStatute || '', section: data.section || '' }]);
+        }
         if (Array.isArray(data.blocks) && data.blocks.length > 0) {
           setValue('blocks', data.blocks.map((b, i) => ({
             id: b._id || `existing-${i}`,
-            date: b.date ? new Date(b.date) : null,
+            date: formatDateForInput(b.date),
             detail: formatNotificationParagraphs(b.detail || ''),
             attachments: b.attachments || []
           })));
+        } else {
+          setValue('blocks', [{ id: 'new-block-1', date: '', detail: '', attachments: [] }]);
         }
         setLoadFeedback({
           type: 'success',
@@ -226,6 +252,8 @@ const AddNotificationForm = () => {
       // Not found in database — keep SR and allow creating new record
       setCurrentRecordId(null);
       setValue('srNumber', cleanSr);
+      // Reset blocks to fresh 1 block with no attachments from previous record
+      setValue('blocks', [{ id: 'new-block-1', date: '', detail: '', attachments: [] }]);
       setLoadFeedback({
         type: 'notFound',
         message: `SR #${cleanSr} not found in database. Ready to create new notification.`
@@ -274,7 +302,6 @@ const AddNotificationForm = () => {
         console.warn('Could not load dynamic sections for AddNotificationForm:', err);
       });
 
-    // Automatically assign next sequential SR # for new notifications and set autoNewSr block
     notificationService.getNextSr()
       .then(res => {
         if (isMounted && res?.nextSr) {
@@ -306,19 +333,37 @@ const AddNotificationForm = () => {
     }))
   ], [sectionOptions]);
 
-  const { fields: blockFields, append, insert, remove } = useFieldArray({
+  const { fields: blockFields, append: appendBlock, remove: removeBlock } = useFieldArray({
     control,
     name: 'blocks'
   });
 
+  const { fields: lawFields, append: appendLaw, remove: removeLaw } = useFieldArray({
+    control,
+    name: 'laws'
+  });
+
   const onSubmit = async (data) => {
-    // Strip empty blocks before saving
-    data.blocks = data.blocks.filter(b => {
+    const isNext = isSaveAndNextRef.current;
+    isSaveAndNextRef.current = false;
+
+    // Filter out completely empty blocks before saving
+    data.blocks = (data.blocks || []).filter(b => {
       const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
-      const hasDate = b.date !== null && b.date !== '';
-      const hasAttachments = b.attachments && b.attachments.length > 0;
+      const hasDate = b.date !== null && b.date !== '' && b.date !== undefined;
+      const hasAttachments = Array.isArray(b.attachments) && b.attachments.length > 0;
       return hasDetail || hasDate || hasAttachments;
     });
+
+    if (data.blocks.length === 0) {
+      data.blocks = [{ date: '', detail: '', attachments: [] }];
+    }
+
+    // Sync primary lawStatute and section from first laws entry
+    if (Array.isArray(data.laws) && data.laws.length > 0) {
+      data.lawStatute = data.laws[0].lawStatute || '';
+      data.section = data.laws[0].section || '';
+    }
 
     try {
       const targetSr = String(data.srNumber || editData?.srNumber || '').trim();
@@ -342,42 +387,39 @@ const AddNotificationForm = () => {
 
       if (targetId) {
         await notificationService.updateNotification(targetId, payload);
-        if (targetSr) {
-          setValue('srNumber', targetSr, { shouldDirty: false });
-        }
-        setShowSuccess(true);
-        setTimeout(() => {
-          setShowSuccess(false);
-        }, 3500);
       } else {
-        await notificationService.createNotification(data);
-        setShowSuccess(true);
-        // Advance to new SR# for new entry (do not go to list)
-        try {
-          const res = await notificationService.getNextSr();
-          const currentSrNum = parseInt(data.srNumber || '1', 10);
-          const nextSr = res?.nextSr ? String(res.nextSr) : String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
-          setAutoNewSr(nextSr);
-          setValue('srNumber', nextSr);
-        } catch {
-          const currentSrNum = parseInt(data.srNumber || '1', 10);
+        await notificationService.createNotification(payload);
+      }
+
+      setShowSuccess(true);
+
+      if (isNext) {
+        // Advance to next sequential SR#
+        const currentSrNum = parseInt(targetSr || '1', 10);
+        const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+        setAutoNewSr(nextSr);
+        setValue('srNumber', nextSr);
+        setCurrentRecordId(null);
+        // Clear attachments and reset to 1 fresh block
+        setValue('blocks', [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]);
+        setLoadFeedback({
+          type: 'success',
+          message: `Saved! Advanced to SR #${nextSr}. Ready for entry.`
+        });
+      } else {
+        if (!targetId) {
+          const currentSrNum = parseInt(targetSr || '1', 10);
           const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
           setAutoNewSr(nextSr);
           setValue('srNumber', nextSr);
+          setCurrentRecordId(null);
+          setValue('blocks', [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]);
         }
-        setValue('number', '');
-        setValue('sroNumber', '');
-        setValue('subject', '');
-        setValue('department', 'notification');
-        setValue('blocks', [
-          { id: `new-block-${Date.now()}-1`, date: null, detail: '', attachments: [] },
-          { id: `new-block-${Date.now()}-2`, date: null, detail: '', attachments: [] }
-        ]);
-        setCurrentRecordId(null);
-        setTimeout(() => {
-          setShowSuccess(false);
-        }, 4000);
       }
+
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 3500);
     } catch (error) {
       console.error('Submission error:', error);
     }
@@ -402,22 +444,38 @@ const AddNotificationForm = () => {
           </div>
         )}
 
-        {/* Top Action Bar: Clean header with Back and Save/Update Record only */}
+        {/* Top Sticky Action Bar: Back and Save/Update Record + Save + Next */}
         <div className="sticky top-0 z-30 mb-4 flex items-center justify-between bg-theme-surface/95 border border-theme-border px-4 py-3 rounded-xl shadow-md backdrop-blur-md">
           <div className="text-xs text-theme-muted font-medium flex items-center gap-2">
             <button
               type="button"
               onClick={() => navigate('/manage-notifications')}
-              className="px-2.5 py-1.5 -ml-1 text-theme-muted hover:text-theme-main hover:bg-theme-surface border border-theme-border rounded-lg transition-colors flex items-center gap-1.5 font-semibold text-xs cursor-pointer shadow-xs mr-1"
-              title="Back to Notifications list"
+              className="p-1.5 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors flex items-center gap-1 cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back</span>
             </button>
             <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Notification' : 'Add New Notification'}</span>
             {editData?.srNumber && <span className="text-brand-orange font-semibold">SR #{editData.srNumber}</span>}
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => {
+                isSaveAndNextRef.current = true;
+                const formElem = document.getElementById('notification-form');
+                if (formElem) {
+                  formElem.requestSubmit();
+                }
+              }}
+              className="px-3.5 py-1.5 text-xs font-bold text-brand-orange bg-theme-surface hover:bg-theme-surface-alt border border-brand-orange/40 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              title="Save and advance to next SR #"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{isEdit ? 'Update + Next' : 'Save + Next'}</span>
+            </button>
+
             <button
               type="submit"
               form="notification-form"
@@ -446,8 +504,8 @@ const AddNotificationForm = () => {
           {/* Record Information */}
           <FormSection compact>
 
-            {/* Top row: Auto New SR # · Load SR # · Department · Sub Department · Year · Number */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end mb-3">
+            {/* Top row: Auto New SR # · Load SR # · Department · Sub Department · Year · Number (all fit in single row) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-12 gap-3 items-end mb-3">
               
               {/* Auto New SR # (Non-editable) Generate Block */}
               <div className="lg:col-span-2 col-span-1">
@@ -463,7 +521,7 @@ const AddNotificationForm = () => {
               </div>
 
               {/* Reduced size Load SR # Block */}
-              <div className="lg:col-span-3 sm:col-span-2 col-span-1">
+              <div className="lg:col-span-2 col-span-1">
                 <FormField label="Load SR #" required>
                   <div className="flex items-center gap-1">
                     <div className="relative flex-1">
@@ -486,7 +544,7 @@ const AddNotificationForm = () => {
                         title="Previous SR"
                         onClick={() => handleStepSr(-1)}
                         disabled={loadingNotification}
-                        className="p-1 h-[34px] w-[30px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
+                        className="p-1 h-[34px] w-[26px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
                       >
                         <ChevronLeft className="w-3.5 h-3.5" />
                       </button>
@@ -495,7 +553,7 @@ const AddNotificationForm = () => {
                         title="Next SR"
                         onClick={() => handleStepSr(1)}
                         disabled={loadingNotification}
-                        className="p-1 h-[34px] w-[30px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
+                        className="p-1 h-[34px] w-[26px] flex items-center justify-center rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-theme-muted hover:text-theme-main transition-colors disabled:opacity-50 cursor-pointer"
                       >
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
@@ -503,7 +561,7 @@ const AddNotificationForm = () => {
                         type="button"
                         onClick={() => loadNotificationBySr()}
                         disabled={loadingNotification}
-                        className="h-[34px] text-xs px-2 border border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 rounded-lg font-semibold cursor-pointer disabled:opacity-50"
+                        className="h-[34px] text-xs px-1.5 border border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 rounded-lg font-semibold cursor-pointer disabled:opacity-50"
                       >
                         {loadingNotification ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Load'}
                       </button>
@@ -521,7 +579,9 @@ const AddNotificationForm = () => {
                   )}
                 </FormField>
               </div>
-              <div className="lg:col-span-2">
+
+              {/* Department */}
+              <div className="lg:col-span-2 col-span-1">
                 <FormField label="Department" required>
                   <Input
                     variant="light"
@@ -542,7 +602,9 @@ const AddNotificationForm = () => {
                   />
                 </FormField>
               </div>
-              <div className="lg:col-span-2">
+
+              {/* Sub Department */}
+              <div className="lg:col-span-2 col-span-1">
                 <FormField label="Sub Department" required>
                   <Input
                     variant="light"
@@ -557,7 +619,9 @@ const AddNotificationForm = () => {
                   />
                 </FormField>
               </div>
-              <div className="lg:col-span-2">
+
+              {/* Year */}
+              <div className="lg:col-span-2 col-span-1">
                 <FormField label="Year" required>
                   <Input
                     variant="light"
@@ -568,7 +632,9 @@ const AddNotificationForm = () => {
                   />
                 </FormField>
               </div>
-              <div className="lg:col-span-2">
+
+              {/* Number */}
+              <div className="lg:col-span-2 col-span-1">
                 <FormField label="Number" required>
                   <Input
                     variant="light"
@@ -581,9 +647,9 @@ const AddNotificationForm = () => {
               </div>
             </div>
 
-            {/* Middle row: SRO # · Subject */}
+            {/* Middle row: SRO # (increased by 50%+) · Subject */}
             <div className="grid grid-cols-12 gap-3 mb-3 items-end">
-              <FormField label="SRO #" required className="col-span-3">
+              <FormField label="SRO #" required className="col-span-12 sm:col-span-5">
                 <Input
                   variant="light"
                   inputSize="sm"
@@ -592,7 +658,7 @@ const AddNotificationForm = () => {
                   {...register('sroNumber')}
                 />
               </FormField>
-              <FormField label="Subject" className="col-span-9">
+              <FormField label="Subject" className="col-span-12 sm:col-span-7">
                 <Input
                   variant="light"
                   inputSize="sm"
@@ -603,53 +669,77 @@ const AddNotificationForm = () => {
               </FormField>
             </div>
 
-            {/* Bottom row: Law/Statute · Section */}
-            <div className="grid grid-cols-2 gap-3 items-end">
-              <FormField label="Law/Statute 1">
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  placeholder="Select or enter Law/Statute..."
-                  list="notification-laws-list"
-                  error={errors.lawStatute}
-                  {...register('lawStatute')}
-                />
-                <datalist id="notification-laws-list">
-                  {memoizedLawOptions}
-                </datalist>
-              </FormField>
-              <FormField label="Section 1">
-                <Input
-                  type="select"
-                  variant="light"
-                  inputSize="sm"
-                  options={sectionSelectOptions}
-                  error={errors.section}
-                  {...register('section')}
-                />
-              </FormField>
+            {/* Dynamic Multiple Law & Section rows with Add More */}
+            <div className="space-y-3 pt-1 border-t border-theme-border/60">
+              {lawFields.map((field, lIdx) => (
+                <div key={field.id} className="grid grid-cols-12 gap-3 items-end">
+                  <div className={lIdx === 0 ? "col-span-12 sm:col-span-6" : "col-span-11 sm:col-span-6"}>
+                    <FormField label={`Law/Statute ${lIdx + 1}`}>
+                      <Input
+                        variant="light"
+                        inputSize="sm"
+                        placeholder="Select or enter Law/Statute..."
+                        list="notification-laws-list"
+                        {...register(`laws.${lIdx}.lawStatute`)}
+                      />
+                    </FormField>
+                  </div>
+                  <div className={lIdx === 0 ? "col-span-12 sm:col-span-6" : "col-span-11 sm:col-span-5"}>
+                    <FormField label={`Section ${lIdx + 1}`}>
+                      <Input
+                        type="select"
+                        variant="light"
+                        inputSize="sm"
+                        options={sectionSelectOptions}
+                        {...register(`laws.${lIdx}.section`)}
+                      />
+                    </FormField>
+                  </div>
+                  {lIdx > 0 && (
+                    <div className="col-span-1 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => removeLaw(lIdx)}
+                        className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200 dark:border-red-900 cursor-pointer transition-colors"
+                        title="Remove Law & Section"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              <datalist id="notification-laws-list">
+                {memoizedLawOptions}
+              </datalist>
+
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  onClick={() => appendLaw({ lawStatute: '', section: '' })}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10 text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add More Law & Section</span>
+                </button>
+              </div>
             </div>
 
           </FormSection>
 
-          {/* Repeatable Content Blocks */}
+          {/* Repeatable Content Blocks (Heading removed, 1 block by default, Date & Attachment on top of each block) */}
           <FormSection compact>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-brand-orange font-semibold text-sm flex items-center gap-2">
-                <Layers className="w-4 h-4" /> Content Details ({blockFields.length} {blockFields.length === 1 ? 'Block' : 'Blocks'})
-              </div>
-            </div>
-
-            <div className="space-y-3">
+            <div className="space-y-4">
               {blockFields.map((block, index) => (
-                <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-3 relative">
+                <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-3 sm:p-4 relative space-y-3">
 
                   {/* Block header badge & actions */}
                   <div className="flex items-center gap-1.5 absolute top-2 right-2 z-10">
                     {blockFields.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => remove(index)}
+                        onClick={() => removeBlock(index)}
                         className="p-1 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200 dark:border-red-900 cursor-pointer transition-colors"
                         title="Remove this block"
                       >
@@ -661,65 +751,62 @@ const AddNotificationForm = () => {
                     </span>
                   </div>
 
-                  <div className="flex gap-3 pt-6 sm:pt-4 items-start">
-
-                    {/* Left column — fixed narrow width matching date picker */}
-                    <div className="flex flex-col gap-2 shrink-0" style={{ width: '158px' }}>
-                      <FormField label="Law Date">
-                        <Controller
-                          control={control}
-                          name={`blocks.${index}.date`}
-                          render={({ field }) => (
-                            <DatePicker
-                              selectedDate={field.value}
-                              onChange={field.onChange}
-                              placeholder="mm/dd/yyyy"
-                              className="w-full h-[38px]"
-                            />
-                          )}
-                        />
-                      </FormField>
-
-                      <FormField label="Attachment">
-                        <Controller
-                          control={control}
-                          name={`blocks.${index}.attachments`}
-                          render={({ field }) => (
-                            <CompactFileButton value={field.value} onChange={field.onChange} />
-                          )}
-                        />
-                      </FormField>
-                    </div>
-
-                    {/* Right column — editor fills remaining space */}
-                    <div className="flex-1 flex flex-col min-h-[240px]">
-                      <FormField label="Detail" className="flex-1 flex flex-col">
-                        <div className="flex-1 relative z-0">
-                          <Controller
-                            control={control}
-                            name={`blocks.${index}.detail`}
-                            render={({ field }) => (
-                              <RichTextEditor
-                                value={field.value}
-                                onChange={field.onChange}
-                                minHeight={220}
-                              />
-                            )}
+                  {/* Top row in block: Law Date + Attachment */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 sm:pt-2">
+                    <FormField label="Law Date">
+                      <Controller
+                        control={control}
+                        name={`blocks.${index}.date`}
+                        render={({ field }) => (
+                          <Input
+                            type="date"
+                            variant="light"
+                            inputSize="sm"
+                            value={formatDateForInput(field.value)}
+                            onChange={(e) => field.onChange(e.target.value)}
+                            className="w-full"
                           />
-                        </div>
-                      </FormField>
-                    </div>
+                        )}
+                      />
+                    </FormField>
 
+                    <FormField label="Attachment">
+                      <Controller
+                        control={control}
+                        name={`blocks.${index}.attachments`}
+                        render={({ field }) => (
+                          <CompactFileButton value={field.value} onChange={field.onChange} />
+                        )}
+                      />
+                    </FormField>
                   </div>
+
+                  {/* Detail editor takes full 100% width */}
+                  <FormField label="Detail" className="w-full">
+                    <div className="relative z-0">
+                      <Controller
+                        control={control}
+                        name={`blocks.${index}.detail`}
+                        render={({ field }) => (
+                          <RichTextEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                            minHeight={220}
+                          />
+                        )}
+                      />
+                    </div>
+                  </FormField>
+
                 </div>
               ))}
             </div>
 
             {/* Bottom Add Detail Block button */}
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-3">
               <button
                 type="button"
-                onClick={() => append({ id: `block-${Date.now()}-${Math.random()}`, date: null, detail: '', attachments: [] })}
+                onClick={() => appendBlock({ id: `block-${Date.now()}-${Math.random()}`, date: '', detail: '', attachments: [] })}
                 className="px-4 py-2 rounded-lg text-xs font-bold bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange border border-brand-orange/40 flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -746,6 +833,3 @@ const AddNotificationForm = () => {
 };
 
 export default AddNotificationForm;
-
-
-

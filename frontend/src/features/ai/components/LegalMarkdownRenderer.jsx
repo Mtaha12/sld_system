@@ -132,6 +132,26 @@ const parseContentToBlocks = (rawText) => {
     const line = lines[i];
     const trimmed = line.trim();
 
+    // 0. Fenced Code Block Detection (```lang ... ```)
+    if (trimmed.startsWith('```')) {
+      const lang = trimmed.slice(3).trim();
+      const codeLines = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length && lines[i].trim().startsWith('```')) {
+        i++;
+      }
+      blocks.push({
+        type: 'code_block',
+        language: lang || 'code',
+        code: codeLines.join('\n')
+      });
+      continue;
+    }
+
     // 1. Empty lines — Collapse multiple blank lines into a single minimal spacer
     if (!trimmed) {
       if (blocks.length > 0 && blocks[blocks.length - 1].type !== 'spacer') {
@@ -319,6 +339,17 @@ const parseContentToBlocks = (rawText) => {
       continue;
     }
 
+    // 11B. Unordered Bullet List Item (•, -, *)
+    const bulletMatch = trimmed.match(/^[•\-\*]\s+(.*)$/);
+    if (bulletMatch) {
+      blocks.push({
+        type: 'bullet_item',
+        content: bulletMatch[1]
+      });
+      i++;
+      continue;
+    }
+
     // 12. Standard Paragraph
     blocks.push({
       type: 'paragraph',
@@ -401,7 +432,7 @@ const LegalMarkdownRenderer = ({ text, onCopy }) => {
           ? 'border border-amber-900/15 dark:border-amber-500/20 rounded-2xl bg-[#fdfcf9] dark:bg-[#11131a] shadow-xs' 
           : ''
       }`}>
-        {renderParsedBlocks(blocks, 0)}
+        {renderParsedBlocks(blocks, 0, handleCopySection, copiedKey)}
       </div>
     </div>
   );
@@ -410,7 +441,7 @@ const LegalMarkdownRenderer = ({ text, onCopy }) => {
 /**
  * Renders each parsed block cleanly with NO extra lines, NO dashed boxes, and NO stray asterisks
  */
-function renderParsedBlocks(blocks, parentIdx) {
+function renderParsedBlocks(blocks, parentIdx, handleCopySection, copiedKey) {
   return blocks.map((block, idx) => {
     const key = `${parentIdx}_${idx}`;
 
@@ -575,6 +606,51 @@ function renderParsedBlocks(blocks, parentIdx) {
             />
           </div>
         );
+
+      case 'bullet_item':
+        return (
+          <div key={key} className="flex items-start gap-2.5 py-0.5 text-sm sm:text-base leading-relaxed pl-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 mt-2 shrink-0" />
+            <div
+              className="flex-1 text-slate-800 dark:text-slate-200"
+              dangerouslySetInnerHTML={{ __html: formatInlineText(block.content) }}
+            />
+          </div>
+        );
+
+      case 'code_block': {
+        const isCopied = copiedKey === `code_${key}`;
+        return (
+          <div key={key} className="my-3.5 rounded-xl border border-slate-700/80 bg-[#161b22] text-slate-100 overflow-hidden shadow-md font-mono text-xs sm:text-sm">
+            <div className="flex items-center justify-between px-3.5 py-1.5 bg-[#0d1117] border-b border-slate-700/60 text-slate-400 text-xs">
+              <span className="font-semibold uppercase tracking-wider">{block.language || 'code'}</span>
+              {handleCopySection && (
+                <button
+                  type="button"
+                  onClick={() => handleCopySection(block.code, `code_${key}`)}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Copy code to clipboard"
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy code</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            <pre className="p-4 overflow-x-auto text-[13px] leading-relaxed text-slate-200">
+              <code>{block.code}</code>
+            </pre>
+          </div>
+        );
+      }
 
       case 'paragraph':
       default:

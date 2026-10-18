@@ -105,7 +105,7 @@ const NewsletterViewPage = () => {
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                Supreme Law Digest (SLD)
+                SLD System
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   <ShieldCheck className="w-3 h-3" /> Official Document
                 </span>
@@ -239,7 +239,7 @@ const NewsletterViewPage = () => {
 
           {/* Document Footer */}
           <div className="px-6 sm:px-8 py-4 bg-slate-50/70 dark:bg-stone-900/60 border-t border-slate-100 dark:border-stone-800 flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-2">
-            <span>Supreme Law Digest System of Pakistan</span>
+            <span>SLD System of Pakistan</span>
             <span>Public Access Link Document</span>
           </div>
 
@@ -248,7 +248,7 @@ const NewsletterViewPage = () => {
 
       {/* Simple Public Footer */}
       <footer className="text-center py-6 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200 dark:border-stone-800/60 print:hidden">
-        © {new Date().getFullYear()} Supreme Law Digest (SLD) System. All Rights Reserved.
+        © {new Date().getFullYear()} SLD System. All Rights Reserved.
       </footer>
 
     </div>

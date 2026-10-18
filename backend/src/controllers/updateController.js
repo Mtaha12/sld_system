@@ -19,7 +19,7 @@ export const getUpdates = async (req, res, next) => {
     const { query } = req.query;
     const filter = { isDeleted: { $ne: true } };
 
-    if (query) {
+    if (query && typeof query === 'string' && query.trim()) {
       const q = query.trim();
       const searchRegex = new RegExp(q, 'i');
       const numQ = Number(q);

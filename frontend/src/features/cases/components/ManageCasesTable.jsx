@@ -372,7 +372,8 @@ const ManageCasesTable = ({
   }, [highlightedId, currentPage]);
 
   const handlePageChange = (page) => {
-    if (page >= 1 && page <= totalPages) {
+    const safeMax = Math.max(1, totalPages || 1);
+    if (page >= 1 && page <= safeMax) {
       setCurrentPage(page);
     }
   };
@@ -540,9 +541,9 @@ const ManageCasesTable = ({
       </div>
 
       {/* Table Container */}
-      <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left table-fixed min-w-[1180px]">
+      <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-w-0 max-w-full">
+        <div className="overflow-x-auto w-full max-w-full">
+          <table className="w-full text-xs text-left min-w-[1100px]">
             <thead className="bg-theme-table-header border-b border-theme-border text-theme-main">
               <tr>
                 <th className="px-2 py-2.5 w-10 text-center">

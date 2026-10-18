@@ -2,18 +2,26 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Layers, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
+import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
-import DatePicker from '../../../components/ui/DatePicker';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import FormFooter from '../../../components/ui/FormFooter';
+import SearchableLawSelect from './SearchableLawSelect';
 import { statuteSchema } from '../validation/statuteSchema';
 import { statuteService } from '../services/statuteService';
 import { settingService } from '../../../services/settingService';
 import { ALL_SECTIONS } from '../../../data/sections';
+
+const formatDateForInput = (d) => {
+  if (!d) return '';
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  const dateObj = new Date(d);
+  if (isNaN(dateObj.getTime())) return '';
+  return dateObj.toISOString().split('T')[0];
+};
 
 /* ── Compact inline file-chooser with View and Remove actions ─────── */
 const CompactFileButton = ({ value, onChange }) => {
@@ -133,9 +141,8 @@ const AddStatuteForm = () => {
     section: editData?.section || '',
     heading: editData?.heading || '',
     blocks: (() => {
-      const empty1 = { id: 'new-block-1', sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] };
-      const empty2 = { id: 'new-block-2', sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] };
-      if (!isEdit) return [empty1, empty2];
+      const empty1 = { id: 'new-block-1', sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] };
+      if (!isEdit) return [empty1];
       
       const existingFilled = (editData?.blocks || []).filter(b => {
         const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
@@ -147,15 +154,13 @@ const AddStatuteForm = () => {
       }).map((b, i) => ({
         id: b._id || `existing-${i}`,
         sectionHeading: b.sectionHeading || '',
-        fromDate: b.fromDate ? new Date(b.fromDate) : null,
-        toDate: b.toDate ? new Date(b.toDate) : null,
+        fromDate: formatDateForInput(b.fromDate),
+        toDate: formatDateForInput(b.toDate),
         detail: b.detail || '',
         attachments: b.attachments || []
       }));
       
-      const res = [empty1, ...existingFilled];
-      if (res.length < 2) res.push(empty2);
-      return res;
+      return existingFilled.length > 0 ? existingFilled : [empty1];
     })()
   };
 
@@ -200,11 +205,15 @@ const AddStatuteForm = () => {
           setValue('blocks', data.blocks.map((b, i) => ({
             id: b._id || `existing-${i}`,
             sectionHeading: b.sectionHeading || '',
-            fromDate: b.fromDate ? new Date(b.fromDate) : null,
-            toDate: b.toDate ? new Date(b.toDate) : null,
+            fromDate: formatDateForInput(b.fromDate),
+            toDate: formatDateForInput(b.toDate),
             detail: b.detail || '',
             attachments: b.attachments || []
           })));
+        } else {
+          setValue('blocks', [
+            { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
+          ]);
         }
         setLoadFeedback({
           type: 'success',
@@ -216,6 +225,11 @@ const AddStatuteForm = () => {
       // Not found in database — keep SR and allow creating new record
       setCurrentRecordId(null);
       setValue('srNumber', cleanSr);
+      // Requirement 6 & 7: Keep last entered Law, Chapter, and Heading, but clear Section and reset Blocks to 1 clean empty block without attachments!
+      setValue('section', '');
+      setValue('blocks', [
+        { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
+      ]);
       setLoadFeedback({
         type: 'notFound',
         message: `SR #${cleanSr} not found in database. Ready to create new statute.`
@@ -236,19 +250,19 @@ const AddStatuteForm = () => {
 
   useEffect(() => {
     let isMounted = true;
-    settingService.getLaws({ status: 'active', limit: 5000 })
-      .then(res => {
-        if (isMounted && res?.data && Array.isArray(res.data)) {
-          const sorted = res.data
-            .map(l => l.name)
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-          setLawOptions(sorted);
-        }
-      })
-      .catch(err => {
-        console.warn('Could not load dynamic laws for AddStatuteForm:', err);
-      });
+    Promise.all([
+      statuteService.getDistinctLaws().catch(() => []),
+      settingService.getLaws({ status: 'active', limit: 5000 }).catch(() => ({ data: [] }))
+    ]).then(([statuteLaws, settingsRes]) => {
+      if (!isMounted) return;
+      const settingsLaws = Array.isArray(settingsRes?.data) ? settingsRes.data.map(l => l.name).filter(Boolean) : [];
+      const distinctStatuteLaws = Array.isArray(statuteLaws) ? statuteLaws.filter(Boolean) : [];
+      const combined = Array.from(new Set([...distinctStatuteLaws, ...settingsLaws]))
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+      setLawOptions(combined);
+    }).catch(err => {
+      console.warn('Could not load dynamic laws for AddStatuteForm:', err);
+    });
 
     settingService.getSections({ status: 'active', limit: 30000 })
       .then(res => {
@@ -282,11 +296,7 @@ const AddStatuteForm = () => {
     return () => { isMounted = false; };
   }, [isEdit, editData, setValue]);
 
-  const memoizedLawOptions = useMemo(() => (
-    lawOptions.slice(0, 1000).map((lawName, idx) => (
-      <option key={idx} value={lawName} />
-    ))
-  ), [lawOptions]);
+
 
   const sectionSelectOptions = useMemo(() => [
     { value: '', label: 'Select Section' },
@@ -338,6 +348,10 @@ const AddStatuteForm = () => {
           setValue('srNumber', targetSr, { shouldDirty: false });
         }
         setShowSuccess(true);
+        if (isSaveAndNextRef.current) {
+          isSaveAndNextRef.current = false;
+          handleStepSr(1);
+        }
         setTimeout(() => {
           setShowSuccess(false);
         }, 3500);
@@ -345,23 +359,22 @@ const AddStatuteForm = () => {
         await statuteService.createStatute(data);
         setShowSuccess(true);
         // Advance to new SR# for next entry (remain on page)
+        let nextSr = '';
         try {
           const res = await statuteService.getNextSr();
           const currentSrNum = parseInt(data.srNumber || '1', 10);
-          const nextSr = res?.nextSr ? String(res.nextSr) : String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
-          setAutoNewSr(nextSr);
-          setValue('srNumber', nextSr);
+          nextSr = res?.nextSr ? String(res.nextSr) : String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
         } catch {
           const currentSrNum = parseInt(data.srNumber || '1', 10);
-          const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
-          setAutoNewSr(nextSr);
-          setValue('srNumber', nextSr);
+          nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
         }
+        setAutoNewSr(nextSr);
+        setValue('srNumber', nextSr);
+        // Requirement 7: Keep Law, Chapter, and Heading of SR# 1 (last 3 entry to show also in next)!
+        // Only clear Section and reset Blocks to 1 clean empty block without attachments!
         setValue('section', '');
-        setValue('heading', '');
         setValue('blocks', [
-          { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] },
-          { id: `new-block-${Date.now()}-2`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] }
+          { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
         ]);
         setCurrentRecordId(null);
         setTimeout(() => {
@@ -411,10 +424,27 @@ const AddStatuteForm = () => {
             <button
               type="submit"
               form="statute-form"
+              onClick={() => { isSaveAndNextRef.current = false; }}
               disabled={isSubmitting}
               className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
             >
               <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Record' : 'Save Record')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                isSaveAndNextRef.current = true;
+                const form = document.getElementById('statute-form');
+                if (form) {
+                  if (form.requestSubmit) form.requestSubmit();
+                  else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                }
+              }}
+              disabled={isSubmitting}
+              className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              title={isEdit ? "Update this record and advance to next SR #" : "Save this record and advance to next SR #"}
+            >
+              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update + Next' : 'Save + Next')}</span>
             </button>
           </div>
         </div>
@@ -527,38 +557,44 @@ const AddStatuteForm = () => {
             </div>
 
             {/* Middle row: Law/Statute · Section */}
-            <div className="grid grid-cols-2 gap-3 items-end mb-3">
-              <FormField label="Law/Statute">
-                <Input
-                  variant="light"
-                  inputSize="sm"
-                  placeholder="Select or enter Law/Statute..."
-                  list="statute-laws-list"
-                  error={errors.law}
-                  {...register('law')}
-                />
-                <datalist id="statute-laws-list">
-                  {memoizedLawOptions}
-                </datalist>
-              </FormField>
-              <FormField label="Section">
-                <Input
-                  type="select"
-                  variant="light"
-                  inputSize="sm"
-                  options={sectionSelectOptions}
-                  error={errors.section}
-                  {...register('section')}
-                />
-              </FormField>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end mb-3">
+              <div className="sm:col-span-9 col-span-12">
+                <FormField label="Law/Statute">
+                  <Controller
+                    control={control}
+                    name="law"
+                    render={({ field }) => (
+                      <SearchableLawSelect
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={lawOptions}
+                        error={Boolean(errors.law)}
+                        placeholder="Select or enter Law/Statute..."
+                      />
+                    )}
+                  />
+                </FormField>
+              </div>
+              <div className="sm:col-span-3 col-span-12">
+                <FormField label="Section">
+                  <Input
+                    type="select"
+                    variant="light"
+                    inputSize="sm"
+                    options={sectionSelectOptions}
+                    error={errors.section}
+                    {...register('section')}
+                  />
+                </FormField>
+              </div>
             </div>
 
-            {/* Bottom row: Heading — full width */}
+            {/* Bottom row: Heading — full width with double size (rows=6) */}
             <div>
               <FormField label="Heading">
                 <textarea
-                  rows={3}
-                  className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm resize-y text-theme-main bg-theme-surface"
+                  rows={6}
+                  className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm resize-y text-theme-main bg-theme-surface min-h-[130px]"
                   placeholder="Enter heading..."
                   {...register('heading')}
                 />
@@ -569,15 +605,9 @@ const AddStatuteForm = () => {
 
           {/* Repeatable Content Blocks */}
           <FormSection compact>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-brand-orange font-semibold text-sm flex items-center gap-2">
-                <Layers className="w-4 h-4" /> Content Details ({blockFields.length} {blockFields.length === 1 ? 'Block' : 'Blocks'})
-              </div>
-            </div>
-
-            <div className="space-y-3">
+            <div className="space-y-4">
               {blockFields.map((block, index) => (
-                <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-3 relative">
+                <div key={block.id} className="bg-theme-surface border border-theme-border rounded-xl p-3 sm:p-4 relative shadow-2xs">
 
                   {/* Block header badge & actions */}
                   <div className="flex items-center gap-1.5 absolute top-2 right-2 z-10">
@@ -596,8 +626,8 @@ const AddStatuteForm = () => {
                     </span>
                   </div>
 
-                  {/* Section Heading — full width above the split */}
-                  <div className="mb-2 pt-6 sm:pt-4">
+                  {/* Section Heading — full width */}
+                  <div className="mb-2.5 pt-5 sm:pt-3">
                     <FormField label="Section Heading">
                       <Input
                         variant="light"
@@ -609,71 +639,58 @@ const AddStatuteForm = () => {
                     </FormField>
                   </div>
 
-                  <div className="flex gap-3 items-start">
+                  {/* From Date · To Date · Attachment on TOP of every block after Section Heading */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end mb-3">
+                    <FormField label="From Date">
+                      <Input
+                        type="date"
+                        variant="light"
+                        inputSize="sm"
+                        error={errors.blocks?.[index]?.fromDate}
+                        {...register(`blocks.${index}.fromDate`)}
+                      />
+                    </FormField>
 
-                    {/* Left column — fixed narrow width matching date pickers */}
-                    <div className="flex flex-col gap-2 shrink-0" style={{ width: '158px' }}>
-                      <FormField label="From Date">
-                        <Controller
-                          control={control}
-                          name={`blocks.${index}.fromDate`}
-                          render={({ field }) => (
-                            <DatePicker
-                              selectedDate={field.value}
-                              onChange={field.onChange}
-                              placeholder="mm/dd/yyyy"
-                              className="w-full h-[38px]"
-                            />
-                          )}
-                        />
-                      </FormField>
+                    <FormField label="To Date">
+                      <Input
+                        type="date"
+                        variant="light"
+                        inputSize="sm"
+                        error={errors.blocks?.[index]?.toDate}
+                        {...register(`blocks.${index}.toDate`)}
+                      />
+                    </FormField>
 
-                      <FormField label="To Date">
-                        <Controller
-                          control={control}
-                          name={`blocks.${index}.toDate`}
-                          render={({ field }) => (
-                            <DatePicker
-                              selectedDate={field.value}
-                              onChange={field.onChange}
-                              placeholder="mm/dd/yyyy"
-                              className="w-full h-[38px]"
-                            />
-                          )}
-                        />
-                      </FormField>
-
-                      <FormField label="Attachment">
-                        <Controller
-                          control={control}
-                          name={`blocks.${index}.attachments`}
-                          render={({ field }) => (
-                            <CompactFileButton value={field.value} onChange={field.onChange} />
-                          )}
-                        />
-                      </FormField>
-                    </div>
-
-                    {/* Right column — editor fills remaining space */}
-                    <div className="flex-1 flex flex-col min-h-[240px]">
-                      <FormField label="Detail" className="flex-1 flex flex-col">
-                        <div className="flex-1 relative z-0">
-                          <Controller
-                            control={control}
-                            name={`blocks.${index}.detail`}
-                            render={({ field }) => (
-                              <RichTextEditor
-                                value={field.value}
-                                onChange={field.onChange}
-                                minHeight={220}
-                              />
-                            )}
-                          />
-                        </div>
-                      </FormField>
-                    </div>
-
+                    <FormField label="Attachment">
+                      <Controller
+                        control={control}
+                        name={`blocks.${index}.attachments`}
+                        render={({ field }) => (
+                          <CompactFileButton value={field.value} onChange={field.onChange} />
+                        )}
+                      />
+                    </FormField>
                   </div>
+
+                  {/* Detail editor fills full width */}
+                  <div className="flex flex-col min-h-[240px]">
+                    <FormField label="Detail" className="flex-1 flex flex-col">
+                      <div className="flex-1 relative z-0">
+                        <Controller
+                          control={control}
+                          name={`blocks.${index}.detail`}
+                          render={({ field }) => (
+                            <RichTextEditor
+                              value={field.value}
+                              onChange={field.onChange}
+                              minHeight={240}
+                            />
+                          )}
+                        />
+                      </div>
+                    </FormField>
+                  </div>
+
                 </div>
               ))}
             </div>
@@ -682,7 +699,7 @@ const AddStatuteForm = () => {
             <div className="flex justify-end pt-2">
               <button
                 type="button"
-                onClick={() => append({ id: `block-${Date.now()}-${Math.random()}`, sectionHeading: '', fromDate: null, toDate: null, detail: '', attachments: [] })}
+                onClick={() => append({ id: `block-${Date.now()}-${Math.random()}`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] })}
                 className="px-4 py-2 rounded-lg text-xs font-bold bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange border border-brand-orange/40 flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5" />

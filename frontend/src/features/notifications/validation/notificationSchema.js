@@ -18,8 +18,11 @@ export const notificationSchema = z.object({
   number: z.string().min(1, 'Number is required'),
   sroNumber: z.string().min(1, 'SRO # is required'),
   subject: z.string().optional().default(''),
-
   lawStatute: z.string().optional().default(''),
   section: z.string().optional().default(''),
+  laws: z.array(z.object({
+    lawStatute: z.string().optional().default(''),
+    section: z.string().optional().default(''),
+  })).optional().default([]),
   blocks: z.array(notificationBlockSchema).optional().default([]),
 });

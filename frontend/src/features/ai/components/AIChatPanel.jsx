@@ -28,7 +28,16 @@ const AIChatPanel = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedCitation, setCopiedCitation] = useState(null);
+  const [copiedMsgIndex, setCopiedMsgIndex] = useState(null);
   const [attachments, setAttachments] = useState([]);   // [{ id, file, previewUrl, type, name, size }]
+
+  const handleCopyMessage = (text, idx) => {
+    let cleanStr = (text || '').replace(/```[a-z]*\n?/gi, '').replace(/```/g, '');
+    cleanStr = cleanStr.replace(/\*\*+/g, '');
+    navigator.clipboard.writeText(cleanStr);
+    setCopiedMsgIndex(idx);
+    setTimeout(() => setCopiedMsgIndex(null), 2500);
+  };
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const lastMessageRef = useRef(null);
@@ -41,15 +50,15 @@ const AIChatPanel = ({
   // When assistant gives a response, keep the user at the BEGINNING / TOP of the response
   // so the lawyer starts reading from line 1 and can scroll down easily.
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (displayMessages.length === 0) return;
 
     // Skip on initial mount if only default welcome message
-    if (prevMessagesCount.current === 0 && messages.length <= 1) {
-      prevMessagesCount.current = messages.length;
+    if (prevMessagesCount.current === 0 && displayMessages.length <= 1) {
+      prevMessagesCount.current = displayMessages.length;
       return;
     }
 
-    const lastMsg = messages[messages.length - 1];
+    const lastMsg = displayMessages[displayMessages.length - 1];
 
     if (lastMsg) {
       if (lastMsg.sender === 'assistant') {
@@ -303,10 +312,14 @@ th { background-color: #f2f2f2; font-weight: bold; }
     textareaRef.current?.focus();
   };
 
-  // Check if session has only the default initial message
-  const isFreshSession = messages.length === 1 && 
-    messages[0].sender === 'assistant' && 
-    (messages[0].text?.includes('SLD AI Legal Neural Engine') || messages[0].text?.includes('162,865') || messages[0].text?.includes('27,500'));
+  // Filter out any legacy initial intro messages from rendering
+  const displayMessages = messages.filter(m => !(
+    m.sender === 'assistant' && 
+    (m.text?.includes('SLD AI Legal Neural Engine') || m.text?.includes('162,865') || m.text?.includes('27,500') || m.text?.includes('Welcome to the **SLD AI Legal Core**'))
+  ));
+
+  // Check if session has no chat messages yet
+  const isFreshSession = displayMessages.length === 0;
 
   return (
     <div className={`flex flex-col h-full bg-white dark:bg-[#0f1117] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden ${className}`}>
@@ -424,7 +437,7 @@ th { background-color: #f2f2f2; font-weight: bold; }
                 <Scale className="w-6 h-6" />
               </div>
               <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-wide uppercase font-serif">
-                Superior Law Digest • AI Legal Chambers
+                SLD SYSTEM • AI LEGAL CHAMBERS
               </h1>
               <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xl mx-auto font-sans leading-relaxed">
                 Autonomous Constitutional & Tax Drafting Suite and Precedent Search Engine designed exclusively for High Court & Supreme Court Advocates.
@@ -479,8 +492,8 @@ th { background-color: #f2f2f2; font-weight: bold; }
 
           </div>
         ) : (
-          messages.map((msg, index) => {
-            const isLastMessage = index === messages.length - 1;
+          displayMessages.map((msg, index) => {
+            const isLastMessage = index === displayMessages.length - 1;
             const isUser = msg.sender === 'user';
             const analysis = msg.legalAnalysis;
             const matched = analysis?.matchedCase;
@@ -714,6 +727,55 @@ th { background-color: #f2f2f2; font-weight: bold; }
                     </div>
                   )}
 
+                  {/* Assistant Footer: Copy Action & Contextual Follow-up Chips (Elfsight Style) */}
+                  {!isUser && (
+                    <div className="pt-2 flex flex-col gap-2.5">
+                      {/* Copy & Quick Action Bar */}
+                      <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMessage(msg.text, index)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                          title="Copy response"
+                        >
+                          {copiedMsgIndex === index ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-500" />
+                              <span className="text-emerald-500 font-semibold">Copied to clipboard</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy response</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Suggested Follow-up Questions / Prompts (Latest assistant message) */}
+                      {index === displayMessages.length - 1 && (msg.followUpQuestions || msg.legalAnalysis?.followUpSuggestions)?.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                          <span className="w-full text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-amber-500" />
+                            Suggested Follow-up:
+                          </span>
+                          {(msg.followUpQuestions || msg.legalAnalysis?.followUpSuggestions).map((suggestion, sIdx) => (
+                            <button
+                              key={sIdx}
+                              type="button"
+                              disabled={isLoading}
+                              onClick={() => onSendMessage(suggestion, [])}
+                              className="text-left text-xs bg-slate-100 dark:bg-slate-800/80 hover:bg-amber-500/10 hover:border-amber-500/40 border border-slate-200 dark:border-slate-700/70 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 rounded-lg px-3 py-1.5 transition-all flex items-center gap-1.5 group cursor-pointer"
+                            >
+                              <span>{suggestion}</span>
+                              <ChevronRight className="w-3 h-3 text-slate-400 group-hover:text-amber-500 transition-transform group-hover:translate-x-0.5" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                 </div>
 
               </div>
@@ -729,10 +791,10 @@ th { background-color: #f2f2f2; font-weight: bold; }
             </div>
             <div>
               <span className="font-bold text-slate-900 dark:text-slate-200 block text-xs sm:text-sm">
-                Scanning Supreme Court, High Court & Tribunal Database...
+                Analyzing query & cross-referencing SLD legal archives...
               </span>
               <span className="text-[11px] text-slate-500">
-                Cross-referencing 162,865+ verified judgments, ratio decidendi & statutory rules
+                Evaluating Pakistani statutes, judicial precedents & synthesizing response...
               </span>
             </div>
           </div>

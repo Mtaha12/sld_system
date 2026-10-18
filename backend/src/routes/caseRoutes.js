@@ -2,7 +2,8 @@ import express from 'express';
 import { 
   getCases, getCaseById, getCaseBySld, createCase, 
   updateCase, deleteCase, deleteMultiple,
-  searchCases, getMaxPage, getNextSld
+  searchCases, getMaxPage, getNextSld,
+  getCaseDatabaseStats
 } from '../controllers/caseController.js';
 import { protect, requireAdmin, checkCaseAccess } from '../middleware/authMiddleware.js';
 
@@ -13,6 +14,7 @@ router.use(protect, checkCaseAccess);
 
 // Read-only actions (Accessible to both standard Users and Administrators)
 router.get('/', getCases);
+router.get('/database-counts', getCaseDatabaseStats); // must be before /:id
 router.post('/search', searchCases);
 router.get('/max-page', getMaxPage);   // must be before /:id
 router.get('/next-sld', getNextSld);   // must be before /:id

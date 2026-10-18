@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { 
-  FileText, Calendar, Building2, MapPin, Mail, Phone, 
+import {
+  FileText, Calendar, Building2, MapPin, Mail, Phone,
   Info, BookOpen, ArrowRight, Check, Copy, User, Building, Download, Globe, ExternalLink, ShieldCheck, Sparkles
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -67,7 +67,7 @@ const CopyableDetail = ({ icon: Icon, label, value }) => {
         <p className="text-[11px] text-theme-muted font-medium">{label}</p>
         <p className="text-xs text-theme-main font-semibold break-words">{value}</p>
       </div>
-      <button 
+      <button
         onClick={handleCopy}
         title="Copy to clipboard"
         className="p-1 rounded-md text-gray-400 hover:text-[#f15a24] hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all opacity-100"
@@ -99,7 +99,7 @@ const CompactAccountRow = ({ b }) => {
           <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate leading-none mt-0.5">{b.title}</span>
         </div>
       </div>
-      <button 
+      <button
         onClick={handleCopy}
         title="Click to copy account number"
         className="flex items-center gap-1 cursor-pointer bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800/40 px-2 py-0.5 rounded text-[11px] font-bold text-emerald-700 dark:text-emerald-300 transition-colors shrink-0 font-mono"
@@ -167,10 +167,10 @@ const InfoWidgets = () => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-6 items-stretch">
-      
+
       {/* 1. Subscription Fee Column - Compact, Executive & Zero Waste Space */}
       <div className="bg-gradient-to-b from-[#fffaf4] to-[#fff3e7] dark:from-[#1b1511] dark:to-[#14100c] border border-orange-200/80 dark:border-orange-900/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
-        
+
         {/* Header */}
         <div className="px-4 py-3 border-b border-orange-200/70 dark:border-orange-900/40 flex items-center justify-between bg-white/60 dark:bg-theme-surface/50 backdrop-blur-xs">
           <div className="flex items-center gap-2.5">
@@ -187,10 +187,10 @@ const InfoWidgets = () => {
             31 AUG 2026
           </span>
         </div>
-        
+
         {/* Content */}
         <div className="p-3.5 flex flex-col gap-2.5 flex-1 justify-between">
-          
+
           {/* Refined Compact Price Row */}
           <div className="py-2 px-3 rounded-xl bg-orange-500/10 dark:bg-orange-500/15 border border-orange-200/80 dark:border-orange-800/40 flex items-center justify-between">
             <div className="flex items-baseline gap-1.5">
@@ -202,13 +202,13 @@ const InfoWidgets = () => {
               <Check className="w-2.5 h-2.5" /> Official Rate
             </span>
           </div>
-          
+
           {/* Warning Alert */}
-          <div className="flex items-start gap-1.5 text-[11px] font-semibold text-amber-900 dark:text-amber-200 bg-amber-500/10 border-l-3 border-[#f15a24] px-2.5 py-1.5 rounded-r-lg leading-snug">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#f15a24] shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2 text-[11px] font-semibold text-amber-950 dark:text-amber-200 bg-orange-500/10 dark:bg-orange-500/15 border border-orange-200/80 dark:border-orange-800/40 p-2.5 rounded-xl leading-snug">
+            <ShieldCheck className="w-4 h-4 text-[#f15a24] shrink-0 mt-0.5" />
             <span>Pay subscription fee <strong>only</strong> in company accounts below. Otherwise Company is not responsible.</span>
           </div>
-          
+
           {/* Bank Accounts Grid/List */}
           <div className="flex flex-col gap-1.5">
             {[
@@ -221,7 +221,7 @@ const InfoWidgets = () => {
             ))}
           </div>
         </div>
-        
+
         {/* Footer Info Strip */}
         <div className="border-t border-orange-200/70 dark:border-orange-900/40 bg-white/70 dark:bg-theme-surface/70 px-3.5 py-2 flex items-center justify-between text-[11px] text-gray-700 dark:text-gray-300">
           <div className="flex items-center gap-1 truncate max-w-[58%]">
@@ -237,7 +237,7 @@ const InfoWidgets = () => {
 
       {/* 2. Contact Us Column - Compact, Ultra-Attractive & Executive */}
       <div className="bg-gradient-to-b from-[#f5f9ff] to-[#eaf3ff] dark:from-[#111827] dark:to-[#0f172a] border border-blue-200/80 dark:border-blue-900/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
-        
+
         {/* Header */}
         <div className="px-4 py-3 border-b border-blue-200/70 dark:border-blue-900/40 flex items-center justify-between bg-white/60 dark:bg-theme-surface/50 backdrop-blur-xs">
           <div className="flex items-center gap-2.5">
@@ -250,54 +250,54 @@ const InfoWidgets = () => {
             </div>
           </div>
           <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-950/70 border border-blue-200/80 px-2 py-0.5 rounded-full shadow-2xs font-mono">
-            Direct Helpline
+            Helpline
           </span>
         </div>
-        
+
         {/* Content */}
         <div className="p-3.5 flex flex-col gap-2 flex-1 justify-between">
-          
+
           {/* Executive 1: CEO */}
           <div className="p-2.5 rounded-xl bg-white/80 dark:bg-theme-surface/80 border border-blue-100 dark:border-blue-900/30 shadow-2xs hover:border-blue-300 transition-colors">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 shrink-0 font-black text-xs">
                   HR
                 </div>
-                <div className="truncate">
-                  <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight truncate">Haroon Ahmad Rafiq</h3>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight">Haroon Ahmad Rafiq</h3>
+                  <p className="text-[10px] text-gray-600 dark:text-gray-400 flex items-center gap-1 leading-tight mt-0.5">
                     <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" /> Head Office: Bank Road, Saddar-Rawalpindi
                   </p>
                 </div>
               </div>
-              <span className="text-[9px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 px-1.5 py-0.5 rounded shrink-0">
-                CEO / MD
+              <span className="text-[9px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 px-2 py-0.5 rounded shrink-0">
+                CEO
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5 mt-2">
-              <a href="mailto:info@sldsystem.com" className="flex items-center justify-center gap-1.5 p-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-100/80 text-[11px] font-bold text-blue-900 dark:text-blue-200 transition-colors truncate">
+            <div className="flex items-center gap-1.5 mt-2">
+              <a href="mailto:info@sldsystem.com" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors whitespace-nowrap">
                 <Mail className="w-3 h-3 text-blue-600 shrink-0" />
-                <span className="truncate">info@sldsystem.com</span>
+                <span>info@sldsystem.com</span>
               </a>
-              <a href="tel:03215390007" className="flex items-center justify-center gap-1.5 p-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-100/80 text-[11px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono">
+              <a href="tel:03215390007" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono whitespace-nowrap">
                 <Phone className="w-3 h-3 text-blue-600 shrink-0" />
                 <span>0321-5390007-8</span>
               </a>
             </div>
           </div>
-          
+
           {/* Executive 2: Sales Manager */}
           <div className="p-2.5 rounded-xl bg-white/80 dark:bg-theme-surface/80 border border-blue-100 dark:border-blue-900/30 shadow-2xs hover:border-blue-300 transition-colors">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 shrink-0 font-black text-xs">
                   SA
                 </div>
-                <div className="truncate">
-                  <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight truncate">Abdul Sami Abbasi</h3>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight">Abdul Sami Abbasi</h3>
+                  <p className="text-[10px] text-gray-600 dark:text-gray-400 flex items-center gap-1 leading-tight mt-0.5">
                     <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" /> Karachi Branch: Al-Ayesha Chambers, Saddar
                   </p>
                 </div>
@@ -307,12 +307,12 @@ const InfoWidgets = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5 mt-2">
-              <a href="mailto:sami@sldsystem.com" className="flex items-center justify-center gap-1.5 p-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-100/80 text-[11px] font-bold text-blue-900 dark:text-blue-200 transition-colors truncate">
+            <div className="flex items-center gap-1.5 mt-2">
+              <a href="mailto:sami@sldsystem.com" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors whitespace-nowrap">
                 <Mail className="w-3 h-3 text-blue-600 shrink-0" />
-                <span className="truncate">sami@sldsystem.com</span>
+                <span>sami@sldsystem.com</span>
               </a>
-              <a href="tel:03258986393" className="flex items-center justify-center gap-1.5 p-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-100/80 text-[11px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono">
+              <a href="tel:03258986393" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono whitespace-nowrap">
                 <Phone className="w-3 h-3 text-blue-600 shrink-0" />
                 <span>0325-8986393</span>
               </a>
@@ -335,21 +335,21 @@ const InfoWidgets = () => {
 
         {/* Footer Actions */}
         <div className="border-t border-blue-200/70 dark:border-blue-900/40 bg-white/70 dark:bg-theme-surface/70 px-3 py-2 flex items-center justify-between gap-1 text-[11px] font-extrabold">
-          <button 
+          <button
             onClick={() => setIsAboutUsModalOpen(true)}
             className="flex items-center gap-1 text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors cursor-pointer px-1 py-0.5 rounded"
           >
             <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" /> <span>About Us</span>
           </button>
           <span className="text-gray-300 dark:text-gray-700">•</span>
-          <button 
+          <button
             onClick={() => setIsBrochureModalOpen(true)}
             className="flex items-center gap-1 text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors cursor-pointer px-1 py-0.5 rounded"
           >
             <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" /> <span>SLD Brochure</span>
           </button>
           <span className="text-gray-300 dark:text-gray-700">•</span>
-          <button 
+          <button
             onClick={() => setIsContactModalOpen(true)}
             className="flex items-center gap-1 text-gray-800 dark:text-gray-200 hover:text-blue-600 transition-colors cursor-pointer px-1 py-0.5 rounded"
           >
@@ -360,7 +360,7 @@ const InfoWidgets = () => {
 
       {/* 3. Right Column: Live Updates & Youtube Video - Balanced Height */}
       <div className="flex flex-col gap-4 justify-between">
-        
+
         {/* Updates Card (Whatsapp Updates & Legal Updates) */}
         <div className="bg-gradient-to-b from-[#f2fcf5] to-[#e7f8ec] dark:from-[#0d1f14] dark:to-[#0a1810] border border-green-200/80 dark:border-green-900/40 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all p-3.5">
           <div className="flex items-center justify-between mb-2">
@@ -372,44 +372,42 @@ const InfoWidgets = () => {
                   <Globe className="w-5 h-5 text-emerald-600" />
                 )}
               </div>
-              
+
               {/* Tab Selector: WhatsApp vs Legal Updates */}
               <div className="flex items-center bg-white/90 dark:bg-theme-surface border border-gray-200 dark:border-theme-border rounded-lg p-0.5 shadow-2xs">
                 <button
                   onClick={() => { setActiveUpdatesTab('whatsapp'); setCurrentUpdateIndex(0); }}
-                  className={`px-2 py-0.5 text-[11px] font-bold rounded cursor-pointer transition-colors ${
-                    activeUpdatesTab === 'whatsapp'
+                  className={`px-2 py-0.5 text-[11px] font-bold rounded cursor-pointer transition-colors ${activeUpdatesTab === 'whatsapp'
                       ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-gray-600 dark:text-gray-300 hover:text-emerald-600'
-                  }`}
+                    }`}
                 >
                   WhatsApp
                 </button>
                 <button
                   onClick={() => { setActiveUpdatesTab('website'); setCurrentUpdateIndex(0); }}
-                  className={`px-2 py-0.5 text-[11px] font-bold rounded cursor-pointer transition-colors ${
-                    activeUpdatesTab === 'website'
+                  className={`px-2 py-0.5 text-[11px] font-bold rounded cursor-pointer transition-colors ${activeUpdatesTab === 'website'
                       ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-gray-600 dark:text-gray-300 hover:text-emerald-600'
-                  }`}
+                    }`}
                 >
                   Legal Updates
                 </button>
               </div>
             </div>
 
-            <Link 
+            <Link
               to={activeUpdatesTab === 'whatsapp' ? '/whatsapp-updates' : '/updates'}
               className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-emerald-200 dark:border-emerald-800/40 rounded text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 hover:bg-emerald-50 transition-colors shrink-0"
             >
               See All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          
+
           {/* Animated Slider of Live Records */}
           <div className="relative overflow-hidden h-[54px] w-full mt-1">
             {currentList.map((update, idx) => (
-              <div 
+              <div
                 key={update.mongoId || update.id || idx}
                 className="absolute inset-0 flex items-start gap-2.5 transition-transform duration-500 ease-in-out w-full"
                 style={{ transform: `translateX(${(idx - currentUpdateIndex) * 100}%)` }}
@@ -429,10 +427,10 @@ const InfoWidgets = () => {
                       </span>
                     )}
                     {update.url && (
-                      <a 
-                        href={update.url} 
-                        target="_blank" 
-                        rel="noreferrer" 
+                      <a
+                        href={update.url}
+                        target="_blank"
+                        rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="text-blue-600 hover:underline inline-flex items-center gap-0.5 text-[9px] font-bold"
                       >
@@ -470,30 +468,30 @@ const InfoWidgets = () => {
                 )}
               </div>
             </div>
-            <Link 
+            <Link
               to="/youtube-updates"
               className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-red-200 dark:border-red-800/40 rounded text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 hover:bg-red-50 hover:border-red-300 transition-colors shadow-2xs"
             >
               See All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          
+
           <div className="p-3 pt-2 flex-1 flex flex-col justify-between">
-            <a 
-              href={latestVideo.url || 'https://www.youtube.com'} 
-              target="_blank" 
+            <a
+              href={latestVideo.url || 'https://www.youtube.com'}
+              target="_blank"
               rel="noreferrer"
               className="group block cursor-pointer"
               title="Click to watch on YouTube"
             >
               {/* 16:9 Uncut Video Player Frame */}
               <div className="relative w-full aspect-[16/9] bg-black rounded-xl overflow-hidden border border-red-200/70 dark:border-red-950 shadow-sm">
-                <img 
-                  src={youtubeThumbnail} 
-                  alt={latestVideo.caption || "Youtube Thumbnail"} 
+                <img
+                  src={youtubeThumbnail}
+                  alt={latestVideo.caption || "Youtube Thumbnail"}
                   className="w-full h-full object-contain bg-black transition-transform duration-500 group-hover:scale-102"
                 />
-                
+
                 {/* Badges on Top */}
                 <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
                   <span className="px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-white font-mono text-[9px] font-bold uppercase border border-white/20">
@@ -509,14 +507,14 @@ const InfoWidgets = () => {
                 {/* Center Play Button Overlay */}
                 <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 transition-colors flex items-center justify-center">
                   <div className="w-11 h-11 bg-red-600 rounded-full flex items-center justify-center text-white shadow-xl group-hover:scale-110 group-hover:bg-red-500 transition-all border-2 border-white/90">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current ml-0.5"><path d="M8 5v14l11-7z"/></svg>
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current ml-0.5"><path d="M8 5v14l11-7z" /></svg>
                   </div>
                 </div>
               </div>
 
               {/* Dedicated Clear & Highly Readable Title Container */}
               <div className="mt-2.5 px-0.5 flex flex-col gap-1">
-                <p 
+                <p
                   className="text-xs sm:text-[13px] font-heading font-extrabold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors"
                   title={latestVideo.caption}
                 >
@@ -532,7 +530,7 @@ const InfoWidgets = () => {
             </a>
           </div>
         </div>
-        
+
       </div>
 
       {/* Contact Services Modal - Attached Picture */}
@@ -548,8 +546,8 @@ const InfoWidgets = () => {
             <span className="text-xs text-theme-muted font-medium">
               Official Email & WhatsApp Service Announcement
             </span>
-            <a 
-              href={sldEmailWhatsappBanner} 
+            <a
+              href={sldEmailWhatsappBanner}
               download="SLD_Email_WhatsApp_Service.jpg"
               className="flex items-center gap-1.5 px-4 py-2 bg-[#f15a24] hover:bg-[#d44e35] text-white rounded-lg transition-colors font-bold text-xs shadow-sm"
             >
@@ -559,9 +557,9 @@ const InfoWidgets = () => {
         }
       >
         <div className="p-2 sm:p-3 bg-gray-50 dark:bg-black/20 flex flex-col items-center justify-center">
-          <img 
-            src={sldEmailWhatsappBanner} 
-            alt="Super Law Data System Updating Service Through Email & WhatsApp" 
+          <img
+            src={sldEmailWhatsappBanner}
+            alt="Super Law Data System Updating Service Through Email & WhatsApp"
             className="w-full max-h-[75vh] object-contain rounded-xl border border-theme-border shadow-sm"
           />
         </div>
@@ -579,8 +577,8 @@ const InfoWidgets = () => {
         icon={BookOpen}
         maxWidth="max-w-4xl"
         footer={
-          <a 
-            href={sldBroucher} 
+          <a
+            href={sldBroucher}
             download="SLD_Brochure.png"
             className="flex items-center gap-2 px-4 py-2 bg-[#f15a24] text-white rounded-lg hover:bg-orange-600 transition-colors font-medium text-sm"
           >
@@ -589,9 +587,9 @@ const InfoWidgets = () => {
         }
       >
         <div className="p-4 bg-gray-50 dark:bg-black/20 flex justify-center items-center min-h-[50vh]">
-          <img 
-            src={sldBroucher} 
-            alt="SLD Brochure" 
+          <img
+            src={sldBroucher}
+            alt="SLD Brochure"
             className="max-w-full max-h-[70vh] object-contain rounded border border-gray-200 dark:border-theme-border shadow-sm"
           />
         </div>

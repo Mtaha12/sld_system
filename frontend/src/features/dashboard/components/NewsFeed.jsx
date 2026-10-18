@@ -49,7 +49,7 @@ const detectTag = (title = '') => {
 };
 
 const NewsFeed = () => {
-  const [activeTab, setActiveTab] = useState('updates'); // 'updates' | 'news'
+  const [activeTab, setActiveTab] = useState('news'); // 'news' (default) | 'updates'
   const [updatesList, setUpdatesList] = useState([]);
   const [newsList, setNewsList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,7 +142,7 @@ const NewsFeed = () => {
             }`}
           >
             <Newspaper className="w-3.5 h-3.5" />
-            <span>Legal News</span>
+            <span>Tax News</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
               activeTab === 'news'
                 ? 'bg-white/20 text-white'

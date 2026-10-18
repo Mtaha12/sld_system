@@ -139,8 +139,22 @@ const CaseViewPage = () => {
     setTimeout(() => setCopiedCitation(false), 2400);
   };
 
+  const hasValidJudgment = useMemo(() => {
+    if (!caseData?.judgment || typeof caseData.judgment !== 'string') return false;
+    const trimmed = caseData.judgment.trim();
+    if (trimmed.length === 0) return false;
+    if (trimmed.includes('--- JUDICIAL ORDER & REPORTED LEGAL HEADNOTE ---') || 
+        trimmed.includes('--- RECORD SUMMARY & JUDICIAL DETERMINATION ---')) {
+      return false;
+    }
+    if (caseData.headNote && trimmed === caseData.headNote.trim()) {
+      return false;
+    }
+    return true;
+  }, [caseData]);
+
   const handleCopyJudgment = () => {
-    const textToCopy = caseData?.judgment || caseData?.headNote || citationString;
+    const textToCopy = hasValidJudgment ? caseData.judgment : '';
     if (!textToCopy) return;
     navigator.clipboard.writeText(textToCopy);
     setCopiedJudgment(true);
@@ -157,7 +171,7 @@ const CaseViewPage = () => {
         </div>
         <div className="flex flex-col items-center">
           <p className="text-sm font-serif font-bold text-slate-800 dark:text-slate-200">
-            Accessing Supreme Law Digest Archive...
+            Accessing SLD System Archive...
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Retrieving verified judgment records and parallel citations
@@ -519,33 +533,21 @@ const CaseViewPage = () => {
             </section>
           )}
 
-          {/* 6. VERBATIM JUDGMENT / OPERATIVE ORDER (Divider banner removed as requested) */}
-          <section className="mt-6 pt-4 space-y-4">
-            
-            {/* Operative Transcript Flow with Dynamic Font Size Rescaling */}
-            <div 
-              className="word-document-content font-serif text-stone-900 dark:text-stone-100 text-justify print:text-black transition-all"
-              style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
-            >
-              {caseData.judgment && caseData.judgment.trim().length > 0 ? (
+          {/* 6. VERBATIM JUDGMENT / OPERATIVE ORDER */}
+          {hasValidJudgment ? (
+            <section className="mt-6 pt-4 space-y-4">
+              <div 
+                className="word-document-content font-serif text-stone-900 dark:text-stone-100 text-justify print:text-black transition-all"
+                style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
+              >
                 <div 
                   dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(caseData.judgment) }}
                   className="word-document-content font-serif"
                   style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
                 />
-              ) : (
-                <div className="p-6 rounded-xl bg-stone-100/60 dark:bg-stone-900/50 border border-stone-200 dark:border-stone-800 text-center space-y-2 my-4">
-                  <h3 className="text-sm font-serif font-bold text-stone-800 dark:text-stone-200">
-                    Official Judicial Digest Record
-                  </h3>
-                  <p className="text-xs text-stone-500 dark:text-stone-400 max-w-lg mx-auto leading-relaxed">
-                    This decision has been indexed and digested directly from the official records of the {caseData.court || 'Court of Record'}. The full operative ratio and statutory holdings are set out in the certified syllabus and principle of law above.
-                  </p>
-                </div>
-              )}
-            </div>
-
-          </section>
+              </div>
+            </section>
+          ) : null}
 
           {/* 7. AUTHENTIC LAW REPORTER VERIFICATION FOOTER (Hidden in print) */}
           <footer className="mt-12 pt-6 border-t border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3 text-[11px] font-sans text-stone-500 dark:text-stone-400 footer-print-hide print:!hidden" data-print-hide="true">
@@ -553,7 +555,7 @@ const CaseViewPage = () => {
               <span className="font-semibold text-emerald-600 dark:text-emerald-400 footer-print-hide print:!hidden">✓ Certified verbatim electronic transcript</span>
             </div>
             <div className="font-serif font-bold text-stone-600 dark:text-stone-300 footer-print-hide print:!hidden">
-              Supreme Law Digest • Record Ref: #{caseData.sldNumber || caseData.caseId}
+              SLD System • Record Ref: #{caseData.sldNumber || caseData.caseId}
             </div>
           </footer>
 

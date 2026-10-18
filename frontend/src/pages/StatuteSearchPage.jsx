@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Eye, BookOpen, AlertCircle, RotateCcw, X, Search as SearchIcon, FileText } from 'lucide-react';
+import { Eye, BookOpen, AlertCircle, RotateCcw, X, Search as SearchIcon, FileText, Paperclip } from 'lucide-react';
 import { statuteService } from '../features/statutes/services/statuteService';
 import { settingService } from '../services/settingService';
-import { LAW_OPTIONS } from '../data/laws';
 import { ALL_SECTIONS } from '../data/sections';
+import SearchableLawSelect from '../features/statutes/components/SearchableLawSelect';
 import Modal from '../components/ui/Modal';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
@@ -125,31 +125,22 @@ const StatuteSearchPage = () => {
     }
   }, [urlSearchParams]);
 
-  // Fetch Laws from backend, with local dataset fallback
+  // Fetch ONLY Laws that actually have records/data in the statutes database (Requirement 3)
   useEffect(() => {
     let isMounted = true;
-    settingService.getLaws({ status: 'active', limit: 5000 })
-      .then(res => {
-        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          const list = res.data
-            .map(l => ({ value: l.name, label: l.name }))
-            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+    statuteService.getDistinctLaws()
+      .then(laws => {
+        if (isMounted && Array.isArray(laws)) {
+          const list = laws
+            .map(l => String(l || '').trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+            .map(l => ({ value: l, label: l }));
           setLawOptions(list);
-        } else {
-          // Fallback to static law options
-          const fallback = LAW_OPTIONS.filter(l => l.value)
-            .map(l => ({ value: l.value, label: l.label }))
-            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
-          setLawOptions(fallback);
         }
       })
-      .catch(() => {
-        if (isMounted) {
-          const fallback = LAW_OPTIONS.filter(l => l.value)
-            .map(l => ({ value: l.value, label: l.label }))
-            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
-          setLawOptions(fallback);
-        }
+      .catch(err => {
+        console.warn('Could not load distinct statute laws:', err);
       });
 
     settingService.getSections({ status: 'active', limit: 30000 })
@@ -236,6 +227,82 @@ const StatuteSearchPage = () => {
     }
   };
 
+  const getAttachmentUrl = (f) => {
+    if (!f) return null;
+    if (typeof f === 'string') {
+      if (f.startsWith('http://') || f.startsWith('https://') || f.startsWith('data:') || f.startsWith('blob:')) return f;
+      return f.startsWith('/') ? f : `/uploads/${f}`;
+    }
+    if (f.url) return f.url;
+    if (f.path) return f.path.startsWith('/') ? f.path : `/${f.path}`;
+    if (f.name) return `/uploads/${f.name}`;
+    return null;
+  };
+
+  const findRowAttachment = (block, statute) => {
+    if (Array.isArray(block?.attachments) && block.attachments.length > 0) {
+      return block.attachments[0];
+    }
+    if (block?.attachment) return block.attachment;
+    if (Array.isArray(statute?.attachments) && statute.attachments.length > 0) {
+      return statute.attachments[0];
+    }
+    if (statute?.attachment) return statute.attachment;
+    if (statute?.attachmentName) return statute.attachmentName;
+    return null;
+  };
+
+  const formatDisplayDate = (dVal) => {
+    if (!dVal) return '—';
+    const d = new Date(dVal);
+    if (isNaN(d.getTime())) {
+      return String(dVal);
+    }
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const flattenedRows = useMemo(() => {
+    if (!Array.isArray(statuteResults)) return [];
+    const rows = [];
+    statuteResults.forEach((s, sIdx) => {
+      const blocks = Array.isArray(s.blocks) && s.blocks.length > 0
+        ? s.blocks
+        : [{ sectionHeading: s.sectionHeading || s.heading, fromDate: s.dated || s.fromDate, attachments: s.attachments || [] }];
+
+      blocks.forEach((b, bIdx) => {
+        const att = findRowAttachment(b, s);
+        rows.push({
+          rowKey: `${s.id || s._id || sIdx}-${bIdx}`,
+          statute: s,
+          block: b,
+          blockIndex: bIdx,
+          totalBlocks: blocks.length,
+          srNumber: s.srNumber || s.id || (sIdx + 1),
+          law: s.law || '—',
+          chapter: s.chapter || '—',
+          section: s.section || '—',
+          sectionHeading: b.sectionHeading || s.heading || s.sectionHeading || '—',
+          fromDate: b.fromDate || s.dated || s.fromDate || '',
+          attachment: att
+        });
+      });
+    });
+    return rows;
+  }, [statuteResults]);
+
+  const handleRowViewAction = (row) => {
+    const attUrl = getAttachmentUrl(row.attachment);
+    if (attUrl) {
+      window.open(attUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      const id = row.statute?.mongoId || row.statute?._id || row.statute?.id || row.statute?.statuteId || row.statute?.srNumber;
+      window.open(`/statutes/view/${id}`, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 py-3 animate-fade-in" onKeyDown={handleKeyDown}>
       {/* ── Page Title ───────────────────────────────────────────────────── */}
@@ -273,11 +340,11 @@ const StatuteSearchPage = () => {
           {/* Row 1: Select Law (wide) · Enter Section */}
           <div className="flex flex-col sm:flex-row gap-4 mb-4 items-center">
             <div className="w-full sm:w-[70%]">
-              <SelectField
+              <SearchableLawSelect
                 value={selectLaw}
-                onChange={(e) => setSelectLaw(e.target.value)}
+                onChange={setSelectLaw}
                 options={lawOptions}
-                placeholder="Select Law"
+                placeholder="Select or enter Law/Statute..."
               />
             </div>
             <div className="w-full sm:flex-1">
@@ -420,11 +487,11 @@ const StatuteSearchPage = () => {
             </div>
 
             <span className="px-2.5 py-1 bg-[#a8cfe0] text-[#1e3a5a] text-xs font-bold rounded-full">
-              {statuteResults.length} Statute Record{statuteResults.length !== 1 ? 's' : ''} Found
+              {flattenedRows.length} Statute Provision{flattenedRows.length !== 1 ? 's' : ''} Found
             </span>
           </div>
 
-          {statuteResults.length === 0 ? (
+          {flattenedRows.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-gray-500">
               <BookOpen className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
               <p className="text-sm font-medium">No Statute Provisions found matching this search criteria.</p>
@@ -443,68 +510,51 @@ const StatuteSearchPage = () => {
                     <th className="px-3 py-2.5 font-semibold">Law</th>
                     <th className="px-3 py-2.5 font-semibold">Chapter</th>
                     <th className="px-3 py-2.5 font-semibold">Section</th>
-                    <th className="px-3 py-2.5 font-semibold">Heading / Subject</th>
-                    <th className="px-3 py-2.5 font-semibold">Department</th>
-                    <th className="px-3 py-2.5 font-semibold text-center">Attachment</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[280px]">Heading</th>
+                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Date</th>
                     <th className="px-3 py-2.5 font-semibold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {statuteResults.map((s, idx) => {
-                    const hasAtt = (Array.isArray(s.attachments) && s.attachments.length > 0) ||
-                                   Boolean(s.attachment) ||
-                                   Boolean(s.attachmentName) ||
-                                   (Array.isArray(s.blocks) && s.blocks.some(b => Array.isArray(b?.attachments) ? b.attachments.length > 0 : Boolean(b?.attachment)));
-
-                    return (
-                      <tr key={s.id || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                        <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
-                        <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200">
-                          {s.srNumber || s.id}
-                        </td>
-                        <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 max-w-[200px] font-medium">
-                          {s.law || '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                          {s.chapter || '—'}
-                        </td>
-                        <td className="px-3 py-2.5 font-bold text-brand-orange whitespace-nowrap">
-                          Section {s.section || '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[280px]">
-                          <p className="line-clamp-2">{s.heading || s.sectionHeading || '—'}</p>
-                        </td>
-                        <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                          {s.department || 'Tax'}
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          {hasAtt ? (
-                            <button
-                              type="button"
-                              onClick={() => setViewStatute(s)}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#7c4dff]/20 hover:bg-[#7c4dff]/30 text-[#651fff] dark:text-[#b388ff] border border-[#7c4dff]/40 shadow-sm transition-all cursor-pointer"
-                              title="View Attachment"
-                            >
-                              <Eye className="w-3 h-3 shrink-0" />
-                              <span>view</span>
-                            </button>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <a
-                            href={`/statutes/view/${s.mongoId || s._id || s.id || s.statuteId || s.srNumber}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
-                          >
-                            <Eye className="w-3 h-3" /> View Statute
-                          </a>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {flattenedRows.map((row, idx) => (
+                    <tr key={row.rowKey || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                      <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
+                      <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                        {row.srNumber}
+                        {row.totalBlocks > 1 && (
+                          <span className="ml-1 text-[10px] text-gray-400 font-normal">
+                            (B{row.blockIndex + 1})
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 max-w-[220px] font-medium">
+                        {row.law}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                        {row.chapter}
+                      </td>
+                      <td className="px-3 py-2.5 font-bold text-brand-orange whitespace-nowrap">
+                        {String(row.section || '—').replace(/^section\s+/i, '')}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-700 dark:text-gray-200 min-w-[280px]">
+                        <p className="line-clamp-2 font-medium">{row.sectionHeading}</p>
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 whitespace-nowrap font-medium">
+                        {formatDisplayDate(row.fromDate)}
+                      </td>
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleRowViewAction(row)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
+                          title={row.attachment ? "Open Attachment in new tab" : "View Statute in new tab"}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View Statute</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
