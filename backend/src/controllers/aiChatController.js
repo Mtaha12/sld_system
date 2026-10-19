@@ -3052,11 +3052,17 @@ export const isPakistaniLegalQuery = (queryText) => {
   if (!queryText || typeof queryText !== 'string') return false;
   const q = queryText.trim().toLowerCase();
 
-  // 1. Explicit Case Citation patterns (SLD, PTD, SCMR, PLD, CLC, MLD, CLD, TAX, PTCL, PLC, YLR, PCrLJ, GBLR, ITR)
+  // 1. Explicit Case Citation & SLD Number patterns
   if (/\b(?:19\d{2}|20\d{2})\s*(?:\[\s*\d+\s*\]|\(\s*\d+\s*\))?\s*(?:sld|ptd|scmr|pld|clc|mld|cld|tax|ptcl|plc|ylr|pcrli?|gblr|itr)\b/i.test(q)) {
     return true;
   }
-  if (/\b(?:sld|ptd|scmr|pld|clc|mld|cld|tax|ptcl|plc|ylr|pcrli?|gblr)\s*#?\s*\d+/i.test(q)) {
+  if (/\b(?:sld|ptd|scmr|pld|clc|mld|cld|tax|ptcl|plc|ylr|pcrli?|gblr)\s*(?:no\.?|#|number|num)?\s*[:\-]?\s*\d+/i.test(q)) {
+    return true;
+  }
+  if (/\b(?:case\s*law|case|record)\s*(?:no\.?|#|number|num)?\s*[:\-]?\s*(?:sld\s*(?:no\.?|#|number|num)?\s*[:\-]?\s*)?\d+/i.test(q)) {
+    return true;
+  }
+  if (/\bsld\s*(?:no\.?|#|number|num)?\s*[:\-]?\s*\d+/i.test(q)) {
     return true;
   }
   if (extractCitationDetails(queryText)) {
@@ -3564,27 +3570,9 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
   const canAccessStatutes = !requestingUser || isAdminOrSuper || requestingUser.displayStatute !== false;
   const canAccessNotifications = !requestingUser || isAdminOrSuper || requestingUser.displayNotification !== false;
 
-  // 0.1 LEGAL DRAFTING / PLEADING GENERATION DISPATCH
-  if (checkIsLegalDraftingRequest(rawClean, attachments)) {
-    try {
-      const draftingResult = await generatePleadingDocument(rawClean, attachments);
-      return {
-        text: draftingResult.text,
-        legalAnalysis: {
-          matchedCase: null,
-          matchType: 'pleading_draft',
-          formatType: draftingResult.formatType,
-          confidence: 100,
-          sourcesFound: 1,
-          activeReferences: ['statutes', 'headnotes', 'case_numbers', 'courts', 'judgments']
-        }
-      };
-    } catch (draftErr) {
-      logger.error('Error generating legal pleading:', draftErr);
-    }
-  }
-
-  // 0.2 LEGAL DOCUMENT SCRUTINY, PROOFREADING & CORRECTION DISPATCH
+  // 0.1 LEGAL DOCUMENT SCRUTINY, PROOFREADING, AMENDMENT & REVIEW DISPATCH
+  // Must execute first so that provided documents/drafts are reviewed and corrected directly
+  // according to their actual forum/subject rather than being overridden by generic template generators!
   if (checkIsDocumentCorrectionRequest(rawClean, attachments)) {
     try {
       const correctionResult = await performDocumentCorrectionAndReview(rawClean, attachments);
@@ -3602,6 +3590,26 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
       };
     } catch (correctionErr) {
       logger.error('Error in document correction review:', correctionErr);
+    }
+  }
+
+  // 0.2 LEGAL DRAFTING / PLEADING GENERATION DISPATCH (For brand new pleadings from scratch)
+  if (checkIsLegalDraftingRequest(rawClean, attachments)) {
+    try {
+      const draftingResult = await generatePleadingDocument(rawClean, attachments);
+      return {
+        text: draftingResult.text,
+        legalAnalysis: {
+          matchedCase: null,
+          matchType: 'pleading_draft',
+          formatType: draftingResult.formatType,
+          confidence: 100,
+          sourcesFound: 1,
+          activeReferences: ['statutes', 'headnotes', 'case_numbers', 'courts', 'judgments']
+        }
+      };
+    } catch (draftErr) {
+      logger.error('Error generating legal pleading:', draftErr);
     }
   }
 
@@ -4025,7 +4033,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
       }
     }
 
-    // PRIORITY 1: Direct Case ID / Record Lookup (e.g. CASE-000001, case id: 1, SLD 9862, #9862)
+    // PRIORITY 1: Direct Case ID / Record Lookup (e.g. CASE-000001, case id: 1, SLD 9862, #9862, case law sld no 146232)
     // Only applies if it's NOT a court case number with year (e.g. "Case No. 1038 of 2015" is handled in Priority 3)
     // and NOT a publication citation (e.g. "2011 SLD 5" or "2001 SLD 1" is handled in Priority 2)
     const isCourtCaseNumWithYear = Boolean(extractCaseNumberAndYear(normalizedQuery));
@@ -4033,7 +4041,8 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     const explicitIdMatch = !isCourtCaseNumWithYear && !isPubCitation && (
       normalizedQuery.match(/^(?:case\s*(?:id|#|no\.?)?\s*[:\-]?\s*|sld\s*(?:no\.?|#)?\s*[:\-]?\s*|#)?\s*(CASE-[A-Za-z0-9_\-]+|\b\d{1,12}\b)$/i) ||
       normalizedQuery.match(/\b(CASE-[A-Za-z0-9_\-]+)\b/i) ||
-      normalizedQuery.match(/\b(?:case\s*(?:id|#|no\.?)?|sld\s*(?:no\.?|#)?)\s*[:\-]?\s*(CASE-[A-Za-z0-9_\-]+|\d{1,12})\b/i)
+      normalizedQuery.match(/\b(?:case\s*law\s+)?sld\s*(?:no\.?|#|number|num)?\s*[:\-]?\s*(\d{1,12})\b/i) ||
+      normalizedQuery.match(/\b(?:case\s*(?:id|#|no\.?|law)?|sld\s*(?:no\.?|#|number|num)?)\s*[:\-]?\s*(CASE-[A-Za-z0-9_\-]+|\d{1,12})\b/i)
     );
 
     if (explicitIdMatch && !targetCase) {
@@ -4305,10 +4314,17 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
 
           // Fallback to regex find if text search didn't yield matches
           if (rawCaseNumberCases.length === 0) {
-            rawCaseNumberCases = await Case.find({
-              isDeleted: { $ne: true },
-              caseNumber: numYearPattern
-            }).limit(25).maxTimeMS(6000).lean();
+            try {
+              rawCaseNumberCases = await Case.find({
+                isDeleted: { $ne: true },
+                caseNumber: numYearPattern
+              }).hint({ isDeleted: 1, caseNumber: 1 }).limit(25).maxTimeMS(10000).lean();
+            } catch (hErr) {
+              rawCaseNumberCases = await Case.find({
+                isDeleted: { $ne: true },
+                caseNumber: numYearPattern
+              }).limit(25).maxTimeMS(10000).lean();
+            }
           }
 
           // STRICT VALIDATION: Candidate MUST genuinely pair both the number and the year in caseNumber,
@@ -4361,10 +4377,17 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         } else if (coreCaseNo.length >= 2) {
           const caseRegex = makeFlexibleRegex(coreCaseNo);
           if (caseRegex) {
-            rawCaseNumberCases = await Case.find({
-              isDeleted: { $ne: true },
-              caseNumber: caseRegex
-            }).limit(15).maxTimeMS(6000).lean();
+            try {
+              rawCaseNumberCases = await Case.find({
+                isDeleted: { $ne: true },
+                caseNumber: caseRegex
+              }).hint({ isDeleted: 1, caseNumber: 1 }).limit(15).maxTimeMS(10000).lean();
+            } catch (hErr2) {
+              rawCaseNumberCases = await Case.find({
+                isDeleted: { $ne: true },
+                caseNumber: caseRegex
+              }).limit(15).maxTimeMS(10000).lean();
+            }
             rawCaseNumberCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
 
             // STRICT VALIDATION: Check that candidates contain all core search tokens

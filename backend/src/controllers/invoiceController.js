@@ -1,6 +1,11 @@
 import Invoice from '../models/Invoice.js';
 import mongoose from 'mongoose';
 
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const formatItem = (d) => ({
   id: d.srNumber ? d.srNumber.toString() : (d.invoiceId || d._id.toString()),
   mongoId: d._id.toString(),
@@ -26,7 +31,7 @@ export const getInvoices = async (req, res, next) => {
 
     if (query) {
       const q = query.trim();
-      const searchRegex = new RegExp(q, 'i');
+      const searchRegex = new RegExp(escapeRegex(q), 'i');
       const numQ = Number(q);
       const orConditions = [
         { name: searchRegex },

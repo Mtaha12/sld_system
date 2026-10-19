@@ -1,6 +1,11 @@
 import YoutubeUpdate from '../models/YoutubeUpdate.js';
 import mongoose from 'mongoose';
 
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const formatItem = (y) => ({
   id: y.srNumber ? y.srNumber.toString() : (y.youtubeId || y._id.toString()),
   mongoId: y._id.toString(),
@@ -23,7 +28,7 @@ export const getYoutubeUpdates = async (req, res, next) => {
 
     if (query) {
       const q = query.trim();
-      const searchRegex = new RegExp(q, 'i');
+      const searchRegex = new RegExp(escapeRegex(q), 'i');
       const numQ = Number(q);
       const orConditions = [
         { caption: searchRegex },

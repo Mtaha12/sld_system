@@ -1,6 +1,11 @@
 import CustomTariff from '../models/CustomTariff.js';
 import mongoose from 'mongoose';
 
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const formatItem = (d) => ({
   id: d.srNumber ? d.srNumber.toString() : (d.customTariffId || d._id.toString()),
   mongoId: d._id.toString(),
@@ -27,7 +32,7 @@ export const getCustomTariffs = async (req, res, next) => {
 
     if (query) {
       const q = query.trim();
-      const searchRegex = new RegExp(q, 'i');
+      const searchRegex = new RegExp(escapeRegex(q), 'i');
       const numQ = Number(q);
       const orConditions = [
         { heading: searchRegex },

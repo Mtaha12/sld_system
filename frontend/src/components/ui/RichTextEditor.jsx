@@ -263,6 +263,21 @@ const RichTextEditor = ({
     }
   }, [isDark, theme]);
 
+  // Synchronize dynamic/asynchronous value changes into CKEditor instance
+  useEffect(() => {
+    if (editorInstanceRef.current) {
+      try {
+        const currentData = editorInstanceRef.current.getData() || '';
+        const targetVal = value || '';
+        if (targetVal !== currentData) {
+          editorInstanceRef.current.setData(targetVal);
+        }
+      } catch (err) {
+        // safe ignore if editor is mid-initialization
+      }
+    }
+  }, [value]);
+
   if (ckError || !CKEditorComponent) {
     return (
       <FallbackRichEditor

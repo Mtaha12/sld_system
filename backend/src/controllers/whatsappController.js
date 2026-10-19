@@ -1,6 +1,11 @@
 import WhatsappUpdate from '../models/WhatsappUpdate.js';
 import mongoose from 'mongoose';
 
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const formatItem = (w) => ({
   id: w.srNumber ? w.srNumber.toString() : (w.whatsappId || w._id.toString()),
   mongoId: w._id.toString(),
@@ -22,7 +27,7 @@ export const getWhatsappUpdates = async (req, res, next) => {
 
     if (query) {
       const q = query.trim();
-      const searchRegex = new RegExp(q, 'i');
+      const searchRegex = new RegExp(escapeRegex(q), 'i');
       const numQ = Number(q);
       const orConditions = [
         { heading: searchRegex },

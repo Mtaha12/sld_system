@@ -1,6 +1,11 @@
 import WebsiteUpdate from '../models/WebsiteUpdate.js';
 import mongoose from 'mongoose';
 
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const formatItem = (u) => ({
   id: u.srNumber ? u.srNumber.toString() : (u.updateId || u._id.toString()),
   mongoId: u._id.toString(),
@@ -21,7 +26,7 @@ export const getUpdates = async (req, res, next) => {
 
     if (query && typeof query === 'string' && query.trim()) {
       const q = query.trim();
-      const searchRegex = new RegExp(q, 'i');
+      const searchRegex = new RegExp(escapeRegex(q), 'i');
       const numQ = Number(q);
       const orConditions = [
         { heading: searchRegex },

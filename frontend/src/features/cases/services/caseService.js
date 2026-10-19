@@ -94,8 +94,8 @@ export const caseService = {
    * @param {Object} filters { subject, fromDate, toDate, magazine }
    * @returns {Promise<Array>}
    */
-  searchCases: async (filters = {}) => {
-    const response = await api.post('/api/cases/search', filters);
+  searchCases: async (filters = {}, options = {}) => {
+    const response = await api.post('/api/cases/search', filters, options);
     return response.data.data;
   },
 

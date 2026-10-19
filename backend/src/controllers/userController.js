@@ -11,6 +11,11 @@ const parseBoolean = (val, defaultValue = true) => {
   return defaultValue;
 };
 
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 export const getUsers = async (req, res, next) => {
   try {
     const { search, status, isSpammer, page = 1, limit = 50 } = req.query;
@@ -23,7 +28,7 @@ export const getUsers = async (req, res, next) => {
 
     if (search && search.trim()) {
       const s = search.trim();
-      const sRegex = new RegExp(s, 'i');
+      const sRegex = new RegExp(escapeRegex(s), 'i');
       query.$or = [
         { fullName: sRegex },
         { username: sRegex },

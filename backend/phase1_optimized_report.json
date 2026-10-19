@@ -1,0 +1,132 @@
+{
+  "1. Website Session Validation": {
+    "name": "1. Website Session Validation",
+    "endpoint": "/api/auth/me",
+    "method": "GET",
+    "statusCode": 200,
+    "responseSizeKb": 0.46,
+    "medianMs": 10.91,
+    "p95Ms": 86.68,
+    "p99Ms": 86.68
+  },
+  "2. Loading Case Search Page (Database Stats)": {
+    "name": "2. Loading Case Search Page (Database Stats)",
+    "endpoint": "/api/cases/database-counts",
+    "method": "GET",
+    "statusCode": 200,
+    "responseSizeKb": 0.18,
+    "medianMs": 5.04,
+    "p95Ms": 37.77,
+    "p99Ms": 37.77
+  },
+  "3. Searching by Exact Case Citation": {
+    "name": "3. Searching by Exact Case Citation",
+    "endpoint": "/api/cases/search",
+    "method": "POST",
+    "statusCode": 200,
+    "responseSizeKb": 15.1,
+    "medianMs": 585.33,
+    "p95Ms": 736.28,
+    "p99Ms": 736.28
+  },
+  "4. Searching by Exact Case Number & Year": {
+    "name": "4. Searching by Exact Case Number & Year",
+    "endpoint": "/api/cases/search",
+    "method": "POST",
+    "statusCode": 200,
+    "responseSizeKb": 2.57,
+    "medianMs": 1568.01,
+    "p95Ms": 1730.79,
+    "p99Ms": 1730.79
+  },
+  "5. Searching by Keywords in Case Law": {
+    "name": "5. Searching by Keywords in Case Law",
+    "endpoint": "/api/cases/search",
+    "method": "POST",
+    "statusCode": 200,
+    "responseSizeKb": 87.81,
+    "medianMs": 16.38,
+    "p95Ms": 17.25,
+    "p99Ms": 17.25
+  },
+  "6. Filtered Case Law Search (Court + Date Range)": {
+    "name": "6. Filtered Case Law Search (Court + Date Range)",
+    "endpoint": "/api/cases/search",
+    "method": "POST",
+    "statusCode": 200,
+    "responseSizeKb": 85.12,
+    "medianMs": 18.71,
+    "p95Ms": 20.57,
+    "p99Ms": 20.57
+  },
+  "7. Moving Between Pages (Pagination Page 2)": {
+    "name": "7. Moving Between Pages (Pagination Page 2)",
+    "endpoint": "/api/cases?page=2&limit=25",
+    "method": "GET",
+    "statusCode": 200,
+    "responseSizeKb": 81.55,
+    "medianMs": 12.41,
+    "p95Ms": 14.06,
+    "p99Ms": 14.06
+  },
+  "8. Opening a Judgment by SLD Number (146232)": {
+    "name": "8. Opening a Judgment by SLD Number (146232)",
+    "endpoint": "/api/cases/sld/146232",
+    "method": "GET",
+    "statusCode": 200,
+    "responseSizeKb": 36.95,
+    "medianMs": 10.87,
+    "p95Ms": 1448.78,
+    "p99Ms": 1448.78
+  },
+  "9A. Searching Statutes": {
+    "name": "9A. Searching Statutes",
+    "endpoint": "/api/statutes?page=1&limit=25",
+    "method": "GET",
+    "statusCode": 200,
+    "responseSizeKb": 7.06,
+    "medianMs": 11.54,
+    "p95Ms": 13.24,
+    "p99Ms": 13.24
+  },
+  "9B. Searching Notifications/SROs": {
+    "name": "9B. Searching Notifications/SROs",
+    "endpoint": "/api/notifications?page=1&limit=25",
+    "method": "GET",
+    "statusCode": 200,
+    "responseSizeKb": 68.83,
+    "medianMs": 16.4,
+    "p95Ms": 17.07,
+    "p99Ms": 17.07
+  },
+  "10. AI Legal Assistant Search (Citation Query)": {
+    "name": "10. AI Legal Assistant Search (Citation Query)",
+    "endpoint": "/api/ai-chat/query",
+    "method": "POST",
+    "statusCode": 200,
+    "responseSizeKb": 2.83,
+    "medianMs": 5.78,
+    "p95Ms": 222.25,
+    "p99Ms": 222.25
+  },
+  "11. Loading Dashboard Counts & Summary": {
+    "name": "11. Loading Dashboard Counts & Summary",
+    "endpoint": "/api/cases/database-counts",
+    "method": "GET",
+    "statusCode": 200,
+    "responseSizeKb": 0.18,
+    "medianMs": 2.85,
+    "p95Ms": 3.17,
+    "p99Ms": 3.17
+  },
+  "12. User Authentication (Token Refresh)": {
+    "name": "12. User Authentication (Token Refresh)",
+    "endpoint": "/api/auth/refresh-token",
+    "method": "POST",
+    "statusCode": 400,
+    "responseSizeKb": 0.05,
+    "medianMs": 2.57,
+    "p95Ms": 5.35,
+    "p99Ms": 5.35
+  }
+}

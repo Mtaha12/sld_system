@@ -510,6 +510,29 @@ const AddCaseLawDetail = ({ onClose }) => {
           setSearchParams({ sld: String(editData.sldNumber) }, { replace: true });
         }
       }
+
+      // Automatically fetch full case record from backend (including complete judgment text,
+      // references, and legal maxims) to ensure full data is visible in the edit form
+      const targetSldOrId = editData.sldNumber || editData.id || editData._id;
+      if (targetSldOrId) {
+        setLoadingCase(true);
+        const fetcher = editData.sldNumber
+          ? caseService.getCaseBySld(editData.sldNumber)
+          : caseService.getCaseById(targetSldOrId);
+
+        fetcher
+          .then(fullCase => {
+            if (fullCase) {
+              applyCaseToForm(fullCase);
+              if (fullCase.sldNumber) {
+                setAssignedSldNumber(String(fullCase.sldNumber));
+                setValue('srNumber', String(fullCase.sldNumber), { shouldDirty: false });
+              }
+            }
+          })
+          .catch(err => console.warn('Could not load full case details for editing:', err))
+          .finally(() => setLoadingCase(false));
+      }
     } else if (!isNavEdit) {
       // Auto-suggest next SLD # and next page for new case entry!
       caseService.getNextSld()

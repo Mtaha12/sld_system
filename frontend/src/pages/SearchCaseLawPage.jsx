@@ -74,7 +74,7 @@ const SelectField = React.memo(({ value, onChange, options = [] }) => {
 });
 
 /* ── Yellow Word Highlighting Component ─────────────────────────────────── */
-const Highlight = ({ text, terms = [] }) => {
+const Highlight = React.memo(({ text, terms = [] }) => {
   if (!text) return null;
   const str = String(text);
   
@@ -100,12 +100,13 @@ const Highlight = ({ text, terms = [] }) => {
   try {
     const regex = new RegExp(`(${tokens.join('|')})`, 'gi');
     const parts = str.split(regex);
+    const lowerTokenSet = new Set(tokens.map(t => t.toLowerCase()));
 
     return (
       <span>
         {parts.map((part, i) => {
           if (!part) return null;
-          const isMatch = tokens.some(tok => new RegExp(`^${tok}$`, 'i').test(part));
+          const isMatch = lowerTokenSet.has(part.toLowerCase());
           return isMatch ? (
             <mark key={i} className="bg-yellow-300 text-slate-950 font-bold px-0.5 rounded shadow-2xs">
               {part}
@@ -119,7 +120,7 @@ const Highlight = ({ text, terms = [] }) => {
   } catch (e) {
     return <span>{str}</span>;
   }
-};
+});
 
 /* ── Extract relevant matching paragraph from judgment text ────────────── */
 const extractRelevantParagraph = (judgmentText, headNoteText, searchTerms) => {
@@ -179,6 +180,7 @@ const SearchCaseLawPage = () => {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [viewId, setViewId]     = useState(null);
+  const searchAbortRef          = React.useRef(null);
 
   // Search History from localStorage
   const [history, setHistory]   = useState(() => {
@@ -385,9 +387,15 @@ const SearchCaseLawPage = () => {
       return;
     }
 
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+    }
+    const abortCtrl = new AbortController();
+    searchAbortRef.current = abortCtrl;
+
     setLoading(true);
     try {
-      let data = await caseService.searchCases(filters);
+      let data = await caseService.searchCases(filters, { signal: abortCtrl.signal });
 
       // If exact 3-block citation search was requested, guarantee only the exact match is displayed
       if (b1 && b2 && b3 && Array.isArray(data)) {
@@ -421,9 +429,14 @@ const SearchCaseLawPage = () => {
       setResults(data);
       saveToHistory(activeForm, Array.isArray(data) ? data.length : 0);
     } catch (err) {
+      if (err.name === 'CanceledError' || err.name === 'AbortError' || err?.code === 'ERR_CANCELED') {
+        return; // Safe ignore aborted previous query
+      }
       setError(err?.response?.data?.message || 'Search execution failed. Please verify criteria.');
     } finally {
-      setLoading(false);
+      if (searchAbortRef.current === abortCtrl) {
+        setLoading(false);
+      }
     }
   };
 
@@ -758,9 +771,9 @@ const SearchCaseLawPage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {results.map((c, i) => {
-                    const matchedPara = hasTextSearch 
+                    const matchedPara = c.relevantParagraph || (hasTextSearch 
                       ? extractRelevantParagraph(c.judgment, c.headNote, [f.text, f.text2, f.phrase])
-                      : null;
+                      : null);
 
                     const statutesList = Array.isArray(c.laws) && c.laws.length > 0
                       ? c.laws.map(l => l.lawStatute).filter(Boolean)

@@ -2,6 +2,11 @@ import News from '../models/News.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 
+const escapeRegex = (string) => {
+  if (string == null) return '';
+  return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Format news for frontend representation
  */
@@ -29,7 +34,7 @@ export const getNews = async (req, res, next) => {
 
     if (query) {
       const q = query.trim();
-      const searchRegex = new RegExp(q, 'i');
+      const searchRegex = new RegExp(escapeRegex(q), 'i');
       const numQ = Number(q);
       const orConditions = [
         { heading: searchRegex },
