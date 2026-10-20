@@ -1,265 +1,95 @@
 import React, { useState, useMemo } from 'react';
-import {
-  Scale, FileText, Hash, Building2,
-  BookOpen, Sparkles, Bell, Gavel, Landmark
+import { 
+  Bot, Scale, FileText, Hash, Building2, UserCheck, 
+  BookOpen, Layers, Users, Sparkles, Zap
 } from 'lucide-react';
 
 /**
- * 8 Reference Engines Sectors
- * Exact 1-to-1 match with the reference infographic:
- * 1. CITATIONS (Top / 12 o'clock)
- * 2. CASE NUMBERS (Top-Right / 1:30)
- * 3. TEXT SEARCH (Right / 3 o'clock)
- * 4. NOTIFICATIONS (Bottom-Right / 4:30)
- * 5. FBR & SECP (Bottom / 6 o'clock)
- * 6. STATUTES (Bottom-Left / 7:30)
- * 7. TRIBUNAL, FTO (Left / 9 o'clock)
- * 8. PRA,SRB,KPRA,BRA (Top-Left / 10:30)
+ * 8 Law Case Fields Sectors
+ * Strictly representing the direct fields of a Case Law in SLD system
  */
 const REFERENCE_SECTORS = [
   {
-    id: 'citations',
-    tag: 'CITATIONS',
-    title: 'CITATIONS',
-    sub: 'Year + Mag + Page',
-    badge: 'JOURNALS',
-    fullDesc: 'Law journal citations across SLD, TAX, PTD, PTCL, PLD, and SCMR',
-    color: '#E11D48', // Crimson Red
-    gradient: ['#FB7185', '#BE123C'],
-    badgeBg: '#FFE4E6',
-    badgeText: '#BE123C',
-    badgeBorder: '#FDA4AF',
-    icon: BookOpen
-  },
-  {
     id: 'case_numbers',
-    tag: 'CASE NUMBERS',
-    title: 'CASE NUMBERS',
-    sub: 'ITA, STRA, W.P',
-    badge: 'JUDGMENTS',
-    fullDesc: 'Appeals, references, writ petitions, and case numbers',
-    color: '#16A34A', // Vibrant Green
-    gradient: ['#4ADE80', '#15803D'],
-    badgeBg: '#DCFCE7',
-    badgeText: '#15803D',
-    badgeBorder: '#86EFAC',
+    tag: 'CASE NO.',
+    title: 'Appeals & Suits',
+    sub: 'Case Number',
+    fullDesc: 'Case appeal numbers, writ petitions, references, and revision applications',
+    color: '#84CC16', // Lime Green
+    gradient: ['#A3E635', '#65A30D'],
     icon: Hash
   },
   {
-    id: 'text_search',
-    tag: 'TEXT SEARCH',
-    title: 'TEXT SEARCH',
-    sub: 'Get/sec details',
-    badge: 'JUDGMENTS',
-    fullDesc: 'Full verbatim text search across judgments, headnotes and section details',
-    color: '#F97316', // Orange
-    gradient: ['#FB923C', '#C2410C'],
-    badgeBg: '#FFEDD5',
-    badgeText: '#C2410C',
-    badgeBorder: '#FDBA74',
+    id: 'judgments',
+    tag: 'JUDGMENT',
+    title: 'Verbatim Orders',
+    sub: 'Court Orders',
+    fullDesc: 'Complete verbatim text of judicial decisions, judgments, and operative orders',
+    color: '#F97316', // Vibrant Orange (SLD Brand)
+    gradient: ['#FB923C', '#EA580C'],
     icon: FileText
   },
   {
-    id: 'notifications',
-    tag: 'NOTIFICATIONS',
-    title: 'NOTIFICATIONS',
-    sub: 'Number & Year',
-    badge: 'PROV. & FED',
-    fullDesc: 'Official notifications, gazettes, SROs and statutory alerts',
-    color: '#0284C7', // Sky Blue
+    id: 'judges',
+    tag: 'JUDGES',
+    title: 'Coram & Bench',
+    sub: 'Author Judges',
+    fullDesc: 'Presiding judges, division benches, author members, and judicial coram',
+    color: '#0284C7', // Deep Sky Blue
     gradient: ['#38BDF8', '#0369A1'],
-    badgeBg: '#E0F2FE',
-    badgeText: '#0369A1',
-    badgeBorder: '#7DD3FC',
-    icon: Bell
+    icon: UserCheck
   },
   {
-    id: 'fbr_secp',
-    tag: 'FBR & SECP',
-    title: 'FBR & SECP',
-    sub: 'All Govt. Departments',
-    badge: 'FEDERAL',
-    fullDesc: 'FBR circulars, SECP orders and regulatory decisions',
-    color: '#8B5CF6', // Purple / Violet
-    gradient: ['#A78BFA', '#6D28D9'],
-    badgeBg: '#7C3AED',
-    badgeText: '#FFFFFF',
-    badgeBorder: '#7C3AED',
-    icon: Building2
+    id: 'petitioners',
+    tag: 'PETITIONER',
+    title: 'Parties & Litigants',
+    sub: 'Litigant Parties',
+    fullDesc: 'Petitioners, appellants, respondents, and appearing company parties',
+    color: '#9333EA', // Royal Purple
+    gradient: ['#C084FC', '#7E22CE'],
+    icon: Users
   },
   {
-    id: 'statutes',
-    tag: 'STATUTES',
-    title: 'STATUTES',
-    sub: 'Updated Acts & Section',
-    badge: 'PROV. & FED',
-    fullDesc: 'Federal and provincial acts, ordinances, rules and sections',
-    color: '#0D9488', // Teal
-    gradient: ['#2DD4BF', '#0F766E'],
-    badgeBg: '#CCFBF1',
-    badgeText: '#0F766E',
-    badgeBorder: '#5EEAD4',
+    id: 'headnotes',
+    tag: 'HEADNOTES',
+    title: 'Ratio Decidendi',
+    sub: 'Editorial Points',
+    fullDesc: 'Key legal headnotes, legal issues framed, and authoritative points of law',
+    color: '#EAB308', // Gold / Amber
+    gradient: ['#FACC15', '#CA8A04'],
     icon: Scale
   },
   {
-    id: 'tribunal_fto',
-    tag: 'Tri.,Fto,Hc,SC,FCCP',
-    title: 'Tri.,Fto,Hc,SC,FCCP',
-    sub: 'Search From All Courts/Fto',
-    badge: 'ORDER',
-    fullDesc: 'Decisions and orders from Appellate Tribunal Inland Revenue, Customs, High Courts, Supreme Court & FCCP',
-    color: '#EAB308', // Amber / Gold
-    gradient: ['#FBBF24', '#B45309'],
-    badgeBg: '#FEF3C7',
-    badgeText: '#B45309',
-    badgeBorder: '#FCD34D',
-    icon: Gavel
+    id: 'legal_maxim',
+    tag: 'LEGAL MAXIM',
+    title: 'Legal Maxims',
+    sub: 'Doctrines of Law',
+    fullDesc: 'Established legal maxims, Latin legal doctrines, and foundational canons',
+    color: '#EC4899', // Magenta / Pink
+    gradient: ['#F472B6', '#DB2777'],
+    icon: Sparkles
   },
   {
-    id: 'pra_srb',
-    tag: 'PRA,SRB,KPRA,BRA',
-    title: 'PRA,SRB,KPRA,BRA',
-    sub: 'Search From All Govt. Dept.',
-    badge: 'SRO',
-    fullDesc: 'Provincial revenue authorities circulars, orders, and SROs',
-    color: '#EC4899', // Pink / Magenta
-    gradient: ['#F472B6', '#BE185D'],
-    badgeBg: '#FCE7F3',
-    badgeText: '#BE185D',
-    badgeBorder: '#F9A8D4',
-    icon: Landmark
+    id: 'principle_law',
+    tag: 'PRINCIPLE OF LAW',
+    title: 'Core Principles',
+    sub: 'Precedent Rules',
+    fullDesc: 'Governing legal principles, ratio decidendi, and binding precedents established',
+    color: '#10B981', // Emerald Green
+    gradient: ['#34D399', '#059669'],
+    icon: Layers
+  },
+  {
+    id: 'citations',
+    tag: 'CITATION',
+    title: 'Law Reports',
+    sub: 'SLD, TAX, PTD',
+    fullDesc: 'Cross-journal citations across SLD, TAX, PTD, PTCL, PLD, and SCMR',
+    color: '#E11D48', // Crimson Red
+    gradient: ['#FB7185', '#BE123C'],
+    icon: BookOpen
   }
 ];
-
-/**
- * Intelligently detect which of the 8 reference sectors extracted the case law
- */
-const detectMatchingSector = (matchedCase, matchType) => {
-  if (!matchedCase) return null;
-
-  const court = String(matchedCase.court || '').toLowerCase();
-  const caseNums = Array.isArray(matchedCase.caseNumber)
-    ? matchedCase.caseNumber.join(' ').toLowerCase()
-    : String(matchedCase.caseNumber || '').toLowerCase();
-  const citations = Array.isArray(matchedCase.mapYearPage)
-    ? matchedCase.mapYearPage.join(' ').toLowerCase()
-    : String(matchedCase.mapYearPage || '').toLowerCase();
-  const principle = String(matchedCase.principleLaw || '').toLowerCase();
-
-  // 1. Tribunal / FTO / Ombudsman (e.g. Appellate Tribunal Inland Revenue, Customs Tribunal, FTO)
-  if (
-    court.includes('tribunal') ||
-    court.includes('fto') ||
-    court.includes('ombudsman') ||
-    court.includes('atir') ||
-    (court.includes('inland revenue') && court.includes('appellate')) ||
-    court.includes('labour appellate')
-  ) {
-    return 'tribunal_fto';
-  }
-
-  // 2. Provincial Revenue Authorities (PRA, SRB, KPRA, BRA)
-  if (
-    court.includes('pra') ||
-    court.includes('srb') ||
-    court.includes('kpra') ||
-    court.includes('bra') ||
-    court.includes('punjab revenue') ||
-    court.includes('sindh revenue') ||
-    court.includes('kpk revenue') ||
-    court.includes('khyber pakhtunkhwa') ||
-    court.includes('balochistan revenue')
-  ) {
-    return 'pra_srb';
-  }
-
-  // 3. FBR & SECP
-  if (
-    court.includes('fbr') ||
-    court.includes('secp') ||
-    court.includes('federal board of revenue') ||
-    court.includes('circular') ||
-    court.includes('general order')
-  ) {
-    return 'fbr_secp';
-  }
-
-  // 4. Notifications & SROs
-  if (
-    court.includes('sro') ||
-    court.includes('notification') ||
-    court.includes('gazette') ||
-    caseNums.includes('s.r.o') ||
-    caseNums.includes('sro') ||
-    caseNums.includes('notification')
-  ) {
-    return 'notifications';
-  }
-
-  // 5. Explicit matchType / statutory classification
-  if (matchType === 'statute' || principle.includes('section') || principle.includes('ordinance')) {
-    return 'statutes';
-  }
-
-  if (matchType === 'case_number') {
-    return 'case_numbers';
-  }
-
-  if (matchType === 'citation' || citations.length > 0) {
-    return 'citations';
-  }
-
-  if (matchType === 'exact_line' || matchType === 'text_search') {
-    return 'text_search';
-  }
-
-  // Fallbacks:
-  if (citations.length > 0) return 'citations';
-  if (caseNums.length > 0) return 'case_numbers';
-  return 'tribunal_fto';
-};
-
-/**
- * Returns the exact forum / court / institution name where the result was extracted
- */
-const getExactSourceName = (matchedCase, fallbackSector) => {
-  if (matchedCase) {
-    if (matchedCase.court && matchedCase.court.trim()) {
-      return matchedCase.court.trim();
-    }
-    if (matchedCase.mapYearPage && matchedCase.mapYearPage.length > 0) {
-      return matchedCase.mapYearPage[0];
-    }
-    if (matchedCase.caseNumber && matchedCase.caseNumber.length > 0) {
-      return matchedCase.caseNumber[0];
-    }
-  }
-  return fallbackSector?.tag || 'Appellate Tribunal Inland Revenue';
-};
-
-/**
- * Formats the right-side category badge (e.g. TRIBUNAL, HIGH COURT, APEX COURT, PROVINCIAL)
- */
-const getSourceCategoryTag = (courtName, sectorId) => {
-  const c = String(courtName || '').toLowerCase();
-  if (c.includes('supreme court')) return 'APEX COURT';
-  if (c.includes('high court')) return 'HIGH COURT';
-  if (c.includes('tribunal') || c.includes('fto') || c.includes('ombudsman')) return 'TRIBUNAL';
-  if (c.includes('srb') || c.includes('pra') || c.includes('kpra') || c.includes('bra')) return 'PROVINCIAL';
-  if (c.includes('fbr') || c.includes('secp')) return 'FEDERAL';
-
-  const tagMap = {
-    citations: 'JOURNAL',
-    case_numbers: 'CASE RECORD',
-    text_search: 'JUDGMENT TEXT',
-    notifications: 'GAZETTE / SRO',
-    fbr_secp: 'FEDERAL',
-    statutes: 'STATUTE',
-    tribunal_fto: 'TRIBUNAL',
-    pra_srb: 'PROVINCIAL'
-  };
-  return tagMap[sectorId] || 'FIELD';
-};
 
 const OrbitalSpinWheel = ({
   isSearching = false,
@@ -267,47 +97,15 @@ const OrbitalSpinWheel = ({
   focusedNode = null,
   onNodeClick,
   lastMatchedCase = null,
-  matchType = null,
   className = ""
 }) => {
   const [hoveredSector, setHoveredSector] = useState(null);
 
-  // Intelligently identify which sector extracted this result
-  const extractedSectorId = useMemo(() => {
-    return detectMatchingSector(lastMatchedCase, matchType);
-  }, [lastMatchedCase, matchType]);
-
-  // Determine currently active or displayed sector for center hub & detail card
-  const displayedSector = useMemo(() => {
-    if (hoveredSector) {
-      return REFERENCE_SECTORS.find(s => s.id === hoveredSector) || REFERENCE_SECTORS[0];
-    }
-    if (focusedNode) {
-      return REFERENCE_SECTORS.find(s => s.id === focusedNode) || REFERENCE_SECTORS[0];
-    }
-    if (extractedSectorId) {
-      return REFERENCE_SECTORS.find(s => s.id === extractedSectorId) || REFERENCE_SECTORS[0];
-    }
-    return REFERENCE_SECTORS.find(s => s.id === 'tribunal_fto') || REFERENCE_SECTORS[0];
-  }, [hoveredSector, focusedNode, extractedSectorId]);
-
-  // Exact name where the result was extracted
-  const exactSourceName = useMemo(() => {
-    return getExactSourceName(lastMatchedCase, displayedSector);
-  }, [lastMatchedCase, displayedSector]);
-
-  // Category classification for the result
-  const sourceCategoryTag = useMemo(() => {
-    return getSourceCategoryTag(lastMatchedCase?.court || exactSourceName, displayedSector.id);
-  }, [lastMatchedCase, exactSourceName, displayedSector]);
-
-  const DisplayedIcon = displayedSector.icon;
-
   // Center coordinate and radii for the 800x800 SVG canvas
   const cx = 400;
   const cy = 400;
-
-  // Dimensions matching the reference infographic
+  
+  // High-precision dimensions exactly matching the reference infographic
   const R_BANNER_OUT = 372;
   const R_BANNER_IN = 308;
   const R_CARD_OUT = 298;
@@ -321,7 +119,7 @@ const OrbitalSpinWheel = ({
   const bannerPath = useMemo(() => {
     const halfAngle = 19.5;
     const toRad = deg => (deg * Math.PI) / 180;
-
+    
     // Outer arc endpoints
     const xOut1 = cx + R_BANNER_OUT * Math.cos(toRad(-halfAngle));
     const yOut1 = cy + R_BANNER_OUT * Math.sin(toRad(-halfAngle));
@@ -405,6 +203,7 @@ const OrbitalSpinWheel = ({
 
   /**
    * Generates the SVG hit-target path for each sector (45-degree full wedge).
+   * Remains 100% static with pointerEvents="all" to guarantee ZERO hover flicker.
    */
   const hitPath = useMemo(() => {
     const halfAngle = 22.5;
@@ -439,7 +238,7 @@ const OrbitalSpinWheel = ({
     const rRoot = 114;
     const rTip = 138;
     const toRad = deg => (deg * Math.PI) / 180;
-
+    
     let path = '';
     for (let i = 0; i < numTeeth; i++) {
       const step = 360 / numTeeth;
@@ -467,36 +266,46 @@ const OrbitalSpinWheel = ({
   }, []);
 
   return (
-    <div className={`relative flex flex-col items-center justify-start select-none w-full max-w-[500px] mx-auto gap-3 ${className}`}>
-
-      {/* 1. TOP HEADER: Matching Reference Image (● SLD LEGAL WHEEL  |  8 Reference Engines) */}
-      <div className="w-full flex items-center justify-between px-1 py-1 z-20 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] shrink-0" />
-          <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-slate-100 truncate">
-            SLD LEGAL WHEEL
+    <div className={`relative flex flex-col items-center justify-center select-none w-full h-full max-w-[560px] mx-auto ${className}`}>
+      
+      {/* Top Telemetry Header */}
+      <div className="w-full flex items-center justify-between px-2 py-1 mb-1 z-20 gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${
+            isSearching 
+              ? 'bg-brand-orange animate-ping' 
+              : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+          }`} />
+          <span className="text-xs font-black uppercase tracking-wider text-theme-main truncate">
+            {isSearching ? 'Scanning 15,000 Cases...' : 'SLD Legal Wheel'}
           </span>
         </div>
 
-        <span className="text-[11px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-3 py-0.5 rounded-full border border-rose-200/80 dark:border-rose-900/60 whitespace-nowrap">
-          8 Reference Engines
-        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] font-bold text-brand-orange bg-brand-orange/10 px-2.5 py-0.5 rounded-full border border-brand-orange/20 whitespace-nowrap">
+            {isSearching ? 'Active Scan' : '8 Reference Engines'}
+          </span>
+        </div>
       </div>
 
-      {/* 2. MAIN SVG INFOGRAPHIC WHEEL */}
+      {/* Main SVG Infographic Wheel with GPU-Accelerated CSS Auto-Spin */}
       <div className="relative w-full aspect-square flex items-center justify-center">
-
+        
         {/* Subtle Ambient Radial Aura */}
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className={`w-[85%] h-[85%] rounded-full bg-gradient-to-tr from-brand-orange/15 via-cyan-500/10 to-purple-500/15 blur-3xl transition-opacity duration-700 ${isSearching ? 'opacity-90 animate-pulse' : 'opacity-40'
-            }`} />
+          <div className={`w-[75%] h-[75%] rounded-full bg-gradient-to-tr from-brand-orange/10 via-amber-500/5 to-cyan-500/10 blur-xl transition-opacity duration-500 ${
+            isSearching ? 'opacity-80' : 'opacity-30'
+          }`} />
         </div>
 
         <svg
           viewBox="0 0 800 800"
-          className="w-full h-full drop-shadow-lg overflow-visible"
+          shapeRendering="geometricPrecision"
+          textRendering="geometricPrecision"
+          className="w-full h-full overflow-visible"
         >
           <defs>
+            {/* GPU CSS Keyframe Animations inside SVG */}
             <style>{`
               @keyframes wheelAutoScanSpin {
                 from { transform: rotate(0deg); }
@@ -505,35 +314,26 @@ const OrbitalSpinWheel = ({
               .wheel-scanning-spin {
                 transform-origin: 400px 400px;
                 animation: wheelAutoScanSpin 3.2s linear infinite;
-                will-change: transform;
               }
               .wheel-idle-settled {
                 transform-origin: 400px 400px;
                 transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-                will-change: transform;
               }
             `}</style>
 
-            {/* Soft 3D Drop Shadow for Wedge Cards */}
-            <filter id="cardShadow" x="-15%" y="-15%" width="130%" height="130%">
-              <feDropShadow dx="0" dy="5" stdDeviation="6" floodColor="#000" floodOpacity="0.18" />
+            {/* Crisp 3D Drop Shadow for Wedge Cards */}
+            <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.10" />
             </filter>
 
-            {/* Radiant Glowing Halos for Active/Extracted Sector */}
-            <filter id="activeSectorGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0" dy="0" stdDeviation="7" floodColor="#FFFFFF" floodOpacity="0.9" />
-              <feDropShadow dx="0" dy="0" stdDeviation="14" floodColor="#F59E0B" floodOpacity="0.5" />
-            </filter>
-
-            {/* Deep 3D Shadow for Highlighted Card */}
-            <filter id="cardActiveShadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="6" stdDeviation="9" floodColor="#000" floodOpacity="0.3" />
-              <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="#F59E0B" floodOpacity="0.4" />
+            {/* Elevated Shadow on Hover / Active */}
+            <filter id="cardElevatedShadow" x="-15%" y="-15%" width="130%" height="130%">
+              <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#f15a24" floodOpacity="0.25" />
             </filter>
 
             {/* Gear 3D Shadow */}
-            <filter id="gearShadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.25" />
+            <filter id="gearShadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.12" />
             </filter>
 
             {/* Text Path Arc for curved outer banners (radius 340) */}
@@ -564,7 +364,7 @@ const OrbitalSpinWheel = ({
             className="text-slate-200 dark:text-slate-800"
             strokeWidth="3"
             strokeDasharray="6 4"
-            opacity="0.5"
+            opacity="0.6"
           />
           <circle
             cx={cx}
@@ -574,54 +374,53 @@ const OrbitalSpinWheel = ({
             stroke="currentColor"
             className="text-slate-300 dark:text-slate-800"
             strokeWidth="1"
-            opacity="0.3"
+            opacity="0.4"
           />
 
-          {/* ROTATING ASSEMBLY (8 SECTORS) */}
+          {/* 
+            ROTATING ASSEMBLY (Contains 8 Sectors)
+            Automatically spins via GPU-accelerated CSS when isSearching is true!
+            Never hangs, stutters, or uses main-thread JS timers!
+          */}
           <g className={isSearching ? "wheel-scanning-spin" : "wheel-idle-settled"}>
-
+            
             {REFERENCE_SECTORS.map((sector, index) => {
               const sectorAngle = index * 45 - 90;
-              const isExtracted = sector.id === extractedSectorId;
-              const isFocused = sector.id === focusedNode;
+              const isActive = activeReferences.includes(sector.id) || focusedNode === sector.id;
               const isHovered = hoveredSector === sector.id;
-              const isActive = isExtracted || isFocused;
-              const isHighlighted = isActive || isHovered;
 
               return (
                 <g
                   key={sector.id}
                   transform={`rotate(${sectorAngle}, ${cx}, ${cy})`}
                 >
-                  {/* VISUAL LAYER */}
+                  {/* VISUAL LAYER: pointer-events-none ensures child paths & text never cause mouseleave jitter */}
                   <g className="pointer-events-none">
-
+                    
                     {/* 1. OUTER COLORED CURVED BANNER WITH TAB */}
                     <g>
                       <path
                         d={bannerPath}
                         fill={`url(#grad-${sector.id})`}
-                        stroke={isExtracted ? "#FFFFFF" : isHovered ? "#FFFFFF" : "none"}
-                        strokeWidth={isExtracted ? "2.5" : isHovered ? "1.5" : "0"}
-                        filter={isExtracted ? "url(#activeSectorGlow)" : "none"}
-                        className={`transition-all duration-300 ${isExtracted ? 'filter drop-shadow-[0_0_14px_rgba(255,255,255,0.9)]' : ''
-                          }`}
-                        opacity={isHighlighted ? 1 : 0.94}
+                        stroke={isHovered ? "#FFFFFF" : "none"}
+                        strokeWidth={isHovered ? "1.5" : "0"}
+                        className={`transition-all duration-200 ${
+                          isActive ? 'filter drop-shadow-[0_0_12px_rgba(241,90,36,0.6)]' : ''
+                        }`}
+                        opacity={isHovered || isActive ? 1 : 0.94}
                       />
 
                       {/* Outer Tag Curved Text */}
                       <text
                         fill="#FFFFFF"
                         fontSize={
-                          sector.id === 'tribunal_fto' ? "13" :
-                            sector.tag === 'PRA,SRB,KPRA,BRA' ? "14.5" :
-                              sector.tag.length > 9 ? "17" : "19"
+                          sector.tag === 'PRINCIPLE OF LAW' ? "15.5" :
+                          sector.tag.length > 9 ? "18" : "20"
                         }
                         fontWeight="900"
                         letterSpacing={
-                          sector.id === 'tribunal_fto' ? "0.6" :
-                            sector.tag === 'PRA,SRB,KPRA,BRA' ? "1.0" :
-                              sector.tag.length > 9 ? "1.5" : "2.2"
+                          sector.tag === 'PRINCIPLE OF LAW' ? "1.2" :
+                          sector.tag.length > 9 ? "1.8" : "2.2"
                         }
                         textAnchor="middle"
                         className="select-none tracking-widest drop-shadow-sm font-sans"
@@ -635,26 +434,25 @@ const OrbitalSpinWheel = ({
                       <circle
                         cx={cx + R_BANNER_IN - 10}
                         cy={cy}
-                        r={isExtracted ? 4.5 : 3.5}
+                        r={3.5}
                         fill="#FFFFFF"
-                        opacity={isExtracted ? 1 : 0.95}
-                        className={isExtracted ? "animate-pulse drop-shadow-md" : "drop-shadow-sm"}
+                        opacity="0.95"
+                        className="drop-shadow-sm"
                       />
                     </g>
 
-                    {/* 2. WHITE 3D WEDGE CARD */}
-                    <g filter={isExtracted ? "url(#cardActiveShadow)" : "url(#cardShadow)"}>
+                    {/* 2. WHITE 3D WEDGE CARD (PLATE) */}
+                    <g filter="url(#cardShadow)">
                       {/* Card Body */}
                       <path
                         d={cardPath}
-                        className={`transition-all duration-300 ${isExtracted
-                            ? 'fill-amber-50/70 dark:fill-[#252b3b]'
-                            : isHovered
-                              ? 'fill-amber-50/40 dark:fill-[#252b3b]'
-                              : 'fill-white dark:fill-[#1e222d]'
-                          }`}
-                        stroke={isExtracted ? sector.color : isHovered ? sector.color : '#CBD5E1'}
-                        strokeWidth={isExtracted ? '3.5' : isHovered ? '2.5' : '1'}
+                        className={`transition-colors duration-200 ${
+                          isHovered 
+                            ? 'fill-amber-50/50 dark:fill-[#252b3b]' 
+                            : 'fill-white dark:fill-[#1e222d]'
+                        }`}
+                        stroke={isActive ? sector.color : isHovered ? sector.color : '#CBD5E1'}
+                        strokeWidth={isActive ? '3' : isHovered ? '2.5' : '1'}
                       />
 
                       {/* Top Bevel Highlight */}
@@ -681,75 +479,80 @@ const OrbitalSpinWheel = ({
                         opacity="0.85"
                       />
 
-                      {/* CARD CONTENT (Subtitle and Badge Pill - Title removed as requested) */}
+                      {/* CARD CONTENT (Title, Subtitle, and Badge) */}
                       <g transform={`translate(${cx + 242}, ${cy})`}>
                         <g transform="rotate(90)">
+                          {/* Title */}
+                          <text
+                            x="0"
+                            y="-16"
+                            textAnchor="middle"
+                            fontSize={sector.title.length > 15 ? "18" : "20"}
+                            fontWeight="900"
+                            className={`select-none font-sans transition-colors ${
+                              isHovered ? 'fill-brand-orange font-black' : 'fill-slate-900 dark:fill-slate-100 font-bold'
+                            }`}
+                          >
+                            {sector.title}
+                          </text>
+
                           {/* Subtitle */}
                           <text
                             x="0"
-                            y="-6"
+                            y="6"
                             textAnchor="middle"
-                            fontSize={sector.sub.length > 20 ? "9.5" : "11"}
-                            fontWeight="800"
-                            className="fill-slate-700 dark:fill-slate-200 select-none font-sans"
+                            fontSize="14.5"
+                            fontWeight="700"
+                            className="fill-slate-600 dark:fill-slate-300 select-none font-sans"
                           >
                             {sector.sub}
                           </text>
 
-                          {/* Pill Badge matching reference */}
-                          <g transform="translate(0, 16)">
+                          {/* Status Pill Badge */}
+                          <g transform="translate(0, 27)">
                             <rect
-                              x="-36"
-                              y="-8.5"
-                              width="72"
-                              height="17"
-                              rx="8.5"
-                              fill={sector.badgeBg}
-                              stroke={sector.badgeBorder}
-                              strokeWidth="1"
+                              x="-42"
+                              y="-9.5"
+                              width="84"
+                              height="19"
+                              rx="9.5"
+                              fill={sector.color}
+                              fillOpacity={isActive || isHovered ? "0.95" : "0.15"}
+                              stroke={sector.color}
+                              strokeWidth="1.2"
                             />
                             <text
                               x="0"
-                              y="3.5"
+                              y="4"
                               textAnchor="middle"
-                              fill={sector.badgeText}
-                              fontSize="9.5"
+                              fill={isActive || isHovered ? "#FFFFFF" : sector.color}
+                              fontSize="11.5"
                               fontWeight="900"
-                              letterSpacing="0.6"
+                              letterSpacing="1"
                               className="select-none font-sans"
                             >
-                              {sector.badge}
+                              {isActive ? 'GROUNDED' : isHovered ? 'FILTER' : 'EXPLORE'}
                             </text>
                           </g>
                         </g>
                       </g>
 
-                      {/* Pulsing indicator on arrow tip when active or extracted */}
+                      {/* Glowing pulse on arrowhead tip when active */}
                       {isActive && (
-                        <>
-                          <circle
-                            cx={cx + R_ARROW_TIP + 2}
-                            cy={cy}
-                            r={7}
-                            fill={sector.color}
-                            className="animate-ping"
-                            opacity="0.8"
-                          />
-                          <circle
-                            cx={cx + R_ARROW_TIP + 2}
-                            cy={cy}
-                            r={4.5}
-                            fill={sector.color}
-                            stroke="#FFFFFF"
-                            strokeWidth="1.5"
-                          />
-                        </>
+                        <circle
+                          cx={cx + R_ARROW_TIP + 2}
+                          cy={cy}
+                          r={4}
+                          fill={sector.color}
+                          className="animate-ping"
+                        />
                       )}
 
                     </g>
                   </g>
 
                   {/* 3. STATIC HIT TARGET (TOP-MOST TRANSPARENT WEDGE) */}
+                  {/* Captures all clicks, mouseEnter, and mouseLeave with zero movement and zero flicker */}
                   <path
                     d={hitPath}
                     fill="transparent"
@@ -768,7 +571,7 @@ const OrbitalSpinWheel = ({
 
           {/* 3. CENTRAL MECHANICAL GEAR (COGWHEEL) */}
           <g filter="url(#gearShadow)">
-
+            
             {/* Gear Body with 16 Teeth */}
             <path
               d={gearPath}
@@ -813,174 +616,162 @@ const OrbitalSpinWheel = ({
               fill="none"
             />
 
-            {/* Top Arc Text: ✦ SLD "All in One Search" ✦ */}
             <text
               fill="#F97316"
-              fontSize="10"
+              fontSize="11.5"
               fontWeight="900"
-              letterSpacing="1.2"
+              letterSpacing="2"
               className="select-none font-sans"
             >
               <textPath href="#gearHubTextTop" startOffset="50%" textAnchor="middle">
-                ✦ SLD "All in One Search" ✦
+                ✦ SLD NEURAL AI CORE ✦
               </textPath>
             </text>
 
-            {/* Bottom Arc Text: 162,865+ CASES GROUNDED */}
             <text
-              fill="#475569"
-              fontSize="9"
+              fill="#64748B"
+              fontSize="10"
               fontWeight="800"
               letterSpacing="1.5"
               className="select-none font-sans"
             >
               <textPath href="#gearHubTextBottom" startOffset="50%" textAnchor="middle">
-                162,865+ CASES GROUNDED
+                15,000 CASES GROUNDED
               </textPath>
             </text>
 
-            {/* Center Dark Circle Hub */}
+            {/* Center AI Bot Core Circle */}
             <circle
               cx={cx}
               cy={cy}
               r={58}
-              fill="#13151B"
-              stroke="#F59E0B"
-              strokeWidth="2"
+              fill="#101217"
+              stroke="#F97316"
+              strokeWidth="2.5"
             />
 
-            {/* Subtle inner decorative ring */}
+            {/* Glowing Aura Ring in Bot Core */}
             <circle
               cx={cx}
               cy={cy}
               r={52}
               fill="none"
-              stroke="#F59E0B"
-              strokeWidth="1"
-              strokeDasharray="3 3"
-              opacity="0.6"
+              stroke="#F97316"
+              strokeWidth="1.5"
+              strokeDasharray="4 3"
+              className={isSearching ? "animate-spin" : ""}
+              style={{ animationDuration: '6s' }}
+              opacity="0.8"
             />
 
           </g>
 
-          {/* Interactive Center Hub Display */}
+          {/* Interactive AI Bot Icon & Dynamic Hover Inspection in Center Hub */}
           <foreignObject
-            x={cx - 50}
-            y={cy - 50}
-            width={100}
-            height={100}
-            className="cursor-pointer"
-            onClick={() => onNodeClick?.(displayedSector.id)}
+            x={cx - 45}
+            y={cy - 45}
+            width={90}
+            height={90}
+            className="pointer-events-none"
           >
-            <div className="w-full h-full flex flex-col items-center justify-center text-center px-1">
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-white mb-0.5 shadow-sm"
-                style={{ backgroundColor: displayedSector.color }}
-              >
-                <DisplayedIcon className="w-4 h-4" />
-              </div>
-              <span
-                className="text-[9px] font-black tracking-tight truncate max-w-[88px] leading-tight"
-                style={{ color: '#A78BFA' }}
-              >
-                {displayedSector.title}
-              </span>
-              <span className="text-[7.5px] font-black uppercase tracking-widest text-amber-400 mt-0.5">
-                TAP TO QUERY
-              </span>
-            </div>
+            {(() => {
+              const activeHovered = hoveredSector ? REFERENCE_SECTORS.find(s => s.id === hoveredSector) : null;
+              if (activeHovered) {
+                const HoverIcon = activeHovered.icon;
+                return (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-white animate-fade-in">
+                    <HoverIcon className="w-6 h-6 drop-shadow-md" style={{ color: activeHovered.color }} />
+                    <span className="text-[8.5px] font-black uppercase tracking-wider text-white mt-0.5 truncate max-w-[80px]">
+                      {activeHovered.tag}
+                    </span>
+                    <span className="text-[7.5px] font-extrabold text-amber-400 leading-none tracking-wider">
+                      INSPECT
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <div className="w-full h-full flex flex-col items-center justify-center text-white">
+                  <div className="relative">
+                    {isSearching ? (
+                      <Zap className="w-7 h-7 text-brand-orange animate-bounce drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]" />
+                    ) : (
+                      <Bot className="w-7 h-7 text-brand-orange drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
+                    )}
+                  </div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-white mt-0.5">
+                    AI BOT
+                  </span>
+                  <span className="text-[9px] font-bold text-cyan-400 leading-none">
+                    {isSearching ? 'SCANNING' : 'ONLINE'}
+                  </span>
+                </div>
+              );
+            })()}
           </foreignObject>
 
         </svg>
 
       </div>
 
-      {/* 3. THREE STACKED CARDS DIRECTLY BELOW THE WHEEL (SYNCHRONIZED WITH GROUNDED PRECEDENT) */}
-      <div className="w-full flex flex-col gap-2 z-20 shrink-0">
-
-        {/* CARD 1: Case Court / Citation — SLD # | 100% Grounded */}
-        <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50/40 dark:bg-slate-900 shadow-xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <Sparkles className="w-4 h-4 text-emerald-500 shrink-0 animate-pulse" />
-            <span className="text-xs sm:text-[13px] font-black text-slate-800 dark:text-slate-100 truncate">
-              {lastMatchedCase
-                ? `${lastMatchedCase.court || 'Court of Record'} — SLD #${lastMatchedCase.sldNumber || ''}`
-                : 'Appellate Tribunal Inland Revenue — SLD Precedents'}
-            </span>
-          </div>
-          <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 px-2.5 py-0.5 rounded-full shrink-0">
-            100% Grounded
-          </span>
-        </div>
-
-        {/* CARD 2: Result from [EXACT NAME OF EXTRACTED FORUM / TRIBUNAL / STATUTE] | FORUM CATEGORY */}
-        <div className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0 animate-ping"
-              style={{ backgroundColor: displayedSector.color }}
-            />
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0 -ml-5"
-              style={{ backgroundColor: displayedSector.color }}
-            />
-            <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate">
-              Result from <strong className="uppercase font-black" style={{ color: displayedSector.color }}>{exactSourceName}</strong>
-            </span>
-          </div>
-          <span
-            className="text-[10px] font-black tracking-wider uppercase shrink-0 px-2 py-0.5 rounded border"
-            style={{
-              color: displayedSector.color,
-              borderColor: `${displayedSector.color}40`,
-              backgroundColor: `${displayedSector.color}15`
-            }}
-          >
-            {sourceCategoryTag}
-          </span>
-        </div>
-
-        {/* CARD 3: Sector Detail Card (Interactive Deep Dive / Query Trigger) */}
-        <div
-          onClick={() => onNodeClick?.(displayedSector.id)}
-          className="w-full flex items-center justify-between p-2.5 sm:p-3 rounded-2xl border-2 bg-white dark:bg-slate-900 shadow-sm cursor-pointer hover:shadow-md transition-all gap-2.5"
-          style={{ borderColor: `${displayedSector.color}60` }}
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-md shrink-0 transition-transform"
-              style={{
-                background: `linear-gradient(135deg, ${displayedSector.gradient[0]}, ${displayedSector.gradient[1]})`
-              }}
-            >
-              <DisplayedIcon className="w-5 h-5" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <h4
-                className="text-xs sm:text-[13px] font-black truncate leading-tight"
-                style={{ color: displayedSector.color }}
+      {/* Dynamic Hover Detail / Live Field Inspection Card */}
+      <div className="w-full mt-2 min-h-[66px] flex items-center justify-center shrink-0">
+        {hoveredSector ? (
+          (() => {
+            const sec = REFERENCE_SECTORS.find(s => s.id === hoveredSector);
+            if (!sec) return null;
+            const Icon = sec.icon;
+            return (
+              <div 
+                className="w-full p-2.5 bg-white dark:bg-theme-surface border rounded-xl shadow-md flex items-center gap-3 animate-fade-in transition-all"
+                style={{ borderColor: `${sec.color}60` }}
               >
-                {displayedSector.title}
-              </h4>
-              <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                {displayedSector.sub}
-              </p>
-              <p className="text-[11px] text-slate-800 dark:text-slate-200 font-bold truncate mt-0.5">
-                {displayedSector.fullDesc}
-              </p>
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm"
+                  style={{ backgroundColor: sec.color }}
+                >
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-black truncate" style={{ color: sec.color }}>
+                      {sec.tag} • {sec.title}
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand-orange/10 text-brand-orange whitespace-nowrap">
+                      Click to Query
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-theme-main font-medium leading-snug truncate mt-0.5">
+                    {sec.fullDesc}
+                  </p>
+                </div>
+              </div>
+            );
+          })()
+        ) : lastMatchedCase ? (
+          <div className="w-full p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl shadow-sm flex items-center justify-between gap-2 text-xs animate-fade-in">
+            <div className="flex items-center gap-2 truncate">
+              <Sparkles className="w-4 h-4 text-brand-orange shrink-0" />
+              <span className="text-xs text-theme-main font-bold truncate">
+                Grounded: SLD #{lastMatchedCase.sldNumber || lastMatchedCase.id} ({lastMatchedCase.court})
+              </span>
             </div>
+            <span className="text-[10px] font-bold text-brand-orange bg-brand-orange/20 px-2 py-0.5 rounded-full shrink-0">
+              100% Grounded
+            </span>
           </div>
-
-          <span
-            className="text-[10px] font-black uppercase tracking-wider text-white px-2.5 py-1.5 rounded-lg shrink-0 shadow-xs"
-            style={{ backgroundColor: displayedSector.badgeText === '#FFFFFF' ? displayedSector.badgeBg : displayedSector.color }}
-          >
-            {displayedSector.badge}
-          </span>
-        </div>
-
+        ) : (
+          <div className="w-full p-2.5 bg-gray-50/80 dark:bg-theme-surface-alt/40 border border-theme-border/60 rounded-xl flex items-center justify-between gap-2 text-xs text-theme-muted">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)] animate-pulse" />
+              <span className="text-[11px] font-medium">Hover over any sector to inspect law fields</span>
+            </div>
+            <span className="text-[10px] text-brand-orange font-bold uppercase tracking-wider">
+              8 Fields
+            </span>
+          </div>
+        )}
       </div>
-
     </div>
   );
 };
