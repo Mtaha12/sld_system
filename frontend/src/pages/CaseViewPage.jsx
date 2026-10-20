@@ -7,6 +7,7 @@ import {
   FileText, Calendar, Gavel, Award
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
+import { formatCitations } from '../utils/citationFormatter';
 
 /**
  * Robust Cause Title parser for Commonwealth / Pakistani law reports
@@ -105,7 +106,7 @@ const CaseViewPage = () => {
     if (!caseData?.mapYearPage || caseData.mapYearPage.length === 0) {
       return caseData?.sldNumber ? `SLD Ref #${caseData.sldNumber}` : '';
     }
-    return caseData.mapYearPage.join('  =  ');
+    return formatCitations(caseData.mapYearPage, caseData.publications).join('  =  ');
   }, [caseData]);
 
   // Group applicable statutes by Law name, showing sections on line 2
@@ -525,10 +526,10 @@ const CaseViewPage = () => {
           {caseData.headNote && (
             <section className="my-6 p-5 sm:p-7 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border-l-4 border-amber-600 dark:border-amber-500 border-t border-r border-b border-amber-200/70 dark:border-amber-900/40 shadow-xs">
               <div 
-                className="font-serif text-stone-800 dark:text-stone-200 whitespace-pre-line text-justify transition-all"
+                className="word-document-content font-serif text-stone-800 dark:text-stone-200 transition-all"
                 style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
               >
-                {caseData.headNote}
+                <div dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(caseData.headNote) }} />
               </div>
             </section>
           )}

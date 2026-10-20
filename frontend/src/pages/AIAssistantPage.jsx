@@ -208,12 +208,29 @@ const AIAssistantPage = () => {
 
     try {
       let replyData;
-      if (activeSession.backendSessionId) {
-        const res = await aiChatService.sendMessage(activeSession.backendSessionId, hasText ? text.trim() : displayText, activeSession.focusedNode, attachments);
-        replyData = res?.reply;
-      } else {
-        replyData = await aiChatService.queryLegalCore(hasText ? text.trim() : displayText, activeSession.focusedNode, attachments);
+      let backendSessionId = activeSession.backendSessionId;
+
+      // Create the persisted backend session before the first turn so that
+      // follow-up requests such as "explain it" retain the verified case
+      // context instead of being routed to stateless general AI.
+      if (!backendSessionId) {
+        const session = await aiChatService.createSession(null, updatedTitle);
+        backendSessionId = session?._id || session?.id || session?.session_id;
+        if (!backendSessionId) {
+          throw new Error('Unable to create a persistent AI chat session.');
+        }
+        setSessions(prev => prev.map(s => (
+          s.id === currentSessId ? { ...s, backendSessionId } : s
+        )));
       }
+
+      const res = await aiChatService.sendMessage(
+        backendSessionId,
+        hasText ? text.trim() : displayText,
+        activeSession.focusedNode,
+        attachments
+      );
+      replyData = res?.reply;
 
       const assistantMsg = {
         sender: 'assistant',

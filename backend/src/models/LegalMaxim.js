@@ -2,11 +2,15 @@ import mongoose from 'mongoose';
 
 const legalMaximSchema = new mongoose.Schema(
   {
+    srNumber: {
+      type: Number,
+      index: true,
+    },
     name: {
       type: String,
       required: [true, 'Legal Maxim is required'],
       trim: true,
-      unique: true,
+      index: true,
     },
     meaning: {
       type: String,
@@ -17,6 +21,7 @@ const legalMaximSchema = new mongoose.Schema(
       type: String,
       enum: ['active', 'inactive'],
       default: 'active',
+      index: true,
     },
   },
   {
@@ -24,7 +29,7 @@ const legalMaximSchema = new mongoose.Schema(
   }
 );
 
-legalMaximSchema.index({ status: 1 });
+legalMaximSchema.index({ name: 'text', meaning: 'text' });
 
 const LegalMaxim = mongoose.model('LegalMaxim', legalMaximSchema);
 

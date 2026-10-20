@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, ChevronDown, LogOut, Menu, Sparkles, PanelLeftClose, PanelLeftOpen, KeyRound, Check, X, ShieldCheck } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, Sparkles, PanelLeftClose, PanelLeftOpen, KeyRound, Check, X, ShieldCheck, Calculator } from 'lucide-react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { ACTIVITIES } from './RecentActivity';
 import { useUser } from '../../../contexts/UserContext';
@@ -8,6 +8,7 @@ import appStoreLogo from '../../../assets/branding/dashboard/app store.png';
 import playStoreLogo from '../../../assets/branding/dashboard/playstore.png';
 import aiSearchLogo from '/ai-q-search-logo.png';
 import aiBannerImg from '../../../assets/branding/dashboard/ai-banner.jpg';
+import LegalReferenceModal from './LegalReferenceModal';
 
 const PAGE_HEADERS = {
   '/dashboard': {
@@ -82,6 +83,22 @@ const PAGE_HEADERS = {
     title: 'Manage Legal Maxim',
     subtitle: 'Manage legal maxims, Latin legal principles and interpretations'
   },
+  '/setting/articles': {
+    title: 'Manage Articles',
+    subtitle: 'Manage published legal articles, author records and annual listings'
+  },
+  '/setting/topics': {
+    title: 'Manage Topics',
+    subtitle: 'Manage topic headings and thematic legal categories'
+  },
+  '/setting/words-phrases': {
+    title: 'Manage Words & Phrases',
+    subtitle: 'Manage legal words, phrases and judicial interpretations'
+  },
+  '/setting/legal-terms': {
+    title: 'Manage Legal Terms',
+    subtitle: 'Manage defined legal and statutory terminology'
+  },
   '/manage-custom-tariffs': {
     title: 'Manage Custom Tariffs',
     subtitle: 'Maintain custom duty rates, PCT codes and annual tariff schedules'
@@ -111,6 +128,10 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  // Legal Reference Library Modal State (Articles, Topics, Words & Phrases, Legal Terms, Maxims)
+  const [isRefModalOpen, setIsRefModalOpen] = useState(false);
+  const [selectedRefTab, setSelectedRefTab] = useState('articles');
   
   const notificationsRef = useRef(null);
   const profileRef = useRef(null);
@@ -239,8 +260,20 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
         </div>
       </div>
 
-      {/* Right Header Actions: AI Banner Button, App Store & Play Store Badges, Change Password, Notifications, User Profile */}
+      {/* Right Header Actions: Tax Calculator, AI Banner Button, App Store & Play Store Badges, Change Password, Notifications, User Profile */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+        {/* Tax Calculator Button - Opens Pakistan Tax Calculator in New Tab */}
+        <a
+          href="https://pakistan-tax-calculator-mmca.ai.studio/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-md hover:shadow-emerald-500/20 active:scale-95 shrink-0 border border-emerald-400/30 cursor-pointer"
+          title="Open Pakistan Tax Calculator in New Tab"
+        >
+          <Calculator className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-100 shrink-0" />
+          <span className="whitespace-nowrap">Tax Calculator</span>
+        </a>
+
         {/* AI Banner Button (Click to open AI Chatbot) - Compact & Sleek */}
         <button 
           type="button"
@@ -492,6 +525,13 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
           </div>
         </div>
       )}
+
+      {/* Legal Reference Directory Viewer Modal */}
+      <LegalReferenceModal
+        isOpen={isRefModalOpen}
+        onClose={() => setIsRefModalOpen(false)}
+        initialTab={selectedRefTab}
+      />
     </header>
   );
 };

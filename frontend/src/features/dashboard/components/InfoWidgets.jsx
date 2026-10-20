@@ -184,7 +184,7 @@ const InfoWidgets = () => {
           </div>
           <span className="flex items-center gap-1 text-[11px] font-bold text-orange-900 dark:text-orange-200 bg-orange-100/90 dark:bg-orange-950/60 border border-orange-200/70 px-2 py-0.5 rounded-full shadow-2xs font-mono">
             <Calendar className="w-3 h-3 text-[#f15a24]" />
-            31 AUG 2026
+            {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
           </span>
         </div>
 
@@ -212,9 +212,9 @@ const InfoWidgets = () => {
           {/* Bank Accounts Grid/List */}
           <div className="flex flex-col gap-1.5">
             {[
-              { bank: 'Allied Bank Limited', title: 'Super Law Data System', acc: '11050010037270730029' },
-              { bank: 'MCB Bank Limited', title: 'Super Law Data System', acc: 'PK84MUCB1123909311000715', prefix: 'IBAN' },
-              { bank: 'United Bank Limited', title: 'Super Law Data System', acc: '1491-222820349' },
+              { bank: 'Allied Bank Limited', title: 'SLD System', acc: '11050010037270730029' },
+              { bank: 'MCB Bank Limited', title: 'SLD System', acc: 'PK84MUCB1123909311000715', prefix: 'IBAN' },
+              { bank: 'United Bank Limited', title: 'SLD System', acc: '1491-222820349' },
               { bank: 'Jazz Cash / Easy Paisa', title: 'Haroon Ahmad Rafiq', acc: '03215390007' }
             ].map((b, i) => (
               <CompactAccountRow key={i} b={b} />
@@ -235,7 +235,7 @@ const InfoWidgets = () => {
         </div>
       </div>
 
-      {/* 2. Contact Us Column - Compact, Ultra-Attractive & Executive */}
+      {/* 2. Contact Us Column - Full Representation Details */}
       <div className="bg-gradient-to-b from-[#f5f9ff] to-[#eaf3ff] dark:from-[#111827] dark:to-[#0f172a] border border-blue-200/80 dark:border-blue-900/40 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
 
         {/* Header */}
@@ -255,66 +255,32 @@ const InfoWidgets = () => {
         </div>
 
         {/* Content */}
-        <div className="p-3.5 flex flex-col gap-2 flex-1 justify-between">
+        <div className="p-3.5 flex flex-col gap-2.5 flex-1 justify-between">
 
-          {/* Executive 1: CEO */}
-          <div className="p-2.5 rounded-xl bg-white/80 dark:bg-theme-surface/80 border border-blue-100 dark:border-blue-900/30 shadow-2xs hover:border-blue-300 transition-colors">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 shrink-0 font-black text-xs">
+          {/* Executive 1: Haroon Ahmad Rafiq */}
+          <div className="p-3 rounded-xl bg-white/80 dark:bg-theme-surface/80 border border-blue-100 dark:border-blue-900/30 shadow-2xs hover:border-blue-300 transition-colors">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 shrink-0 font-black text-xs mt-0.5">
                   HR
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight">Haroon Ahmad Rafiq</h3>
-                  <p className="text-[10px] text-gray-600 dark:text-gray-400 flex items-center gap-1 leading-tight mt-0.5">
-                    <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" /> Head Office: Bank Road, Saddar-Rawalpindi
+                  <p className="text-[10.5px] text-gray-600 dark:text-gray-400 leading-snug mt-1">
+                    <span className="font-semibold text-gray-700 dark:text-gray-300">Head Office:</span> # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi
                   </p>
                 </div>
               </div>
-              <span className="text-[9px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 px-2 py-0.5 rounded shrink-0">
-                CEO
-              </span>
             </div>
 
-            <div className="flex items-center gap-1.5 mt-2">
-              <a href="mailto:info@sldsystem.com" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors whitespace-nowrap">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 mt-2.5 pt-2 border-t border-blue-100/60 dark:border-blue-900/30">
+              <a href="mailto:info@sldsystem.com" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors whitespace-nowrap">
                 <Mail className="w-3 h-3 text-blue-600 shrink-0" />
                 <span>info@sldsystem.com</span>
               </a>
-              <a href="tel:03215390007" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono whitespace-nowrap">
+              <a href="tel:03215390007" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono whitespace-nowrap">
                 <Phone className="w-3 h-3 text-blue-600 shrink-0" />
                 <span>0321-5390007-8</span>
-              </a>
-            </div>
-          </div>
-
-          {/* Executive 2: Sales Manager */}
-          <div className="p-2.5 rounded-xl bg-white/80 dark:bg-theme-surface/80 border border-blue-100 dark:border-blue-900/30 shadow-2xs hover:border-blue-300 transition-colors">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 shrink-0 font-black text-xs">
-                  SA
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight">Abdul Sami Abbasi</h3>
-                  <p className="text-[10px] text-gray-600 dark:text-gray-400 flex items-center gap-1 leading-tight mt-0.5">
-                    <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" /> Karachi Branch: Al-Ayesha Chambers, Saddar
-                  </p>
-                </div>
-              </div>
-              <span className="text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/60 px-1.5 py-0.5 rounded shrink-0">
-                Sales Manager
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 mt-2">
-              <a href="mailto:sami@sldsystem.com" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors whitespace-nowrap">
-                <Mail className="w-3 h-3 text-blue-600 shrink-0" />
-                <span>sami@sldsystem.com</span>
-              </a>
-              <a href="tel:03258986393" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono whitespace-nowrap">
-                <Phone className="w-3 h-3 text-blue-600 shrink-0" />
-                <span>0325-8986393</span>
               </a>
             </div>
           </div>
@@ -331,6 +297,40 @@ const InfoWidgets = () => {
               </span>
             </div>
           </div>
+
+          {/* Executive 2: Abdul Sami Abbasi */}
+          <div className="p-3 rounded-xl bg-white/80 dark:bg-theme-surface/80 border border-blue-100 dark:border-blue-900/30 shadow-2xs hover:border-blue-300 transition-colors">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 shrink-0 font-black text-xs mt-0.5">
+                  SA
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-black text-gray-900 dark:text-gray-100 font-heading leading-tight">Abdul Sami Abbasi</h3>
+                    <span className="text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/60 px-1.5 py-0.5 rounded shrink-0">
+                      Sales Manager
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-gray-600 dark:text-gray-400 leading-snug mt-1">
+                    <span className="font-semibold text-gray-700 dark:text-gray-300">Karachi Branch:</span> Office No. 408, 4th Floor, Al-Ayesha Chambers, Sharar-e-Iraq, Near Passport Office, Saddar-Karachi
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 mt-2.5 pt-2 border-t border-blue-100/60 dark:border-blue-900/30">
+              <a href="mailto:sami@sldsystem.com" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors whitespace-nowrap">
+                <Mail className="w-3 h-3 text-blue-600 shrink-0" />
+                <span>sami@sldsystem.com</span>
+              </a>
+              <a href="tel:03258986393" className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1 rounded-md bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-100/80 dark:border-blue-900/50 text-[10.5px] font-bold text-blue-900 dark:text-blue-200 transition-colors font-mono whitespace-nowrap">
+                <Phone className="w-3 h-3 text-blue-600 shrink-0" />
+                <span>0325-8986393</span>
+              </a>
+            </div>
+          </div>
+
         </div>
 
         {/* Footer Actions */}
@@ -538,7 +538,7 @@ const InfoWidgets = () => {
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
         title="Emails & WhatsApp Services"
-        subtitle="Super Law Data System Updating Service Through Email & WhatsApp"
+        subtitle="SLD System Updating Service Through Email & WhatsApp"
         icon={Mail}
         maxWidth="max-w-4xl"
         footer={
@@ -559,7 +559,7 @@ const InfoWidgets = () => {
         <div className="p-2 sm:p-3 bg-gray-50 dark:bg-black/20 flex flex-col items-center justify-center">
           <img
             src={sldEmailWhatsappBanner}
-            alt="Super Law Data System Updating Service Through Email & WhatsApp"
+            alt="SLD System Updating Service Through Email & WhatsApp"
             className="w-full max-h-[75vh] object-contain rounded-xl border border-theme-border shadow-sm"
           />
         </div>
@@ -573,7 +573,7 @@ const InfoWidgets = () => {
         isOpen={isBrochureModalOpen}
         onClose={() => setIsBrochureModalOpen(false)}
         title="SLD Brochure"
-        subtitle="Super Law Data System Official Brochure"
+        subtitle="SLD System Official Brochure"
         icon={BookOpen}
         maxWidth="max-w-4xl"
         footer={

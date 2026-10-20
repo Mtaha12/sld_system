@@ -110,6 +110,43 @@ const ContactForm = () => {
         </p>
       </div>
 
+      {/* Official Office Contact Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 text-left">
+        {/* Head Office Rawalpindi */}
+        <div className="p-4 rounded-xl bg-[#14151A] border border-[#262833] text-xs space-y-1">
+          <div className="text-brand-orange font-bold text-xs uppercase tracking-wider mb-1">
+            Head Office (Rawalpindi)
+          </div>
+          <p className="text-white font-semibold text-sm">Haroon Ahmad Rafiq</p>
+          <p className="text-gray-300 leading-snug">
+            Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi
+          </p>
+          <p className="text-gray-300 pt-1">
+            <span className="text-gray-400 font-medium">Tel:</span> 0321-5390007-8
+          </p>
+          <p className="text-gray-300">
+            <span className="text-gray-400 font-medium">Email:</span> <a href="mailto:info@sldsystem.com" className="text-brand-orange hover:underline">info@sldsystem.com</a>
+          </p>
+        </div>
+
+        {/* Karachi Branch Office */}
+        <div className="p-4 rounded-xl bg-[#14151A] border border-[#262833] text-xs space-y-1">
+          <div className="text-brand-orange font-bold text-xs uppercase tracking-wider mb-1">
+            Karachi Branch Office
+          </div>
+          <p className="text-white font-semibold text-sm">Abdul Sami Abbasi <span className="text-xs font-normal text-gray-400">(Sales Manager)</span></p>
+          <p className="text-gray-300 leading-snug">
+            Karachi Branch Office No. 408, 4th Floor, Al-Ayesha Chambers, Sharar-e-Iraq, Near Passport Office, Saddar-Karachi
+          </p>
+          <p className="text-gray-300 pt-1">
+            <span className="text-gray-400 font-medium">Cell:</span> 0325-8986393
+          </p>
+          <p className="text-gray-300">
+            <span className="text-gray-400 font-medium">Email:</span> <a href="mailto:sami@sldsystem.com" className="text-brand-orange hover:underline">sami@sldsystem.com</a>
+          </p>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {errors.root && (
           <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-lg text-center animate-shake">

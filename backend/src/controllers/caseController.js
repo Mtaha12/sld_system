@@ -545,15 +545,28 @@ export const getCases = async (req, res, next) => {
       ? 'caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw judgment'
       : 'caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw';
 
+    let casesQuery = Case.find(query)
+      .select(selectFields)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    // Citation searches have an exact publication compound index. Using it
+    // avoids scanning every record sharing the page number before sorting.
+    if (subject && parseLegalCitation(subject)) {
+      casesQuery = casesQuery.hint({
+        isDeleted: 1,
+        'publications.mag': 1,
+        'publications.page': 1,
+        'publications.year': 1
+      });
+    }
+
     // Execute count + paginated query in parallel using fast indexed queries
     const [totalItems, cases] = await Promise.all([
       getTotalCasesCount(query, hasFilter),
-      Case.find(query)
-        .select(selectFields)
-        .sort(sortObj)
-        .skip(skip)
-        .limit(limitNum)
-        .lean()
+      casesQuery
     ]);
 
     let data = cases.map(formatCaseForFrontend);
@@ -1341,11 +1354,21 @@ export const searchCases = async (req, res, next) => {
       } catch (hintErr) {}
     } else if (filters.subject && parseLegalCitation(filters.subject)) {
       try {
-        queryExec = queryExec.hint({ 'publications.page': 1, 'publications.year': 1 });
+        queryExec = queryExec.hint({
+          isDeleted: 1,
+          'publications.mag': 1,
+          'publications.page': 1,
+          'publications.year': 1
+        });
       } catch (hintErr) {}
     } else if (filters.yearVolume && filters.magazine && filters.page) {
       try {
-        queryExec = queryExec.hint({ 'publications.page': 1, 'publications.year': 1 });
+        queryExec = queryExec.hint({
+          isDeleted: 1,
+          'publications.mag': 1,
+          'publications.page': 1,
+          'publications.year': 1
+        });
       } catch (hintErr) {}
     }
 
@@ -1377,4 +1400,3 @@ export const searchCases = async (req, res, next) => {
     next(error);
   }
 };
-

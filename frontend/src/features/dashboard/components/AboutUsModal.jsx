@@ -22,7 +22,7 @@ const AboutUsModal = ({ isOpen, onClose }) => {
       isOpen={isOpen}
       onClose={onClose}
       title="About SLD System"
-      subtitle="Super Law Data System Information & Strategy"
+      subtitle="SLD System Information & Strategy"
       icon={Info}
       maxWidth="max-w-6xl"
     >
@@ -35,7 +35,7 @@ const AboutUsModal = ({ isOpen, onClose }) => {
               <ul className="space-y-2">
                 <li className="flex items-start gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#f15a24] mt-1.5 shrink-0" />
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">Super Law Data System (SLD System).</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">SLD System.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#f15a24] mt-1.5 shrink-0" />

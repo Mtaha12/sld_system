@@ -27,7 +27,9 @@
     "ckeditor4-react": {
       "react": "$react",
       "react-dom": "$react-dom"
-    }
+    },
+    "braces": "^3.0.3",
+    "postcss-selector-parser": "^7.1.6"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

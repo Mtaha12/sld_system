@@ -888,7 +888,7 @@ th { background-color: #f2f2f2; font-weight: bold; }
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Search 162,865+ case laws, or attach an order to draft Format 1 (Writ), Format 2 (ATIR), Format 3 (CIT)..."
+              placeholder="Search 450,000+ case laws, or attach an order to draft Format 1 (Writ), Format 2 (ATIR), Format 3 (CIT)..."
               disabled={isLoading}
               className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#161922] border border-slate-300 dark:border-slate-700 rounded-xl text-sm sm:text-base focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 text-slate-900 dark:text-slate-100 transition-all resize-none max-h-44 leading-relaxed font-sans"
               style={{ minHeight: '44px' }}

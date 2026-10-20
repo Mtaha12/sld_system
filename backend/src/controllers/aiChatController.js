@@ -211,16 +211,29 @@ export const searchStatutes = async (queryText) => {
   if (cleanQ.length < 2) return [];
 
   const searchRegex = new RegExp(escapeRegex(cleanQ), 'i');
+
+  // First priority: blocks that actually contain the searched text in their own
+  // section heading or detail body — this is the specific block-level content match.
+  const blockMatches = await Statute.find({
+    isDeleted: false,
+    $or: [
+      { 'blocks.sectionHeading': searchRegex },
+      { 'blocks.detail': searchRegex }
+    ]
+  }).limit(5).maxTimeMS(2000).lean();
+
+  if (blockMatches.length > 0) return blockMatches;
+
+  // Fallback only if no block-level match: search statute-level metadata fields
+  // (law name, section number, heading) — useful for navigating to the right act.
   return await Statute.find({
     isDeleted: false,
     $or: [
       { law: searchRegex },
       { section: searchRegex },
-      { heading: searchRegex },
-      { 'blocks.sectionHeading': searchRegex },
-      { 'blocks.detail': searchRegex }
+      { heading: searchRegex }
     ]
-  }).limit(5).maxTimeMS(2500).lean();
+  }).limit(5).maxTimeMS(1500).lean();
 };
 
 /**
@@ -2090,6 +2103,35 @@ export const detectResponseIntent = (rawQuery) => {
   };
 };
 
+const formatCaseExplanationResponse = (targetCase, citation) => {
+  const citeHeader = citation || targetCase.mapYearPage?.join(' | ') || `SLD #${targetCase.sldNumber || targetCase.caseId}`;
+  const judgmentText = String(targetCase.judgment || '').replace(/\s+/g, ' ').trim();
+  const headnoteText = String(targetCase.headNote || '').replace(/\s+/g, ' ').trim();
+  const principleText = String(targetCase.principleLaw || '').trim();
+  const lawReferences = (Array.isArray(targetCase.laws) ? targetCase.laws : [])
+    .map((law) => {
+      const statute = String(law?.lawStatute || '').trim();
+      const section = String(law?.section || '').trim();
+      return statute && section ? `${statute}, Section ${section}` : statute || section;
+    })
+    .filter(Boolean);
+  const explanationSource = principleText || headnoteText || judgmentText;
+  const explanation = explanationSource
+    ? explanationSource.slice(0, 1800)
+    : 'The database record does not contain enough text to provide a reliable explanation. Please open the full judgment document.';
+
+  return `### ⚖️ Case Explanation: ${citeHeader}\n\n` +
+    `This is the verified Pakistani judgment reported at **${citeHeader}**.\n\n` +
+    `#### What the Case Means\n${explanation}\n\n` +
+    `#### Legal Principle\n${principleText || 'No separate principle-of-law field is recorded for this judgment. The explanation above is based on the archived case text.'}\n\n` +
+    `#### Verified Law References\n${lawReferences.length > 0 ? lawReferences.map((law) => `- **${law}**`).join('\n') : '- No statute/article/section number was recorded in the case metadata; no law number has been inferred.'}\n\n` +
+    `#### Case Record\n` +
+    `- **Court**: ${targetCase.court || 'Court of Record'}\n` +
+    `- **Decision Date**: ${formatDate(targetCase)}\n` +
+    `- **Bench / Coram**: ${cleanBenchList(targetCase.judges)}\n\n` +
+    `[View Full Case Document ↗](/cases/view/${targetCase._id})`;
+};
+
 /**
  * Formats a pure judgment response (Type A)
  * Displays only authentic judgment text or document viewer link.
@@ -2909,8 +2951,10 @@ export const extractConversationContext = (conversationHistory = []) => {
 
   for (let i = conversationHistory.length - 1; i >= 0; i--) {
     const msg = conversationHistory[i];
-    if (msg.sender === 'assistant') {
-      if (!lastText) lastText = msg.text || '';
+    const sender = msg.sender || msg.role;
+    const messageText = msg.text || msg.content || '';
+    if (sender === 'assistant') {
+      if (!lastText) lastText = messageText;
       if (msg.legalAnalysis) {
         if (msg.legalAnalysis.matchedCase && !lastCase) {
           lastCase = msg.legalAnalysis.matchedCase;
@@ -2921,15 +2965,15 @@ export const extractConversationContext = (conversationHistory = []) => {
           hasLegalContext = true;
         }
       }
-      if (!lastCase && msg.text) {
-        const sldMatch = msg.text.match(/\bSLD\s*#?(\d+)\b/i);
-        const citeMatch = msg.text.match(/\b(19\d{2}|20\d{2})\s+(SLD|PTD|SCMR|PLD|CLC|MLD|CLD|TAX|PTCL|PLC|YLR|PCrLJ)\s+(\d+)\b/i);
+      if (!lastCase && messageText) {
+        const sldMatch = messageText.match(/\bSLD\s*#?(\d+)\b/i);
+        const citeMatch = messageText.match(/\b(19\d{2}|20\d{2})\s+(SLD|PTD|SCMR|PLD|CLC|MLD|CLD|TAX|PTCL|PLC|YLR|PCrLJ)\s+(\d+)\b/i);
         if (sldMatch || citeMatch) {
           hasLegalContext = true;
         }
       }
-    } else if (msg.sender === 'user' && !lastQuery) {
-      lastQuery = msg.text || '';
+    } else if (sender === 'user' && !lastQuery) {
+      lastQuery = messageText;
     }
     if (lastCase && matchedCases.length > 0) break;
   }
@@ -3007,6 +3051,7 @@ CRITICAL INSTRUCTIONS & PROMPT INJECTION DEFENSE:
    - #### ${precedentsHeader}:
      For EACH verified case provided below, include its Citation, Court, Bench, Litigants, and Key Legal Ruling, followed by its document link: [View Full Case Document ↗](/cases/view/<Document Link ID>).
    - #### Ratio Decidendi & Legal Principles: The statutory interpretation, rationale, and doctrine established across the cases.
+   - #### Relevant Law Numbers: State the exact statute/article/section numbers only when they appear in the verified statutory provisions above. Never invent a law number.
 8. Official Portals & External References:
    If the user's query references SROs, notifications, corporate circulars, or superior court portals outside the immediate case records, provide authentic external links (e.g. [FBR SROs ↗](https://fbr.gov.pk/sros), [SECP Circulars ↗](https://www.secp.gov.pk/laws/circulars/), [LHC Reported Judgments ↗](https://data.lhc.gov.pk/reported_judgments/judgments_approved_for_reporting), [SCP Judgments Search ↗](https://scp.gov.pk/JudgmentsSearch)). NEVER show "/cases/view/..." for external or official portal items.
 9. Formatting Constraints:
@@ -3132,13 +3177,29 @@ export const handleFollowUpQuery = async (queryText, conversationHistory = [], r
                            /^(?:show|give|open|view)\s+judgm?ent\b/i.test(lowerQ);
   const isHeadnoteRequest = /\b(?:show|give|display|view|get)\s+(?:me\s+)?(?:its|the|this|that|authentic)?\s+head\s*notes?\b/i.test(lowerQ) ||
                            /^(?:show|give|open|view)\s+head\s*note\b/i.test(lowerQ);
-  const isExplanationRequest = /\b(?:what\s+did\s+the\s+court\s+decide|what\s+was\s+held|what\s+was\s+the\s+decision|what\s+did\s+they\s+decide|explain\s+(?:what\s+happened|it|that|this|the\s+case|the\s+judgment)\s*(?:in\s+simple\s+words|simply|in\s+plain\s+english)?|simple\s+explanation|explain\s+in\s+simple\s+words)\b/i.test(lowerQ);
+  const isExplanationRequest = /\b(?:what\s+did\s+the\s+court\s+decide|what\s+was\s+held|what\s+was\s+the\s+decision|what\s+did\s+they\s+decide|explain(?:\s+(?:what\s+happened|it|that|this|the\s+case|the\s+judgment|this\s+case|this\s+judgment|it\s+more))?(?:\s+in\s+simple\s+words|\s+simply|\s+in\s+plain\s+english)?|simple\s+explanation|explain\s+in\s+simple\s+words)\b/i.test(lowerQ);
   const isCompareRequest = /\b(?:compare\s+(?:them|the\s+cases|both|all|it\s+with\s+the\s+previous)|difference\s+between\s+(?:them|the\s+cases))\b/i.test(lowerQ);
   const isProvisionRequest = /\b(?:explain\s+(?:that|the|this)\s+(?:provision|section|statute|law|article)|what\s+does\s+(?:that|this)\s+section\s+say)\b/i.test(lowerQ);
 
   const isGenericCaseInquiry = /\b(?:explain\s+the\s+case|tell\s+me\s+about\s+the\s+case)\b/i.test(lowerQ);
 
-  if (!isSpecificCaseRef && !isJudgmentRequest && !isHeadnoteRequest && !isExplanationRequest && !isCompareRequest && !isProvisionRequest && !isGenericCaseInquiry) {
+  // "Yes", "more clarification", "continue", "explain more" — user is affirming/extending
+  // the previous legal context. Must only be caught when there IS a previous legal case in context.
+  const isContinuationAffirmation = convCtx.hasLegalContext && (
+    /^(?:yes|yeah|yep|ok|okay|sure|correct|please|go\s+ahead|continue|proceed)[\s.,!]*$/i.test(lowerQ) ||
+    /^(?:yes\s+(?:please|do|explain|continue|more|go\s+on|i\s+do))[\s.,!]*$/i.test(lowerQ) ||
+    /\b(?:more\s+clarif(?:ication)?|need\s+(?:more|further)\s+(?:clarif(?:ication)?|detail|explanation)|clarify\s+(?:more|further|please)|tell\s+me\s+more|explain\s+(?:more|further|in\s+detail)|elaborate|more\s+detail|give\s+more|provide\s+more|i\s+need\s+(?:more|further)\s+(?:detail|explanation|info)|any\s+more\s+(?:detail|information)|what\s+else)\b/i.test(lowerQ)
+  );
+
+  // User pasted / quoted a line from a judgment and wants explanation
+  const isQuotedTextExplanation = convCtx.hasLegalContext && (
+    /\b(?:explain\s+(?:this\s+)?(?:line|word|phrase|sentence|paragraph|passage|term)|what\s+(?:does|did|do)\s+(?:this|that|the\s+following)\s+(?:mean|say)|meaning\s+of\s+(?:this|that)|what\s+is\s+meant\s+by)\b/i.test(lowerQ) ||
+    (/^["'"']/.test(cleanQ) && cleanQ.length > 10)
+  );
+
+  if (!isSpecificCaseRef && !isJudgmentRequest && !isHeadnoteRequest && !isExplanationRequest &&
+      !isCompareRequest && !isProvisionRequest && !isGenericCaseInquiry &&
+      !isContinuationAffirmation && !isQuotedTextExplanation) {
     return null;
   }
 
@@ -3304,9 +3365,28 @@ export const handleFollowUpQuery = async (queryText, conversationHistory = [], r
   }
 
   // 6. Plain English / Court Decision Explanation follow-up
+  // Also handles: "yes", "more clarification", "tell me more", quoted text explanation
   const citeHeader = (caseToUse.mapYearPage && caseToUse.mapYearPage.length > 0)
     ? caseToUse.mapYearPage.join(' = ')
     : (caseToUse.citations ? caseToUse.citations.join(' = ') : `SLD #${caseToUse.sldNumber || caseToUse.caseId}`);
+
+  // Build context of what was already said so Gemini stays on-topic
+  const priorContextSnippet = Array.isArray(conversationHistory) && conversationHistory.length > 0
+    ? conversationHistory.slice(-6).map(m => {
+        const sender = m.sender === 'user' ? 'User' : 'Assistant';
+        return `${sender}: ${(m.text || '').slice(0, 600)}`;
+      }).join('\n')
+    : '';
+
+  // Determine the actual intent to pass to Gemini
+  let userIntentLabel = 'explain this case in plain English';
+  if (isContinuationAffirmation) {
+    userIntentLabel = 'continue / provide more detail on the last response above';
+  } else if (isQuotedTextExplanation) {
+    userIntentLabel = `explain this specific text from the judgment: "${cleanQ}"`;
+  } else if (isExplanationRequest) {
+    userIntentLabel = cleanQ;
+  }
 
   let explanationText = null;
   if (process.env.GEMINI_API_KEY) {
@@ -3320,9 +3400,10 @@ export const handleFollowUpQuery = async (queryText, conversationHistory = [], r
       const principle = caseToUse.principleLaw || '';
 
       const sysPrompt = `You are the Senior Judicial AI Research Counsel for the SLD System of Pakistan.
-The user is asking a conversational follow-up question regarding a specific verified Pakistani case law precedent: ${citeHeader}.
-User's Question: "${cleanQ}"
+The user is continuing a conversation about the verified Pakistani case law: ${citeHeader}.
+Their current request is: "${userIntentLabel}"
 
+${priorContextSnippet ? `CONVERSATION HISTORY (last 6 turns — stay on this topic, do NOT switch to a different case or legal topic):\n${priorContextSnippet}\n` : ''}
 Case Metadata (100% Verified Database Record):
 - Citation: ${citeHeader}
 - Court: ${courtStr}
@@ -3333,18 +3414,21 @@ Case Metadata (100% Verified Database Record):
 - Headnote Excerpt: ${headnoteSnippet}
 - Judgment Excerpt: ${judgmentSnippet}
 
-INSTRUCTIONS:
-1. Explain what happened and what the court decided in clean, accessible, plain English so that both a legal practitioner and a business professional can immediately grasp the outcome.
-2. Structure your response:
-   - ### ⚖️ Case Explanation: ${citeHeader}
-   - #### What Happened (The Dispute in Simple Terms)
+CRITICAL INSTRUCTIONS:
+1. TOPIC LOCK: You MUST stay strictly on the case ${citeHeader} and the conversation above. Do NOT switch topics, introduce new cases, or answer unrelated queries.
+2. If the user said "yes", "more", "continue", or "clarify" — continue the analysis of ${citeHeader} exactly where the last assistant response left off.
+3. If the user quoted a line or word from the judgment — explain THAT specific line/word in plain English, then show which part of the judgment it came from.
+4. Explain in clean, accessible plain English that both a legal practitioner and a business professional can immediately grasp.
+5. Structure your response:
+   - ### ⚖️ ${isContinuationAffirmation ? 'Further Analysis' : isQuotedTextExplanation ? 'Judgment Passage Explained' : 'Case Explanation'}: ${citeHeader}
+   - #### ${isContinuationAffirmation ? 'Continuing from Previous Analysis' : isQuotedTextExplanation ? 'What This Passage Means' : 'What Happened (The Dispute in Simple Terms)'}
    - #### What the Court Decided & Key Legal Reasons
    - #### Practical Takeaway for Taxpayers / Litigants
-3. Provide the direct link at the end: [View Full Case Document ↗](/cases/view/${caseToUse._id || caseToUse.id})
-4. Strictly focus on PAKISTANI law and this specific case. Never substitute foreign or Indian legal principles.`;
+6. Always end with: [View Full Case Document ↗](/cases/view/${caseToUse._id || caseToUse.id})
+7. Strictly focus on PAKISTANI law. Never substitute Indian or foreign legal principles.`;
 
       explanationText = await Promise.race([
-        callGeminiWithTokenControl(sysPrompt, `USER FOLLOW-UP: "${cleanQ}"`, [], { temperature: 0.2, maxOutputTokens: 2000, timeoutMs: 12000 }),
+        callGeminiWithTokenControl(sysPrompt, `USER FOLLOW-UP: "${cleanQ}"`, [], { temperature: 0.15, maxOutputTokens: 2200, timeoutMs: 12000 }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Follow-up Gemini timeout')), 12000))
       ]);
     } catch (fErr) {
@@ -3668,6 +3752,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
 
     // 1.1 Strict Intent-Based Response Control (Type A: Judgment, Type B: Headnote, Type C: Case Law, Type D: Legal Question, Type E: Paragraph)
     const { isJudgmentRequest, isHeadnoteRequest, isCaseLawRequest, isParagraphRequest, targetParagraphNum, isSummaryRequest, isLegalQuestion } = detectResponseIntent(rawClean);
+    const isExplanationQuery = /\b(?:explain|why|how|what\s+does|what\s+was\s+held|what\s+did\s+the\s+court)\b/i.test(rawClean);
+    const isExplicitExplanationRequest = isExplanationQuery && !isJudgmentRequest && !isHeadnoteRequest;
 
     // If user asked for judgment, headnote, or specific paragraph without referencing any case AND without any substantive search terms, prompt for the case identifier
     if ((isJudgmentRequest || isHeadnoteRequest || isParagraphRequest) && 
@@ -3798,7 +3884,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
     // Instant Cache Check (< 1ms) with Authorization Scope & Binding Year Filter
     const authScope = canAccessCases ? 'cases_1' : 'cases_0';
     const yearKeyPart = queryYearConstraint ? `${queryYearConstraint.minYear}_${queryYearConstraint.maxYear}` : 'noyear';
-    const cacheKey = `${normalizedQuery.toLowerCase()}___${focusNode || ''}___${authScope}___${yearKeyPart}`;
+      const responseMode = isExplanationQuery ? 'explanation_v2' : 'standard_v1';
+      const cacheKey = `${normalizedQuery.toLowerCase()}___${focusNode || ''}___${authScope}___${yearKeyPart}___${responseMode}`;
     const cachedResult = getCachedAIResult(cacheKey);
     if (cachedResult) {
       return cachedResult;
@@ -5511,7 +5598,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     // FORMAT 0: Direct Case ID Match or Single Citation Match
     else if (matchType === 'case_id' || matchType === 'citation_single') {
       const citeHeader = (citationDetails && citationDetails.formatted) ? citationDetails.formatted : ((targetCase.mapYearPage && targetCase.mapYearPage.length > 0) ? targetCase.mapYearPage.join(' = ') : cleanQuery.trim());
-      responseText = `### ⚖️ Judicial Precedent Record: ${citeHeader}\n\n` +
+      responseText = isExplicitExplanationRequest
+        ? formatCaseExplanationResponse(targetCase, citeHeader)
+        : `### ⚖️ Judicial Precedent Record: ${citeHeader}\n\n` +
         `An authoritative precedent matching **${citeHeader}** was verified in the SLD judicial database:\n\n` +
         `#### Key Case Details:\n` +
         `• **Citation**: ${citeHeader}\n` +
@@ -5826,7 +5915,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     // If Gemini is available, synthesize an authoritative AI research answer
     // grounded 100% in the retrieved database records.
     // Strictly bypass Gemini for exact phrase searches, case numbers, citations, judgment requests, and headnote requests
-    const isStrictPrecedentMatch = (
+    const isStrictPrecedentMatch = !isExplanationQuery && (
       matchType === 'exact_phrase_case_law' ||
       matchType === 'exact_phrase_not_found' ||
       matchType === 'case_number' ||
@@ -5837,7 +5926,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
       isHeadnoteRequest
     );
 
-    if (process.env.GEMINI_API_KEY && !isStrictPrecedentMatch && (isLegalQuestion || rawClean.includes('?') || matchType === 'legal_principle_refund' || matchType === 'topic_multi')) {
+    if (process.env.GEMINI_API_KEY && !isStrictPrecedentMatch && (isLegalQuestion || rawClean.includes('?') || matchType === 'legal_principle_refund' || matchType === 'topic_multi' || isExplanationQuery)) {
       const synthesized = await synthesizeLegalAIAnswer(rawClean, deduplicatedCasesList, targetCase, conversationHistory);
       if (synthesized) {
         responseText = synthesized;

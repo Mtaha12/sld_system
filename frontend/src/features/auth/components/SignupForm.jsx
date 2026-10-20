@@ -257,14 +257,20 @@ const SignupForm = () => {
             </div>
           </div>
           
-          <div className="text-left space-y-0.5 text-xs text-theme-muted">
+          <div className="text-left space-y-2 text-xs text-theme-muted">
             <p className="text-[#E55C41] font-medium mb-1">
               Having trouble signing up? Please contact:
             </p>
-            <p className="text-white font-medium">Haroon Ahmad Rafiq</p>
-            <p className="leading-snug">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
-            <p className="leading-snug">0321-5390007-8, 051-8315912</p>
-            <p className="leading-snug">info@sldsystem.com</p>
+            <div className="space-y-0.5 border-b border-white/5 pb-2">
+              <p className="text-white font-semibold">Haroon Ahmad Rafiq</p>
+              <p className="leading-snug">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
+              <p className="leading-snug">0321-5390007-8, 051-8315912 • info@sldsystem.com</p>
+            </div>
+            <div className="space-y-0.5 pt-0.5">
+              <p className="text-white font-semibold">Abdul Sami Abbasi <span className="text-[11px] font-normal text-gray-400">(Sales Manager)</span></p>
+              <p className="leading-snug">Karachi Branch Office No. 408, 4th Floor, Al-Ayesha Chambers, Sharar-e-Iraq, Near Passport Office, Saddar-Karachi</p>
+              <p className="leading-snug">0325-8986393 • sami@sldsystem.com</p>
+            </div>
           </div>
         </div>
 

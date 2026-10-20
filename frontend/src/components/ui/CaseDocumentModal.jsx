@@ -4,6 +4,7 @@ import { caseService } from '../../features/cases/services/caseService';
 import Spinner from './Spinner';
 import { Printer, X, Copy, Check } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../../utils/wordFormatter';
+import { formatCitations } from '../../utils/citationFormatter';
 
 /**
  * Robust Cause Title parser for Commonwealth / Pakistani law reports
@@ -60,7 +61,7 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
       try {
         const data = await caseService.getCaseById(caseId);
         setCaseData(data);
-      } catch (err) {
+      } catch {
         setError('Failed to load case details.');
       } finally {
         setLoading(false);
@@ -164,9 +165,9 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
               
               {/* Header Section */}
               <header className="border-b-2 border-stone-800 pb-5 text-center space-y-3">
-                {caseData.mapYearPage && caseData.mapYearPage.length > 0 && (
+                {formatCitations(caseData.mapYearPage, caseData.publications).length > 0 && (
                   <div className="inline-block px-4 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs sm:text-sm font-bold tracking-wide">
-                    {caseData.mapYearPage.join('  •  ')}
+                    {formatCitations(caseData.mapYearPage, caseData.publications).join('  •  ')}
                   </div>
                 )}
                 
@@ -265,7 +266,7 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
                       <span className="font-sans font-bold uppercase text-[10px] text-amber-700 not-italic mr-1.5">
                         Principle of Law:
                       </span>
-                      "{caseData.principleLaw}"
+                      &quot;{caseData.principleLaw}&quot;
                     </div>
                   )}
                 </section>
@@ -273,11 +274,11 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
 
               {/* Head Note */}
               {caseData.headNote && (
-                <section className="p-4 rounded-xl bg-amber-50/60 border-l-4 border-amber-600 border-t border-r border-b border-amber-200 text-xs sm:text-[13px] leading-relaxed text-stone-800 whitespace-pre-line text-justify">
+                <section className="word-document-content p-4 rounded-xl bg-amber-50/60 border-l-4 border-amber-600 border-t border-r border-b border-amber-200 text-xs sm:text-[13px] text-stone-800">
                   <span className="font-sans font-black uppercase text-[10.5px] text-amber-800 block mb-1.5">
                     Official Head Note & Subject Digest
                   </span>
-                  {caseData.headNote}
+                  <div dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(caseData.headNote) }} />
                 </section>
               )}
 
@@ -291,7 +292,7 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
                     Verbatim Transcript
                   </span>
                 </div>
-                <div className="text-justify leading-relaxed text-sm sm:text-[15px] pb-8 font-serif">
+                <div className="word-document-content text-sm sm:text-[15px] pb-8 font-serif">
                   {caseData.judgment && caseData.judgment.trim().length > 0 ? (
                     <div 
                       dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(caseData.judgment) }}
@@ -300,7 +301,7 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
                   ) : caseData.headNote ? (
                     <div className="p-4 rounded-xl bg-stone-100/70 border border-stone-200 text-stone-700 space-y-1">
                       <p className="font-sans font-bold text-xs uppercase text-amber-800">Digest Summary</p>
-                      <p className="text-xs leading-relaxed">{caseData.headNote}</p>
+                      <p className="text-xs">{caseData.headNote}</p>
                     </div>
                   ) : (
                     <p className="italic text-stone-500 py-4 text-center">

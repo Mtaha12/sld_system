@@ -106,8 +106,8 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // Safe fallback to prevent blocking legitimate cross-origin requests
-    callback(null, true);
+    // Reject credentialed requests from origins outside the allowlist.
+    callback(new Error('Origin is not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

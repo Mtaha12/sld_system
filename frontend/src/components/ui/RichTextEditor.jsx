@@ -12,12 +12,13 @@ import './RichTextEditor.css';
 const FallbackRichEditor = ({ value, onChange, placeholder, minHeight, isDark }) => {
   const editorRef = useRef(null);
   const [htmlMode, setHtmlMode] = useState(false);
+  const editorValue = formatWordDocumentDisplay(value || '');
 
   useEffect(() => {
-    if (editorRef.current && !htmlMode && editorRef.current.innerHTML !== (value || '')) {
-      editorRef.current.innerHTML = value || '';
+    if (editorRef.current && !htmlMode && editorRef.current.innerHTML !== editorValue) {
+      editorRef.current.innerHTML = editorValue;
     }
-  }, [value, htmlMode]);
+  }, [editorValue, htmlMode]);
 
   const exec = (command, val = null) => {
     document.execCommand(command, false, val);
@@ -171,6 +172,7 @@ const RichTextEditor = ({
   const [ckError, setCkError] = useState(false);
   const [CKEditorComponent, setCKEditorComponent] = useState(null);
   const editorInstanceRef = useRef(null);
+  const editorValue = formatWordDocumentDisplay(value || '');
 
   // Dynamically load CKEditor to prevent SSR / React 19 crashes
   useEffect(() => {
@@ -268,7 +270,7 @@ const RichTextEditor = ({
     if (editorInstanceRef.current) {
       try {
         const currentData = editorInstanceRef.current.getData() || '';
-        const targetVal = value || '';
+        const targetVal = editorValue;
         if (targetVal !== currentData) {
           editorInstanceRef.current.setData(targetVal);
         }
@@ -276,7 +278,7 @@ const RichTextEditor = ({
         // safe ignore if editor is mid-initialization
       }
     }
-  }, [value]);
+  }, [editorValue]);
 
   if (ckError || !CKEditorComponent) {
     return (
@@ -296,7 +298,7 @@ const RichTextEditor = ({
     <div className={`rich-text-editor-wrapper w-full overflow-hidden rounded-lg border border-theme-border shadow-sm transition-colors ${className}`}>
       <CKEditor
         name={editorId}
-        initData={value || ''}
+        initData={editorValue}
         editorUrl="https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js"
         onInstanceReady={(evt) => {
           editorInstanceRef.current = evt.editor;

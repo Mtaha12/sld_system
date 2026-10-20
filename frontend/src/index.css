@@ -161,6 +161,13 @@ html, body, #root {
   word-break: break-word;
 }
 
+.word-document-input {
+  line-height: 1.6 !important;
+  text-align: justify;
+  white-space: pre-wrap;
+  tab-size: 4;
+}
+
 .word-document-content p,
 .word-document-content div.word-p {
   margin: 0 0 0.55rem 0 !important;
@@ -248,5 +255,4 @@ html, body, #root {
 .dark .word-document-content th {
   background-color: rgba(30, 41, 59, 0.7) !important;
 }
-
 

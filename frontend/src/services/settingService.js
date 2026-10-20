@@ -125,6 +125,86 @@ export const settingService = {
     const response = await api.post('/api/settings/sections/swap', { sectionId1, sectionId2 });
     return response.data;
   },
+
+  // ============================
+  // ARTICLES
+  // ============================
+  getArticles: async (params = {}) => {
+    const response = await api.get('/api/settings/articles', { params });
+    return response.data;
+  },
+  createArticle: async (data) => {
+    const response = await api.post('/api/settings/articles', data);
+    return response.data;
+  },
+  updateArticle: async (id, data) => {
+    const response = await api.put(`/api/settings/articles/${id}`, data);
+    return response.data;
+  },
+  deleteArticle: async (id) => {
+    const response = await api.delete(`/api/settings/articles/${id}`);
+    return response.data;
+  },
+
+  // ============================
+  // TOPICS
+  // ============================
+  getTopics: async (params = {}) => {
+    const response = await api.get('/api/settings/topics', { params });
+    return response.data;
+  },
+  createTopic: async (data) => {
+    const response = await api.post('/api/settings/topics', data);
+    return response.data;
+  },
+  updateTopic: async (id, data) => {
+    const response = await api.put(`/api/settings/topics/${id}`, data);
+    return response.data;
+  },
+  deleteTopic: async (id) => {
+    const response = await api.delete(`/api/settings/topics/${id}`);
+    return response.data;
+  },
+
+  // ============================
+  // WORDS & PHRASES
+  // ============================
+  getWordsPhrases: async (params = {}) => {
+    const response = await api.get('/api/settings/words-phrases', { params });
+    return response.data;
+  },
+  createWordPhrase: async (data) => {
+    const response = await api.post('/api/settings/words-phrases', data);
+    return response.data;
+  },
+  updateWordPhrase: async (id, data) => {
+    const response = await api.put(`/api/settings/words-phrases/${id}`, data);
+    return response.data;
+  },
+  deleteWordPhrase: async (id) => {
+    const response = await api.delete(`/api/settings/words-phrases/${id}`);
+    return response.data;
+  },
+
+  // ============================
+  // LEGAL TERMS
+  // ============================
+  getLegalTerms: async (params = {}) => {
+    const response = await api.get('/api/settings/legal-terms', { params });
+    return response.data;
+  },
+  createLegalTerm: async (data) => {
+    const response = await api.post('/api/settings/legal-terms', data);
+    return response.data;
+  },
+  updateLegalTerm: async (id, data) => {
+    const response = await api.put(`/api/settings/legal-terms/${id}`, data);
+    return response.data;
+  },
+  deleteLegalTerm: async (id) => {
+    const response = await api.delete(`/api/settings/legal-terms/${id}`);
+    return response.data;
+  },
 };
 
 export default settingService;

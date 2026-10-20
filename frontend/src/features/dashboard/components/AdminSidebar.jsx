@@ -45,6 +45,8 @@ import {
   Gauge,
   Network,
   ExternalLink,
+  Bookmark,
+  Type,
   Hash
 } from 'lucide-react';
 import logo from '../../../assets/branding/logo/SLD_Logo.png';
@@ -113,6 +115,10 @@ const FOLDER_GROUPS = [
       { label: 'Manage Cities', path: '/setting/cities', icon: Building2 },
       { label: 'Manage Principle of Law', path: '/setting/principles', icon: BookOpen },
       { label: 'Manage Legal Maxim', path: '/setting/legal-maxims', icon: Scale },
+      { label: 'Manage Articles', path: '/setting/articles', icon: BookOpen },
+      { label: 'Manage Topics', path: '/setting/topics', icon: Layers },
+      { label: 'Manage Words & Phrases', path: '/setting/words-phrases', icon: Type },
+      { label: 'Manage Legal Terms', path: '/setting/legal-terms', icon: Bookmark },
       { label: 'Manage Laws / Statute', path: '/setting/laws', icon: Library },
       { label: 'Manage Sections', path: '/setting/sections', icon: Hash },
     ]

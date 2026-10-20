@@ -55,6 +55,7 @@ import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import { caseService } from '../services/caseService';
+import { formatCitations } from '../../../utils/citationFormatter';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon, widthClassName = '', align = 'left' }) => {
   const isSorted = sortKey && sortConfig?.key === sortKey;
@@ -540,10 +541,10 @@ const ManageCasesTable = ({
         </span>
       </div>
 
-      {/* Table Container */}
+      {/* Table Container with Horizontal Scroll Bar */}
       <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-w-0 max-w-full">
-        <div className="overflow-x-auto w-full max-w-full">
-          <table className="w-full text-xs text-left min-w-[1100px]">
+        <div className="overflow-x-auto w-full max-w-full scrollbar-thin scrollbar-thumb-brand-orange/60 hover:scrollbar-thumb-brand-orange scrollbar-track-gray-100 dark:scrollbar-track-gray-800 pb-2">
+          <table className="w-full text-xs text-left min-w-[1200px]">
             <thead className="bg-theme-table-header border-b border-theme-border text-theme-main">
               <tr>
                 <th className="px-2 py-2.5 w-10 text-center">
@@ -574,8 +575,8 @@ const ManageCasesTable = ({
                     <TableHeader title="Case #" widthClassName="w-28" />
                     <TableHeader title="Judges" widthClassName="w-36" />
                     <TableHeader title="Lawyers" widthClassName="w-36" />
-                    <TableHeader title="Petitioners" widthClassName="w-44" />
-                    <TableHeader title="Law / Statute" widthClassName="w-48" />
+                    <TableHeader title="Petitioners" widthClassName="w-36" />
+                    <TableHeader title="Law / Statute" widthClassName="w-36 max-w-[160px]" />
                     <TableHeader title="Attachment" widthClassName="w-24 text-center" align="center" />
                   </>
                 )}
@@ -625,14 +626,7 @@ const ManageCasesTable = ({
                       <td className="px-2 py-2.5 align-top text-theme-main">
                         <div className="flex flex-wrap gap-1 max-h-[64px] overflow-y-auto">
                           {(() => {
-                            const rawList = Array.isArray(item.mapYearPage) && item.mapYearPage.length > 0 
-                              ? item.mapYearPage.filter(Boolean) 
-                              : [item.yearVolume || '—'];
-                            
-                            const uniqueList = rawList.reduce((unique, line) => {
-                              if (!unique.includes(line)) unique.push(line);
-                              return unique;
-                            }, []);
+                            const uniqueList = formatCitations(item.mapYearPage, item.publications);
 
                             if (!searchMagazine || !searchMagazine.trim()) {
                               return uniqueList.map((line, i) => (
@@ -696,11 +690,7 @@ const ManageCasesTable = ({
                         <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated ? item.dated.split('T')[0] : ''}</td>
                         <td className="px-2 py-2.5 align-top text-theme-muted">
                           <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden max-h-[64px]">
-                            {(Array.isArray(item.mapYearPage) ? item.mapYearPage.filter(Boolean) : [])
-                              .reduce((unique, line) => {
-                                if (!unique.includes(line)) unique.push(line);
-                                return unique;
-                              }, [])
+                            {formatCitations(item.mapYearPage, item.publications)
                               .slice(0, 2)
                               .map((line, i) => (
                                 <span key={`${line}-${i}`} className="inline-block whitespace-nowrap">{line}</span>
@@ -730,10 +720,10 @@ const ManageCasesTable = ({
                             {item.petitionersMore && <span className="text-brand-orange font-medium mt-0.5">{item.petitionersMore}</span>}
                           </div>
                         </td>
-                        <td className="px-2 py-2.5 align-top text-theme-muted">
-                          <div className="flex flex-col gap-0.5 max-h-[64px] overflow-y-auto">
+                        <td className="px-2 py-2.5 align-top text-theme-muted w-36 max-w-[160px]">
+                          <div className="flex flex-col gap-0.5 max-h-[64px] overflow-y-auto scrollbar-thin pr-1 overscroll-contain">
                             {formatLawReferences(item.laws).map((law) => (
-                              <span key={law.name} className="whitespace-normal break-words">
+                              <span key={law.name} className="break-words line-clamp-2 hover:line-clamp-none text-[11px]" title={`${law.name}${law.sections.length > 0 ? `=${law.sections.join(',')}` : ''}`}>
                                 <span className="font-medium text-theme-main">{law.name}</span>
                                 {law.sections.length > 0 ? `=${law.sections.join(',')}` : ''}
                               </span>
@@ -1330,5 +1320,3 @@ const ManageCasesTable = ({
 };
 
 export default ManageCasesTable;
-
-

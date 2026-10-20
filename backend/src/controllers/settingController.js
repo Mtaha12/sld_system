@@ -3,6 +3,10 @@ import PrincipleOfLaw from '../models/PrincipleOfLaw.js';
 import LegalMaxim from '../models/LegalMaxim.js';
 import LawSetting from '../models/LawSetting.js';
 import SectionSetting from '../models/SectionSetting.js';
+import Article from '../models/Article.js';
+import Topic from '../models/Topic.js';
+import WordPhrase from '../models/WordPhrase.js';
+import LegalTerm from '../models/LegalTerm.js';
 import Case from '../models/Case.js';
 import Statute from '../models/Statute.js';
 import Notification from '../models/Notification.js';
@@ -784,13 +788,14 @@ export const swapLawOrdering = async (req, res, next) => {
 
 export const getLegalMaxims = async (req, res, next) => {
   try {
-    const { search = '', status = '', page, limit } = req.query;
+    const { search = '', status = '', page, limit, all } = req.query;
 
     const filter = {};
     if (search.trim()) {
+      const sRegex = new RegExp(escapeRegex(search.trim()), 'i');
       filter.$or = [
-        { name: { $regex: search.trim(), $options: 'i' } },
-        { meaning: { $regex: search.trim(), $options: 'i' } }
+        { name: sRegex },
+        { meaning: sRegex }
       ];
     }
     if (status.trim() && status !== 'All' && status !== 'all') {
@@ -798,15 +803,20 @@ export const getLegalMaxims = async (req, res, next) => {
     }
 
     const total = await LegalMaxim.countDocuments(filter);
-    let query = LegalMaxim.find(filter).sort({ name: 1 });
+    let query = LegalMaxim.find(filter).sort({ srNumber: 1, name: 1 });
 
-    if (page && limit) {
+    if (all === 'true') {
+      // return all without limit
+    } else if (page && limit) {
       const p = Math.max(1, parseInt(page, 10) || 1);
-      const l = Math.max(1, parseInt(limit, 10) || 20);
+      const l = Math.max(1, parseInt(limit, 10) || 50);
       query = query.skip((p - 1) * l).limit(l);
+    } else if (limit) {
+      const l = Math.max(1, parseInt(limit, 10) || 5000);
+      query = query.limit(l);
     }
 
-    const maxims = await query;
+    const maxims = await query.lean();
 
     return res.status(200).json({
       success: true,
@@ -1129,6 +1139,310 @@ export const swapSectionOrdering = async (req, res, next) => {
       message: `Successfully swapped ordering between "${s1.name}" (now ${s1.ordering}) and "${s2.name}" (now ${s2.ordering}).`,
       data: { s1, s2 }
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ==========================================
+// 6. ARTICLES CONTROLLER (3 Columns: Year, Title, Author)
+// ==========================================
+export const getArticles = async (req, res, next) => {
+  try {
+    const { search = '', year = '', page, limit, all } = req.query;
+    const filter = {};
+    if (search.trim()) {
+      const sRegex = new RegExp(escapeRegex(search.trim()), 'i');
+      filter.$or = [{ title: sRegex }, { author: sRegex }];
+    }
+    if (year.trim()) {
+      filter.year = year.trim();
+    }
+    const total = await Article.countDocuments(filter);
+    let query = Article.find(filter).sort({ srNumber: 1, year: -1 });
+    if (all === 'true') {
+      // return all
+    } else if (page && limit) {
+      const p = Math.max(1, parseInt(page, 10) || 1);
+      const l = Math.max(1, parseInt(limit, 10) || 50);
+      query = query.skip((p - 1) * l).limit(l);
+    } else if (limit) {
+      const l = Math.max(1, parseInt(limit, 10) || 50);
+      query = query.limit(l);
+    }
+    const articles = await query.lean();
+    return res.status(200).json({ success: true, total, data: articles });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createArticle = async (req, res, next) => {
+  try {
+    const { title, year = '', author = '', status = 'active' } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: 'Article title is required.' });
+    }
+    const highest = await Article.findOne().sort({ srNumber: -1 });
+    const nextSr = highest && highest.srNumber ? highest.srNumber + 1 : 1;
+    const article = await Article.create({
+      srNumber: nextSr,
+      title: title.trim(),
+      year: String(year).trim(),
+      author: String(author).trim(),
+      status: status === 'inactive' ? 'inactive' : 'active'
+    });
+    return res.status(201).json({ success: true, message: 'Article created successfully', data: article });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateArticle = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { title, year, author, status } = req.body;
+    const article = await Article.findById(id);
+    if (!article) return res.status(404).json({ success: false, message: 'Article not found.' });
+    if (title !== undefined) article.title = title.trim();
+    if (year !== undefined) article.year = String(year).trim();
+    if (author !== undefined) article.author = String(author).trim();
+    if (status !== undefined) article.status = status;
+    await article.save();
+    return res.status(200).json({ success: true, message: 'Article updated successfully', data: article });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteArticle = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const article = await Article.findByIdAndDelete(id);
+    if (!article) return res.status(404).json({ success: false, message: 'Article not found.' });
+    return res.status(200).json({ success: true, message: 'Article deleted successfully', data: { id } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ==========================================
+// 7. TOPICS CONTROLLER (2 Columns: Sr. No, Heading)
+// ==========================================
+export const getTopics = async (req, res, next) => {
+  try {
+    const { search = '', page, limit, all } = req.query;
+    const filter = {};
+    if (search.trim()) {
+      filter.heading = new RegExp(escapeRegex(search.trim()), 'i');
+    }
+    const total = await Topic.countDocuments(filter);
+    let query = Topic.find(filter).sort({ srNumber: 1 });
+    if (all === 'true') {
+      // return all
+    } else if (page && limit) {
+      const p = Math.max(1, parseInt(page, 10) || 1);
+      const l = Math.max(1, parseInt(limit, 10) || 50);
+      query = query.skip((p - 1) * l).limit(l);
+    } else if (limit) {
+      const l = Math.max(1, parseInt(limit, 10) || 50);
+      query = query.limit(l);
+    }
+    const topics = await query.lean();
+    return res.status(200).json({ success: true, total, data: topics });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createTopic = async (req, res, next) => {
+  try {
+    const { heading, status = 'active' } = req.body;
+    if (!heading || !heading.trim()) {
+      return res.status(400).json({ success: false, message: 'Topic heading is required.' });
+    }
+    const highest = await Topic.findOne().sort({ srNumber: -1 });
+    const nextSr = highest && highest.srNumber ? highest.srNumber + 1 : 1;
+    const topic = await Topic.create({
+      srNumber: nextSr,
+      heading: heading.trim(),
+      status: status === 'inactive' ? 'inactive' : 'active'
+    });
+    return res.status(201).json({ success: true, message: 'Topic created successfully', data: topic });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateTopic = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { heading, status } = req.body;
+    const topic = await Topic.findById(id);
+    if (!topic) return res.status(404).json({ success: false, message: 'Topic not found.' });
+    if (heading !== undefined) topic.heading = heading.trim();
+    if (status !== undefined) topic.status = status;
+    await topic.save();
+    return res.status(200).json({ success: true, message: 'Topic updated successfully', data: topic });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteTopic = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const topic = await Topic.findByIdAndDelete(id);
+    if (!topic) return res.status(404).json({ success: false, message: 'Topic not found.' });
+    return res.status(200).json({ success: true, message: 'Topic deleted successfully', data: { id } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ==========================================
+// 8. WORDS & PHRASES CONTROLLER (2 Columns: Sr. No, Heading)
+// ==========================================
+export const getWordsPhrases = async (req, res, next) => {
+  try {
+    const { search = '', page, limit, all } = req.query;
+    const filter = {};
+    if (search.trim()) {
+      filter.heading = new RegExp(escapeRegex(search.trim()), 'i');
+    }
+    const total = await WordPhrase.countDocuments(filter);
+    let query = WordPhrase.find(filter).sort({ srNumber: 1 });
+    if (all === 'true') {
+      // return all
+    } else if (page && limit) {
+      const p = Math.max(1, parseInt(page, 10) || 1);
+      const l = Math.max(1, parseInt(limit, 10) || 50);
+      query = query.skip((p - 1) * l).limit(l);
+    } else if (limit) {
+      const l = Math.max(1, parseInt(limit, 10) || 50);
+      query = query.limit(l);
+    }
+    const wordsPhrases = await query.lean();
+    return res.status(200).json({ success: true, total, data: wordsPhrases });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createWordPhrase = async (req, res, next) => {
+  try {
+    const { heading, status = 'active' } = req.body;
+    if (!heading || !heading.trim()) {
+      return res.status(400).json({ success: false, message: 'Word/phrase heading is required.' });
+    }
+    const highest = await WordPhrase.findOne().sort({ srNumber: -1 });
+    const nextSr = highest && highest.srNumber ? highest.srNumber + 1 : 1;
+    const wp = await WordPhrase.create({
+      srNumber: nextSr,
+      heading: heading.trim(),
+      status: status === 'inactive' ? 'inactive' : 'active'
+    });
+    return res.status(201).json({ success: true, message: 'Word/phrase created successfully', data: wp });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateWordPhrase = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { heading, status } = req.body;
+    const wp = await WordPhrase.findById(id);
+    if (!wp) return res.status(404).json({ success: false, message: 'Word/phrase not found.' });
+    if (heading !== undefined) wp.heading = heading.trim();
+    if (status !== undefined) wp.status = status;
+    await wp.save();
+    return res.status(200).json({ success: true, message: 'Word/phrase updated successfully', data: wp });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteWordPhrase = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const wp = await WordPhrase.findByIdAndDelete(id);
+    if (!wp) return res.status(404).json({ success: false, message: 'Word/phrase not found.' });
+    return res.status(200).json({ success: true, message: 'Word/phrase deleted successfully', data: { id } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ==========================================
+// 9. LEGAL TERMS CONTROLLER (2 Columns: SR#, Heading)
+// ==========================================
+export const getLegalTerms = async (req, res, next) => {
+  try {
+    const { search = '', page, limit, all } = req.query;
+    const filter = {};
+    if (search.trim()) {
+      filter.heading = new RegExp(escapeRegex(search.trim()), 'i');
+    }
+    const total = await LegalTerm.countDocuments(filter);
+    let query = LegalTerm.find(filter).sort({ srNumber: 1 });
+    if (all === 'true') {
+      // return all
+    } else if (page && limit) {
+      const p = Math.max(1, parseInt(page, 10) || 1);
+      const l = Math.max(1, parseInt(limit, 10) || 50);
+      query = query.skip((p - 1) * l).limit(l);
+    } else if (limit) {
+      const l = Math.max(1, parseInt(limit, 10) || 50);
+      query = query.limit(l);
+    }
+    const terms = await query.lean();
+    return res.status(200).json({ success: true, total, data: terms });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createLegalTerm = async (req, res, next) => {
+  try {
+    const { heading, status = 'active' } = req.body;
+    if (!heading || !heading.trim()) {
+      return res.status(400).json({ success: false, message: 'Legal term is required.' });
+    }
+    const highest = await LegalTerm.findOne().sort({ srNumber: -1 });
+    const nextSr = highest && highest.srNumber ? highest.srNumber + 1 : 1;
+    const lt = await LegalTerm.create({
+      srNumber: nextSr,
+      heading: heading.trim(),
+      status: status === 'inactive' ? 'inactive' : 'active'
+    });
+    return res.status(201).json({ success: true, message: 'Legal term created successfully', data: lt });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateLegalTerm = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { heading, status } = req.body;
+    const lt = await LegalTerm.findById(id);
+    if (!lt) return res.status(404).json({ success: false, message: 'Legal term not found.' });
+    if (heading !== undefined) lt.heading = heading.trim();
+    if (status !== undefined) lt.status = status;
+    await lt.save();
+    return res.status(200).json({ success: true, message: 'Legal term updated successfully', data: lt });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteLegalTerm = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const lt = await LegalTerm.findByIdAndDelete(id);
+    if (!lt) return res.status(404).json({ success: false, message: 'Legal term not found.' });
+    return res.status(200).json({ success: true, message: 'Legal term deleted successfully', data: { id } });
   } catch (err) {
     next(err);
   }

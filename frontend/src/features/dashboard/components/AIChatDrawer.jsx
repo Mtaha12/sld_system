@@ -30,19 +30,19 @@ const extractReference = (text) => {
   }
 
   // Explicit CASE / NOTIF / STAT ID: CASE-000001, CASE-1, NOTIF-000001, STAT-000001
-  const prefixedMatch = text.match(/\b((?:CASE|NOTIF|STAT)-[A-Za-z0-9_\-]+)\b/i);
+  const prefixedMatch = text.match(/\b((?:CASE|NOTIF|STAT)-[A-Za-z0-9_-]+)\b/i);
   if (prefixedMatch) {
     return prefixedMatch[1].toUpperCase();
   }
 
   // "case 1629482", "case id: 1", "sld #9862", "case# 123", "statute #45"
-  const idWithPrefixMatch = text.match(/\b(?:case|sld|notif|statute)\s*(?:id|no\.?|#)?\s*[:\-]?\s*([A-Za-z0-9_\-]+)\b/i);
+  const idWithPrefixMatch = text.match(/\b(?:case|sld|notif|statute)\s*(?:id|no\.?|#)?\s*[:-]?\s*([A-Za-z0-9_-]+)\b/i);
   if (idWithPrefixMatch) {
     return idWithPrefixMatch[1].trim();
   }
 
   // Standalone prefixed CASE token
-  const caseIdMatch = text.match(/\bCASE-[A-Za-z0-9_\-]+\b/i);
+  const caseIdMatch = text.match(/\bCASE-[A-Za-z0-9_-]+\b/i);
   return caseIdMatch ? caseIdMatch[0].toUpperCase() : null;
 };
 
@@ -81,7 +81,11 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
       const sessionData = await aiChatService.getSession(id);
       setSessionId(id);
       setActiveCaseNumber(sld);
-      setMessages(sessionData.messages || []);
+      setMessages((sessionData.messages || []).map(message => ({
+        ...message,
+        role: message.role || message.sender,
+        content: message.content || message.text || ''
+      })));
       setIsLoading(false);
     } catch (e) {
       console.error(e);
@@ -266,18 +270,8 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
         }
       }
 
-      // If we don't have a case context, query the Legal Core / AI engine directly
-      if (!targetCaseNumber && !targetSessionId) {
-        const queryRes = await aiChatService.queryLegalCore(userText);
-        const answerContent = queryRes?.text || queryRes?.reply?.text || (typeof queryRes === 'string' ? queryRes : 'No response compiled.');
-        const sourceList = queryRes?.legalAnalysis?.matchedCases || queryRes?.sources || [];
-        setMessages(prev => [...prev, { role: 'assistant', content: answerContent, sources: sourceList }]);
-        setIsLoading(false);
-        return;
-      }
-
-      // Create a session if we switched contexts or are starting fresh
-      let didSwitchContext = false;
+      // Always persist the first turn in a session. This keeps ordinary legal
+      // questions and their follow-ups grounded in the same conversation.
       if (!targetSessionId) {
         const session = await aiChatService.createSession(targetCaseNumber);
         targetSessionId = session.id || session._id || session.session_id;
@@ -288,7 +282,6 @@ const AIChatDrawer = ({ isOpen, onClose }) => {
         
         // Optionally insert a visual system message indicating context switch
         if (activeCaseNumber && targetCaseNumber !== activeCaseNumber) {
-          didSwitchContext = true;
           setMessages(prev => [...prev, {
             role: 'assistant',
             isSystem: true,

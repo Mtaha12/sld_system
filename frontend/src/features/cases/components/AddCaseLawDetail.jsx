@@ -330,8 +330,8 @@ const AddCaseLawDetail = ({ onClose }) => {
         console.warn('Could not load dynamic principles for AddCaseLawDetail:', err);
       });
 
-    // Fetch dynamic legal maxims from backend
-    settingService.getLegalMaxims({ status: 'active', limit: 1000 })
+    // Fetch all dynamic legal maxims from backend (1,124 entries)
+    settingService.getLegalMaxims({ status: 'active', all: true, limit: 5000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data)) {
           const fetched = res.data.map(m => ({ 
@@ -976,7 +976,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                   <Textarea 
                     placeholder="Enter head note..."
                     minHeight="280px"
-                    className="text-sm"
+                    className="text-sm word-document-input"
                     style={{ height: '280px', resize: 'vertical' }}
                     {...register('headNote')}
                   />

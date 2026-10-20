@@ -1,8 +1,12 @@
 import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_sld_access_token_key_128_bits';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'super_secret_sld_refresh_token_key_512_bits';
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+
+if (!JWT_SECRET || JWT_SECRET.length < 32 || !JWT_REFRESH_SECRET || JWT_REFRESH_SECRET.length < 32) {
+  throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be configured with at least 32 characters.');
+}
 
 /**
  * Generates JWT Access Token

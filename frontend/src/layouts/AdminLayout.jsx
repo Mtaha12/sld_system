@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AdminSidebar from '../features/dashboard/components/AdminSidebar';
 import AdminHeader from '../features/dashboard/components/AdminHeader';
@@ -24,7 +24,6 @@ const AdminLayout = () => {
   }, [location.pathname]);
 
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
-  const hoverTimeoutRef = useRef(null);
 
   // Prevent background scrolling while mobile drawer is open
   useEffect(() => {
@@ -47,17 +46,11 @@ const AdminLayout = () => {
   };
 
   const handleMouseEnter = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
     setIsSidebarHovered(true);
   };
 
   const handleMouseLeave = () => {
-    hoverTimeoutRef.current = setTimeout(() => {
-      setIsSidebarHovered(false);
-    }, 220);
+    setIsSidebarHovered(false);
   };
 
   const isDesktopSidebarVisible = isSidebarPinned || isSidebarHovered;
@@ -68,8 +61,9 @@ const AdminLayout = () => {
       {/* 1. Left Edge Hover Sensor Strip (Active when sidebar is unpinned/hidden) */}
       {!isSidebarPinned && (
         <div 
-          className="hidden lg:flex fixed left-0 top-0 bottom-0 w-3.5 z-30 group cursor-pointer"
+          className="hidden lg:flex fixed left-0 top-0 bottom-0 w-8 z-50 group cursor-pointer"
           onMouseEnter={handleMouseEnter}
+          onMouseMove={handleMouseEnter}
           title="Hover to reveal side panel"
         >
           {/* Subtle grab indicator tab */}
@@ -79,7 +73,7 @@ const AdminLayout = () => {
 
       {/* 2. Fixed Desktop Sidebar with Smooth Slide-in / Hover Transition */}
       <div
-        className={`hidden lg:block fixed left-0 top-0 h-screen z-40 transition-transform duration-300 ease-in-out ${
+        className={`hidden lg:block fixed left-0 top-0 h-screen z-40 transition-transform duration-[300ms] ease-[cubic-bezier(0.4,0,0.2,1)] will-change-transform ${
           isDesktopSidebarVisible ? 'translate-x-0 shadow-2xl' : '-translate-x-full pointer-events-none'
         }`}
         onMouseEnter={handleMouseEnter}
@@ -118,7 +112,7 @@ const AdminLayout = () => {
 
       {/* 4. Main Content Column (smoothly shifts when sidebar is pinned vs hidden) */}
       <div 
-        className={`flex-1 flex flex-col min-w-0 h-full relative transition-[margin-left] duration-300 ease-in-out ${
+        className={`flex-1 flex flex-col min-w-0 h-full relative transition-[margin-left] duration-[300ms] ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[margin-left] ${
           isSidebarPinned ? 'lg:ml-[260px]' : 'lg:ml-0'
         }`}
       >

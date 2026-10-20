@@ -6,6 +6,7 @@ import { magazineService, courtService } from '../services/adminSettingsServices
 import CaseDocumentModal from '../components/ui/CaseDocumentModal';
 import DatePicker from '../components/ui/DatePicker';
 import { ALL_SECTIONS } from '../data/sections';
+import { formatCitations } from '../utils/citationFormatter';
 
 /* ── Shared form field styles ────────────────────────────────────────────── */
 const inp =
@@ -793,7 +794,7 @@ const SearchCaseLawPage = () => {
                         {/* Citation Column with Yellow Highlighting */}
                         <td className="px-3 py-3 whitespace-nowrap align-top">
                           <div className="flex flex-col gap-1">
-                            {(Array.isArray(c.mapYearPage) && c.mapYearPage.length > 0 ? c.mapYearPage : [c.yearVolume || '—']).map((cit, j) => (
+                            {formatCitations(c.mapYearPage, c.publications).map((cit, j) => (
                               <span 
                                 key={j} 
                                 className="inline-block px-2 py-0.5 bg-[#a8cfe0]/60 text-[#1e3a5a] rounded text-[11px] font-bold border border-[#a8cfe0]"

@@ -71,7 +71,9 @@ export const getNotifications = async (req, res, next) => {
     }
 
     if (section && section.trim()) {
-      filter.section = new RegExp(escapeRegex(section.trim()), 'i');
+      const rawSec = section.trim();
+      const cleanSec = rawSec.replace(/^(?:section|sec\.?)\s*/i, '').trim();
+      filter.section = new RegExp(`^(?:section\\s+)?${escapeRegex(cleanSec)}$`, 'i');
     }
 
     if (number && number.trim()) {

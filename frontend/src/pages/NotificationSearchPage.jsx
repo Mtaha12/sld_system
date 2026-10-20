@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Eye, Bell, AlertCircle, RotateCcw, FileText, Calendar } from 'lucide-react';
+import { Eye, Bell, AlertCircle, RotateCcw, FileText, Calendar, History, Trash2, Clock } from 'lucide-react';
 import { notificationService } from '../features/notifications/services/notificationService';
 import { settingService } from '../services/settingService';
 import { LAW_OPTIONS } from '../data/laws';
@@ -16,6 +16,8 @@ const inp =
 const sel =
   'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 text-sm pl-3.5 pr-8 py-2 rounded-lg ' +
   'border border-slate-200/90 dark:border-slate-700 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-brand-orange/40 focus:border-brand-orange hover:border-brand-orange/40 h-[38px] shadow-2xs transition-all';
+
+const HISTORY_KEY = 'sld_notification_search_history_v1';
 
 const SelectField = React.memo(({ value, onChange, options = [], placeholder = 'Select Law' }) => {
   const allOptions = useMemo(() => {
@@ -76,19 +78,29 @@ const SelectField = React.memo(({ value, onChange, options = [], placeholder = '
 
 const NotificationSearchPage = () => {
   // Search Form State
-  const [number, setNumber] = useState('');
-  const [year, setYear] = useState('');
-  const [date, setDate] = useState('');
-  const [selectLaw, setSelectLaw] = useState('');
-  const [section, setSection] = useState('');
-  const [text, setText] = useState('');
+  const [number, setNumber]         = useState('');
+  const [year, setYear]             = useState('');
+  const [date, setDate]             = useState('');
+  const [selectLaw, setSelectLaw]   = useState('');
+  const [section, setSection]       = useState('');
+  const [text, setText]             = useState('');
   const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
 
   // Results State
   const [notificationResults, setNotificationResults] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [viewNotification, setViewNotification] = useState(null);
+  const [loading, setLoading]                         = useState(false);
+  const [error, setError]                             = useState(null);
+  const [viewNotification, setViewNotification]       = useState(null);
+
+  // Search History from localStorage
+  const [history, setHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem(HISTORY_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [urlSearchParams] = useSearchParams();
 
@@ -174,11 +186,74 @@ const NotificationSearchPage = () => {
     }))
   ], [sectionOptions]);
 
+  // Save query to localStorage search history
+  const saveToHistory = useCallback((params, count) => {
+    const parts = [];
+    if (params.number) parts.push(`No. ${params.number}`);
+    if (params.year) parts.push(`Year ${params.year}`);
+    if (params.date) parts.push(`Date: ${params.date}`);
+    if (params.lawStatute) parts.push(params.lawStatute);
+    if (params.section) parts.push(`Sec ${params.section}`);
+    if (params.text) parts.push(`"${params.text}"`);
+
+    const title = parts.join(' • ') || 'General Notification Search';
+    const entry = {
+      id: Date.now(),
+      title,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      count,
+      filters: { ...params }
+    };
+
+    setHistory(prev => {
+      const filtered = prev.filter(p => p.title !== title);
+      const updated = [entry, ...filtered].slice(0, 15);
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  }, []);
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    try {
+      localStorage.removeItem(HISTORY_KEY);
+    } catch {}
+  };
+
+  const handleSelectHistory = (entry) => {
+    if (!entry?.filters) return;
+    const f = entry.filters;
+    setNumber(f.number || '');
+    setYear(f.year || '');
+    setDate(f.date || '');
+    setSelectLaw(f.lawStatute || '');
+    setSection(f.section || '');
+    setText(f.text || '');
+    handleSearch({
+      number: f.number || '',
+      year: f.year || '',
+      date: f.date || '',
+      lawStatute: f.lawStatute || '',
+      section: f.section || '',
+      text: f.text || ''
+    });
+  };
+
   // Handle Search Submission
-  const handleSearch = async () => {
+  const handleSearch = async (overrideParams = null) => {
     setError(null);
 
-    const hasAny = Boolean(number.trim() || year.trim() || date.trim() || selectLaw.trim() || section.trim() || text.trim());
+    const activeNum     = overrideParams ? (overrideParams.number || '') : number;
+    const activeYr      = overrideParams ? (overrideParams.year || '') : year;
+    const activeDt      = overrideParams ? (overrideParams.date || '') : date;
+    const activeLaw     = overrideParams ? (overrideParams.lawStatute || '') : selectLaw;
+    const activeSec     = overrideParams ? (overrideParams.section || '') : section;
+    const activeText    = overrideParams ? (overrideParams.text || '') : text;
+
+    const hasAny = Boolean(activeNum.trim() || activeYr.trim() || activeDt.trim() || activeLaw.trim() || activeSec.trim() || activeText.trim());
     if (!hasAny) {
       setError('Please fill in at least one field (Number, Year, Date, Law, Section, or Text) to search.');
       return;
@@ -189,16 +264,25 @@ const NotificationSearchPage = () => {
 
     try {
       const searchParams = { limit: 100 };
-      if (selectLaw.trim()) searchParams.lawStatute = selectLaw.trim();
-      if (section.trim()) searchParams.section = section.trim();
-      if (number.trim()) searchParams.number = number.trim();
-      if (year.trim()) searchParams.year = year.trim();
-      if (date.trim()) searchParams.date = date.trim();
-      if (text.trim()) searchParams.text = text.trim();
+      if (activeLaw.trim())  searchParams.lawStatute = activeLaw.trim();
+      if (activeSec.trim())  searchParams.section    = activeSec.trim();
+      if (activeNum.trim())  searchParams.number     = activeNum.trim();
+      if (activeYr.trim())   searchParams.year       = activeYr.trim();
+      if (activeDt.trim())   searchParams.date       = activeDt.trim();
+      if (activeText.trim()) searchParams.text       = activeText.trim();
 
       const notifs = await notificationService.getNotifications(searchParams);
+      const list = Array.isArray(notifs) ? notifs : [];
 
-      setNotificationResults(Array.isArray(notifs) ? notifs : []);
+      setNotificationResults(list);
+      saveToHistory({
+        number: activeNum.trim(),
+        year: activeYr.trim(),
+        date: activeDt.trim(),
+        lawStatute: activeLaw.trim(),
+        section: activeSec.trim(),
+        text: activeText.trim()
+      }, list.length);
     } catch (err) {
       setError(err?.response?.data?.message || 'Search execution encountered an error. Please try again.');
     } finally {
@@ -226,116 +310,183 @@ const NotificationSearchPage = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 py-3 animate-fade-in" onKeyDown={handleKeyDown}>
-      {/* ── Top Header: Title on Left & Search Button on Right ───────────── */}
-      <div className="flex items-center justify-between mb-3">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">
-          Notification Search
-        </h1>
-        <button
-          onClick={handleSearch}
-          disabled={loading}
-          className="px-5 py-1.5 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-sm font-semibold rounded transition-colors disabled:opacity-60 cursor-pointer shadow-sm"
-        >
-          {loading ? 'Searching…' : 'Search'}
-        </button>
-      </div>
+      {/* ── Page Title ───────────────────────────────────────────────────── */}
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3 tracking-tight">
+        Notification Search
+      </h1>
 
-      {/* ── Card Container with Soft Cyan/Sky Blue Panel ─────────────────── */}
-      <div className="rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      {/* ── Main Two-Column Layout: Search Form on Left + Search History on Right ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5 items-start">
         
-        <div className="bg-[#a8cfe0] dark:bg-[#2b4c63] px-6 sm:px-8 py-6 transition-colors">
+        {/* Left Column (9 cols): Search Form */}
+        <div className="lg:col-span-9 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
           
-          {error && (
-            <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-md flex items-center gap-2 animate-fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Row 1: Enter Number · Enter Year · Select Date (3 columns) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <input
-              className={inp}
-              placeholder="Enter Number"
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-            />
-            <input
-              className={inp}
-              placeholder="Enter Year"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-            />
-            <div className="relative w-full">
-              <input
-                className={`${inp} pr-8`}
-                placeholder="Select Date"
-                type="text"
-                onFocus={(e) => { e.target.type = 'date'; }}
-                onBlur={(e) => { if (!e.target.value) e.target.type = 'text'; }}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                <Calendar className="w-4 h-4" />
-              </span>
-            </div>
-          </div>
-
-          {/* Row 2: Select Law · Enter Section · Enter Text (3 columns) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <SelectField
-              value={selectLaw}
-              onChange={(e) => setSelectLaw(e.target.value)}
-              options={lawOptions}
-              placeholder="Select Law"
-            />
-            <div className="w-full">
-              <SelectField
-                value={section}
-                onChange={(e) => setSection(e.target.value)}
-                options={sectionSelectOptions}
-                placeholder="Select Section"
-              />
-            </div>
-            <input
-              className={inp}
-              placeholder="Enter Text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-          </div>
-
-          {/* Centered Search Button + Reset Button */}
-          <div className="flex items-center justify-center gap-3">
+          <div className="bg-white dark:bg-gray-800 px-6 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+              Notification & SRO Search
+            </span>
             <button
-              onClick={handleReset}
-              className="px-5 py-1.5 border border-white/70 text-gray-800 dark:text-white text-sm font-medium rounded hover:bg-white/20 transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Reset
-            </button>
-            <button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               disabled={loading}
-              className="px-10 py-2 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-sm font-semibold rounded transition-colors disabled:opacity-60 min-w-[120px] shadow-sm cursor-pointer"
+              className="px-5 py-1.5 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-sm font-semibold rounded transition-colors disabled:opacity-60 cursor-pointer shadow-sm"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                  </svg>
-                  Searching…
-                </span>
-              ) : 'Search'}
+              {loading ? 'Searching…' : 'Search'}
             </button>
           </div>
 
+          <div className="bg-[#a8cfe0] dark:bg-[#2b4c63] px-6 sm:px-8 py-6 transition-colors">
+            
+            {error && (
+              <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-md flex items-center gap-2 animate-fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Row 1: Enter Number · Enter Year · Select Date (3 columns) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <input
+                className={inp}
+                placeholder="Enter Number"
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+              />
+              <input
+                className={inp}
+                placeholder="Enter Year"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+              />
+              <div className="relative w-full">
+                <input
+                  className={`${inp} pr-8`}
+                  placeholder="Select Date"
+                  type="text"
+                  onFocus={(e) => { e.target.type = 'date'; }}
+                  onBlur={(e) => { if (!e.target.value) e.target.type = 'text'; }}
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <Calendar className="w-4 h-4" />
+                </span>
+              </div>
+            </div>
+
+            {/* Row 2: Select Law · Enter Section · Enter Text (3 columns) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <SelectField
+                value={selectLaw}
+                onChange={(e) => setSelectLaw(e.target.value)}
+                options={lawOptions}
+                placeholder="Select Law"
+              />
+              <div className="w-full">
+                <SelectField
+                  value={section}
+                  onChange={(e) => setSection(e.target.value)}
+                  options={sectionSelectOptions}
+                  placeholder="Select Section"
+                />
+              </div>
+              <input
+                className={inp}
+                placeholder="Enter Text"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+            </div>
+
+            {/* Centered Search Button + Reset Button */}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={handleReset}
+                className="px-5 py-1.5 border border-white/70 text-gray-800 dark:text-white text-sm font-medium rounded hover:bg-white/20 transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Reset
+              </button>
+              <button
+                onClick={() => handleSearch()}
+                disabled={loading}
+                className="px-10 py-2 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-sm font-semibold rounded transition-colors disabled:opacity-60 min-w-[120px] shadow-sm cursor-pointer"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Searching…
+                  </span>
+                ) : 'Search'}
+              </button>
+            </div>
+
+          </div>
         </div>
+
+        {/* Right Column (3 cols): Search History Panel */}
+        <div className="lg:col-span-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs p-4 flex flex-col h-full max-h-[460px]">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-[#3d4a7a] dark:text-blue-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                Search History
+              </h3>
+            </div>
+            {history.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearHistory}
+                className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                title="Clear all search history"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2 pt-3 pr-1 scrollbar-thin">
+            {history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-gray-400">
+                <Clock className="w-8 h-8 mb-2 stroke-1 opacity-50" />
+                <p className="text-xs font-medium">No recent searches</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Your searches will appear here for fast re-run</p>
+              </div>
+            ) : (
+              history.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => handleSelectHistory(item)}
+                  className="p-2.5 rounded-lg border border-gray-100 dark:border-gray-700 hover:border-[#3d4a7a]/50 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 cursor-pointer transition-all group shadow-2xs"
+                >
+                  <div className="flex items-start justify-between gap-1.5 mb-1">
+                    <span className="text-xs font-bold text-gray-800 dark:text-gray-200 line-clamp-2 leading-tight group-hover:text-[#3d4a7a]">
+                      {item.title}
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded shrink-0">
+                      {item.count} {item.count === 1 ? 'record' : 'records'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-gray-400">
+                    <span>{item.date}</span>
+                    <span>{item.timestamp}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {history.length > 0 && (
+            <p className="text-[10px] text-center text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-700">
+              Click any query above to re-run instantly
+            </p>
+          )}
+        </div>
+
       </div>
 
-      {/* ── Search Results ──────────────────────────────────────────────── */}
-      {/* ── Search Results: Notifications Only ───────────────────────── */}
+      {/* ── Search Results Area ─────────────────────────────────────────── */}
       {notificationResults !== null && (
         <div className="mt-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
           
@@ -367,68 +518,56 @@ const NotificationSearchPage = () => {
                 <thead>
                   <tr className="bg-[#3d4a7a] text-white">
                     <th className="px-3 py-2.5 font-semibold">#</th>
-                    <th className="px-3 py-2.5 font-semibold">SR #</th>
                     <th className="px-3 py-2.5 font-semibold">Number</th>
                     <th className="px-3 py-2.5 font-semibold">SRO #</th>
+                    <th className="px-3 py-2.5 font-semibold">Dated</th>
                     <th className="px-3 py-2.5 font-semibold">Year</th>
                     <th className="px-3 py-2.5 font-semibold">Subject / Heading</th>
-                    <th className="px-3 py-2.5 font-semibold">Law Date</th>
-                    <th className="px-3 py-2.5 font-semibold text-center">Attachment</th>
+                    <th className="px-3 py-2.5 font-semibold">Law</th>
+                    <th className="px-3 py-2.5 font-semibold">Section</th>
                     <th className="px-3 py-2.5 font-semibold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {notificationResults.map((n, idx) => {
-                    const hasAtt = (Array.isArray(n.attachments) && n.attachments.length > 0) ||
-                                   Boolean(n.attachment) ||
-                                   Boolean(n.attachmentName) ||
-                                   (Array.isArray(n.blocks) && n.blocks.some(b => Array.isArray(b?.attachments) ? b.attachments.length > 0 : Boolean(b?.attachment)));
+                    const rawDate = n.dated || n.date || '';
+                    const displayDate = rawDate ? rawDate.slice(0, 10) : '—';
+                    const sroNum = n.sroNumber || '—';
+                    const sec = n.section || '—';
 
                     return (
-                      <tr key={n.id || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
+                      <tr key={n.id || n._id || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
                         <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
-                        <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200">
-                          {n.srNumber || n.id}
+                        <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                          {n.number || n.srNumber || '—'}
                         </td>
-                        <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 whitespace-nowrap">
-                          {n.number || '—'}
+                        <td className="px-3 py-2.5 font-medium text-brand-orange whitespace-nowrap">
+                          {sroNum}
                         </td>
-                        <td className="px-3 py-2.5 text-brand-orange font-semibold whitespace-nowrap">
-                          {n.sroNumber || '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                          {n.year || '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[280px]">
-                          <p className="line-clamp-2">{n.subject || '—'}</p>
+                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                          {displayDate}
                         </td>
                         <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                          {n.lawDate || '—'}
+                          {n.year || '—'}
                         </td>
-                        <td className="px-3 py-2.5 text-center">
-                          {hasAtt ? (
-                            <button
-                              type="button"
-                              onClick={() => setViewNotification(n)}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#7c4dff]/20 hover:bg-[#7c4dff]/30 text-[#651fff] dark:text-[#b388ff] border border-[#7c4dff]/40 shadow-sm transition-all cursor-pointer"
-                              title="View Attachment"
-                            >
-                              <Eye className="w-3 h-3 shrink-0" />
-                              <span>view</span>
-                            </button>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
+                        <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 max-w-[260px]">
+                          <p className="line-clamp-2 font-medium">{n.subject || '—'}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <a
-                            href={`/notifications/view/${n.mongoId || n._id || n.id || n.notificationId || n.srNumber}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
+                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 max-w-[160px] truncate">
+                          {n.lawStatute || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 whitespace-nowrap font-medium">
+                          {sec}
+                        </td>
+                        <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setViewNotification(n)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
                           >
-                            <Eye className="w-3 h-3" /> View Notification
-                          </a>
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -446,55 +585,53 @@ const NotificationSearchPage = () => {
         isOpen={Boolean(viewNotification)}
         onClose={() => setViewNotification(null)}
         title="Notification Details"
-        subtitle={`SR #${viewNotification?.srNumber || viewNotification?.id} • Year ${viewNotification?.year}`}
+        subtitle={`Number: ${viewNotification?.number || viewNotification?.sroNumber || 'N/A'}`}
         icon={Bell}
       >
         {viewNotification && (
           <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+            <div className="p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700">
+              <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                Subject
+              </span>
+              <p className="font-bold text-gray-900 dark:text-white text-base">
+                {viewNotification.subject || '—'}
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700">
                 <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                   Number
                 </span>
-                <p className="font-bold text-gray-900 dark:text-white">
+                <p className="font-semibold text-gray-900 dark:text-white">
                   {viewNotification.number || '—'}
                 </p>
               </div>
               <div className="p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700">
                 <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                  SRO Number
+                  SRO #
                 </span>
-                <p className="font-bold text-brand-orange">
+                <p className="font-semibold text-gray-900 dark:text-white">
                   {viewNotification.sroNumber || '—'}
                 </p>
               </div>
               <div className="p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700">
                 <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                  Year / Date
+                  Dated
                 </span>
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  {viewNotification.year} {viewNotification.lawDate ? `• ${viewNotification.lawDate}` : ''}
+                  {viewNotification.dated || viewNotification.date || '—'}
                 </p>
               </div>
             </div>
-
-            {viewNotification.subject && (
-              <div className="p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700">
-                <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                  Subject / Heading
-                </span>
-                <p className="text-gray-800 dark:text-gray-200 leading-relaxed font-medium">
-                  {viewNotification.subject}
-                </p>
-              </div>
-            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700">
                 <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                   Law / Statute
                 </span>
-                <p className="text-gray-800 dark:text-gray-200">
+                <p className="font-semibold text-gray-900 dark:text-white">
                   {viewNotification.lawStatute || '—'}
                 </p>
               </div>
@@ -502,7 +639,7 @@ const NotificationSearchPage = () => {
                 <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                   Section
                 </span>
-                <p className="text-gray-800 dark:text-gray-200">
+                <p className="font-semibold text-gray-900 dark:text-white">
                   {viewNotification.section || '—'}
                 </p>
               </div>
@@ -511,13 +648,10 @@ const NotificationSearchPage = () => {
             {Array.isArray(viewNotification.blocks) && viewNotification.blocks.length > 0 && (
               <div className="space-y-3 pt-2">
                 <h4 className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                  Notification Text & Details
+                  Notification Text & Blocks
                 </h4>
                 {viewNotification.blocks.map((b, bi) => (
                   <div key={bi} className="p-3.5 bg-gray-50 dark:bg-gray-800/60 rounded-lg border border-gray-200 dark:border-gray-700 text-xs">
-                    {b.date && (
-                      <p className="font-semibold text-gray-500 dark:text-gray-400 mb-1">Date: {b.date}</p>
-                    )}
                     {b.detail && (
                       <div 
                         dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(b.detail) }} 
@@ -534,7 +668,6 @@ const NotificationSearchPage = () => {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 rounded text-[11px] font-medium transition-colors"
                           >
-                            <FileText className="w-3 h-3" />
                             <span>{att.name || 'Attachment'}</span>
                           </a>
                         ))}

@@ -38,7 +38,7 @@ const TickerBanner = () => {
         style={{ clipPath: 'polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%)', paddingRight: '20px' }}
         title="View all Manage Updates"
       >
-        Super Law Data System
+        SLD System
       </Link>
       
       <style>

@@ -73,7 +73,9 @@ export const getStatutes = async (req, res, next) => {
     }
 
     if (section && section.trim()) {
-      filter.section = new RegExp(escapeRegex(section.trim()), 'i');
+      const rawSec = section.trim();
+      const cleanSec = rawSec.replace(/^(?:section|sec\.?)\s*/i, '').trim();
+      filter.section = new RegExp(`^(?:section\\s+)?${escapeRegex(cleanSec)}$`, 'i');
     }
 
     if (chapter && chapter.trim()) {
@@ -93,12 +95,11 @@ export const getStatutes = async (req, res, next) => {
       filter.$and = filter.$and || [];
       for (const t of textQueries) {
         const textRegex = new RegExp(escapeRegex(t), 'i');
+        // Text search is deliberately limited to the substantive text of blocks.
+        // Do not match a record only because the term appears in a heading or
+        // another top-level statute field.
         filter.$and.push({
-          $or: [
-            { heading: textRegex },
-            { 'blocks.sectionHeading': textRegex },
-            { 'blocks.detail': textRegex }
-          ]
+          'blocks.detail': textRegex
         });
       }
     }

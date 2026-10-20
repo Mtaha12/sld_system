@@ -43,6 +43,11 @@ const TaxCardViewPage = lazy(() => import('./pages/TaxCardViewPage'))
 const ManageCitiesPage = lazy(() => import('./pages/setting/ManageCitiesPage'))
 const ManagePrincipleOfLawsPage = lazy(() => import('./pages/setting/ManagePrincipleOfLawsPage'))
 const ManageLegalMaximsPage = lazy(() => import('./pages/setting/ManageLegalMaximsPage'))
+const ManageArticlesPage = lazy(() => import('./pages/setting/ManageArticlesPage'))
+const ManageTopicsPage = lazy(() => import('./pages/setting/ManageTopicsPage'))
+const ManageWordsPhrasesPage = lazy(() => import('./pages/setting/ManageWordsPhrasesPage'))
+const ManageLegalTermsPage = lazy(() => import('./pages/setting/ManageLegalTermsPage'))
+const ReferenceDirectoryPage = lazy(() => import('./pages/ReferenceDirectoryPage'))
 const ManageLawsPage = lazy(() => import('./pages/setting/ManageLawsPage'))
 const ManageSectionsPage = lazy(() => import('./pages/setting/ManageSectionsPage'))
 const ManageUsersPage = lazy(() => import('./pages/ManageUsersPage'))
@@ -155,6 +160,16 @@ function App() {
                 <Route path="/setting/legal-maxims" element={<ManageLegalMaximsPage />} />
                 <Route path="/settings/legal-maxims" element={<Navigate to="/setting/legal-maxims" replace />} />
                 <Route path="/manage-legal-maxims" element={<Navigate to="/setting/legal-maxims" replace />} />
+                <Route path="/setting/articles" element={<ManageArticlesPage />} />
+                <Route path="/settings/articles" element={<Navigate to="/setting/articles" replace />} />
+                <Route path="/setting/topics" element={<ManageTopicsPage />} />
+                <Route path="/settings/topics" element={<Navigate to="/setting/topics" replace />} />
+                <Route path="/setting/words-phrases" element={<ManageWordsPhrasesPage />} />
+                <Route path="/settings/words-phrases" element={<Navigate to="/setting/words-phrases" replace />} />
+                <Route path="/setting/legal-terms" element={<ManageLegalTermsPage />} />
+                <Route path="/settings/legal-terms" element={<Navigate to="/setting/legal-terms" replace />} />
+                <Route path="/reference/:category" element={<ReferenceDirectoryPage />} />
+                <Route path="/references/:category" element={<ReferenceDirectoryPage />} />
                 <Route path="/setting/laws" element={<ManageLawsPage />} />
                 <Route path="/settings/laws" element={<Navigate to="/setting/laws" replace />} />
                 <Route path="/setting/sections" element={<ManageSectionsPage />} />
