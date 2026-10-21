@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Scale, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, ChevronUp, ChevronDown
+  Check, AlertCircle, ChevronUp, ChevronDown, Eye 
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
 import Modal from '../../components/ui/Modal';
 import { useUser } from '../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
+import { openReferenceView } from '../../utils/referenceViewUtil';
+import ReferenceViewFormSection from '../../components/common/ReferenceViewFormSection';
 
 const ManageLegalMaximsPage = () => {
   const { user } = useUser();
@@ -29,6 +31,9 @@ const ManageLegalMaximsPage = () => {
   const [modalForm, setModalForm] = useState({
     name: '',
     meaning: '',
+    viewType: '',
+    viewData: '',
+    viewTitle: '',
   });
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -78,6 +83,9 @@ const ManageLegalMaximsPage = () => {
     setModalForm({
       name: '',
       meaning: '',
+      viewType: '',
+      viewData: '',
+      viewTitle: '',
     });
     setModalError('');
     setIsModalOpen(true);
@@ -88,6 +96,9 @@ const ManageLegalMaximsPage = () => {
     setModalForm({
       name: item.name || '',
       meaning: item.meaning || '',
+      viewType: item.viewType || '',
+      viewData: item.viewData || '',
+      viewTitle: item.viewTitle || '',
     });
     setModalError('');
     setIsModalOpen(true);
@@ -219,19 +230,20 @@ const ManageLegalMaximsPage = () => {
                   </div>
                 </th>
                 <th className="py-2.5 px-4 border-r border-[#d35400]">Meaning / Interpretation</th>
+                <th className="py-2.5 px-4 w-24 text-center border-r border-[#d35400]">View</th>
                 <th className="py-2.5 px-4 w-28 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan="4" className="py-12 text-center text-theme-muted">
+                  <td colSpan="5" className="py-12 text-center text-theme-muted">
                     <span>Loading Legal Maxims...</span>
                   </td>
                 </tr>
               ) : sortedMaxims.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="py-8 text-center text-theme-muted font-medium">
+                  <td colSpan="5" className="py-8 text-center text-theme-muted font-medium">
                     No Legal Maxims found.
                   </td>
                 </tr>
@@ -249,6 +261,21 @@ const ManageLegalMaximsPage = () => {
                     </td>
                     <td className="py-2.5 px-4 text-theme-muted border-r border-theme-border">
                       {item.meaning || '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-center whitespace-nowrap border-r border-theme-border">
+                      {item.viewData ? (
+                        <button
+                          type="button"
+                          onClick={() => openReferenceView(item)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition-all shadow-2xs hover:scale-105 cursor-pointer"
+                          title="Click to open attachment / link / text in new tab"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                          <span>View</span>
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-600 font-mono">—</span>
+                      )}
                     </td>
                     <td className="py-2.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-2">
@@ -322,6 +349,16 @@ const ManageLegalMaximsPage = () => {
               className="w-full px-3 py-2 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange shadow-inner resize-none"
             />
           </div>
+
+          {/* View / Attachment / Link / Text Section */}
+          <ReferenceViewFormSection
+            value={{
+              viewType: modalForm.viewType,
+              viewData: modalForm.viewData,
+              viewTitle: modalForm.viewTitle,
+            }}
+            onChange={(val) => setModalForm(prev => ({ ...prev, ...val }))}
+          />
 
           <div className="pt-2 flex justify-end gap-2">
             <button

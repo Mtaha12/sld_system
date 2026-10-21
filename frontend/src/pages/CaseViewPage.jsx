@@ -213,7 +213,14 @@ const CaseViewPage = () => {
         @media print {
           @page {
             size: ${pageSize};
-            margin: 5mm 8mm;
+            margin: 0.5in;
+          }
+          .print-document {
+            font-size: 15px !important;
+            line-height: 1.75 !important;
+          }
+          .print-document h1 {
+            font-size: 75% !important;
           }
           body {
             background: white !important;
@@ -374,7 +381,7 @@ const CaseViewPage = () => {
       <main className="max-w-4xl mx-auto my-4 sm:my-8 px-3 sm:px-6 pb-24 print:m-0 print:p-0 print:max-w-none">
         
         {/* Document Folio Paper Container */}
-        <article className="bg-[#FCFBF8] dark:bg-[#151821] border border-stone-300/90 dark:border-stone-800/90 rounded-2xl shadow-lg print:border-none print:shadow-none print:bg-white p-6 sm:p-12 print:p-0 print:m-0 relative overflow-hidden transition-colors">
+        <article className="print-document bg-[#FCFBF8] dark:bg-[#151821] border border-stone-300/90 dark:border-stone-800/90 rounded-2xl shadow-lg print:border-none print:shadow-none print:bg-white p-6 sm:p-12 print:p-0 print:m-0 relative overflow-hidden transition-colors">
           
           {/* Subtle Judicial Watermark Emblem */}
           <div className="absolute top-12 right-12 opacity-[0.035] dark:opacity-[0.05] pointer-events-none select-none print:hidden">

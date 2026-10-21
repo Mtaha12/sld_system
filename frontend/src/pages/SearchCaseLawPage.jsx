@@ -163,6 +163,159 @@ const extractRelevantParagraph = (judgmentText, headNoteText, searchTerms) => {
   return null;
 };
 
+/* ── Memoized Case Table Row Component ───────────────────────────────────── */
+const CaseTableRow = React.memo(({
+  c,
+  i,
+  matchedPara,
+  activeSearchTerms,
+  showLawColumns,
+  showJudgeColumn,
+  showLawyerColumn,
+  showPetitionerColumn
+}) => {
+  const statutesList = useMemo(() => {
+    return Array.isArray(c.laws) && c.laws.length > 0
+      ? c.laws.map(l => l.lawStatute).filter(Boolean)
+      : (c.principleLaw ? [c.principleLaw] : []);
+  }, [c.laws, c.principleLaw]);
+
+  const sectionsList = useMemo(() => {
+    return Array.isArray(c.laws) && c.laws.length > 0
+      ? c.laws.map(l => l.section).filter(Boolean)
+      : [];
+  }, [c.laws]);
+
+  const citations = useMemo(() => {
+    return formatCitations(c.mapYearPage, c.publications);
+  }, [c.mapYearPage, c.publications]);
+
+  const caseNumStr = useMemo(() => {
+    return Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : (c.caseNumber || '—');
+  }, [c.caseNumber]);
+
+  return (
+    <tr className="hover:bg-blue-50/40 transition-colors">
+      <td className="px-3 py-3 text-gray-400 text-center font-semibold align-top">{i + 1}</td>
+      <td className="px-3 py-3 font-bold text-gray-800 whitespace-nowrap align-top">
+        {c.sldNumber || '—'}
+      </td>
+      
+      {/* Citation Column with Yellow Highlighting */}
+      <td className="px-3 py-3 whitespace-nowrap align-top">
+        <div className="flex flex-col gap-1">
+          {citations.map((cit, j) => (
+            <span 
+              key={j} 
+              className="inline-block px-2 py-0.5 bg-[#a8cfe0]/60 text-[#1e3a5a] rounded text-[11px] font-bold border border-[#a8cfe0]"
+            >
+              <Highlight text={cit} terms={activeSearchTerms} />
+            </span>
+          ))}
+        </div>
+      </td>
+
+      {/* Dynamic Law Column */}
+      {showLawColumns && (
+        <>
+          <td className="px-3 py-3 text-gray-800 max-w-[200px] align-top">
+            {statutesList.length > 0 ? (
+              <div className="space-y-0.5 font-semibold">
+                {statutesList.slice(0, 3).map((st, sIdx) => (
+                  <div key={sIdx}>
+                    <Highlight text={st} terms={activeSearchTerms} />
+                  </div>
+                ))}
+              </div>
+            ) : '—'}
+          </td>
+          <td className="px-3 py-3 text-gray-700 whitespace-nowrap align-top">
+            {sectionsList.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {sectionsList.map((sec, secIdx) => (
+                  <span key={secIdx} className="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[11px] font-bold">
+                    Sec <Highlight text={sec} terms={activeSearchTerms} />
+                  </span>
+                ))}
+              </div>
+            ) : '—'}
+          </td>
+        </>
+      )}
+
+      {/* Dynamic Judges Column */}
+      {showJudgeColumn && (
+        <td className="px-3 py-3 text-gray-800 max-w-[160px] font-semibold align-top">
+          {Array.isArray(c.judges) && c.judges.length > 0 ? (
+            <Highlight text={c.judges.join('; ')} terms={activeSearchTerms} />
+          ) : '—'}
+        </td>
+      )}
+
+      {/* Dynamic Lawyers Column */}
+      {showLawyerColumn && (
+        <td className="px-3 py-3 text-gray-800 max-w-[160px] font-semibold align-top">
+          {Array.isArray(c.lawyers) && c.lawyers.length > 0 ? (
+            <Highlight text={c.lawyers.join('; ')} terms={activeSearchTerms} />
+          ) : '—'}
+        </td>
+      )}
+
+      {/* Dynamic Petitioner Column */}
+      {showPetitionerColumn && (
+        <td className="px-3 py-3 text-gray-800 max-w-[160px] font-semibold align-top">
+          {Array.isArray(c.petitioners) && c.petitioners.length > 0 ? (
+            <Highlight text={c.petitioners.join('; ')} terms={activeSearchTerms} />
+          ) : '—'}
+        </td>
+      )}
+
+      {/* Court */}
+      <td className="px-3 py-3 text-gray-700 min-w-[140px] max-w-[190px] break-words font-medium align-top">
+        <Highlight text={c.court || '—'} terms={activeSearchTerms} />
+      </td>
+
+      {/* Case No */}
+      <td className="px-3 py-3 text-gray-700 min-w-[160px] max-w-[220px] break-words font-medium align-top leading-relaxed">
+        <Highlight 
+          text={caseNumStr} 
+          terms={activeSearchTerms} 
+        />
+      </td>
+
+      {/* Head Note OR Judgment Paragraph */}
+      <td className="px-3 py-3 text-gray-700 min-w-[260px] max-w-[380px] break-words align-top">
+        {matchedPara ? (
+          <div className="space-y-1">
+            <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider">
+              Judgment Operative Excerpt
+            </span>
+            <p className="line-clamp-3 text-xs leading-relaxed italic bg-yellow-50/70 p-2 rounded border border-yellow-200/80">
+              "<Highlight text={matchedPara} terms={activeSearchTerms} />"
+            </p>
+          </div>
+        ) : (
+          <p className="line-clamp-3 leading-relaxed text-xs">
+            <Highlight text={c.headNote || '—'} terms={activeSearchTerms} />
+          </p>
+        )}
+      </td>
+
+      {/* Action View */}
+      <td className="px-3 py-3 text-center whitespace-nowrap min-w-[85px] align-top">
+        <a
+          href={`/cases/view/${c.id || c._id || c.sldNumber}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 px-3 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-bold rounded-md shadow-xs transition-colors cursor-pointer"
+        >
+          <Eye className="w-3 h-3" /> View
+        </a>
+      </td>
+    </tr>
+  );
+});
+
 /* ── Initial Empty Search State ─────────────────────────────────────────── */
 const EMPTY = {
   yearVolume: '', magazine: '', page: '',
@@ -776,134 +929,18 @@ const SearchCaseLawPage = () => {
                       ? extractRelevantParagraph(c.judgment, c.headNote, [f.text, f.text2, f.phrase])
                       : null);
 
-                    const statutesList = Array.isArray(c.laws) && c.laws.length > 0
-                      ? c.laws.map(l => l.lawStatute).filter(Boolean)
-                      : (c.principleLaw ? [c.principleLaw] : []);
-
-                    const sectionsList = Array.isArray(c.laws) && c.laws.length > 0
-                      ? c.laws.map(l => l.section).filter(Boolean)
-                      : [];
-
                     return (
-                      <tr key={c.id || c._id || i} className="hover:bg-blue-50/40 transition-colors">
-                        <td className="px-3 py-3 text-gray-400 text-center font-semibold align-top">{i + 1}</td>
-                        <td className="px-3 py-3 font-bold text-gray-800 whitespace-nowrap align-top">
-                          {c.sldNumber || '—'}
-                        </td>
-                        
-                        {/* Citation Column with Yellow Highlighting */}
-                        <td className="px-3 py-3 whitespace-nowrap align-top">
-                          <div className="flex flex-col gap-1">
-                            {formatCitations(c.mapYearPage, c.publications).map((cit, j) => (
-                              <span 
-                                key={j} 
-                                className="inline-block px-2 py-0.5 bg-[#a8cfe0]/60 text-[#1e3a5a] rounded text-[11px] font-bold border border-[#a8cfe0]"
-                              >
-                                <Highlight text={cit} terms={activeSearchTerms} />
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-
-                        {/* Dynamic Law Column */}
-                        {showLawColumns && (
-                          <>
-                            <td className="px-3 py-3 text-gray-800 max-w-[200px] align-top">
-                              {statutesList.length > 0 ? (
-                                <div className="space-y-0.5 font-semibold">
-                                  {statutesList.slice(0, 3).map((st, sIdx) => (
-                                    <div key={sIdx}>
-                                      <Highlight text={st} terms={activeSearchTerms} />
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : '—'}
-                            </td>
-                            <td className="px-3 py-3 text-gray-700 whitespace-nowrap align-top">
-                              {sectionsList.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {sectionsList.map((sec, secIdx) => (
-                                    <span key={secIdx} className="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[11px] font-bold">
-                                      Sec <Highlight text={sec} terms={activeSearchTerms} />
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : '—'}
-                            </td>
-                          </>
-                        )}
-
-                        {/* Dynamic Judges Column */}
-                        {showJudgeColumn && (
-                          <td className="px-3 py-3 text-gray-800 max-w-[160px] font-semibold align-top">
-                            {Array.isArray(c.judges) && c.judges.length > 0 ? (
-                              <Highlight text={c.judges.join('; ')} terms={activeSearchTerms} />
-                            ) : '—'}
-                          </td>
-                        )}
-
-                        {/* Dynamic Lawyers Column */}
-                        {showLawyerColumn && (
-                          <td className="px-3 py-3 text-gray-800 max-w-[160px] font-semibold align-top">
-                            {Array.isArray(c.lawyers) && c.lawyers.length > 0 ? (
-                              <Highlight text={c.lawyers.join('; ')} terms={activeSearchTerms} />
-                            ) : '—'}
-                          </td>
-                        )}
-
-                        {/* Dynamic Petitioner Column */}
-                        {showPetitionerColumn && (
-                          <td className="px-3 py-3 text-gray-800 max-w-[160px] font-semibold align-top">
-                            {Array.isArray(c.petitioners) && c.petitioners.length > 0 ? (
-                              <Highlight text={c.petitioners.join('; ')} terms={activeSearchTerms} />
-                            ) : '—'}
-                          </td>
-                        )}
-
-                        {/* Court */}
-                        <td className="px-3 py-3 text-gray-700 min-w-[140px] max-w-[190px] break-words font-medium align-top">
-                          <Highlight text={c.court || '—'} terms={activeSearchTerms} />
-                        </td>
-
-                        {/* Case No - Clean Word Wrapping and Boundaries to Prevent Any Overlap */}
-                        <td className="px-3 py-3 text-gray-700 min-w-[160px] max-w-[220px] break-words font-medium align-top leading-relaxed">
-                          <Highlight 
-                            text={Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : (c.caseNumber || '—')} 
-                            terms={activeSearchTerms} 
-                          />
-                        </td>
-
-
-                        {/* Head Note OR Judgment Paragraph */}
-                        <td className="px-3 py-3 text-gray-700 min-w-[260px] max-w-[380px] break-words align-top">
-                          {matchedPara ? (
-                            <div className="space-y-1">
-                              <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider">
-                                Judgment Operative Excerpt
-                              </span>
-                              <p className="line-clamp-3 text-xs leading-relaxed italic bg-yellow-50/70 p-2 rounded border border-yellow-200/80">
-                                "<Highlight text={matchedPara} terms={activeSearchTerms} />"
-                              </p>
-                            </div>
-                          ) : (
-                            <p className="line-clamp-3 leading-relaxed text-xs">
-                              <Highlight text={c.headNote || '—'} terms={activeSearchTerms} />
-                            </p>
-                          )}
-                        </td>
-
-                        {/* Action View */}
-                        <td className="px-3 py-3 text-center whitespace-nowrap min-w-[85px] align-top">
-                          <a
-                            href={`/cases/view/${c.id || c._id || c.sldNumber}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-bold rounded-md shadow-xs transition-colors cursor-pointer"
-                          >
-                            <Eye className="w-3 h-3" /> View
-                          </a>
-                        </td>
-                      </tr>
+                      <CaseTableRow
+                        key={c.id || c._id || i}
+                        c={c}
+                        i={i}
+                        matchedPara={matchedPara}
+                        activeSearchTerms={activeSearchTerms}
+                        showLawColumns={showLawColumns}
+                        showJudgeColumn={showJudgeColumn}
+                        showLawyerColumn={showLawyerColumn}
+                        showPetitionerColumn={showPetitionerColumn}
+                      />
                     );
                   })}
                 </tbody>

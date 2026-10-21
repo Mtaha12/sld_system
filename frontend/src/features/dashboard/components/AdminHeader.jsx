@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, ChevronDown, LogOut, Menu, Sparkles, PanelLeftClose, PanelLeftOpen, KeyRound, Check, X, ShieldCheck, Calculator } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, Sparkles, PanelLeftClose, PanelLeftOpen, KeyRound, Check, X, ShieldCheck } from 'lucide-react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { ACTIVITIES } from './RecentActivity';
 import { useUser } from '../../../contexts/UserContext';
@@ -260,20 +260,8 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
         </div>
       </div>
 
-      {/* Right Header Actions: Tax Calculator, AI Banner Button, App Store & Play Store Badges, Change Password, Notifications, User Profile */}
+      {/* Right Header Actions: AI Banner Button, App Store & Play Store Badges, Change Password, Notifications, User Profile */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
-        {/* Tax Calculator Button - Opens Pakistan Tax Calculator in New Tab */}
-        <a
-          href="https://pakistan-tax-calculator-mmca.ai.studio/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-md hover:shadow-emerald-500/20 active:scale-95 shrink-0 border border-emerald-400/30 cursor-pointer"
-          title="Open Pakistan Tax Calculator in New Tab"
-        >
-          <Calculator className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-100 shrink-0" />
-          <span className="whitespace-nowrap">Tax Calculator</span>
-        </a>
-
         {/* AI Banner Button (Click to open AI Chatbot) - Compact & Sleek */}
         <button 
           type="button"

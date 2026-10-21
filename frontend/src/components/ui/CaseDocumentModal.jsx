@@ -150,7 +150,7 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
         </div>
 
         {/* Scrollable Document Area */}
-        <div className="overflow-y-auto overflow-x-hidden p-6 sm:p-10 font-serif text-stone-900 bg-[#FCFBF8] print:overflow-visible print:p-0 print:m-0">
+        <div className="print-document overflow-y-auto overflow-x-hidden p-6 sm:p-10 font-serif text-stone-900 bg-[#FCFBF8] print:overflow-visible print:p-0 print:m-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Spinner size="lg" />

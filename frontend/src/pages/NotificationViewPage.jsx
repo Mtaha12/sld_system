@@ -189,11 +189,11 @@ const NotificationViewPage = () => {
       </header>
 
       {/* Main Document Content Area */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
+      <main className="print-document max-w-4xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
             @page {
-              margin: 1.5cm;
+              margin: 0.5in;
               size: auto;
             }
             header, .print-hidden { display: none !important; }

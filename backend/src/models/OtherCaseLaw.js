@@ -165,6 +165,11 @@ otherCaseLawSchema.index({
   authorJudge: 'text',
 });
 
+otherCaseLawSchema.index({ isDeleted: 1, citation: 1 });
+otherCaseLawSchema.index({ isDeleted: 1, caseNo: 1 });
+otherCaseLawSchema.index({ isDeleted: 1, otherCaseId: 1 });
+otherCaseLawSchema.index({ isDeleted: 1, parties: 1 });
+otherCaseLawSchema.index({ isDeleted: 1, bench: 1 });
 otherCaseLawSchema.index({ isDeleted: 1, srNumber: -1 });
 otherCaseLawSchema.index({ isDeleted: 1, caseYear: -1, srNumber: -1 });
 otherCaseLawSchema.index({ isDeleted: 1, updatedAt: -1 });

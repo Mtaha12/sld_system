@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
   FileText, Calendar, Building2, MapPin, Mail, Phone,
-  Info, BookOpen, ArrowRight, Check, Copy, User, Building, Download, Globe, ExternalLink, ShieldCheck, Sparkles
+  Info, BookOpen, ArrowRight, Check, Copy, User, Building, Download, Globe, ExternalLink, ShieldCheck, Sparkles,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import whatsappLogo from '../../../assets/branding/dashboard/whatsapp.png';
@@ -162,8 +163,33 @@ const InfoWidgets = () => {
     return () => clearInterval(timer);
   }, [currentList.length]);
 
-  const latestVideo = youtubeUpdates.length > 0 ? youtubeUpdates[0] : fallbackYoutube;
-  const youtubeThumbnail = getYoutubeThumbnail(latestVideo.url, latestVideo.photo);
+  const [currentYoutubeIndex, setCurrentYoutubeIndex] = useState(0);
+  const [isYoutubeHovered, setIsYoutubeHovered] = useState(false);
+
+  const activeYoutubeList = youtubeUpdates.length > 0 ? youtubeUpdates : [fallbackYoutube];
+
+  useEffect(() => {
+    if (activeYoutubeList.length <= 1 || isYoutubeHovered) return;
+    const timer = setInterval(() => {
+      setCurrentYoutubeIndex((prev) => (prev + 1) % activeYoutubeList.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [activeYoutubeList.length, isYoutubeHovered]);
+
+  const handlePrevYoutube = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setCurrentYoutubeIndex((prev) => (prev - 1 + activeYoutubeList.length) % activeYoutubeList.length);
+  };
+
+  const handleNextYoutube = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setCurrentYoutubeIndex((prev) => (prev + 1) % activeYoutubeList.length);
+  };
+
+  const currentVideo = activeYoutubeList[currentYoutubeIndex % activeYoutubeList.length];
+  const youtubeThumbnail = getYoutubeThumbnail(currentVideo.url, currentVideo.photo);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-6 items-stretch">
@@ -444,8 +470,12 @@ const InfoWidgets = () => {
           </div>
         </div>
 
-        {/* Youtube Channel - Attractive Executive Studio Card */}
-        <div className="bg-gradient-to-b from-[#fff1f2] to-[#ffe4e6] dark:from-[#210c10] dark:to-[#17080a] border border-red-200/80 dark:border-red-900/40 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between flex-1">
+        {/* Youtube Channel - Attractive Executive Studio Card with Auto & Manual Rotation */}
+        <div 
+          className="bg-gradient-to-b from-[#fff1f2] to-[#ffe4e6] dark:from-[#210c10] dark:to-[#17080a] border border-red-200/80 dark:border-red-900/40 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between flex-1"
+          onMouseEnter={() => setIsYoutubeHovered(true)}
+          onMouseLeave={() => setIsYoutubeHovered(false)}
+        >
           <div className="px-3.5 py-2.5 border-b border-red-100 dark:border-red-900/30 flex items-center justify-between bg-white/70 dark:bg-theme-surface/50 backdrop-blur-xs">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center shrink-0 shadow-xs">
@@ -459,26 +489,52 @@ const InfoWidgets = () => {
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
                   </span>
                 </div>
-                {latestVideo.dated ? (
+                {currentVideo.dated ? (
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1 leading-none font-mono mt-0.5">
-                    <Calendar className="w-2.5 h-2.5" /> {latestVideo.dated}
+                    <Calendar className="w-2.5 h-2.5" /> {currentVideo.dated}
                   </p>
                 ) : (
                   <p className="text-[10px] text-gray-500 font-medium leading-none mt-0.5">SLD Official Broadcasts</p>
                 )}
               </div>
             </div>
-            <Link
-              to="/youtube-updates"
-              className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-red-200 dark:border-red-800/40 rounded text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 hover:bg-red-50 hover:border-red-300 transition-colors shadow-2xs"
-            >
-              See All <ArrowRight className="w-3 h-3" />
-            </Link>
+
+            <div className="flex items-center gap-1.5">
+              {activeYoutubeList.length > 1 && (
+                <div className="flex items-center gap-1 bg-white/90 dark:bg-theme-surface border border-red-200/80 dark:border-red-900/40 rounded-md px-1 py-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={handlePrevYoutube}
+                    title="Previous Video"
+                    className="p-0.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-gray-600 dark:text-gray-300 hover:text-red-600 transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                  </button>
+                  <span className="text-[10px] font-mono font-bold text-gray-600 dark:text-gray-300 px-0.5 select-none">
+                    {(currentYoutubeIndex % activeYoutubeList.length) + 1}/{activeYoutubeList.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNextYoutube}
+                    title="Next Video"
+                    className="p-0.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-gray-600 dark:text-gray-300 hover:text-red-600 transition-colors cursor-pointer"
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              <Link
+                to="/youtube-updates"
+                className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-red-200 dark:border-red-800/40 rounded text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 hover:bg-red-50 hover:border-red-300 transition-colors shadow-2xs"
+              >
+                See All <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
           </div>
 
           <div className="p-3 pt-2 flex-1 flex flex-col justify-between">
             <a
-              href={latestVideo.url || 'https://www.youtube.com'}
+              href={currentVideo.url || 'https://www.youtube.com'}
               target="_blank"
               rel="noreferrer"
               className="group block cursor-pointer"
@@ -487,9 +543,10 @@ const InfoWidgets = () => {
               {/* 16:9 Uncut Video Player Frame */}
               <div className="relative w-full aspect-[16/9] bg-black rounded-xl overflow-hidden border border-red-200/70 dark:border-red-950 shadow-sm">
                 <img
+                  key={currentVideo.url || currentVideo.caption}
                   src={youtubeThumbnail}
-                  alt={latestVideo.caption || "Youtube Thumbnail"}
-                  className="w-full h-full object-contain bg-black transition-transform duration-500 group-hover:scale-102"
+                  alt={currentVideo.caption || "Youtube Thumbnail"}
+                  className="w-full h-full object-contain bg-black transition-all duration-500 group-hover:scale-102"
                 />
 
                 {/* Badges on Top */}
@@ -510,15 +567,29 @@ const InfoWidgets = () => {
                     <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current ml-0.5"><path d="M8 5v14l11-7z" /></svg>
                   </div>
                 </div>
+
+                {/* Bottom Segment Progress Bar */}
+                {activeYoutubeList.length > 1 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50 flex z-10">
+                    {activeYoutubeList.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-full flex-1 transition-all duration-300 ${
+                          i === (currentYoutubeIndex % activeYoutubeList.length) ? 'bg-red-500' : 'bg-white/20'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Dedicated Clear & Highly Readable Title Container */}
               <div className="mt-2.5 px-0.5 flex flex-col gap-1">
                 <p
-                  className="text-xs sm:text-[13px] font-heading font-extrabold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors"
-                  title={latestVideo.caption}
+                  className="text-xs sm:text-[13px] font-heading font-extrabold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors min-h-[2.4em]"
+                  title={currentVideo.caption}
                 >
-                  {latestVideo.caption}
+                  {currentVideo.caption}
                 </p>
                 <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400 pt-0.5">
                   <span className="font-medium">SLD System Channel</span>

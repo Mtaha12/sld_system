@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Layers, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, ChevronUp, ChevronDown
+  Check, AlertCircle, ChevronUp, ChevronDown, Eye 
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import Modal from '../../components/ui/Modal';
 import { useUser } from '../../contexts/UserContext';
+import { openReferenceView } from '../../utils/referenceViewUtil';
+import ReferenceViewFormSection from '../../components/common/ReferenceViewFormSection';
 
 const ManageTopicsPage = () => {
   const { user } = useUser();
@@ -25,6 +27,9 @@ const ManageTopicsPage = () => {
   const [editingTopic, setEditingTopic] = useState(null);
   const [modalForm, setModalForm] = useState({
     heading: '',
+    viewType: '',
+    viewData: '',
+    viewTitle: '',
   });
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -72,14 +77,24 @@ const ManageTopicsPage = () => {
 
   const handleOpenAddModal = () => {
     setEditingTopic(null);
-    setModalForm({ heading: '' });
+    setModalForm({
+      heading: '',
+      viewType: '',
+      viewData: '',
+      viewTitle: '',
+    });
     setModalError('');
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (item) => {
     setEditingTopic(item);
-    setModalForm({ heading: item.heading || '' });
+    setModalForm({
+      heading: item.heading || '',
+      viewType: item.viewType || '',
+      viewData: item.viewData || '',
+      viewTitle: item.viewTitle || '',
+    });
     setModalError('');
     setIsModalOpen(true);
   };
@@ -209,19 +224,20 @@ const ManageTopicsPage = () => {
                     {sortAsc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   </div>
                 </th>
+                <th className="py-2.5 px-4 w-24 text-center border-r border-[#d35400]">View</th>
                 <th className="py-2.5 px-4 w-28 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme-border/60 text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={3} className="py-12 text-center text-theme-muted font-medium">
+                  <td colSpan={4} className="py-12 text-center text-theme-muted font-medium">
                     Loading Topics...
                   </td>
                 </tr>
               ) : sortedTopics.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="py-12 text-center text-theme-muted font-medium">
+                  <td colSpan={4} className="py-12 text-center text-theme-muted font-medium">
                     No Topics found.
                   </td>
                 </tr>
@@ -236,6 +252,21 @@ const ManageTopicsPage = () => {
                     </td>
                     <td className="py-2 px-4 text-theme-main font-semibold leading-relaxed">
                       {item.heading}
+                    </td>
+                    <td className="py-2 px-4 text-center whitespace-nowrap">
+                      {item.viewData ? (
+                        <button
+                          type="button"
+                          onClick={() => openReferenceView(item)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition-all shadow-2xs hover:scale-105 cursor-pointer"
+                          title="Click to open attachment / link / text in new tab"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                          <span>View</span>
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-600 font-mono">—</span>
+                      )}
                     </td>
                     <td className="py-2 px-4 text-center whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
@@ -293,6 +324,16 @@ const ManageTopicsPage = () => {
               className="w-full px-3.5 py-2 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange"
             />
           </div>
+
+          {/* View / Attachment / Link / Text Section */}
+          <ReferenceViewFormSection
+            value={{
+              viewType: modalForm.viewType,
+              viewData: modalForm.viewData,
+              viewTitle: modalForm.viewTitle,
+            }}
+            onChange={(val) => setModalForm(prev => ({ ...prev, ...val }))}
+          />
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-theme-border">
             <button

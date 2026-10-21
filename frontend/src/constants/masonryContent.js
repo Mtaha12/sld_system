@@ -1,12 +1,9 @@
-import img1 from '../assets/branding/logo/masonry/Row_1_img1.avif'
-import img2 from '../assets/branding/logo/masonry/Row_1_img2.avif'
-import img3 from '../assets/branding/logo/masonry/Row_1_img3.avif'
-import img4 from '../assets/branding/logo/masonry/Row_2_img1.avif'
-import img5 from '../assets/branding/logo/masonry/Row_2_img2.avif'
-import img6 from '../assets/branding/logo/masonry/Row_2_img3.avif'
-import img7 from '../assets/branding/logo/masonry/Row_3_img1.avif'
-import img8 from '../assets/branding/logo/masonry/Row_3_img2.avif'
-import img9 from '../assets/branding/logo/masonry/Row_3_img3.avif'
+import oldLawBook from '../assets/branding/dashboard/old_law_book.png';
+import fbrSecp from '../assets/branding/dashboard/fbr_secp.png';
+import judgeHammer from '../assets/branding/dashboard/Judge_hammer_with_law_book.png';
+
+const citationsImg = 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=400';
+const financeActImg = 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=400';
 
 export const MASONRY_COLUMNS = [
   {
@@ -16,8 +13,8 @@ export const MASONRY_COLUMNS = [
     items: [
       {
         type: 'image',
-        src: img1,
-        alt: 'Legal',
+        src: citationsImg,
+        alt: 'Citations & Case Laws',
         heightClass: 'h-64',
       },
       {
@@ -29,14 +26,14 @@ export const MASONRY_COLUMNS = [
       },
       {
         type: 'image',
-        src: img2,
-        alt: 'Courthouse',
+        src: oldLawBook,
+        alt: 'Statutes & Laws',
         heightClass: 'h-96',
       },
       {
         type: 'image',
-        src: img3,
-        alt: 'Justice',
+        src: fbrSecp,
+        alt: 'Official Notifications',
         heightClass: 'h-72',
       },
     ],
@@ -48,14 +45,14 @@ export const MASONRY_COLUMNS = [
     items: [
       {
         type: 'image',
-        src: img4,
-        alt: 'Lawyer',
+        src: judgeHammer,
+        alt: 'Legal Dictionary',
         heightClass: 'h-80',
       },
       {
         type: 'image',
-        src: img5,
-        alt: 'Library',
+        src: financeActImg,
+        alt: 'Finance Act & Tax Schedules',
         heightClass: 'h-64',
       },
       {
@@ -67,8 +64,8 @@ export const MASONRY_COLUMNS = [
       },
       {
         type: 'image',
-        src: img6,
-        alt: 'Scales',
+        src: citationsImg,
+        alt: 'Citations & Case Laws',
         heightClass: 'h-80',
       },
     ],
@@ -80,28 +77,28 @@ export const MASONRY_COLUMNS = [
     items: [
       {
         type: 'image',
-        src: img7,
-        alt: 'Books',
+        src: oldLawBook,
+        alt: 'Statutes & Laws',
         heightClass: 'h-72',
       },
       {
         type: 'image',
-        src: img8,
-        alt: 'Table',
+        src: judgeHammer,
+        alt: 'Legal Dictionary',
         heightClass: 'h-64',
       },
       {
         type: 'image',
-        src: img9,
-        alt: 'Desk',
+        src: fbrSecp,
+        alt: 'Official Notifications',
         heightClass: 'h-80',
       },
       {
         type: 'image',
-        src: img1, // Reusing one image to maintain exact 4-item loop physics
-        alt: 'Courthouse',
+        src: financeActImg,
+        alt: 'Finance Act & Tax Schedules',
         heightClass: 'h-72',
       },
     ],
   },
-]
+];

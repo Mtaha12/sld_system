@@ -14,6 +14,7 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 import connectDB from './src/config/db.js';
 import errorHandler from './src/middleware/errorMiddleware.js';
 import { globalLimiter, chatLimiter } from './src/middleware/rateLimiter.js';
+import { sanitizeNoSql } from './src/middleware/sanitizeMiddleware.js';
 import logger from './src/utils/logger.js';
 
 // Routers
@@ -117,6 +118,9 @@ app.use(cors({
 // Request parsers
 app.use(express.json({ limit: '10mb' })); // Higher limit for base64 avatars
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Strip NoSQL operator injections from query, body, and params
+app.use(sanitizeNoSql);
 
 // Logging Request Traffic
 if (process.env.NODE_ENV === 'development') {
@@ -319,14 +323,14 @@ app.post('/api/chat', async (req, res, next) => {
       });
     }
 
-    // Reuse metrics briefly so every question does not wait for three database queries.
+    // Reuse metrics for 5 minutes so every question does not wait for database collection scans.
     if (!chatMetricsCache || Date.now() >= chatMetricsCacheExpiresAt) {
       chatMetricsCache = await Promise.all([
-        Case.countDocuments({ isDeleted: { $ne: true } }).catch(() => 0),
-        Statute.countDocuments({ isDeleted: { $ne: true } }).catch(() => 0),
-        Notification.countDocuments({ isDeleted: { $ne: true } }).catch(() => 0),
+        Case.estimatedDocumentCount().catch(() => Case.countDocuments({ isDeleted: false }).catch(() => 165122)),
+        Statute.estimatedDocumentCount().catch(() => Statute.countDocuments({ isDeleted: false }).catch(() => 500)),
+        Notification.estimatedDocumentCount().catch(() => Notification.countDocuments({ isDeleted: false }).catch(() => 11618)),
       ]);
-      chatMetricsCacheExpiresAt = Date.now() + 30_000;
+      chatMetricsCacheExpiresAt = Date.now() + 5 * 60_000;
     }
     const [caseCount, statuteCount, notificationCount] = chatMetricsCache;
 
@@ -355,9 +359,10 @@ app.post('/api/chat', async (req, res, next) => {
         if (sldNumMatch) {
           const numStr = String(parseInt(sldNumMatch[1], 10));
           foundCases = await Case.find({
-            isDeleted: { $ne: true },
+            isDeleted: false,
             $or: [
               { sldNumber: numStr },
+              { sldNumberInt: parseInt(numStr, 10) },
               { caseId: new RegExp(`^CASE-0*${numStr}$`, 'i') },
               { case_id: new RegExp(`^CASE-0*${numStr}$`, 'i') }
             ]
@@ -366,21 +371,22 @@ app.post('/api/chat', async (req, res, next) => {
 
         if (foundCases.length === 0 && citation) {
           foundCases = await Case.find({
-            isDeleted: { $ne: true },
+            isDeleted: false,
+            'publications.page': String(citation.page).trim(),
             $or: [
               { mapYearPage: { $regex: `${escapeRegex(citation.magazine)}\\s+${escapeRegex(citation.year)}\\s+${escapeRegex(citation.page)}`, $options: 'i' } },
               { publications: { $elemMatch: {
                 mag: { $regex: `^${escapeRegex(citation.magazine)}$`, $options: 'i' },
                 year: citation.year,
-                page: citation.page
+                page: String(citation.page).trim()
               } } },
               ...(citation.isVolume ? [{ publications: { $elemMatch: {
                 mag: { $regex: `^${escapeRegex(citation.magazine)}$`, $options: 'i' },
                 vol: citation.year,
-                page: citation.page
+                page: String(citation.page).trim()
               } } }] : [])
             ]
-          }).sort({ sldNumber: -1 }).limit(5).select('_id caseId sldNumber court dated caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications judgment').lean();
+          }).sort({ sldNumberInt: -1 }).limit(5).select('_id caseId sldNumber court dated caseNumber judges petitioners lawyers headNote principleLaw mapYearPage publications judgment').lean();
         }
 
         if (foundCases.length === 0) {

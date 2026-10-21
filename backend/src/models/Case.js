@@ -164,9 +164,8 @@ caseSchema.index(
   { sldNumber: 1 }, 
   { 
     unique: true, 
-    sparse: true,
     partialFilterExpression: { 
-      isDeleted: { $ne: true }, 
+      isDeleted: false, 
       sldNumber: { $type: 'string', $gt: '' } 
     } 
   }
@@ -186,7 +185,11 @@ caseSchema.index({ isDeleted: 1, 'publications.year': 1, 'publications.mag': 1 }
 caseSchema.index({ isDeleted: 1, 'publications.mag': 1, 'publications.year': 1 });
 caseSchema.index({ isDeleted: 1, 'publications.mag': 1, 'publications.year': 1, sldNumberInt: -1 });
 caseSchema.index({ isDeleted: 1, updatedAt: -1 });
-caseSchema.index({ isDeleted: 1, createdAt: -1 });
+caseSchema.index({ isDeleted: 1, court: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, 'publications.year': 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, dated: -1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, caseNumber: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, 'publications.page': 1, 'publications.year': 1 });
 caseSchema.index({ 'laws.section': 1 });
 caseSchema.index({ mapYearPage: 1 });
 caseSchema.index({ caseNumber: 1 });

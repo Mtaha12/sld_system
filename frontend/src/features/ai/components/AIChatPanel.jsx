@@ -243,10 +243,11 @@ const AIChatPanel = ({
     return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head><meta charset='utf-8'><title>${title}</title>
 <style>
-@page Section1 { size: 595.3pt 841.9pt; margin: 72pt 72pt 72pt 90pt; }
+@page Section1 { size: 595.3pt 841.9pt; margin: 0.5in; }
 div.Section1 { page: Section1; }
-body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; text-align: justify; margin: 0; padding: 0; }
+body { font-family: 'Times New Roman', Times, serif; font-size: 15px; line-height: 1.75; text-align: justify; margin: 0; padding: 0; }
 h1, h2, h3, h4 { font-family: 'Times New Roman', Times, serif; color: #000; }
+h1 { font-size: 75%; }
 table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-family: 'Times New Roman', Times, serif; }
 th, td { border: 1px solid #333333; padding: 6pt 8pt; font-size: 11pt; }
 th { background-color: #f2f2f2; font-weight: bold; }

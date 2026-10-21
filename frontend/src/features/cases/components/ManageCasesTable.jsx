@@ -55,7 +55,7 @@ import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import { caseService } from '../services/caseService';
-import { formatCitations } from '../../../utils/citationFormatter';
+import { formatCitations, getCitationSortKey } from '../../../utils/citationFormatter';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon, widthClassName = '', align = 'left' }) => {
   const isSorted = sortKey && sortConfig?.key === sortKey;
@@ -285,6 +285,20 @@ const ManageCasesTable = ({
         seen.add(uid);
         uniqueList.push(item);
       }
+    }
+
+    if (isMagazineSearch) {
+      const citationDirection = sortConfig?.key === 'mapYearPage'
+        ? sortConfig.direction
+        : 'desc';
+      const multiplier = citationDirection === 'asc' ? 1 : -1;
+      return [...uniqueList].sort((a, b) => {
+        const citationA = getCitationSortKey(a.mapYearPage, a.publications, searchMagazine);
+        const citationB = getCitationSortKey(b.mapYearPage, b.publications, searchMagazine);
+        if (citationA.year !== citationB.year) return (citationA.year - citationB.year) * multiplier;
+        if (citationA.page !== citationB.page) return (citationA.page - citationB.page) * multiplier;
+        return (Number(a.sldNumber || 0) - Number(b.sldNumber || 0)) * multiplier;
+      });
     }
 
     if (!sortConfig.key || !sortConfig.direction) return uniqueList;
@@ -563,10 +577,17 @@ const ManageCasesTable = ({
                 </th>
                 <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName={isMagazineSearch ? "w-24" : "w-16 text-center"} />
                 {isMagazineSearch ? (
-                  <TableHeader 
-                    title={searchMagazine ? `Year / Mag / Vol (${searchMagazine.toUpperCase()})` : "Year / Mag / Vol (All Entries)"} 
-                    widthClassName="w-auto" 
-                  />
+                  <>
+                    <TableHeader
+                      title={searchMagazine ? `Year / Mag / Vol (${searchMagazine.toUpperCase()})` : "Year / Mag / Vol (All Entries)"}
+                      sortKey="mapYearPage"
+                      sortConfig={sortConfig?.key === 'mapYearPage' ? sortConfig : { key: null, direction: null }}
+                      onSort={handleSort}
+                      widthClassName="w-auto"
+                    />
+                    <TableHeader title="Court" widthClassName="w-40" />
+                    <TableHeader title="Case #" widthClassName="w-40" />
+                  </>
                 ) : (
                   <>
                     <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-24 text-center" />
@@ -586,13 +607,13 @@ const ManageCasesTable = ({
             <tbody className="divide-y divide-theme-border/50">
               {loading ? (
                 <tr>
-                  <td colSpan={isMagazineSearch ? 4 : 12} className="py-12 text-center">
+                  <td colSpan={isMagazineSearch ? 6 : 12} className="py-12 text-center">
                     <SquareLoader text="Loading Case Law records..." />
                   </td>
                 </tr>
               ) : currentData.length === 0 ? (
                 <tr>
-                  <td colSpan={isMagazineSearch ? 4 : 12} className="py-12 text-center text-sm text-theme-muted">
+                  <td colSpan={isMagazineSearch ? 6 : 12} className="py-12 text-center text-sm text-theme-muted">
                     No Case Law records found.
                   </td>
                 </tr>
@@ -623,6 +644,7 @@ const ManageCasesTable = ({
                     <td className="px-2 py-2.5 align-top text-theme-muted font-bold break-words text-center">{item.sldNumber}</td>
 
                     {isMagazineSearch ? (
+                      <>
                       <td className="px-2 py-2.5 align-top text-theme-main">
                         <div className="flex flex-wrap gap-1 max-h-[64px] overflow-y-auto">
                           {(() => {
@@ -677,6 +699,14 @@ const ManageCasesTable = ({
                               filtered = uniqueList;
                             }
 
+                            filtered = [...filtered].sort((a, b) => {
+                              const pageA = Number(a.match(/\s(\d+)$/)?.[1] || -1);
+                              const pageB = Number(b.match(/\s(\d+)$/)?.[1] || -1);
+                              const yearA = Number(a.match(/^(\d{4})/)?.[1] || -1);
+                              const yearB = Number(b.match(/^(\d{4})/)?.[1] || -1);
+                              return yearB - yearA || pageB - pageA;
+                            });
+
                             return filtered.map((line, i) => (
                               <span key={`${line}-${i}`} className="inline-flex items-center px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-brand-orange border border-brand-orange/30 rounded text-xs font-semibold">
                                 {line}
@@ -685,13 +715,23 @@ const ManageCasesTable = ({
                           })()}
                         </div>
                       </td>
+                      <td className="px-2 py-2.5 align-top text-theme-main font-medium break-words">
+                        {item.court || ''}
+                      </td>
+                      <td className="px-2 py-2.5 align-top text-theme-muted">
+                        <div className="flex flex-col gap-0.5 max-h-[64px] overflow-y-auto">
+                          {(Array.isArray(item.caseNumber) ? item.caseNumber : [item.caseNumber])
+                            .filter(Boolean)
+                            .map((line, i) => <span key={i} className="break-words">{line}</span>)}
+                        </div>
+                      </td>
+                      </>
                     ) : (
                       <>
                         <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated ? item.dated.split('T')[0] : ''}</td>
                         <td className="px-2 py-2.5 align-top text-theme-muted">
                           <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden max-h-[64px]">
                             {formatCitations(item.mapYearPage, item.publications)
-                              .slice(0, 2)
                               .map((line, i) => (
                                 <span key={`${line}-${i}`} className="inline-block whitespace-nowrap">{line}</span>
                               ))}
@@ -877,7 +917,7 @@ const ManageCasesTable = ({
             <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
               <span className="block text-xs text-theme-muted mb-1 font-medium">Publications / Citation Mapping</span>
               <div className="flex flex-wrap gap-2 mt-1">
-                {viewModalCase.mapYearPage.map((map, i) => (
+                {formatCitations(viewModalCase.mapYearPage, viewModalCase.publications).map((map, i) => (
                   <span key={i} className="px-2.5 py-1 rounded-md text-xs font-medium bg-theme-surface border border-theme-border text-theme-main">
                     {map}
                   </span>

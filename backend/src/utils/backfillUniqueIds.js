@@ -42,16 +42,16 @@ const backfillCollection = async (Model, entityName, primaryField, aliases = [],
       await syncCounter(entityName, maxSeq);
     }
 
-    // Fast path: Check if any records are actually missing the unique ID
-    const missingCount = await Model.countDocuments({
+    // Fast path: Check if any records are actually missing the unique ID (< 1ms probe)
+    const sampleMissing = await Model.findOne({
       $or: [
         { [primaryField]: { $exists: false } },
         { [primaryField]: null },
         { [primaryField]: '' }
       ]
-    });
+    }).select('_id').lean();
 
-    if (missingCount === 0) {
+    if (!sampleMissing) {
       return { total: 0, backfilled: 0 };
     }
 

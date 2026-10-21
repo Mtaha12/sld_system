@@ -82,15 +82,15 @@ const NewsFeed = () => {
     const fetchFeeds = async () => {
       try {
         const [liveUpdates, liveNews] = await Promise.allSettled([
-          updateService.getUpdates({ limit: 10 }),
-          newsService.getNews({ limit: 10 })
+          updateService.getUpdates({ limit: 5 }),
+          newsService.getNews({ limit: 5 })
         ]);
         if (!isMounted) return;
         if (liveUpdates.status === 'fulfilled' && Array.isArray(liveUpdates.value) && liveUpdates.value.length > 0) {
-          setUpdatesList(liveUpdates.value);
+          setUpdatesList(liveUpdates.value.slice(0, 5));
         }
         if (liveNews.status === 'fulfilled' && Array.isArray(liveNews.value) && liveNews.value.length > 0) {
-          setNewsList(liveNews.value);
+          setNewsList(liveNews.value.slice(0, 5));
         }
       } catch (err) {
         console.error('[NewsFeed] Failed to load feeds:', err);
@@ -103,8 +103,8 @@ const NewsFeed = () => {
   }, []);
 
   const displayedItems = activeTab === 'updates'
-    ? (updatesList.length > 0 ? updatesList : fallbackUpdates)
-    : (newsList.length > 0 ? newsList : fallbackNews);
+      ? (updatesList.length > 0 ? updatesList.slice(0, 5) : fallbackUpdates.slice(0, 5))
+    : (newsList.length > 0 ? newsList.slice(0, 5) : fallbackNews.slice(0, 5));
 
   return (
     <div className="flex flex-col h-full space-y-3">

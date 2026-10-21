@@ -20,6 +20,7 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import FormField from '../components/ui/FormField';
 import { caseService } from '../features/cases/services/caseService';
+import { getCitationSortKey } from '../utils/citationFormatter';
 
 // Helper function to generate and download file bundles
 const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '', customOptions = {}) => {
@@ -512,11 +513,12 @@ const ManageCasesPage = () => {
   const fetchRequestRef = useRef(0);
   useEffect(() => {
     const requestId = ++fetchRequestRef.current;
+    const abortCtrl = new AbortController();
     setIsLoading(true);
 
     const params = {
       page: currentPage,
-      limit: 100
+      limit: debouncedFilters.magazine ? 2000 : 100
     };
     if (debouncedFilters.subject) params.subject = debouncedFilters.subject;
     if (debouncedFilters.fromYear) params.fromYear = debouncedFilters.fromYear;
@@ -529,14 +531,25 @@ const ManageCasesPage = () => {
       params.sortOrder = sortConfig.direction;
     }
 
-    caseService.getCases(params)
+    caseService.getCases(params, { signal: abortCtrl.signal })
       .then(response => {
         if (requestId !== fetchRequestRef.current) return; // Stale request
-        setCases(response.data || []);
+        const responseCases = response.data || [];
+        if (debouncedFilters.magazine) {
+          responseCases.sort((a, b) => {
+            const aKey = getCitationSortKey(a.mapYearPage, a.publications, debouncedFilters.magazine);
+            const bKey = getCitationSortKey(b.mapYearPage, b.publications, debouncedFilters.magazine);
+            if (bKey.year !== aKey.year) return bKey.year - aKey.year;
+            if (bKey.page !== aKey.page) return bKey.page - aKey.page;
+            return Number(b.sldNumber || 0) - Number(a.sldNumber || 0);
+          });
+        }
+        setCases(responseCases);
         setTotalItems(response.pagination?.totalItems || 0);
         setTotalPages(response.pagination?.totalPages || 0);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
         if (requestId !== fetchRequestRef.current) return;
         setCases([]);
         setTotalItems(0);
@@ -546,6 +559,10 @@ const ManageCasesPage = () => {
         if (requestId !== fetchRequestRef.current) return;
         setIsLoading(false);
       });
+
+    return () => {
+      abortCtrl.abort();
+    };
   }, [currentPage, debouncedFilters, sortConfig]);
 
   // Handle sort changes from the table
@@ -1472,4 +1489,3 @@ const ManageCasesPage = () => {
 };
 
 export default ManageCasesPage;
-

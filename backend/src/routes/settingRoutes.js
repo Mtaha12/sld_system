@@ -38,8 +38,10 @@ import {
   createLegalTerm,
   updateLegalTerm,
   deleteLegalTerm,
+  uploadReferenceView,
 } from '../controllers/settingController.js';
 import { protect, requireAdmin } from '../middleware/authMiddleware.js';
+import { uploadReferenceViewMiddleware } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -116,5 +118,10 @@ router.get('/legal-terms', getLegalTerms);
 router.post('/legal-terms', protect, requireAdmin, createLegalTerm);
 router.put('/legal-terms/:id', protect, requireAdmin, updateLegalTerm);
 router.delete('/legal-terms/:id', protect, requireAdmin, deleteLegalTerm);
+
+// ==============================
+// 10. REFERENCE ATTACHMENT UPLOAD
+// ==============================
+router.post('/upload-reference-view', protect, requireAdmin, uploadReferenceViewMiddleware, uploadReferenceView);
 
 export default router;

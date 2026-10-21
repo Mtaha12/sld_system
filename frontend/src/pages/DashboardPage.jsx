@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Layers, Type, Bookmark, Scale } from 'lucide-react';
+import { BookOpen, Layers, Type, Bookmark, Scale, Calculator } from 'lucide-react';
 import WarningAlert from '../features/dashboard/components/WarningAlert';
 import TickerBanner from '../features/dashboard/components/TickerBanner';
 import FeaturedSection from '../features/dashboard/components/FeaturedSection';
@@ -49,6 +49,19 @@ const DashboardPage = () => {
               )}
             </React.Fragment>
           ))}
+
+          {/* Tax Calculator Button - Shifted directly next to MAXIMS */}
+          <span className="text-gray-300 dark:text-gray-600 font-light select-none hidden sm:inline">|</span>
+          <a
+            href="https://pakistan-tax-calculator-mmca.ai.studio/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs hover:shadow-md hover:shadow-emerald-500/20 active:scale-95 shrink-0 border border-emerald-400/30 cursor-pointer ml-1"
+            title="Open Pakistan Tax Calculator in New Tab"
+          >
+            <Calculator className="w-3.5 h-3.5 text-emerald-100 shrink-0" />
+            <span className="whitespace-nowrap">Tax Calculator</span>
+          </a>
         </div>
       </div>
 

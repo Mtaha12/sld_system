@@ -35,12 +35,39 @@ const formatItem = (d) => ({
   orderPriority: d.orderPriority || '',
   createdAt: d.createdAt,
   updatedAt: d.updatedAt
-});
+})/**
+ * High-speed In-Memory Cache for Other Case Laws (< 1ms)
+ */
+const oclDetailCache = new Map();
+const OCL_CACHE_MAX = 500;
+const OCL_CACHE_TTL = 15 * 60 * 1000;
+
+const getCachedOcl = (key) => {
+  const item = oclDetailCache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiresAt) {
+    oclDetailCache.delete(key);
+    return null;
+  }
+  return item.data;
+};
+
+const setCachedOcl = (key, data) => {
+  if (oclDetailCache.size >= OCL_CACHE_MAX) {
+    const oldest = oclDetailCache.keys().next().value;
+    oclDetailCache.delete(oldest);
+  }
+  oclDetailCache.set(key, { data, expiresAt: Date.now() + OCL_CACHE_TTL });
+};
+
+let cachedTotalOclCount = 0;
+let cachedTotalOclExpiresAt = 0;
 
 export const getOtherCaseLaws = async (req, res, next) => {
   try {
     const { query, judge, page, limit, sortField = 'otherCaseId', sortOrder = 'asc' } = req.query;
     const filter = { isDeleted: false };
+    const hasFilter = Boolean((query && query.trim()) || (judge && judge.trim()));
 
     if (judge) {
       const cleanJudge = escapeRegex(judge.trim());
@@ -52,23 +79,37 @@ export const getOtherCaseLaws = async (req, res, next) => {
 
     if (query) {
       const q = query.trim();
-      const searchRegex = new RegExp(escapeRegex(q), 'i');
       const numQ = Number(q);
-      const orConditions = [
-        { caseNo: searchRegex },
-        { parties: searchRegex },
-        { caseTitle: searchRegex },
-        { bench: searchRegex },
-        { authorJudge: searchRegex },
-        { citation: searchRegex },
-        { headNotes: searchRegex },
-        { otherCaseId: searchRegex },
-        { orderDate: searchRegex }
-      ];
-      if (!isNaN(numQ)) {
-        orConditions.push({ srNumber: numQ }, { caseYear: numQ });
+      const isOclId = /^OCL[-\d]+/i.test(q);
+      const isCitationPattern = /^(?:19|20)\d{2}\s+[a-zA-Z]+/i.test(q);
+
+      if (isOclId) {
+        // Fast indexed point lookup via otherCaseId
+        filter.$or = [
+          { otherCaseId: new RegExp(`^${escapeRegex(q)}$`, 'i') },
+          { other_case_id: new RegExp(`^${escapeRegex(q)}$`, 'i') }
+        ];
+      } else if (isCitationPattern) {
+        // Fast indexed prefix lookup via newly indexed citation field
+        filter.citation = new RegExp(`^${escapeRegex(q)}`, 'i');
+      } else {
+        const searchRegex = new RegExp(escapeRegex(q), 'i');
+        const orConditions = [
+          { caseNo: searchRegex },
+          { citation: searchRegex },
+          { parties: searchRegex },
+          { caseTitle: searchRegex },
+          { bench: searchRegex },
+          { authorJudge: searchRegex },
+          { headNotes: searchRegex },
+          { otherCaseId: searchRegex },
+          { orderDate: searchRegex }
+        ];
+        if (!isNaN(numQ)) {
+          orConditions.push({ srNumber: numQ }, { caseYear: numQ });
+        }
+        filter.$or = orConditions;
       }
-      filter.$or = orConditions;
     }
 
     const safePage = Math.max(1, parseInt(page, 10) || 1);
@@ -79,15 +120,41 @@ export const getOtherCaseLaws = async (req, res, next) => {
     const sortObj = {};
     sortObj[sortField] = sortDir;
 
-    const total = await OtherCaseLaw.countDocuments(filter);
+    // Fast count: use cached estimated count for uncontested queries
+    let total;
+    const now = Date.now();
+    if (!hasFilter) {
+      if (cachedTotalOclCount > 0 && now < cachedTotalOclExpiresAt) {
+        total = cachedTotalOclCount;
+      } else {
+        try {
+          total = await OtherCaseLaw.estimatedDocumentCount();
+          cachedTotalOclCount = total;
+          cachedTotalOclExpiresAt = now + 5 * 60_000;
+        } catch {
+          total = await OtherCaseLaw.countDocuments(filter);
+        }
+      }
+    } else {
+      total = await OtherCaseLaw.countDocuments(filter);
+    }
+
     const totalPages = Math.ceil(total / safeLimit) || 1;
 
-    const items = await OtherCaseLaw.find(filter)
+    let cursor = OtherCaseLaw.find(filter)
       .sort(sortObj)
       .skip(skip)
       .limit(safeLimit)
       .lean();
 
+    // Use citation index hint if searching citation
+    if (filter.citation) {
+      try {
+        cursor = cursor.hint({ isDeleted: 1, citation: 1 });
+      } catch {}
+    }
+
+    const items = await cursor;
     const data = items.map(formatItem);
 
     return res.status(200).json({
@@ -121,18 +188,33 @@ export const getNextOtherCaseSr = async (req, res, next) => {
 export const getOtherCaseLawById = async (req, res, next) => {
   try {
     const { id } = req.params;
+    if (!id || !id.trim()) {
+      return res.status(400).json({ success: false, message: 'ID parameter is required.' });
+    }
+
+    const cleanId = id.trim();
+    const cached = getCachedOcl(`ocl_${cleanId.toLowerCase()}`);
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
+
     const query = {
-      $or: [{ otherCaseId: id }, { other_case_id: id }],
+      $or: [{ otherCaseId: cleanId }, { other_case_id: cleanId }],
       isDeleted: { $ne: true }
     };
-    if (!isNaN(Number(id))) query.$or.push({ srNumber: Number(id) });
-    if (mongoose.Types.ObjectId.isValid(id)) query.$or.push({ _id: id });
+    if (!isNaN(Number(cleanId))) query.$or.push({ srNumber: Number(cleanId) });
+    if (mongoose.Types.ObjectId.isValid(cleanId)) query.$or.push({ _id: cleanId });
 
-    const item = await OtherCaseLaw.findOne(query);
+    const item = await OtherCaseLaw.findOne(query).lean();
     if (!item) {
-      return res.status(404).json({ success: false, message: `Record '${id}' not found.` });
+      return res.status(404).json({ success: false, message: `Record '${cleanId}' not found.` });
     }
-    return res.status(200).json({ success: true, data: formatItem(item) });
+    const formatted = formatItem(item);
+    setCachedOcl(`ocl_${cleanId.toLowerCase()}`, formatted);
+    if (item._id) setCachedOcl(`ocl_${item._id.toString()}`, formatted);
+    if (item.otherCaseId) setCachedOcl(`ocl_${item.otherCaseId.toLowerCase()}`, formatted);
+
+    return res.status(200).json({ success: true, data: formatted });
   } catch (error) {
     next(error);
   }
@@ -198,6 +280,8 @@ export const createOtherCaseLaw = async (req, res, next) => {
     });
 
     await item.save();
+    oclDetailCache.clear();
+    cachedTotalOclCount = 0;
     return res.status(201).json({ success: true, message: 'Other Case Law record added.', data: formatItem(item) });
   } catch (error) {
     next(error);
@@ -286,6 +370,8 @@ export const updateOtherCaseLaw = async (req, res, next) => {
     if (attachmentSize !== undefined) item.attachmentSize = attachmentSize;
 
     await item.save();
+    oclDetailCache.clear();
+    cachedTotalOclCount = 0;
     return res.status(200).json({ success: true, message: 'Record updated successfully.', data: formatItem(item) });
   } catch (error) {
     next(error);
@@ -310,6 +396,8 @@ export const deleteOtherCaseLaw = async (req, res, next) => {
     item.isDeleted = true;
     item.deletedAt = new Date();
     await item.save();
+    oclDetailCache.clear();
+    cachedTotalOclCount = 0;
     return res.status(200).json({ success: true, message: 'Record deleted.' });
   } catch (error) {
     next(error);

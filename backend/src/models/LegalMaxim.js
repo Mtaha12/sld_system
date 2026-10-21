@@ -23,6 +23,21 @@ const legalMaximSchema = new mongoose.Schema(
       default: 'active',
       index: true,
     },
+    viewType: {
+      type: String,
+      enum: ['', 'file', 'link', 'text'],
+      default: '',
+    },
+    viewData: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    viewTitle: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   {
     timestamps: true,

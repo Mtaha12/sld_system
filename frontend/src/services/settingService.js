@@ -205,6 +205,20 @@ export const settingService = {
     const response = await api.delete(`/api/settings/legal-terms/${id}`);
     return response.data;
   },
+
+  // ============================
+  // REFERENCE VIEW ATTACHMENTS
+  // ============================
+  uploadReferenceView: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/api/settings/upload-reference-view', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
 
 export default settingService;

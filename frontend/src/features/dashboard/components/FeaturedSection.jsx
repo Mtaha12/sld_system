@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Scale, Bell, Book, Landmark, ChevronLeft, ChevronRight, Circle } from 'lucide-react';
-import { caseService } from '../../cases/services/caseService';
 import { statuteService } from '../../statutes/services/statuteService';
 import { notificationService } from '../../notifications/services/notificationService';
 import { dictionaryService } from '../../dictionary/services/dictionaryService';
 import { taxCardService } from '../../tax-cards/services/taxCardService';
+import { otherCaseService } from '../../cases/services/otherCaseService';
+import { caseService } from '../../cases/services/caseService';
 
 // Import local assets
 import oldLawBook from '../../../assets/branding/dashboard/old_law_book.png';
@@ -14,23 +15,17 @@ import judgeHammer from '../../../assets/branding/dashboard/Judge_hammer_with_la
 const fallbackCards = [
   {
     id: 'case_laws',
-    title: 'Case Laws',
-    count: '393,870',
+    title: 'Citations',
+    count: '0',
     icon: Scale,
     image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=400',
-    link: '/cases/view/165278',
-    items: [
-      { text: '2026 SLD 4312 Peshawar High Court (2026 CLC 1052)', link: '/cases/view/165278' },
-      { text: '2026 SLD 4311 Sindh High Court, Sukkur Bench', link: '/cases/view/165277' },
-      { text: '2026 SLD 4310 Lahore High Court, Multan Bench', link: '/cases/view/165276' },
-      { text: '2026 SLD 4309 Peshawar High Court (2026 CLC 1159)', link: '/cases/view/165275' },
-      { text: '2026 SLD 4308 Sindh High Court (2026 CLC 1024)', link: '/cases/view/165274' }
-    ]
+    link: '/other-caselaws',
+    items: []
   },
   {
     id: 'statutes',
     title: 'Statutes / Laws',
-    count: '9,349',
+    count: '0',
     icon: Scale,
     image: oldLawBook,
     link: '/statutes/view/6a90093e137c8854f5d4d367',
@@ -45,7 +40,7 @@ const fallbackCards = [
   {
     id: 'notifications',
     title: 'Notifications',
-    count: '11,669',
+    count: '0',
     icon: Bell,
     image: fbrSecp,
     link: '/notifications/view/6abcf2bdc1463bec312e1527',
@@ -60,7 +55,7 @@ const fallbackCards = [
   {
     id: 'dictionary',
     title: 'Dictionary',
-    count: '38,397',
+    count: '0',
     icon: Book,
     image: judgeHammer,
     link: '/dictionary/view/6abcf2b2c1463bec312d8e16',
@@ -75,7 +70,7 @@ const fallbackCards = [
   {
     id: 'finance_act',
     title: 'Finance Act',
-    count: '319',
+    count: '0',
     icon: Landmark,
     image: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=400',
     link: '/tax-cards/view/6abcf3cd6db78969163e4ae7',
@@ -90,7 +85,11 @@ const fallbackCards = [
 ];
 
 const FeaturedSection = () => {
-  const [cardsList, setCardsList] = useState(fallbackCards);
+  const [cardsList, setCardsList] = useState(() => fallbackCards.map(card => ({
+    ...card,
+    count: '0',
+    items: []
+  })));
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const trackRef = useRef(null);
@@ -101,8 +100,8 @@ const FeaturedSection = () => {
 
     const fetchLatestRecords = async () => {
       try {
-        const [casesRes, statutesRes, notifsRes, dictRes, taxRes, dbCountsRes] = await Promise.allSettled([
-          caseService.getCases({ limit: 5 }),
+        const [casesRes, statutesRes, notifsRes, dictRes, taxRes, databaseStatsRes] = await Promise.allSettled([
+          otherCaseService.getOtherCases('', '', 1, 5, 'srNumber', 'desc'),
           statuteService.getStatutes({ limit: 5 }),
           notificationService.getNotifications({ limit: 5 }),
           dictionaryService.getDictionary({ limit: 5 }),
@@ -115,32 +114,34 @@ const FeaturedSection = () => {
         setCardsList(prevCards => {
           return prevCards.map(card => {
             if (card.id === 'case_laws') {
-              const rawCases = casesRes.status === 'fulfilled'
+              const otherCases = casesRes.status === 'fulfilled'
                 ? (casesRes.value?.data || (Array.isArray(casesRes.value) ? casesRes.value : []))
                 : [];
-              const dbCounts = dbCountsRes.status === 'fulfilled' ? dbCountsRes.value : null;
-              const displayCount = dbCounts?.displayCount || (dbCounts?.totalCitationsWithOtherLaws ? dbCounts.totalCitationsWithOtherLaws.toLocaleString() : '393,870');
+              const databaseStats = databaseStatsRes.status === 'fulfilled' ? databaseStatsRes.value : null;
+              const displayCount = databaseStats?.totalCitationsWithOtherLaws !== undefined
+                ? databaseStats.totalCitationsWithOtherLaws.toLocaleString()
+                : '0';
 
-              if (rawCases.length > 0) {
-                const latest5 = rawCases.slice(0, 5).map(c => {
-                  const citation = c.mapYearPage?.[0] || `${c.dated ? new Date(c.dated).getFullYear() : '2026'} SLD ${c.sldNumber}`;
-                  const title = c.court ? `${citation} (${c.court})` : citation;
-                  const docId = c.mongoId || c._id || c.sldNumber;
+              if (otherCases.length > 0) {
+                const latest5 = otherCases.map(c => {
+                  const title = c.caseNo || c.citation || c.parties;
+                  const docId = c.mongoId || c.id || c.otherCaseId || c.srNumber;
                   return {
                     text: title,
-                    link: `/cases/view/${docId}`
+                    link: `/other-cases/view/${docId}`
                   };
                 });
                 return {
                   ...card,
-                  link: latest5[0]?.link || card.link,
+                  link: latest5[0].link,
                   count: displayCount,
                   items: latest5
                 };
               } else {
                 return {
                   ...card,
-                  count: displayCount
+                  count: displayCount,
+                  items: []
                 };
               }
             }
@@ -161,7 +162,7 @@ const FeaturedSection = () => {
                 return {
                   ...card,
                   link: latest5[0]?.link || card.link,
-                  count: statutesRes.value?.total ? statutesRes.value.total.toLocaleString() : card.count,
+                  count: (statutesRes.value?.total ?? rawStatutes.length).toLocaleString(),
                   items: latest5
                 };
               }
@@ -181,7 +182,7 @@ const FeaturedSection = () => {
                 return {
                   ...card,
                   link: latest5[0]?.link || card.link,
-                  count: notifsRes.value?.total ? notifsRes.value.total.toLocaleString() : card.count,
+                  count: (notifsRes.value?.total ?? rawNotifs.length).toLocaleString(),
                   items: latest5
                 };
               }
@@ -201,7 +202,7 @@ const FeaturedSection = () => {
                 return {
                   ...card,
                   link: latest5[0]?.link || card.link,
-                  count: dictRes.value?.total ? dictRes.value.total.toLocaleString() : card.count,
+                  count: (dictRes.value?.total ?? rawDict.length).toLocaleString(),
                   items: latest5
                 };
               }
@@ -221,7 +222,7 @@ const FeaturedSection = () => {
                 return {
                   ...card,
                   link: latest5[0]?.link || card.link,
-                  count: rawTax.length ? rawTax.length.toLocaleString() : card.count,
+                  count: rawTax.length.toLocaleString(),
                   items: latest5
                 };
               }
@@ -236,7 +237,11 @@ const FeaturedSection = () => {
     };
 
     fetchLatestRecords();
-    return () => { isMounted = false; };
+    const refreshTimer = setInterval(fetchLatestRecords, 60_000);
+    return () => {
+      isMounted = false;
+      clearInterval(refreshTimer);
+    };
   }, []);
 
   // Duplicate cards for seamless loop

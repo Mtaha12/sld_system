@@ -8,10 +8,27 @@ html, body, #root {
 }
 
 @media print {
+  @page {
+    margin: 0.5in;
+  }
+
   html, body, #root {
     height: auto !important;
     overflow: visible !important;
     background: white !important;
+  }
+
+  body {
+    margin: 0 !important;
+  }
+
+  .print-document {
+    font-size: 15px !important;
+    line-height: 1.75 !important;
+  }
+
+  .print-document h1 {
+    font-size: 75% !important;
   }
 }
 
@@ -255,4 +272,3 @@ html, body, #root {
 .dark .word-document-content th {
   background-color: rgba(30, 41, 59, 0.7) !important;
 }
-

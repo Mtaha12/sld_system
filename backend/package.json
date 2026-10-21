@@ -10,6 +10,7 @@
     "test:smtp": "node testSmtp.js",
     "seed": "node src/utils/seed.js",
     "import:cases": "node src/utils/importCaseExcel.js",
+    "import:lhc": "node src/utils/importLhcExcel.js",
     "db:export": "node src/scripts/exportDatabase.js",
     "db:import": "node src/scripts/importDatabase.js",
     "test": "node --test tests/integration.test.js"

@@ -359,7 +359,7 @@ const InvoicePrintModal = ({ invoice, isOpen, onClose }) => {
             width: 100% !important;
             max-width: 100% !important;
             margin: 0 !important;
-            padding: 20mm !important;
+            padding: 0 !important;
             border: none !important;
             box-shadow: none !important;
             background: white !important;
@@ -367,7 +367,7 @@ const InvoicePrintModal = ({ invoice, isOpen, onClose }) => {
           }
           @page {
             size: A4 portrait;
-            margin: 0;
+            margin: 0.5in;
           }
         }
       `}</style>

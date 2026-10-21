@@ -104,6 +104,31 @@ const setCachedCase = (key, data) => {
 };
 
 /**
+ * High-speed In-Memory Cache for Search Queries (< 1ms)
+ */
+const searchResultsCache = new Map();
+const SEARCH_CACHE_MAX = 300;
+const SEARCH_CACHE_TTL = 3 * 60 * 1000; // 3 minutes
+
+const getCachedSearch = (key) => {
+  const item = searchResultsCache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiresAt) {
+    searchResultsCache.delete(key);
+    return null;
+  }
+  return item.data;
+};
+
+const setCachedSearch = (key, data) => {
+  if (searchResultsCache.size >= SEARCH_CACHE_MAX) {
+    const oldest = searchResultsCache.keys().next().value;
+    searchResultsCache.delete(oldest);
+  }
+  searchResultsCache.set(key, { data, expiresAt: Date.now() + SEARCH_CACHE_TTL });
+};
+
+/**
  * High-speed In-Memory Count Cache for Cases
  */
 let cachedTotalCasesCount = 0;
@@ -141,18 +166,29 @@ export const getCaseDatabaseStats = async (req, res, next) => {
       return res.status(200).json({ success: true, ...cachedDatabaseStats });
     }
 
-    const [casesCount, otherCount] = await Promise.all([
-      Case.estimatedDocumentCount().catch(() => 165278),
-      OtherCaseLaw.estimatedDocumentCount().catch(() => 52554)
+    const [caseStats, totalOtherCases] = await Promise.all([
+      Case.aggregate([
+        { $match: { isDeleted: false } },
+        {
+          $project: {
+            citationCount: {
+              $cond: [
+                { $gt: [{ $size: { $ifNull: ['$publications', []] } }, 0] },
+                { $size: { $ifNull: ['$publications', []] } },
+                { $size: { $ifNull: ['$mapYearPage', []] } }
+              ]
+            }
+          }
+        },
+        { $group: { _id: null, totalCitations: { $sum: '$citationCount' }, totalCases: { $sum: 1 } } }
+      ]),
+      OtherCaseLaw.countDocuments({ isDeleted: false })
     ]);
 
-    const totalCases = casesCount || 165278;
-    const totalOtherCases = otherCount || 52554;
-    // SLD system contains 341,316 indexed parallel journal citations in Case publications
-    const totalCitations = 341316;
-    // Total citations and other case laws: 341,316 citations + 52,554 other case laws = 393,870
+    const totalCases = caseStats[0]?.totalCases || 0;
+    const totalCitations = caseStats[0]?.totalCitations || 0;
     const totalCitationsWithOtherLaws = totalCitations + totalOtherCases;
-    const totalCombinedCases = totalCases + totalOtherCases; // 217,832
+    const totalCombinedCases = totalCases + totalOtherCases;
 
     cachedDatabaseStats = {
       totalCases,
@@ -163,21 +199,12 @@ export const getCaseDatabaseStats = async (req, res, next) => {
       count: totalCitationsWithOtherLaws,
       displayCount: totalCitationsWithOtherLaws.toLocaleString()
     };
-    cachedDatabaseStatsExpiresAt = now + 10 * 60 * 1000; // 10 minutes cache
+    cachedDatabaseStatsExpiresAt = now + 60_000;
 
     return res.status(200).json({ success: true, ...cachedDatabaseStats });
   } catch (error) {
     logger.error('Error in getCaseDatabaseStats:', error);
-    return res.status(200).json({
-      success: true,
-      totalCases: 165278,
-      totalOtherCases: 52554,
-      totalCitations: 341316,
-      totalCitationsWithOtherLaws: 393870,
-      totalCombinedCases: 217832,
-      count: 393870,
-      displayCount: '393,870'
-    });
+    return next(error);
   }
 };
 
@@ -241,6 +268,7 @@ const buildMapYearPage = (publications = []) => {
     }
   });
 
+  return entries.map((entry) => entry.value);
 };
 
 /**
@@ -287,11 +315,15 @@ export const extractRelevantParagraph = (judgmentText, headNoteText, searchTerms
  * Helper to format case model for frontend compatibility
  */
 const formatCaseForFrontend = (c) => {
-  let mapYearPage = Array.isArray(c.mapYearPage) ? c.mapYearPage.filter(Boolean) : [];
-
-  if (mapYearPage.length === 0 && c.publications && c.publications.length > 0) {
-    mapYearPage = buildMapYearPage(c.publications);
-  }
+  const mappedCitations = Array.isArray(c.mapYearPage) ? c.mapYearPage.filter(Boolean) : [];
+  const publicationCitations = buildMapYearPage(c.publications || []);
+  const seenCitations = new Set();
+  const mapYearPage = [...mappedCitations, ...publicationCitations].filter((citation) => {
+    const key = String(citation).replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!key || seenCitations.has(key)) return false;
+    seenCitations.add(key);
+    return true;
+  });
 
   return {
     id: c._id.toString(),
@@ -928,6 +960,8 @@ export const createCase = async (req, res, next) => {
     }
 
     caseDetailCache.clear();
+    searchResultsCache.clear();
+    cachedTotalCasesCount = 0;
     logger.info(`[Case Created] Case ID ${newCase.caseId} (SLD #${newCase.sldNumber}) added.`);
 
     return res.status(201).json({
@@ -1014,6 +1048,8 @@ export const updateCase = async (req, res, next) => {
 
     await c.save();
     caseDetailCache.clear();
+    searchResultsCache.clear();
+    cachedTotalCasesCount = 0;
     logger.info(`[Case Updated] Case ID ${c.caseId} (SLD #${c.sldNumber}) updated.`);
 
     return res.status(200).json({
@@ -1052,6 +1088,8 @@ export const deleteCase = async (req, res, next) => {
     c.deletedAt = new Date();
     await c.save();
     caseDetailCache.clear();
+    searchResultsCache.clear();
+    cachedTotalCasesCount = 0;
 
     logger.info(`[Case Deleted] Case ID ${c.caseId || c.sldNumber} soft-deleted.`);
 
@@ -1095,6 +1133,8 @@ export const deleteMultiple = async (req, res, next) => {
     );
 
     caseDetailCache.clear();
+    searchResultsCache.clear();
+    cachedTotalCasesCount = 0;
     logger.info(`[Bulk Case Deleted] ${ids.length} cases soft-deleted.`);
 
     return res.status(200).json({
@@ -1113,6 +1153,18 @@ export const searchCases = async (req, res, next) => {
     const hasFilter = Object.values(filters).some(val => val && val.toString().trim() !== '');
     if (!hasFilter) {
       return res.status(400).json({ success: false, message: 'Please provide at least one search criteria.' });
+    }
+
+    // Check fast search cache (< 1ms)
+    const cacheKey = JSON.stringify(filters);
+    const cachedResults = getCachedSearch(cacheKey);
+    if (cachedResults) {
+      const payload = req.user?.isSpammer === true ? spoofCaseList(cachedResults) : cachedResults;
+      return res.status(200).json({
+        success: true,
+        count: payload.length,
+        data: payload
+      });
     }
 
     let andConditions = [{ isDeleted: false }];
@@ -1350,7 +1402,11 @@ export const searchCases = async (req, res, next) => {
     // Apply safe index hints based on primary query filters
     if (filters.caseNumber && !filters.court && !filters.fromYear && !filters.fromDate && !hasTextSearch) {
       try {
-        queryExec = queryExec.hint({ isDeleted: 1, caseNumber: 1 });
+        queryExec = queryExec.hint({ isDeleted: 1, caseNumber: 1, sldNumberInt: -1 });
+      } catch (hintErr) {}
+    } else if (filters.court && !filters.yearVolume && !filters.page) {
+      try {
+        queryExec = queryExec.hint({ isDeleted: 1, court: 1, sldNumberInt: -1 });
       } catch (hintErr) {}
     } else if (filters.subject && parseLegalCitation(filters.subject)) {
       try {
@@ -1370,6 +1426,10 @@ export const searchCases = async (req, res, next) => {
           'publications.year': 1
         });
       } catch (hintErr) {}
+    } else if ((filters.fromYear || filters.toYear) && !filters.court) {
+      try {
+        queryExec = queryExec.hint({ isDeleted: 1, 'publications.year': 1, sldNumberInt: -1 });
+      } catch (hintErr) {}
     }
 
     const cases = await queryExec.lean();
@@ -1385,6 +1445,8 @@ export const searchCases = async (req, res, next) => {
       }
       return formatted;
     });
+
+    setCachedSearch(cacheKey, formattedCases);
 
     if (req.user?.isSpammer === true) {
       formattedCases = spoofCaseList(formattedCases);

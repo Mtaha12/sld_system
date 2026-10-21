@@ -17,7 +17,7 @@ export const caseService = {
    * @param {Object} params - { page, limit, subject, fromDate, toDate, magazine, sortField, sortOrder }
    * @returns {Promise<{ data: Array, pagination: Object }>}
    */
-  getCases: async (params = {}) => {
+  getCases: async (params = {}, options = {}) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, val]) => {
       if (val !== undefined && val !== null && val !== '') {
@@ -25,7 +25,7 @@ export const caseService = {
       }
     });
     const qs = query.toString();
-    const response = await api.get(`/api/cases${qs ? `?${qs}` : ''}`);
+    const response = await api.get(`/api/cases${qs ? `?${qs}` : ''}`, options);
     return response.data;
   },
 
@@ -34,21 +34,8 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   getDatabaseCounts: async () => {
-    try {
-      const response = await api.get('/api/cases/database-counts');
-      return response.data;
-    } catch {
-      return {
-        success: true,
-        totalCases: 165278,
-        totalOtherCases: 52554,
-        totalCitations: 341316,
-        totalCitationsWithOtherLaws: 393870,
-        totalCombinedCases: 217832,
-        count: 393870,
-        displayCount: '393,870'
-      };
-    }
+    const response = await api.get('/api/cases/database-counts');
+    return response.data;
   },
 
   /**
@@ -167,4 +154,3 @@ export const caseService = {
     return response.data;
   }
 };
-

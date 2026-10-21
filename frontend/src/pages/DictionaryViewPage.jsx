@@ -159,7 +159,7 @@ const DictionaryViewPage = () => {
       </header>
 
       {/* Main Document Content Area */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
+      <main className="print-document max-w-4xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
         <div className="bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 rounded-2xl shadow-md p-6 sm:p-12 print:border-none print:shadow-none print:p-0">
           
           {/* Header */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, Search, RotateCcw, BookOpen, Layers, Type, Bookmark, Scale, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Search, RotateCcw, BookOpen, Layers, Type, Bookmark, Scale, ArrowUpDown, ChevronLeft, ChevronRight, Eye, Calculator } from 'lucide-react';
 import settingService from '../../../services/settingService';
+import { openReferenceView } from '../../../utils/referenceViewUtil';
 
 const TAB_CONFIG = [
   { key: 'articles', label: 'ARTICLES', count: 1544, icon: BookOpen },
@@ -142,6 +143,19 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
               </React.Fragment>
             );
           })}
+
+          {/* Tax Calculator Button next to MAXIMS */}
+          <span className="text-gray-300 dark:text-gray-600 px-1 font-light select-none">|</span>
+          <a
+            href="https://pakistan-tax-calculator-mmca.ai.studio/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 my-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs hover:shadow-md hover:shadow-emerald-500/20 active:scale-95 shrink-0 border border-emerald-400/30 cursor-pointer ml-auto"
+            title="Open Pakistan Tax Calculator in New Tab"
+          >
+            <Calculator className="w-3.5 h-3.5 text-emerald-100 shrink-0" />
+            <span className="whitespace-nowrap">Tax Calculator</span>
+          </a>
         </div>
 
         {/* ── Search & Filter Bar ─────────────────────────────────────────── */}
@@ -214,6 +228,7 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
                   <th className="px-3 py-2.5 font-semibold w-24 text-center">Year</th>
                   <th className="px-4 py-2.5 font-semibold">Title</th>
                   <th className="px-4 py-2.5 font-semibold min-w-[200px] w-64">Author</th>
+                  <th className="px-3 py-2.5 font-semibold w-20 text-center">View</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -230,6 +245,21 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
                     </td>
                     <td className="px-4 py-2.5 text-gray-600 dark:text-gray-300">
                       {item.author || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                      {item.viewData ? (
+                        <button
+                          type="button"
+                          onClick={() => openReferenceView(item)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                          title="Click to open attachment / link / text in new tab"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                          <span>View</span>
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-600 font-mono">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -250,6 +280,10 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
                       ? 'Legal Term'
                       : 'Legal Maxim'}
                   </th>
+                  {activeTab === 'maxims' && (
+                    <th className="px-4 py-2.5 font-semibold">Meaning</th>
+                  )}
+                  <th className="px-3 py-2.5 font-semibold w-20 text-center">View</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -260,6 +294,26 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
                     </td>
                     <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100 leading-snug font-medium">
                       {item.heading || item.name || '—'}
+                    </td>
+                    {activeTab === 'maxims' && (
+                      <td className="px-4 py-2.5 text-gray-600 dark:text-gray-300 leading-snug">
+                        {item.meaning || '—'}
+                      </td>
+                    )}
+                    <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                      {item.viewData ? (
+                        <button
+                          type="button"
+                          onClick={() => openReferenceView(item)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                          title="Click to open attachment / link / text in new tab"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                          <span>View</span>
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-600 font-mono">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

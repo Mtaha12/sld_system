@@ -136,6 +136,8 @@ notificationSchema.index({ isDeleted: 1, srNumberInt: 1 });
 notificationSchema.index({ isDeleted: 1, createdAt: -1, srNumber: -1 });
 notificationSchema.index({ isDeleted: 1, srNumber: -1 });
 notificationSchema.index({ isDeleted: 1, year: -1 });
+notificationSchema.index({ isDeleted: 1, department: 1, year: -1 });
+notificationSchema.index({ isDeleted: 1, department: 1, srNumberInt: -1 });
 notificationSchema.index({ isDeleted: 1, department: 1 });
 
 notificationSchema.index({ isDeleted: 1, updatedAt: -1 });
