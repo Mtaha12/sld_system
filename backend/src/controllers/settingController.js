@@ -1172,7 +1172,7 @@ export const getArticles = async (req, res, next) => {
       filter.year = year.trim();
     }
     const total = await Article.countDocuments(filter);
-    let query = Article.find(filter).sort({ srNumber: 1, year: -1 });
+    let query = Article.find(filter).sort({ year: -1, srNumber: 1, createdAt: -1 });
     if (all === 'true') {
       // return all
     } else if (page && limit) {

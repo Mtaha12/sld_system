@@ -6,7 +6,7 @@ import { settingService } from '../../services/settingService';
  * Reusable form section for configuring the "View" data
  * Supports: Hyperlinks, File Attachments (PDF/Word/Images), and Formatted Text.
  */
-const ReferenceViewFormSection = ({ value = {}, onChange }) => {
+const ReferenceViewFormSection = ({ value = {}, onChange, expanded = true, minRows = 8 }) => {
   const { viewType = '', viewData = '', viewTitle = '' } = value;
   const [activeTab, setActiveTab] = useState(() => {
     if (viewType) return viewType;
@@ -218,20 +218,20 @@ const ReferenceViewFormSection = ({ value = {}, onChange }) => {
           ) : (
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 dark:border-stone-700 hover:border-emerald-500 rounded-xl p-4 text-center cursor-pointer transition-all bg-white dark:bg-stone-900 group"
+              className="border-2 border-dashed border-gray-300 dark:border-stone-700 hover:border-emerald-500 rounded-xl p-6 sm:p-8 min-h-[140px] text-center cursor-pointer transition-all bg-white dark:bg-stone-900 group flex flex-col items-center justify-center"
             >
               {uploading ? (
                 <div className="flex flex-col items-center justify-center py-2">
-                  <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2" />
+                  <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2" />
                   <span className="text-xs font-semibold text-emerald-600">Uploading attachment...</span>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center">
-                  <Upload className="w-6 h-6 text-gray-400 group-hover:text-emerald-600 mb-1 transition-colors" />
-                  <span className="text-xs font-bold text-gray-700 dark:text-gray-200 group-hover:text-emerald-600">
+                <div className="flex flex-col items-center justify-center py-2">
+                  <Upload className="w-8 h-8 text-gray-400 group-hover:text-emerald-600 mb-2 transition-colors" />
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-emerald-600">
                     Click to browse and upload file
                   </span>
-                  <span className="text-[11px] text-gray-400 mt-0.5">
+                  <span className="text-xs text-gray-400 mt-1">
                     Supports PDF, Word (DOC/DOCX), Images, or Text (Max 25MB)
                   </span>
                 </div>
@@ -252,7 +252,7 @@ const ReferenceViewFormSection = ({ value = {}, onChange }) => {
       {activeTab === 'text' && (
         <div className="space-y-2 pt-1 animate-fade-in">
           <textarea
-            rows={4}
+            rows={minRows}
             placeholder="Paste or write detailed reference text, judgment excerpts, commentary, or full notes here..."
             value={viewData}
             onChange={(e) =>
@@ -262,7 +262,7 @@ const ReferenceViewFormSection = ({ value = {}, onChange }) => {
                 viewTitle: viewTitle || '',
               })
             }
-            className="w-full p-2.5 text-xs rounded-lg border border-gray-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500 leading-relaxed font-sans"
+            className="w-full p-3.5 text-xs rounded-xl border border-gray-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 leading-relaxed font-sans min-h-[200px]"
           />
           <p className="text-[11px] text-gray-500">
             When users click <strong>View</strong>, this text will open in a beautifully styled reader window in a new tab.

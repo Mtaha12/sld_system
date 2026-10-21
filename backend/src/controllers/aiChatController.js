@@ -264,21 +264,37 @@ export const searchDictionary = async (queryText) => {
   const cleanQ = queryText.replace(/^(?:meaning\s*of|define|definition\s*of|what\s*is|term)\s+/i, '').trim();
   if (cleanQ.length < 2) return [];
 
-  // 1. Fast indexed prefix search on words (< 20ms)
-  const prefixRegex = new RegExp(`^${escapeRegex(cleanQ)}`, 'i');
+  // 1. High-speed indexed B-tree exact & prefix seek (< 10ms)
+  const cleanUpper = cleanQ.toUpperCase();
+  const cleanTitle = cleanQ.charAt(0).toUpperCase() + cleanQ.slice(1).toLowerCase();
   let results = await Dictionary.find({
-    words: prefixRegex,
-    isDeleted: false
-  }).limit(5).maxTimeMS(1000).lean();
+    isDeleted: false,
+    $or: [
+      { words: cleanQ },
+      { words: cleanTitle },
+      { words: cleanUpper },
+      { words: new RegExp(`^${escapeRegex(cleanQ)}`) },
+      { words: new RegExp(`^${escapeRegex(cleanTitle)}`) },
+      { words: new RegExp(`^${escapeRegex(cleanUpper)}`) }
+    ]
+  }).limit(5).maxTimeMS(600).lean();
 
-  // 2. Fallback to containing search on words
-  if (results.length === 0) {
+  // 2. Fallback to flexible case-insensitive search if needed
+  if (!results || results.length === 0) {
+    results = await Dictionary.find({
+      words: new RegExp(`^${escapeRegex(cleanQ)}`, 'i'),
+      isDeleted: false
+    }).limit(5).maxTimeMS(1000).lean();
+  }
+
+  // 3. Fallback to containing search on words
+  if (!results || results.length === 0) {
     results = await Dictionary.find({
       words: new RegExp(escapeRegex(cleanQ), 'i'),
       isDeleted: false
     }).limit(5).maxTimeMS(1200).lean();
   }
-  return results;
+  return results || [];
 };
 
 /**
@@ -814,6 +830,7 @@ export const executeMultiConditionSearch = async (queryText) => {
     .replace(/\b(?:supreme\s*court|high\s*court|lahore\s*high\s*court|sindh\s*high\s*court|peshawar\s*high\s*court|islamabad\s*high\s*court|balochistan\s*high\s*court|lhc|shc|phc|ihc|bhc|atir|tribunal)\b/gi, ' ')
     .replace(/\b(?:section|sec\.?|u\/s)\s*[a-z0-9\(\)\-]+/gi, ' ')
     .replace(/\b(?:cases?|judgments?|precedents?|rulings?|decision|order|law|laws|under|of|in|on|for|against|regarding|matter|provisions?|taxation|tax|taxes|pakistan|statute|ordinance|act)\b/gi, ' ')
+    .replace(/\b\d{4}\b/g, ' ')
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(t => t.length >= 3 && !['the','and','with','from','about','that','this','who','was','what','which','give','find','show','tell'].includes(t));
@@ -3153,6 +3170,14 @@ export const isPakistaniLegalQuery = (queryText) => {
     return true;
   }
 
+  // 8. Deterministic Database Counts, Module Statistics, Dictionary & Tax Rates
+  if (/\b(?:database|system|archive|overall|total\s*records?|inventory)\s*(?:statistics|stats|counts?|breakdown)?\b/i.test(q) ||
+      /\b(?:how\s*many|count|total|number\s*of)\s*(?:cases|judgments|statutes|notifications|records|orders)\b/i.test(q) ||
+      /\b(?:meaning\s*of|definition\s*of|define|legal\s*meaning|dictionary)\b/i.test(q) ||
+      /\b(?:tax\s*card|tax\s*rates?|tax\s*slabs?|salary\s*slab|withholding\s*tax\s*rates?|finance\s*act\s*rates?)\b/i.test(q)) {
+    return true;
+  }
+
   return false;
 };
 
@@ -4113,7 +4138,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         targetCase = multiMatch.matchedCases[0];
         matchingTopicCases = multiMatch.matchedCases;
         allMatchedCasesList = multiMatch.matchedCases;
-        matchType = 'topic_multi';
+        matchType = 'multi_condition_search';
         matchedFieldDisplay = `${multiMatch.courtName || 'Court'}${multiMatch.matchedYear ? ` (${multiMatch.matchedYear})` : ''}${multiMatch.matchedSection ? ` Sec ${multiMatch.matchedSection}` : ''}`;
         confidence = 99;
         activeReferences = ['case_numbers', 'courts', 'judges', 'citations', 'statutes'];

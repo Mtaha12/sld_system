@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   BookOpen, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, ChevronUp, ChevronDown, Eye 
+  Check, AlertCircle, ChevronUp, ChevronDown, Eye, CheckCircle2 
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import Modal from '../../components/ui/Modal';
@@ -19,8 +19,7 @@ const ManageArticlesPage = () => {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Sorting
-  const [sortAsc, setSortAsc] = useState(true);
+  // Sorted strictly by Year descending: 2026, 2025, etc.
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -105,8 +104,8 @@ const ManageArticlesPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleModalSubmit = async (e) => {
-    e.preventDefault();
+  const handleModalSubmit = async (e, isNext = false) => {
+    if (e?.preventDefault) e.preventDefault();
     if (!modalForm.title.trim()) {
       setModalError('Article title is required.');
       return;
@@ -119,11 +118,48 @@ const ManageArticlesPage = () => {
       if (editingArticle) {
         await settingService.updateArticle(editingArticle._id || editingArticle.id, modalForm);
         showToast('success', 'Article updated successfully.');
+        
+        if (isNext) {
+          const currentId = editingArticle._id || editingArticle.id;
+          const currentIndex = sortedArticles.findIndex(a => (a._id || a.id) === currentId);
+          if (currentIndex !== -1 && currentIndex + 1 < sortedArticles.length) {
+            const nextItem = sortedArticles[currentIndex + 1];
+            setEditingArticle(nextItem);
+            setModalForm({
+              title: nextItem.title || '',
+              year: nextItem.year || '',
+              author: nextItem.author || '',
+              viewType: nextItem.viewType || '',
+              viewData: nextItem.viewData || '',
+              viewTitle: nextItem.viewTitle || '',
+            });
+            showToast('success', 'Updated! Advanced to next article.');
+          } else {
+            setIsModalOpen(false);
+            showToast('success', 'Article updated. Reached end of list.');
+          }
+        } else {
+          setIsModalOpen(false);
+        }
       } else {
         await settingService.createArticle(modalForm);
         showToast('success', 'Article added successfully.');
+
+        if (isNext) {
+          setEditingArticle(null);
+          setModalForm(prev => ({
+            title: '',
+            year: prev.year || new Date().getFullYear().toString(),
+            author: prev.author || '',
+            viewType: '',
+            viewData: '',
+            viewTitle: '',
+          }));
+          showToast('success', 'Article added! Ready for next entry.');
+        } else {
+          setIsModalOpen(false);
+        }
       }
-      setIsModalOpen(false);
       fetchArticles();
     } catch (err) {
       setModalError(err.response?.data?.message || 'Failed to save Article.');
@@ -145,10 +181,14 @@ const ManageArticlesPage = () => {
     }
   };
 
+  // Results listed strictly on the basis of years: 2026 then 2025 and so on
   const sortedArticles = [...articles].sort((a, b) => {
-    const valA = (a.title || '').toLowerCase();
-    const valB = (b.title || '').toLowerCase();
-    return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    const yearA = parseInt(String(a.year || '').replace(/\D/g, ''), 10) || 0;
+    const yearB = parseInt(String(b.year || '').replace(/\D/g, ''), 10) || 0;
+    if (yearB !== yearA) {
+      return yearB - yearA; // 2026, then 2025, then 2024, etc.
+    }
+    return (a.title || '').localeCompare(b.title || '');
   });
 
   return (
@@ -221,16 +261,8 @@ const ManageArticlesPage = () => {
             <thead className="sticky top-0 z-10">
               <tr className="bg-[#E67E22] text-white text-xs font-bold uppercase tracking-wider">
                 <th className="py-2.5 px-4 w-16 text-center border-r border-[#d35400]">Sr #</th>
-                <th className="py-2.5 px-4 w-24 text-center border-r border-[#d35400]">Year</th>
-                <th 
-                  className="py-2.5 px-4 cursor-pointer hover:bg-[#d35400] transition-colors border-r border-[#d35400]"
-                  onClick={() => setSortAsc(!sortAsc)}
-                >
-                  <div className="flex items-center gap-1">
-                    <span>Title</span>
-                    {sortAsc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  </div>
-                </th>
+                <th className="py-2.5 px-4 w-28 text-center border-r border-[#d35400]">Year</th>
+                <th className="py-2.5 px-4 border-r border-[#d35400]">Title</th>
                 <th className="py-2.5 px-4 w-64 border-r border-[#d35400]">Author</th>
                 <th className="py-2.5 px-4 w-24 text-center border-r border-[#d35400]">View</th>
                 <th className="py-2.5 px-4 w-28 text-center">Action</th>
@@ -317,6 +349,7 @@ const ManageArticlesPage = () => {
         onClose={() => setIsModalOpen(false)}
         title={editingArticle ? 'Edit Article' : 'Add New Article'}
         icon={BookOpen}
+        maxWidth="max-w-4xl"
       >
         <form onSubmit={handleModalSubmit} className="space-y-4 pt-1">
           {modalError && (
@@ -366,8 +399,10 @@ const ManageArticlesPage = () => {
             </div>
           </div>
 
-          {/* View / Attachment / Link / Text Section */}
+          {/* View / Attachment / Link / Text Section - Doubled Length */}
           <ReferenceViewFormSection
+            minRows={8}
+            expanded={true}
             value={{
               viewType: modalForm.viewType,
               viewData: modalForm.viewData,
@@ -383,6 +418,16 @@ const ManageArticlesPage = () => {
               className="px-4 py-2 border border-theme-border rounded-lg text-xs font-medium text-theme-muted hover:bg-theme-surface-alt transition-colors cursor-pointer"
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleModalSubmit(null, true)}
+              className="px-4 py-2 border border-brand-orange text-brand-orange hover:bg-brand-orange/10 rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-60 cursor-pointer flex items-center gap-1.5"
+              title={editingArticle ? "Update this article and load the next article" : "Save this article and prepare next new entry"}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{submitting ? 'Saving…' : editingArticle ? 'Update + Next' : 'Save + Next'}</span>
             </button>
             <button
               type="submit"

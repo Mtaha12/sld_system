@@ -90,8 +90,12 @@ export const getOtherCaseLaws = async (req, res, next) => {
           { other_case_id: new RegExp(`^${escapeRegex(q)}$`, 'i') }
         ];
       } else if (isCitationPattern) {
-        // Fast indexed prefix lookup via newly indexed citation field
-        filter.citation = new RegExp(`^${escapeRegex(q)}`, 'i');
+        // Fast indexed B-tree prefix seek (< 2ms) without full-collection /i scan
+        const qUpper = q.toUpperCase();
+        filter.$or = [
+          { citation: new RegExp(`^${escapeRegex(q)}`) },
+          { citation: new RegExp(`^${escapeRegex(qUpper)}`) }
+        ];
       } else {
         const searchRegex = new RegExp(escapeRegex(q), 'i');
         const orConditions = [

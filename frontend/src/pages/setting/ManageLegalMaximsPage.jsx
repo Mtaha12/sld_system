@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Scale, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, ChevronUp, ChevronDown, Eye 
+  Check, CheckCircle2, AlertCircle, ChevronUp, ChevronDown, Eye 
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
@@ -104,8 +104,8 @@ const ManageLegalMaximsPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleModalSubmit = async (e) => {
-    e.preventDefault();
+  const handleModalSubmit = async (e, isNext = false) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!modalForm.name.trim()) {
       setModalError('Legal Maxim name is required.');
       return;
@@ -116,13 +116,47 @@ const ManageLegalMaximsPage = () => {
 
     try {
       if (editingMaxim) {
-        await settingService.updateLegalMaxim(editingMaxim._id || editingMaxim.id, modalForm);
-        showToast('success', 'Legal Maxim updated successfully.');
+        const currentId = editingMaxim._id || editingMaxim.id;
+        await settingService.updateLegalMaxim(currentId, modalForm);
+        
+        if (isNext) {
+          const currentIndex = sortedMaxims.findIndex(m => (m._id || m.id) === currentId);
+          if (currentIndex !== -1 && currentIndex + 1 < sortedMaxims.length) {
+            const nextItem = sortedMaxims[currentIndex + 1];
+            setEditingMaxim(nextItem);
+            setModalForm({
+              name: nextItem.name || '',
+              meaning: nextItem.meaning || '',
+              viewType: nextItem.viewType || '',
+              viewData: nextItem.viewData || '',
+              viewTitle: nextItem.viewTitle || '',
+            });
+            showToast('success', `Updated! Moved to next: "${nextItem.name}"`);
+          } else {
+            setIsModalOpen(false);
+            showToast('success', 'Updated! Reached the end of legal maxims list.');
+          }
+        } else {
+          setIsModalOpen(false);
+          showToast('success', 'Legal Maxim updated successfully.');
+        }
       } else {
         await settingService.createLegalMaxim(modalForm);
-        showToast('success', 'Legal Maxim added successfully.');
+        if (isNext) {
+          setModalForm({
+            name: '',
+            meaning: '',
+            viewType: '',
+            viewData: '',
+            viewTitle: '',
+          });
+          setEditingMaxim(null);
+          showToast('success', 'Legal Maxim saved! Ready for next entry.');
+        } else {
+          setIsModalOpen(false);
+          showToast('success', 'Legal Maxim added successfully.');
+        }
       }
-      setIsModalOpen(false);
       fetchMaxims();
     } catch (err) {
       setModalError(err.response?.data?.message || 'Failed to save Legal Maxim.');
@@ -367,6 +401,16 @@ const ManageLegalMaximsPage = () => {
               className="px-4 py-2 border border-theme-border rounded-lg text-xs font-semibold text-theme-muted hover:bg-theme-surface-alt transition-colors"
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleModalSubmit(null, true)}
+              className="px-4 py-2 border border-brand-orange text-brand-orange hover:bg-brand-orange/10 rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-60 cursor-pointer flex items-center gap-1.5"
+              title={editingMaxim ? "Update this legal maxim and advance to next item" : "Save this legal maxim and prepare next new entry"}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{submitting ? 'Saving…' : editingMaxim ? 'Update + Next' : 'Save + Next'}</span>
             </button>
             <button
               type="submit"

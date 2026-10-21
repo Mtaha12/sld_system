@@ -367,8 +367,11 @@ const AddNotificationForm = () => {
     }
 
     try {
-      const targetSr = String(data.srNumber || editData?.srNumber || '').trim();
-      let targetId = currentRecordId || (isEdit && (editData?.id || editData?._id || editData?.mongoId));
+      const isNavEdit = Boolean(isEdit || editData || currentRecordId);
+      const targetSr = editData?.srNumber
+        ? String(editData.srNumber).trim()
+        : String(data.srNumber || '').trim();
+      let targetId = currentRecordId || editData?.id || editData?._id || editData?.mongoId;
       if (!targetId && targetSr) {
         try {
           const existing = await notificationService.getNotificationById(targetSr);
@@ -386,8 +389,9 @@ const AddNotificationForm = () => {
         srNumber: targetSr || data.srNumber
       };
 
-      if (targetId) {
-        await notificationService.updateNotification(targetId, payload);
+      if (targetId || isNavEdit) {
+        await notificationService.updateNotification(targetId || targetSr, payload);
+        setValue('srNumber', targetSr, { shouldDirty: false });
       } else {
         await notificationService.createNotification(payload);
       }

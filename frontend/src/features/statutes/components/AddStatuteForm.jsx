@@ -128,7 +128,8 @@ const AddStatuteForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const editData = location.state?.statuteData;
-  const isEdit = Boolean(location.state?.isEdit || editData);
+  const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || null);
+  const isEdit = Boolean(currentRecordId);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lawOptions, setLawOptions] = useState([]);
   const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
@@ -143,7 +144,7 @@ const AddStatuteForm = () => {
     heading: editData?.heading || '',
     blocks: (() => {
       const empty1 = { id: 'new-block-1', sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] };
-      if (!isEdit) return [empty1];
+      if (!editData) return [empty1];
       
       const existingFilled = (editData?.blocks || []).filter(b => {
         const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
@@ -165,7 +166,6 @@ const AddStatuteForm = () => {
     })()
   };
 
-  const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || null);
   const [autoNewSr, setAutoNewSr] = useState('');
   const [loadingStatute, setLoadingStatute] = useState(false);
   const [loadFeedback, setLoadFeedback] = useState(null);
@@ -177,11 +177,14 @@ const AddStatuteForm = () => {
     handleSubmit,
     setValue,
     getValues,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(statuteSchema),
     defaultValues,
   });
+
+  const watchedSr = watch('srNumber');
 
   const loadStatuteBySr = React.useCallback(async (targetSr) => {
     const cleanSr = String(targetSr ?? getValues('srNumber') ?? '').trim();
@@ -199,7 +202,7 @@ const AddStatuteForm = () => {
         setValue('chapter', data.chapter || '');
         setValue('display', data.display?.toLowerCase() === 'no' ? 'no' : 'yes');
         setValue('status', data.display === 'No' ? 'inactive' : 'active');
-        setValue('law', data.law || 'Income Tax Rules, 2002');
+        setValue('law', data.law || '');
         setValue('section', data.section || '');
         setValue('heading', data.heading || '');
         if (Array.isArray(data.blocks) && data.blocks.length > 0) {
@@ -324,8 +327,11 @@ const AddStatuteForm = () => {
     });
 
     try {
-      const targetSr = String(data.srNumber || editData?.srNumber || '').trim();
-      let targetId = currentRecordId || (isEdit && (editData?.id || editData?._id));
+      const isNavEdit = Boolean(isEdit || editData || currentRecordId);
+      const targetSr = editData?.srNumber
+        ? String(editData.srNumber).trim()
+        : String(data.srNumber || '').trim();
+      let targetId = currentRecordId || editData?.id || editData?._id;
       if (!targetId && targetSr) {
         try {
           const existing = await statuteService.getStatuteById(targetSr);
@@ -343,45 +349,55 @@ const AddStatuteForm = () => {
         srNumber: targetSr || data.srNumber
       };
 
-      if (targetId) {
-        await statuteService.updateStatute(targetId, payload);
+      const isNext = isSaveAndNextRef.current;
+      isSaveAndNextRef.current = false;
+
+      if (targetId || isNavEdit) {
+        await statuteService.updateStatute(targetId || targetSr, payload);
         if (targetSr) {
           setValue('srNumber', targetSr, { shouldDirty: false });
         }
         setShowSuccess(true);
-        if (isSaveAndNextRef.current) {
-          isSaveAndNextRef.current = false;
-          handleStepSr(1);
-        }
-        setTimeout(() => {
-          setShowSuccess(false);
-        }, 3500);
       } else {
-        await statuteService.createStatute(data);
+        await statuteService.createStatute(payload);
         setShowSuccess(true);
-        // Advance to new SR# for next entry (remain on page)
-        let nextSr = '';
-        try {
-          const res = await statuteService.getNextSr();
-          const currentSrNum = parseInt(data.srNumber || '1', 10);
-          nextSr = res?.nextSr ? String(res.nextSr) : String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
-        } catch {
-          const currentSrNum = parseInt(data.srNumber || '1', 10);
-          nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
-        }
-        setAutoNewSr(nextSr);
-        setValue('srNumber', nextSr);
-        // Requirement 7: Keep Law, Chapter, and Heading of SR# 1 (last 3 entry to show also in next)!
-        // Only clear Section and reset Blocks to 1 clean empty block without attachments!
-        setValue('section', '');
-        setValue('blocks', [
-          { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
-        ]);
-        setCurrentRecordId(null);
-        setTimeout(() => {
-          setShowSuccess(false);
-        }, 4000);
       }
+
+      if (isNext) {
+        // Move to NEXT statute: current SR # + 1 so user can keep moving to next statute
+        const currentSrNum = parseInt(targetSr || '1', 10);
+        const nextSrNum = Math.max(1, (isNaN(currentSrNum) ? 1 : currentSrNum) + 1);
+        const nextSr = String(nextSrNum);
+        setValue('srNumber', nextSr);
+        await loadStatuteBySr(nextSr);
+        setLoadFeedback({
+          type: 'success',
+          message: `${targetId ? 'Updated' : 'Saved'}! Advanced to Statute SR #${nextSr}.`
+        });
+      } else {
+        if (!targetId) {
+          let nextSr = '';
+          try {
+            const res = await statuteService.getNextSr();
+            const currentSrNum = parseInt(targetSr || '1', 10);
+            nextSr = res?.nextSr ? String(res.nextSr) : String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+          } catch {
+            const currentSrNum = parseInt(data.srNumber || '1', 10);
+            nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+          }
+          setAutoNewSr(nextSr);
+          setValue('srNumber', nextSr);
+          setValue('section', '');
+          setValue('blocks', [
+            { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
+          ]);
+          setCurrentRecordId(null);
+        }
+      }
+
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 3500);
     } catch (error) {
       console.error('Submission error:', error);
     }
@@ -406,7 +422,7 @@ const AddStatuteForm = () => {
           </div>
         )}
 
-        {/* Top Action Bar: Clean header with Back and Save/Update Record only */}
+        {/* Top Action Bar: Clean header with Back, Update + Next / Save + Next, and Save/Update Record */}
         <div className="sticky top-0 z-30 mb-4 flex items-center justify-between bg-theme-surface/95 border border-theme-border px-4 py-3 rounded-xl shadow-md backdrop-blur-md">
           <div className="text-xs text-theme-muted font-medium flex items-center gap-2">
             <button
@@ -418,21 +434,13 @@ const AddStatuteForm = () => {
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
             </button>
-            <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Statute Form' : 'Add New Statute Form'}</span>
-            {editData?.srNumber && <span className="text-brand-orange font-semibold">SR #{editData.srNumber}</span>}
+            <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Statute Record' : 'Add New Statute Record'}</span>
+            {watchedSr && <span className="text-brand-orange font-semibold">SR #{watchedSr}</span>}
           </div>
           <div className="flex items-center gap-2">
             <button
-              type="submit"
-              form="statute-form"
-              onClick={() => { isSaveAndNextRef.current = false; }}
-              disabled={isSubmitting}
-              className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
-            >
-              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Record' : 'Save Record')}</span>
-            </button>
-            <button
               type="button"
+              disabled={isSubmitting}
               onClick={() => {
                 isSaveAndNextRef.current = true;
                 const form = document.getElementById('statute-form');
@@ -441,11 +449,21 @@ const AddStatuteForm = () => {
                   else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
                 }
               }}
-              disabled={isSubmitting}
-              className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
-              title={isEdit ? "Update this record and advance to next SR #" : "Save this record and advance to next SR #"}
+              className="px-3.5 py-1.5 text-xs font-bold text-brand-orange bg-theme-surface hover:bg-theme-surface-alt border border-brand-orange/40 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              title={isEdit ? "Update this statute and advance to next SR #" : "Save this statute and advance to next SR #"}
             >
+              <CheckCircle2 className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update + Next' : 'Save + Next')}</span>
+            </button>
+
+            <button
+              type="submit"
+              form="statute-form"
+              onClick={() => { isSaveAndNextRef.current = false; }}
+              disabled={isSubmitting}
+              className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+            >
+              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Record' : 'Save Record')}</span>
             </button>
           </div>
         </div>

@@ -223,7 +223,10 @@ const AddOtherCaseForm = ({
 
     setIsSubmitting(true);
     try {
-      const targetSr = srNumber ? Number(srNumber) : (editData?.srNumber ? Number(editData.srNumber) : undefined);
+      const isNavEdit = Boolean(isEdit || editData || currentId);
+      const targetSr = editData?.srNumber 
+        ? Number(editData.srNumber) 
+        : (srNumber ? Number(srNumber) : undefined);
       let targetId = currentId || (editData && (editData.mongoId || editData.id || editData.otherCaseId));
       if (!targetId && targetSr) {
         try {
@@ -259,8 +262,8 @@ const AddOtherCaseForm = ({
       };
 
       let result;
-      if (targetId) {
-        result = await otherCaseService.updateOtherCase(targetId, payload);
+      if (targetId || isNavEdit) {
+        result = await otherCaseService.updateOtherCase(targetId || targetSr, payload);
         if (targetSr) {
           setSrNumber(String(targetSr));
         }

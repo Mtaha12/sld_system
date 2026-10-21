@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Bookmark, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, ChevronUp, ChevronDown, Eye 
+  Check, AlertCircle, ChevronUp, ChevronDown, Eye, CheckCircle2 
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import Modal from '../../components/ui/Modal';
@@ -99,8 +99,8 @@ const ManageLegalTermsPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleModalSubmit = async (e) => {
-    e.preventDefault();
+  const handleModalSubmit = async (e, isNext = false) => {
+    if (e?.preventDefault) e.preventDefault();
     if (!modalForm.heading.trim()) {
       setModalError('Legal term is required.');
       return;
@@ -113,11 +113,44 @@ const ManageLegalTermsPage = () => {
       if (editingItem) {
         await settingService.updateLegalTerm(editingItem._id || editingItem.id, modalForm);
         showToast('success', 'Legal Term updated successfully.');
+
+        if (isNext) {
+          const currentId = editingItem._id || editingItem.id;
+          const currentIndex = sortedItems.findIndex(t => (t._id || t.id) === currentId);
+          if (currentIndex !== -1 && currentIndex + 1 < sortedItems.length) {
+            const nextItem = sortedItems[currentIndex + 1];
+            setEditingItem(nextItem);
+            setModalForm({
+              heading: nextItem.heading || '',
+              viewType: nextItem.viewType || '',
+              viewData: nextItem.viewData || '',
+              viewTitle: nextItem.viewTitle || '',
+            });
+            showToast('success', 'Updated! Advanced to next Legal Term.');
+          } else {
+            setIsModalOpen(false);
+            showToast('success', 'Legal Term updated. Reached end of list.');
+          }
+        } else {
+          setIsModalOpen(false);
+        }
       } else {
         await settingService.createLegalTerm(modalForm);
         showToast('success', 'Legal Term added successfully.');
+
+        if (isNext) {
+          setEditingItem(null);
+          setModalForm({
+            heading: '',
+            viewType: '',
+            viewData: '',
+            viewTitle: '',
+          });
+          showToast('success', 'Legal Term added! Ready for next entry.');
+        } else {
+          setIsModalOpen(false);
+        }
       }
-      setIsModalOpen(false);
       fetchItems();
     } catch (err) {
       setModalError(err.response?.data?.message || 'Failed to save Legal Term.');
@@ -342,6 +375,16 @@ const ManageLegalTermsPage = () => {
               className="px-4 py-2 border border-theme-border rounded-lg text-xs font-medium text-theme-muted hover:bg-theme-surface-alt transition-colors cursor-pointer"
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleModalSubmit(null, true)}
+              className="px-4 py-2 border border-brand-orange text-brand-orange hover:bg-brand-orange/10 rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-60 cursor-pointer flex items-center gap-1.5"
+              title={editingItem ? "Update this legal term and advance to next item" : "Save this legal term and prepare next new entry"}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{submitting ? 'Saving…' : editingItem ? 'Update + Next' : 'Save + Next'}</span>
             </button>
             <button
               type="submit"

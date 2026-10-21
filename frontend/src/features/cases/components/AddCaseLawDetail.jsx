@@ -122,6 +122,7 @@ const AddCaseLawDetail = ({ onClose }) => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [publicationVolumeOpen, setPublicationVolumeOpen] = useState({});
+  const isSaveAndNextRef = useRef(false);
 
   // Dynamic dropdown options that adjust when cases with new courts/sections/laws load
   const [courtOptions, setCourtOptions] = useState(() => {
@@ -589,14 +590,19 @@ const AddCaseLawDetail = ({ onClose }) => {
   const onSubmit = async (data) => {
     if (isSubmittingManual) return;
     setIsSubmittingManual(true);
+    const isNext = isSaveAndNextRef.current;
+    isSaveAndNextRef.current = false;
     try {
-      const targetSld = assignedSldNumber || data.srNumber || editData?.sldNumber || '';
+      // When editing an existing case, SLD number MUST strictly remain the exact same:
+      const targetSld = editData?.sldNumber 
+        ? String(editData.sldNumber).trim() 
+        : (assignedSldNumber || data.srNumber || '').trim();
       const payload = {
         ...data,
         srNumber: targetSld
       };
 
-      let targetId = currentCaseId;
+      let targetId = currentCaseId || editData?.id || editData?._id;
       // If editing an existing case but ID was lost/not cached, look up by previous SLD number
       if (!targetId && targetSld) {
         try {
@@ -610,11 +616,11 @@ const AddCaseLawDetail = ({ onClose }) => {
         }
       }
 
-      if (targetId) {
-        await caseService.updateCase(targetId, payload);
+      if (targetId || isNavEdit) {
+        await caseService.updateCase(targetId || targetSld, payload);
         setAssignedSldNumber(targetSld);
         setValue('srNumber', targetSld, { shouldDirty: false });
-        setSuccessMessage(`SLD #${targetSld || targetId} updated successfully.`);
+        setSuccessMessage(`SLD #${targetSld} updated successfully. SLD number preserved.`);
       } else {
         const created = await caseService.createCase(payload);
         if (created?.data?.id) {
@@ -624,9 +630,14 @@ const AddCaseLawDetail = ({ onClose }) => {
           setAssignedSldNumber(String(created.data.sldNumber));
           setValue('srNumber', String(created.data.sldNumber), { shouldDirty: false });
         }
-        setSuccessMessage(`SLD #${targetSld || created?.data?.sldNumber} created successfully.`);
+        setSuccessMessage(`SLD #${created?.data?.sldNumber || targetSld} created successfully.`);
       }
       setShowSuccess(true);
+
+      if (isNext) {
+        handleStepSld(1);
+      }
+
       setTimeout(() => setShowSuccess(false), 3500);
     } catch (error) {
       console.error('[Case Submit Error]', error);
@@ -672,21 +683,33 @@ const AddCaseLawDetail = ({ onClose }) => {
             <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Case Law' : 'Add New Case Law'}</span>
             {editData?.sldNumber && <span className="text-brand-orange font-semibold">SLD #{editData.sldNumber}</span>}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleBack}
-              className="px-3.5 py-1.5 text-xs font-medium text-theme-muted hover:text-theme-main border border-theme-border rounded-lg hover:bg-theme-surface transition-colors cursor-pointer"
+              disabled={isSubmittingManual}
+              onClick={() => {
+                isSaveAndNextRef.current = true;
+                const formElem = document.getElementById('case-law-form');
+                if (formElem) {
+                  if (formElem.requestSubmit) formElem.requestSubmit();
+                  else formElem.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                }
+              }}
+              className="px-3.5 py-1.5 text-xs font-bold text-brand-orange bg-theme-surface hover:bg-theme-surface-alt border border-brand-orange/40 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              title={isEdit ? "Update this case and advance to next SLD #" : "Save this case and advance to next SLD #"}
             >
-              Cancel
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{isSubmittingManual ? 'Saving...' : (isEdit ? 'Update + Next' : 'Save + Next')}</span>
             </button>
+
             <button
               type="submit"
               form="case-law-form"
-              disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              onClick={() => { isSaveAndNextRef.current = false; }}
+              disabled={isSubmittingManual}
+              className="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-brand-orange to-[#d44e35] hover:from-[#d44e35] hover:to-[#b33e28] rounded-lg shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
             >
-              <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Case Law' : 'Save Record')}</span>
+              <span>{isSubmittingManual ? 'Saving...' : (isEdit ? 'Update Case Law' : 'Save Record')}</span>
             </button>
           </div>
         </div>
@@ -1170,7 +1193,10 @@ const AddCaseLawDetail = ({ onClose }) => {
       <FormFooter 
         formId="case-law-form"
         onCancel={handleBack}
-        isSubmitting={isSubmitting}
+        isSubmitting={isSubmittingManual}
+        showSaveAndNext={true}
+        onSaveAndNext={() => { isSaveAndNextRef.current = true; }}
+        saveAndNextText={isEdit ? "Update + Next" : "Save + Next"}
         submitText={isEdit ? "Update Case Record" : "Create Case Record"}
       />
 

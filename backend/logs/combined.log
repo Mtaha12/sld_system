@@ -4163,3 +4163,61 @@
 {"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 16:00:53"}
 {"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 16:00:54"}
 {"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 16:00:59"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 20:22:34"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 20:22:34"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 20:22:39"}
+{"level":"info","message":"[Case Updated] Case ID CASE-165806 (SLD #165806) updated.","service":"sld-backend-service","timestamp":"2026-10-21 20:51:19"}
+{"level":"info","message":"[Notification Updated] SR #11618 updated.","service":"sld-backend-service","timestamp":"2026-10-21 20:51:57"}
+{"level":"warn","message":"Gemini model gemini-flash-lite-latest call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 20:56:19"}
+{"level":"warn","message":"Gemini model gemini-3.5-flash-lite call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 20:56:31"}
+{"level":"warn","message":"Gemini dynamic synthesis error for disabled tax inquiry: Gemini dynamic synthesis timeout","service":"sld-backend-service","timestamp":"2026-10-21 20:56:32"}
+{"level":"warn","message":"Gemini model gemini-flash-latest returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 20:56:33"}
+{"level":"warn","message":"Gemini model gemini-3.8-flash returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 20:56:35"}
+{"level":"warn","message":"Gemini model gemini-flash-lite-latest call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:04:51"}
+{"level":"warn","message":"Gemini model gemini-3.5-flash-lite call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:05:03"}
+{"level":"warn","message":"Gemini model gemini-flash-latest returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:04"}
+{"level":"warn","message":"Gemini model gemini-3.8-flash returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:06"}
+{"level":"warn","message":"General AI Gemini query error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:06"}
+{"level":"warn","message":"Party query notice: Executor error during find command: sld_system.cases :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-21 21:05:08"}
+{"level":"warn","message":"Verbatim excerpt search notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-21 21:05:10"}
+{"level":"warn","message":"Gemini model gemini-flash-lite-latest call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:05:22"}
+{"level":"warn","message":"Gemini synthesis notice: Gemini synthesis timeout 12000ms","service":"sld-backend-service","timestamp":"2026-10-21 21:05:22"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:05:30"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:05:30"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:33"}
+{"level":"warn","message":"Gemini model gemini-3.5-flash-lite call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:05:34"}
+{"level":"warn","message":"Gemini model gemini-flash-lite-latest call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:05:34"}
+{"level":"warn","message":"Gemini model gemini-flash-latest returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:35"}
+{"level":"warn","message":"Gemini model gemini-3.8-flash returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:37"}
+{"level":"warn","message":"Gemini model gemini-3.5-flash-lite call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:05:46"}
+{"level":"warn","message":"Gemini model gemini-flash-latest returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:48"}
+{"level":"warn","message":"Gemini model gemini-3.8-flash returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:49"}
+{"level":"warn","message":"General AI Gemini query error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:49"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:06:15"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:06:15"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:06:18"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:10:24"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:10:24"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:10:26"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:11:08"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:11:09"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:11:11"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:11:27"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:11:27"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:11:29"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:11:44"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:11:44"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:11:46"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:12:13"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:12:14"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:12:16"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:12:29"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:12:29"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:12:32"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:13:33"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:13:33"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:13:37"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:13:56"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:13:56"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:13:59"}
+{"level":"warn","message":"Gemini model gemini-flash-lite-latest call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:15:56"}

@@ -743,9 +743,10 @@ export const getCaseBySld = async (req, res, next) => {
     ];
 
     if (!isNaN(numInt)) {
+      conditions.unshift({ sldNumberInt: numInt });
       conditions.push({ sldNumber: String(numInt) });
-      conditions.push({ caseId: new RegExp(`^CASE-0*${numInt}$`, 'i') });
-      conditions.push({ case_id: new RegExp(`^CASE-0*${numInt}$`, 'i') });
+      conditions.push({ caseId: `CASE-${String(numInt).padStart(6, '0')}` });
+      conditions.push({ caseId: `CASE-${cleanNum}` });
     }
 
     if (mongoose.isValidObjectId(cleanSld)) {
@@ -837,9 +838,10 @@ export const getCaseById = async (req, res, next) => {
         { caseId: `CASE-IMPORT-${rawId}` }
       ];
       if (!isNaN(numInt)) {
+        orList.unshift({ sldNumberInt: numInt });
         orList.push({ sldNumber: String(numInt) });
-        orList.push({ caseId: new RegExp(`^CASE-0*${numInt}$`, 'i') });
-        orList.push({ case_id: new RegExp(`^CASE-0*${numInt}$`, 'i') });
+        orList.push({ caseId: `CASE-${String(numInt).padStart(6, '0')}` });
+        orList.push({ caseId: `CASE-${cleanId}` });
       }
       query = { $or: orList };
     }

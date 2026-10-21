@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Layers, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, ChevronUp, ChevronDown, Eye 
+  Check, CheckCircle2, AlertCircle, ChevronUp, ChevronDown, Eye 
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import Modal from '../../components/ui/Modal';
@@ -99,8 +99,8 @@ const ManageTopicsPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleModalSubmit = async (e) => {
-    e.preventDefault();
+  const handleModalSubmit = async (e, isNext = false) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!modalForm.heading.trim()) {
       setModalError('Topic heading is required.');
       return;
@@ -111,13 +111,45 @@ const ManageTopicsPage = () => {
 
     try {
       if (editingTopic) {
-        await settingService.updateTopic(editingTopic._id || editingTopic.id, modalForm);
-        showToast('success', 'Topic updated successfully.');
+        const currentId = editingTopic._id || editingTopic.id;
+        await settingService.updateTopic(currentId, modalForm);
+        
+        if (isNext) {
+          const currentIndex = sortedTopics.findIndex(t => (t._id || t.id) === currentId);
+          if (currentIndex !== -1 && currentIndex + 1 < sortedTopics.length) {
+            const nextItem = sortedTopics[currentIndex + 1];
+            setEditingTopic(nextItem);
+            setModalForm({
+              heading: nextItem.heading || '',
+              viewType: nextItem.viewType || '',
+              viewData: nextItem.viewData || '',
+              viewTitle: nextItem.viewTitle || '',
+            });
+            showToast('success', `Updated! Moved to next: "${nextItem.heading}"`);
+          } else {
+            setIsModalOpen(false);
+            showToast('success', 'Updated! Reached the end of topics list.');
+          }
+        } else {
+          setIsModalOpen(false);
+          showToast('success', 'Topic updated successfully.');
+        }
       } else {
         await settingService.createTopic(modalForm);
-        showToast('success', 'Topic added successfully.');
+        if (isNext) {
+          setModalForm({
+            heading: '',
+            viewType: '',
+            viewData: '',
+            viewTitle: '',
+          });
+          setEditingTopic(null);
+          showToast('success', 'Topic saved! Ready for next entry.');
+        } else {
+          setIsModalOpen(false);
+          showToast('success', 'Topic added successfully.');
+        }
       }
-      setIsModalOpen(false);
       fetchTopics();
     } catch (err) {
       setModalError(err.response?.data?.message || 'Failed to save Topic.');
@@ -342,6 +374,16 @@ const ManageTopicsPage = () => {
               className="px-4 py-2 border border-theme-border rounded-lg text-xs font-medium text-theme-muted hover:bg-theme-surface-alt transition-colors cursor-pointer"
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleModalSubmit(null, true)}
+              className="px-4 py-2 border border-brand-orange text-brand-orange hover:bg-brand-orange/10 rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-60 cursor-pointer flex items-center gap-1.5"
+              title={editingTopic ? "Update this topic and advance to next item" : "Save this topic and prepare next new entry"}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{submitting ? 'Saving…' : editingTopic ? 'Update + Next' : 'Save + Next'}</span>
             </button>
             <button
               type="submit"
