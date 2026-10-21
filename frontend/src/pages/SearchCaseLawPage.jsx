@@ -6,6 +6,7 @@ import { magazineService, courtService } from '../services/adminSettingsServices
 import CaseDocumentModal from '../components/ui/CaseDocumentModal';
 import DatePicker from '../components/ui/DatePicker';
 import { ALL_SECTIONS } from '../data/sections';
+import SearchableSectionSelect from '../components/ui/SearchableSectionSelect';
 import { formatCitations } from '../utils/citationFormatter';
 
 /* ── Shared form field styles ────────────────────────────────────────────── */
@@ -705,10 +706,22 @@ const SearchCaseLawPage = () => {
               <SelectField value={f.selectLaw} onChange={set('selectLaw')} options={lawOptions} />
             </div>
             <div className="flex-1">
-              <SelectField value={f.section} onChange={set('section')} options={sectionSelectOptions} />
+              <SearchableSectionSelect
+                value={f.section}
+                onChange={(val) => setF(p => ({ ...p, section: val }))}
+                options={sectionOptions}
+                placeholder="Section #"
+                inputSize="sm"
+              />
             </div>
             <div className="flex-1">
-              <SelectField value={f.section2} onChange={set('section2')} options={section2SelectOptions} />
+              <SearchableSectionSelect
+                value={f.section2}
+                onChange={(val) => setF(p => ({ ...p, section2: val }))}
+                options={sectionOptions}
+                placeholder="Section 2 #"
+                inputSize="sm"
+              />
             </div>
           </div>
 

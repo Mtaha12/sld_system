@@ -4151,3 +4151,5 @@
 {"level":"info","message":"[Statute Deleted] ID STAT-009356 soft-deleted.","service":"sld-backend-service","timestamp":"2026-10-21 12:42:45"}
 {"level":"info","message":"[Notification Created] Notification ID NOTIF-011634 (SR #audit_notif_1792568533658_4173) added.","service":"sld-backend-service","timestamp":"2026-10-21 12:42:45"}
 {"level":"info","message":"[Notification Deleted] ID NOTIF-011634 soft-deleted.","service":"sld-backend-service","timestamp":"2026-10-21 12:42:45"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 12:58:37"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 12:58:37"}

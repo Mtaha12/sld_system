@@ -12,24 +12,33 @@ import './RichTextEditor.css';
 const FallbackRichEditor = ({ value, onChange, placeholder, minHeight, isDark }) => {
   const editorRef = useRef(null);
   const [htmlMode, setHtmlMode] = useState(false);
-  const editorValue = formatWordDocumentDisplay(value || '');
+  const isFocusedRef = useRef(false);
+  const lastEmittedRef = useRef(value || '');
 
   useEffect(() => {
-    if (editorRef.current && !htmlMode && editorRef.current.innerHTML !== editorValue) {
-      editorRef.current.innerHTML = editorValue;
+    if (editorRef.current && !htmlMode && !isFocusedRef.current) {
+      const incoming = value || '';
+      if (incoming !== lastEmittedRef.current && editorRef.current.innerHTML !== incoming) {
+        editorRef.current.innerHTML = incoming;
+        lastEmittedRef.current = incoming;
+      }
     }
-  }, [editorValue, htmlMode]);
+  }, [value, htmlMode]);
 
   const exec = (command, val = null) => {
     document.execCommand(command, false, val);
     if (editorRef.current) {
-      onChange?.(editorRef.current.innerHTML);
+      const html = editorRef.current.innerHTML;
+      lastEmittedRef.current = html;
+      onChange?.(html);
     }
   };
 
   const handleInput = () => {
     if (editorRef.current) {
-      onChange?.(editorRef.current.innerHTML);
+      const html = editorRef.current.innerHTML;
+      lastEmittedRef.current = html;
+      onChange?.(html);
     }
   };
 
@@ -40,7 +49,9 @@ const FallbackRichEditor = ({ value, onChange, placeholder, minHeight, isDark })
     const cleaned = html ? cleanWordPasteHtml(html) : formatWordDocumentDisplay(text);
     document.execCommand('insertHTML', false, cleaned);
     if (editorRef.current) {
-      onChange?.(editorRef.current.innerHTML);
+      const newHtml = editorRef.current.innerHTML;
+      lastEmittedRef.current = newHtml;
+      onChange?.(newHtml);
     }
   };
 
@@ -145,8 +156,9 @@ const FallbackRichEditor = ({ value, onChange, placeholder, minHeight, isDark })
         <div
           ref={editorRef}
           contentEditable
+          onFocus={() => { isFocusedRef.current = true; }}
+          onBlur={() => { isFocusedRef.current = false; handleInput(); }}
           onInput={handleInput}
-          onBlur={handleInput}
           onPaste={handlePaste}
           style={{ minHeight: `${minHeight}px` }}
           data-placeholder={placeholder}
@@ -172,6 +184,8 @@ const RichTextEditor = ({
   const [ckError, setCkError] = useState(false);
   const [CKEditorComponent, setCKEditorComponent] = useState(null);
   const editorInstanceRef = useRef(null);
+  const isFocusedRef = useRef(false);
+  const lastEmittedValueRef = useRef(value || '');
   const editorValue = formatWordDocumentDisplay(value || '');
 
   // Dynamically load CKEditor to prevent SSR / React 19 crashes
@@ -265,20 +279,23 @@ const RichTextEditor = ({
     }
   }, [isDark, theme]);
 
-  // Synchronize dynamic/asynchronous value changes into CKEditor instance
+  // Synchronize dynamic/asynchronous external value changes into CKEditor instance
+  // Protect cursor: DO NOT call setData if editor is focused or change originated from user typing!
   useEffect(() => {
-    if (editorInstanceRef.current) {
+    if (editorInstanceRef.current && !isFocusedRef.current) {
       try {
+        const incoming = value || '';
+        if (incoming === lastEmittedValueRef.current) return;
         const currentData = editorInstanceRef.current.getData() || '';
-        const targetVal = editorValue;
-        if (targetVal !== currentData) {
-          editorInstanceRef.current.setData(targetVal);
+        if (incoming !== currentData) {
+          editorInstanceRef.current.setData(incoming);
+          lastEmittedValueRef.current = incoming;
         }
       } catch (err) {
         // safe ignore if editor is mid-initialization
       }
     }
-  }, [editorValue]);
+  }, [value]);
 
   if (ckError || !CKEditorComponent) {
     return (
@@ -302,6 +319,12 @@ const RichTextEditor = ({
         editorUrl="https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js"
         onInstanceReady={(evt) => {
           editorInstanceRef.current = evt.editor;
+          evt.editor.on('focus', () => {
+            isFocusedRef.current = true;
+          });
+          evt.editor.on('blur', () => {
+            isFocusedRef.current = false;
+          });
           evt.editor.on('contentDom', () => {
             applyThemeToIframe(evt.editor);
           });
@@ -314,8 +337,10 @@ const RichTextEditor = ({
           applyThemeToIframe(evt.editor);
         }}
         onChange={(evt) => {
+          const data = evt.editor.getData();
+          lastEmittedValueRef.current = data;
           if (onChange) {
-            onChange(evt.editor.getData());
+            onChange(data);
           }
         }}
         config={{

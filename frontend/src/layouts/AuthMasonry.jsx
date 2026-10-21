@@ -36,8 +36,8 @@ const AuthMasonry = () => {
 
   return (
     <>
-      <div className="absolute inset-0 bg-gradient-to-r from-brand-dark/20 to-brand-dark/80 z-10 pointer-events-none group-hover:opacity-50 transition-opacity duration-700" />
-      <div className="absolute inset-0 bg-brand-dark/40 z-10 pointer-events-none group-hover:opacity-0 transition-opacity duration-700" />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#0c1322]/20 to-[#0c1322]/85 z-10 pointer-events-none group-hover:opacity-50 transition-opacity duration-700" />
+      <div className="absolute inset-0 bg-[#0c1322]/40 z-10 pointer-events-none group-hover:opacity-0 transition-opacity duration-700" />
 
       <div className="flex items-start gap-4 w-full opacity-80 group-hover:opacity-100 transition-opacity duration-700 h-full">
         {MASONRY_COLUMNS.map((col) => (

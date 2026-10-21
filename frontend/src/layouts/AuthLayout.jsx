@@ -20,22 +20,22 @@ const AuthLayout = () => {
   const headerLinkLabel = isContact || !isLogin ? 'Log in' : 'Sign up';
 
   return (
-    <div className="flex min-h-[100dvh] bg-brand-dark font-sans lg:overflow-hidden">
+    <div className="flex min-h-[100dvh] bg-[#0c1322] font-sans lg:overflow-hidden">
       {/* Left side - Animated Masonry (Hidden on small screens) */}
       <div className="hidden lg:flex w-[60%] p-4 relative h-screen overflow-hidden items-start group">
-        <Suspense fallback={<div className="absolute inset-0 bg-brand-dark/80" />}>
+        <Suspense fallback={<div className="absolute inset-0 bg-[#0c1322]" />}>
           <AuthMasonry />
         </Suspense>
       </div>
 
       {/* Right side - Form */}
-      <div className="w-full lg:w-[40%] flex flex-col bg-brand-darker relative min-h-[100dvh] lg:h-screen lg:overflow-y-auto">
+      <div className="w-full lg:w-[40%] flex flex-col bg-[#131b2e] border-l border-slate-700/40 relative min-h-[100dvh] lg:h-screen lg:overflow-y-auto shadow-2xl">
         {/* Navigation / Header Actions (rendered on sub-pages like /contact, /forgot-password, /verify-email) */}
         {!isLogin && location.pathname !== '/signup' && !location.pathname.startsWith('/payment') && (
           <div className="flex justify-end p-6 sm:p-8 lg:absolute lg:top-8 lg:right-8 lg:p-0 z-20">
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-slate-400">
               <span>{headerPromptText}</span>
-              <Link to={headerLinkTo} className="text-white hover:text-brand-orange bg-[#1A1C23] hover:bg-brand-dark-border px-4 py-2 rounded-lg transition-colors">
+              <Link to={headerLinkTo} className="text-white hover:text-brand-orange bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2 rounded-lg transition-colors">
                 {headerLinkLabel}
               </Link>
             </div>

@@ -5,6 +5,7 @@ import { notificationService } from '../features/notifications/services/notifica
 import { settingService } from '../services/settingService';
 import { LAW_OPTIONS } from '../data/laws';
 import { ALL_SECTIONS } from '../data/sections';
+import SearchableSectionSelect from '../components/ui/SearchableSectionSelect';
 import Modal from '../components/ui/Modal';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 
@@ -382,11 +383,12 @@ const NotificationSearchPage = () => {
                 placeholder="Select Law"
               />
               <div className="w-full">
-                <SelectField
+                <SearchableSectionSelect
                   value={section}
-                  onChange={(e) => setSection(e.target.value)}
-                  options={sectionSelectOptions}
-                  placeholder="Select Section"
+                  onChange={setSection}
+                  options={sectionOptions}
+                  placeholder="Section #"
+                  inputSize="sm"
                 />
               </div>
               <input

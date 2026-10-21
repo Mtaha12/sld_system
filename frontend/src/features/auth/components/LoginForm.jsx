@@ -5,7 +5,6 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { User, Lock, CheckCircle2, ChevronRight } from 'lucide-react'
 import Input from '../../../components/ui/Input'
 import Button from '../../../components/ui/Button'
-import SocialAuthButton from '../../../components/ui/SocialAuthButton'
 import logo from '../../../assets/branding/logo/SLD_Logo.png'
 import { loginSchema } from '../validation/authSchema'
 import { authService } from '../services/authService'
@@ -15,7 +14,6 @@ const LoginForm = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { loginUser } = useUser()
-  const [googleStatus, setGoogleStatus] = useState('')
   const {
     register,
     handleSubmit,
@@ -63,60 +61,19 @@ const LoginForm = () => {
     }
   };
 
-  const handleGoogleSuccess = (authResult) => {
-    clearErrors('root')
-    setStatusInfo(null);
-    if (authResult?.requiresVerification) {
-      setGoogleStatus(`Account authorized. Redirecting to email verification...`)
-      setTimeout(() => {
-        navigate('/verify-email', { state: { email: authResult.user.email } })
-      }, 1000)
-      return;
-    }
-
-    if (authResult?.user) {
-      setGoogleStatus(`Authenticated as ${authResult.user.fullName} (${authResult.user.email}). Exchanging session...`)
-      setTimeout(() => {
-        loginUser(authResult.user)
-        const destination = location.state?.from?.pathname || '/dashboard'
-        navigate(destination, { replace: true })
-      }, 1000)
-    }
-  }
-
-  const handleGoogleError = (errorMessage) => {
-    setGoogleStatus('')
-    setError('root', { message: errorMessage })
-  }
-
   return (
     <div className="w-full">
-      {/* Top Capsule / Pill Signup Link */}
-      <div className="mb-6 md:mb-7 flex justify-center">
-        <Link 
-          to="/signup" 
-          className="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-[#14151A]/90 border border-brand-orange/30 hover:border-brand-orange/60 shadow-lg shadow-black/40 backdrop-blur-sm transition-all group cursor-pointer"
-        >
-          <User className="w-4 h-4 text-gray-400 shrink-0" />
-          <span className="text-xs sm:text-sm text-gray-300">New here?</span>
-          <span className="w-px h-3.5 bg-gray-700/80 mx-0.5"></span>
-          <span className="text-xs sm:text-sm font-medium text-brand-orange group-hover:text-brand-orange-hover flex items-center gap-1 transition-colors">
-            Create your account <ChevronRight className="w-3.5 h-3.5 text-brand-orange group-hover:translate-x-0.5 transition-transform" />
-          </span>
-        </Link>
-      </div>
-
-      <div className="flex flex-col items-center text-center mb-8">
+      <div className="flex flex-col items-center text-center mb-7">
         <img src={logo} alt="SLD System" className="h-16 md:h-[90px] mb-4 md:mb-5" fetchPriority="high" loading="eager" />
-        <h1 className="text-2xl md:text-3xl text-white mb-2 md:mb-3 font-medium">
+        <h1 className="text-2xl md:text-3xl text-white mb-2 md:mb-3 font-bold tracking-tight">
           Welcome to <span className="text-brand-orange">SLD System</span>
         </h1>
-        <p className="text-gray-400 text-sm leading-relaxed max-w-sm">
-          Please sign in to continue to your account and access the system.
+        <p className="text-slate-300 text-sm leading-relaxed max-w-sm">
+          Please sign in to continue to your account and access the legal intelligence system.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {statusInfo && (
           <div className={`border p-4 rounded-xl text-left animate-fade-in ${
             statusInfo.status === 'REJECTED' 
@@ -137,15 +94,8 @@ const LoginForm = () => {
         )}
 
         {errors.root && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-lg text-center animate-shake whitespace-pre-line">
+          <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-lg text-center animate-shake whitespace-pre-line">
             {errors.root.message}
-          </div>
-        )}
-
-        {googleStatus && (
-          <div className="bg-green-500/10 border border-green-500/50 text-green-400 text-sm p-3 rounded-lg flex items-center justify-center gap-2 animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{googleStatus}</span>
           </div>
         )}
 
@@ -168,54 +118,54 @@ const LoginForm = () => {
         />
 
         <div className="flex justify-end w-full">
-          <Link to="/forgot-password" className="text-sm text-brand-orange hover:text-brand-orange-hover transition-colors">
+          <Link to="/forgot-password" className="text-xs font-semibold text-brand-orange hover:text-brand-orange-hover transition-colors">
             Forgot Password?
           </Link>
         </div>
 
-        <Button type="submit" className="w-full mt-2" disabled={isSubmitting}>
+        <Button type="submit" className="w-full mt-1 font-bold text-sm h-11" disabled={isSubmitting}>
           {isSubmitting ? 'Signing in...' : 'Login'}
         </Button>
 
-        <div className="flex items-center gap-4 my-4">
-          <div className="h-px bg-[#262833] flex-1"></div>
-          <span className="text-sm text-gray-500 uppercase">OR</span>
-          <div className="h-px bg-[#262833] flex-1"></div>
+        {/* Create Account Link Card (Positioned where Google signin was) */}
+        <div className="mt-1 p-3.5 rounded-xl bg-slate-900/80 border border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="text-left w-full sm:w-auto">
+            <span className="text-xs text-slate-400 block font-medium">Don't have an account?</span>
+            <span className="text-xs font-bold text-slate-100">Register as a new member</span>
+          </div>
+          <Link
+            to="/signup"
+            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+          >
+            <span>Create Account</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
 
-        <SocialAuthButton 
-          provider="google" 
-          mode="signin"
-          onSuccess={handleGoogleSuccess}
-          onError={handleGoogleError}
-        >
-          Sign in with Google
-        </SocialAuthButton>
-
         {/* Contact Us Block */}
-        <div className="mt-5">
+        <div className="mt-3 p-4 rounded-xl bg-slate-900/60 border border-slate-700/60">
           <div className="relative mb-3">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-theme-border/60"></div>
+              <div className="w-full border-t border-slate-700/70"></div>
             </div>
             <div className="relative flex justify-center text-[10px]">
-              <span className="px-3 bg-theme-surface text-theme-muted font-semibold tracking-wider uppercase">CONTACT WITH US</span>
+              <span className="px-3 bg-slate-800 text-slate-400 font-bold tracking-wider uppercase rounded-full">CONTACT WITH US</span>
             </div>
           </div>
           
-          <div className="text-left space-y-2 text-xs text-theme-muted">
-            <p className="text-[#E55C41] font-medium mb-1">
+          <div className="text-left space-y-2 text-xs text-slate-300">
+            <p className="text-brand-orange font-bold text-xs mb-1">
               Having trouble signing in? Please contact:
             </p>
-            <div className="space-y-0.5 border-b border-white/5 pb-2">
-              <p className="text-white font-semibold">Haroon Ahmad Rafiq</p>
-              <p className="leading-snug">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
-              <p className="leading-snug">0321-5390007-8, 051-8315912 • info@sldsystem.com</p>
+            <div className="space-y-0.5 border-b border-slate-700/60 pb-2">
+              <p className="text-white font-bold">Haroon Ahmad Rafiq</p>
+              <p className="leading-snug text-slate-300">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
+              <p className="leading-snug text-slate-400 font-mono text-[11px]">0321-5390007-8, 051-8315912 • info@sldsystem.com</p>
             </div>
             <div className="space-y-0.5 pt-0.5">
-              <p className="text-white font-semibold">Abdul Sami Abbasi <span className="text-[11px] font-normal text-gray-400">(Sales Manager)</span></p>
-              <p className="leading-snug">Karachi Branch Office No. 408, 4th Floor, Al-Ayesha Chambers, Sharar-e-Iraq, Near Passport Office, Saddar-Karachi</p>
-              <p className="leading-snug">0325-8986393 • sami@sldsystem.com</p>
+              <p className="text-white font-bold">Abdul Sami Abbasi <span className="text-[11px] font-normal text-slate-400">(Sales Manager)</span></p>
+              <p className="leading-snug text-slate-300">Karachi Branch Office No. 408, 4th Floor, Al-Ayesha Chambers, Sharar-e-Iraq, Near Passport Office, Saddar-Karachi</p>
+              <p className="leading-snug text-slate-400 font-mono text-[11px]">0325-8986393 • sami@sldsystem.com</p>
             </div>
           </div>
         </div>

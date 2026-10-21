@@ -10213,8 +10213,11 @@ export const ALL_SECTIONS = [
 
 export const SECTION_OPTIONS = ALL_SECTIONS.slice().sort((a, b) =>
   String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
-).map((s) => ({
-  label: String(s).startsWith('Section') ? String(s) : `Section ${s}`,
-  value: String(s)
-}));
+).map((s) => {
+  const clean = String(s).replace(/^Section\s+/i, '').replace(/^Sec\.?\s+/i, '').trim();
+  return {
+    label: clean,
+    value: clean
+  };
+});
 

@@ -7,6 +7,7 @@ import {
   FileText, Calendar, Gavel, ExternalLink, ShieldCheck, Download
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
+import { copyCleanDocument } from '../utils/documentCopyUtil';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -45,11 +46,20 @@ const OtherCaseViewPage = () => {
     fetchCase();
   }, [id]);
 
-  const handleCopy = () => {
-    const fullText = `${caseData?.citation || ''}\n${caseData?.parties || caseData?.caseTitle || ''}\nCase No: ${caseData?.caseNo || ''}\nOrder Date: ${caseData?.orderDate || caseData?.judgmentDate || ''}\n\n${caseData?.headNotes || caseData?.notes || ''}`;
-    navigator.clipboard.writeText(fullText.trim());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await copyCleanDocument({
+        title: caseData?.citation || caseData?.parties || 'Case Law',
+        heading: caseData?.parties || caseData?.caseTitle || '',
+        referenceNumber: caseData?.caseNo || '',
+        dateStr: caseData?.orderDate || caseData?.judgmentDate || '',
+        singleContent: caseData?.headNotes || caseData?.notes || caseData?.judgment || ''
+      });
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2400);
+    } catch (err) {
+      console.error('Copy failed:', err);
+    }
   };
 
   const handlePrint = () => {

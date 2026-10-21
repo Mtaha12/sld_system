@@ -556,6 +556,7 @@ const AddOtherCaseForm = ({
           <FormField label="Head Notes/ Tag Line">
             <div className="border border-theme-border rounded-lg overflow-hidden shadow-sm bg-white dark:bg-theme-surface">
               <RichTextEditor
+                name="other_case_headnotes"
                 value={headNotes}
                 onChange={(val) => setHeadNotes(val)}
                 placeholder="Enter head notes, summary, legal points, or tag line..."

@@ -1344,6 +1344,7 @@ const ManageCasesTable = ({
                 </div>
               ) : (
                 <RichTextEditor
+                  name="manage_case_edit_judgment"
                   value={editJudgmentText}
                   onChange={setEditJudgmentText}
                   placeholder="Type or paste the operative judgment text..."

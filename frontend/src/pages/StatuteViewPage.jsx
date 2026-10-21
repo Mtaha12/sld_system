@@ -7,6 +7,7 @@ import {
   FileText, Calendar, BookOpen, ExternalLink, ShieldCheck, Download
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
+import { copyCleanDocument } from '../utils/documentCopyUtil';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -47,7 +48,7 @@ const StatuteViewPage = () => {
   // UI States matching Case Law View
   const [copied, setCopied] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1);
-  const [pageSize, setPageSize] = useState('legal'); // 'legal' | 'letter' | 'a4'
+  const [pageSize, setPageSize] = useState('a4'); // 'a4' | 'legal' | 'letter'
 
   useEffect(() => {
     const fetchStatute = async () => {
@@ -89,32 +90,22 @@ const StatuteViewPage = () => {
     return list.filter(Boolean);
   }, [statute]);
 
-  const handleCopy = () => {
-    let fullText = `${statute?.law || ''}\n`;
-    if (statute?.chapter) fullText += `Chapter: ${statute.chapter}\n`;
-    if (statute?.section) fullText += `Section: ${statute.section}\n`;
-    if (statute?.heading) fullText += `Heading: ${statute.heading}\n\n`;
-
-    if (Array.isArray(statute?.blocks) && statute.blocks.length > 0) {
-      statute.blocks.forEach((b, idx) => {
-        fullText += `--- Block ${idx + 1} ---\n`;
-        if (b.sectionHeading) fullText += `Heading: ${b.sectionHeading}\n`;
-        if (b.fromDate || b.toDate) {
-          fullText += `Period: ${formatDisplayDate(b.fromDate)} to ${formatDisplayDate(b.toDate)}\n`;
-        }
-        if (b.detail) {
-          const plain = b.detail.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-          fullText += `${plain}\n\n`;
-        }
+  const handleCopy = async () => {
+    try {
+      await copyCleanDocument({
+        title: statute?.law || statute?.lawStatute || 'Statute / Legislation',
+        chapter: statute?.chapter || '',
+        section: statute?.section ? `Section ${statute.section}` : '',
+        heading: statute?.heading || '',
+        blocks: Array.isArray(statute?.blocks) ? statute.blocks : [],
+        singleContent: statute?.content || statute?.description || statute?.detail || statute?.text || '',
+        referenceNumber: (statute?.srNumber || statute?.id) ? `#STAT-${String(statute.srNumber || statute.id).padStart(6, '0')}` : ''
       });
-    } else {
-      const fallback = statute?.content || statute?.description || statute?.detail || statute?.text || '';
-      fullText += fallback.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2400);
+    } catch (err) {
+      console.error('Copy failed:', err);
     }
-
-    navigator.clipboard.writeText(fullText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const handlePrint = () => {

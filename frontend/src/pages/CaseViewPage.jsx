@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { formatCitations } from '../utils/citationFormatter';
+import { copyCleanDocument } from '../utils/documentCopyUtil';
 
 /**
  * Robust Cause Title parser for Commonwealth / Pakistani law reports
@@ -74,7 +75,7 @@ const CaseViewPage = () => {
   const [copiedCitation, setCopiedCitation] = useState(false);
   const [copiedJudgment, setCopiedJudgment] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1); // 0: Standard, 1: Comfortable, 2: Large, 3: Enlarged
-  const [pageSize, setPageSize] = useState('legal'); // 'legal' | 'letter' | 'a4'
+  const [pageSize, setPageSize] = useState('a4'); // 'a4' | 'legal' | 'letter'
 
   useEffect(() => {
     const fetchCase = async () => {
@@ -154,12 +155,22 @@ const CaseViewPage = () => {
     return true;
   }, [caseData]);
 
-  const handleCopyJudgment = () => {
-    const textToCopy = hasValidJudgment ? caseData.judgment : '';
+  const handleCopyJudgment = async () => {
+    const textToCopy = hasValidJudgment ? caseData.judgment : (caseData?.headNote || '');
     if (!textToCopy) return;
-    navigator.clipboard.writeText(textToCopy);
-    setCopiedJudgment(true);
-    setTimeout(() => setCopiedJudgment(false), 2400);
+    try {
+      await copyCleanDocument({
+        title: citationString || caseData?.title || 'Court Judgment',
+        heading: caseData?.parties || '',
+        singleContent: textToCopy,
+        referenceNumber: caseData?.citation || '',
+        department: caseData?.court || ''
+      });
+      setCopiedJudgment(true);
+      setTimeout(() => setCopiedJudgment(false), 2400);
+    } catch (err) {
+      console.error('Copy failed:', err);
+    }
   };
 
   const activeFont = fontSizes[fontSizeIndex];

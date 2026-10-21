@@ -1059,6 +1059,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                     name="judgment"
                     render={({ field }) => (
                       <RichTextEditor 
+                        name="case_law_judgment"
                         value={field.value} 
                         onChange={field.onChange} 
                         minHeight={500}

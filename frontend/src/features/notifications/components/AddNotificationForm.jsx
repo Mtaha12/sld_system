@@ -9,6 +9,7 @@ import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import FormFooter from '../../../components/ui/FormFooter';
+import SearchableSectionSelect from '../../../components/ui/SearchableSectionSelect';
 import { notificationSchema } from '../validation/notificationSchema';
 import { notificationService } from '../services/notificationService';
 import { settingService } from '../../../services/settingService';
@@ -686,12 +687,18 @@ const AddNotificationForm = () => {
                   </div>
                   <div className={lIdx === 0 ? "col-span-12 sm:col-span-6" : "col-span-11 sm:col-span-5"}>
                     <FormField label={`Section ${lIdx + 1}`}>
-                      <Input
-                        type="select"
-                        variant="light"
-                        inputSize="sm"
-                        options={sectionSelectOptions}
-                        {...register(`laws.${lIdx}.section`)}
+                      <Controller
+                        control={control}
+                        name={`laws.${lIdx}.section`}
+                        render={({ field }) => (
+                          <SearchableSectionSelect
+                            value={field.value}
+                            onChange={field.onChange}
+                            options={sectionOptions}
+                            placeholder="Type or select section #..."
+                            inputSize="sm"
+                          />
+                        )}
                       />
                     </FormField>
                   </div>
@@ -789,6 +796,7 @@ const AddNotificationForm = () => {
                         name={`blocks.${index}.detail`}
                         render={({ field }) => (
                           <RichTextEditor
+                            name={`notification_block_${index}`}
                             value={field.value}
                             onChange={field.onChange}
                             minHeight={220}

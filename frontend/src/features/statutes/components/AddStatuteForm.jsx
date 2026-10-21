@@ -10,6 +10,7 @@ import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import FormFooter from '../../../components/ui/FormFooter';
 import SearchableLawSelect from './SearchableLawSelect';
+import SearchableSectionSelect from '../../../components/ui/SearchableSectionSelect';
 import { statuteSchema } from '../validation/statuteSchema';
 import { statuteService } from '../services/statuteService';
 import { settingService } from '../../../services/settingService';
@@ -577,13 +578,19 @@ const AddStatuteForm = () => {
               </div>
               <div className="sm:col-span-3 col-span-12">
                 <FormField label="Section">
-                  <Input
-                    type="select"
-                    variant="light"
-                    inputSize="sm"
-                    options={sectionSelectOptions}
-                    error={errors.section}
-                    {...register('section')}
+                  <Controller
+                    control={control}
+                    name="section"
+                    render={({ field }) => (
+                      <SearchableSectionSelect
+                        value={field.value}
+                        onChange={field.onChange}
+                        options={sectionOptions}
+                        error={Boolean(errors.section)}
+                        placeholder="Type or select section #..."
+                        inputSize="sm"
+                      />
+                    )}
                   />
                 </FormField>
               </div>
@@ -681,6 +688,7 @@ const AddStatuteForm = () => {
                           name={`blocks.${index}.detail`}
                           render={({ field }) => (
                             <RichTextEditor
+                              name={`statute_block_${index}`}
                               value={field.value}
                               onChange={field.onChange}
                               minHeight={240}

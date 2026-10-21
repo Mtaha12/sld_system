@@ -63,7 +63,7 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
   const variants = {
     theme: `bg-theme-surface border ${error ? 'border-red-500' : 'border-theme-border hover:border-brand-orange/40'} text-theme-main placeholder-theme-disabled focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors shadow-2xs`,
     light: `bg-white dark:bg-zinc-900 border ${error ? 'border-red-500' : 'border-gray-200 dark:border-zinc-800 hover:border-brand-orange/40'} text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-2xs transition-colors`,
-    dark: `bg-[#14151A] border ${error ? 'border-red-500' : 'border-[#262833] hover:border-brand-orange/40'} text-gray-100 placeholder-gray-500 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors shadow-2xs`
+    dark: `bg-[#0f172a] border ${error ? 'border-red-500' : 'border-slate-700/80 hover:border-brand-orange/50'} text-slate-100 placeholder-slate-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-colors shadow-xs`
   };
 
   const sizes = {

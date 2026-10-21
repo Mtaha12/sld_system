@@ -7,6 +7,7 @@ import {
   Calendar, FileText, Download, Building, ShieldCheck, ExternalLink
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
+import { copyCleanDocument } from '../utils/documentCopyUtil';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -45,11 +46,21 @@ const NotificationViewPage = () => {
     fetchNotification();
   }, [id]);
 
-  const handleCopy = () => {
-    const fullText = `${notification?.subject || ''}\n${notification?.number ? `Notification No: ${notification.number}` : ''}\n${notification?.department || ''}\n\n${notification?.content || ''}`;
-    navigator.clipboard.writeText(fullText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await copyCleanDocument({
+        title: notification?.subject || notification?.title || 'Official Notification',
+        referenceNumber: notification?.number || notification?.sroNumber || '',
+        department: notification?.department || '',
+        dateStr: notification?.lawDate || (notification?.blocks && notification.blocks.find(b => b.date)?.date) || '',
+        blocks: Array.isArray(notification?.blocks) ? notification.blocks : [],
+        singleContent: notification?.content || notification?.text || notification?.description || ''
+      });
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2400);
+    } catch (err) {
+      console.error('Copy failed:', err);
+    }
   };
 
   const handlePrint = () => {
