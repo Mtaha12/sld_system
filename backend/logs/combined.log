@@ -4221,3 +4221,6 @@
 {"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:13:56"}
 {"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:13:59"}
 {"level":"warn","message":"Gemini model gemini-flash-lite-latest call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:15:56"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 21:19:23"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 21:19:23"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 21:19:25"}
