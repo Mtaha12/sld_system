@@ -4153,3 +4153,10 @@
 {"level":"info","message":"[Notification Deleted] ID NOTIF-011634 soft-deleted.","service":"sld-backend-service","timestamp":"2026-10-21 12:42:45"}
 {"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 12:58:37"}
 {"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 12:58:37"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 15:55:56"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 15:55:56"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 15:56:03"}
+{"level":"info","message":"[Login Success] User ibbbi1234 logged in.","service":"sld-backend-service","timestamp":"2026-10-21 15:57:01"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-21 16:00:33"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-21 16:00:33"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-21 16:00:39"}
