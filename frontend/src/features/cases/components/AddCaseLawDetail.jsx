@@ -18,8 +18,10 @@ import FormFooter from '../../../components/ui/FormFooter';
 import { caseSchema } from '../validation/caseSchema';
 import { caseService } from '../services/caseService';
 import { SECTION_OPTIONS } from '../../../data/sections';
+import { COURT_OPTIONS } from '../../../data/courts';
 import { settingService } from '../../../services/settingService';
 import { courtService, magazineService } from '../../../services/adminSettingsServices';
+import CourtCombobox from './CourtCombobox';
 
 const safeDate = (val) => {
   if (!val) return null;
@@ -37,7 +39,7 @@ const getInitialValues = (data = null) => {
       srNumber: '',
       dated: null,
       department: 'tax',
-      court: 'Appellate Tribunal Inland Revenue',
+      court: '', // Blank for new SR# as requested
       caseNumber: '',
       judges: '',
       petitioners: '',
@@ -127,9 +129,21 @@ const AddCaseLawDetail = ({ onClose }) => {
   // Dynamic dropdown options that adjust when cases with new courts/sections/laws load
   const [courtOptions, setCourtOptions] = useState(() => {
     const list = [{ label: 'Select Court', value: '' }];
+    const seen = new Set(['']);
     if (editData?.court) {
-      list.push({ label: editData.court, value: editData.court });
+      const c = editData.court.trim();
+      if (c && !seen.has(c.toLowerCase())) {
+        seen.add(c.toLowerCase());
+        list.push({ label: c, value: c });
+      }
     }
+    (COURT_OPTIONS || []).forEach(opt => {
+      const val = (opt?.value || opt?.label || '').trim();
+      if (val && !seen.has(val.toLowerCase())) {
+        seen.add(val.toLowerCase());
+        list.push({ label: opt.label || val, value: val });
+      }
+    });
     return list;
   });
 
@@ -436,6 +450,84 @@ const AddCaseLawDetail = ({ onClose }) => {
   }, [reset]);
 
   /**
+   * Prepares a clean state for the next new case record:
+   * - Automatically sets next sequential SLD number (Sr#)
+   * - Resets Court to completely BLANK (no default tribunal court)
+   * - Sets the next publication page number (e.g. 2026 SLD 4852 -> 4853)
+   */
+  const prepareNextNewRecord = useCallback(async (savedData = null, explicitNextSld = null) => {
+    // 1. Determine next SLD Number
+    let nextSld = explicitNextSld ? String(explicitNextSld).trim() : '';
+    if (!nextSld) {
+      const prevSldStr = String(savedData?.srNumber || assignedSldNumber || getValues('srNumber') || '').trim();
+      const prevSldNum = parseInt(prevSldStr.replace(/\D+/g, ''), 10);
+      if (!isNaN(prevSldNum) && prevSldNum > 0) {
+        nextSld = String(prevSldNum + 1);
+      } else {
+        try {
+          const sldRes = await caseService.getNextSld();
+          if (sldRes?.nextSld) nextSld = String(sldRes.nextSld);
+        } catch (err) {
+          console.warn('Could not auto-fetch next SLD:', err);
+        }
+      }
+    }
+
+    // 2. Determine next Publication Page Number
+    const prevPub = savedData?.publications?.[0] || getValues('publications.0') || {};
+    const year = String(prevPub.year || '2026').trim();
+    const mag  = String(prevPub.mag  || 'sld').trim().toLowerCase();
+    let calculatedNextPage = '';
+
+    const prevPageNum = parseInt(String(prevPub.page || '').replace(/\D+/g, ''), 10);
+    if (!isNaN(prevPageNum) && prevPageNum > 0) {
+      calculatedNextPage = String(prevPageNum + 1);
+    } else {
+      try {
+        const pageRes = await caseService.getMaxPage(year || '2026', mag || 'sld');
+        const np = pageRes?.nextPage ?? (pageRes?.maxPage != null ? pageRes.maxPage + 1 : 1);
+        if (np != null) calculatedNextPage = String(np);
+      } catch (err) {
+        console.warn('Could not auto-fetch max page:', err);
+      }
+    }
+
+    // 3. Clear existing case ID and setup fresh form values
+    setCurrentCaseId(null);
+    setAssignedSldNumber(nextSld || '');
+    setLoadSldInput('');
+    setPublicationVolumeOpen({});
+
+    const newValues = {
+      ...getInitialValues(null),
+      srNumber: nextSld || '',
+      court: '', // STRICTLY BLANK for new SR#
+      publications: [
+        {
+          id: 1,
+          year: year || '2026',
+          vol: '',
+          mag: mag || 'sld',
+          page: calculatedNextPage || ''
+        }
+      ]
+    };
+
+    reset(newValues);
+    setValue('srNumber', nextSld || '', { shouldDirty: false });
+    setValue('court', '', { shouldDirty: false });
+    if (calculatedNextPage) {
+      setValue('publications.0.page', calculatedNextPage, { shouldDirty: false });
+    }
+
+    if (searchParams.get('sld')) {
+      setSearchParams({}, { replace: true });
+    }
+
+    return { nextSld, calculatedNextPage };
+  }, [assignedSldNumber, getValues, reset, setValue, searchParams, setSearchParams]);
+
+  /**
    * Loads case directly by SLD number from API without moving back
    */
   const loadCaseBySld = useCallback(async (targetSld) => {
@@ -462,25 +554,17 @@ const AddCaseLawDetail = ({ onClose }) => {
       }
     } catch (err) {
       console.warn(`[Case Load] SLD #${cleanSld} lookup notice:`, err?.response?.data?.message || err.message);
-      // Not found in database — keep the SLD # and clear other fields to allow creating new record
-      setCurrentCaseId(null);
-      setAssignedSldNumber(cleanSld);
-      reset({
-        ...getInitialValues(null),
-        srNumber: cleanSld
-      });
-      if (searchParams.get('sld') !== cleanSld) {
-        setSearchParams({ sld: cleanSld }, { replace: true });
-      }
+      // Not found in database — ready next new record with clean blank court and auto-filled next page
+      const { calculatedNextPage } = await prepareNextNewRecord(null, cleanSld);
       setLoadFeedback({
         type: 'notFound',
-        message: `SLD #${cleanSld} not found in database. Ready to create a new case record.`
+        message: `SLD #${cleanSld} ready for new case entry${calculatedNextPage ? ` (Page ${calculatedNextPage})` : ''}.`
       });
     } finally {
       setLoadingCase(false);
       setTimeout(() => setLoadFeedback(null), 6000);
     }
-  }, [getValues, applyCaseToForm, reset, searchParams, setSearchParams, loadSldInput]);
+  }, [getValues, applyCaseToForm, prepareNextNewRecord, searchParams, setSearchParams, loadSldInput]);
 
   /**
    * Step to previous or next SLD number
@@ -621,21 +705,20 @@ const AddCaseLawDetail = ({ onClose }) => {
         setAssignedSldNumber(targetSld);
         setValue('srNumber', targetSld, { shouldDirty: false });
         setSuccessMessage(`SLD #${targetSld} updated successfully. SLD number preserved.`);
+        setShowSuccess(true);
+        if (isNext) {
+          handleStepSld(1);
+        }
       } else {
         const created = await caseService.createCase(payload);
-        if (created?.data?.id) {
-          setCurrentCaseId(created.data.id);
-        }
-        if (created?.data?.sldNumber) {
-          setAssignedSldNumber(String(created.data.sldNumber));
-          setValue('srNumber', String(created.data.sldNumber), { shouldDirty: false });
-        }
-        setSuccessMessage(`SLD #${created?.data?.sldNumber || targetSld} created successfully.`);
-      }
-      setShowSuccess(true);
-
-      if (isNext) {
-        handleStepSld(1);
+        const savedSld = String(created?.data?.sldNumber || targetSld);
+        
+        // Advance to next new SR# with blank court and incremented page number (e.g. 4852 -> 4853)
+        const { nextSld, calculatedNextPage } = await prepareNextNewRecord(payload);
+        setSuccessMessage(
+          `SLD #${savedSld} saved successfully. Advanced to new SR #${nextSld || 'Next'} (${payload.publications?.[0]?.year || '2026'} ${String(payload.publications?.[0]?.mag || 'SLD').toUpperCase()} ${calculatedNextPage}).`
+        );
+        setShowSuccess(true);
       }
 
       setTimeout(() => setShowSuccess(false), 3500);
@@ -834,13 +917,19 @@ const AddCaseLawDetail = ({ onClose }) => {
               {/* Court */}
               <div className="md:col-span-3">
                 <FormField label="Court">
-                  <Input
-                    variant="light" 
-                    inputSize="sm" 
-                    type="select" 
-                    options={courtOptions} 
-                    error={errors.court}
-                    {...register('court')}
+                  <Controller
+                    control={control}
+                    name="court"
+                    render={({ field }) => (
+                      <CourtCombobox
+                        id="caselaw-court-combobox"
+                        value={field.value || ''}
+                        onChange={(val) => field.onChange(val)}
+                        options={courtOptions}
+                        error={errors.court}
+                        placeholder="Select or write court..."
+                      />
+                    )}
                   />
                 </FormField>
               </div>
