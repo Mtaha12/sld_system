@@ -148,7 +148,10 @@ const AddCaseLawDetail = ({ onClose }) => {
   });
 
   const [magazineOptions, setMagazineOptions] = useState(() => {
-    const list = [{ label: 'SLD', value: 'sld' }];
+    const list = [
+      { label: 'Select Mag', value: '' },
+      { label: 'SLD', value: 'sld' }
+    ];
     if (Array.isArray(editData?.publications)) {
       editData.publications.forEach(p => {
         const val = String(p?.mag || '').trim().toLowerCase();
@@ -227,7 +230,10 @@ const AddCaseLawDetail = ({ onClose }) => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const mags = res.data.map(m => ({ label: m.name.toUpperCase(), value: m.name.toLowerCase() }));
           setMagazineOptions(prev => {
-            const list = [{ label: 'SLD', value: 'sld' }];
+            const list = [
+              { label: 'Select Mag', value: '' },
+              { label: 'SLD', value: 'sld' }
+            ];
             mags.forEach(m => {
               if (!list.some(o => o.value === m.value)) {
                 list.push(m);
@@ -635,6 +641,9 @@ const AddCaseLawDetail = ({ onClose }) => {
   }, []);
 
   const autofillPublicationPage = async (index) => {
+    // Only auto-fill for primary publication (index === 0); newly added publications stay blank
+    if (index !== 0) return;
+
     const publications = getValues('publications') || [];
     const currentPub = publications[index];
     if (!currentPub) return;
@@ -946,9 +955,11 @@ const AddCaseLawDetail = ({ onClose }) => {
                     <Input 
                       variant="light" 
                       inputSize="sm" 
-                      placeholder="2026" 
+                      placeholder={idx === 0 ? "2026" : "YYYY"} 
                       {...register(`publications.${idx}.year`, {
-                        onChange: () => autofillPublicationPage(idx),
+                        onChange: () => {
+                          if (idx === 0) autofillPublicationPage(0);
+                        },
                       })}
                     />
                   </FormField>
@@ -959,7 +970,9 @@ const AddCaseLawDetail = ({ onClose }) => {
                       type="select" 
                       options={magazineOptions} 
                       {...register(`publications.${idx}.mag`, {
-                        onChange: () => autofillPublicationPage(idx),
+                        onChange: () => {
+                          if (idx === 0) autofillPublicationPage(0);
+                        },
                       })}
                     />
                   </FormField>
@@ -999,12 +1012,11 @@ const AddCaseLawDetail = ({ onClose }) => {
                         className="flex-1 text-green-600 border-green-200 hover:bg-green-50 h-[34px] text-xs font-semibold" 
                         onClick={() => {
                           const newIdx = publicationFields.length;
-                          appendPublication({ year: '2026', vol: '', mag: 'sld', page: '' });
+                          appendPublication({ year: '', vol: '', mag: '', page: '' });
                           setPublicationVolumeOpen((prev) => ({
                             ...prev,
                             [newIdx]: false,
                           }));
-                          setTimeout(() => autofillPublicationPage(newIdx), 50);
                         }}
                       >
                         + New

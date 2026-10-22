@@ -4232,3 +4232,6 @@
 {"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-22 14:01:30"}
 {"level":"info","message":"[Case Created] Case ID CASE-165813 (SLD #165807) added.","service":"sld-backend-service","timestamp":"2026-10-22 14:07:26"}
 {"level":"info","message":"[Case Deleted] Case ID CASE-165813 soft-deleted.","service":"sld-backend-service","timestamp":"2026-10-22 14:08:37"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-22 22:17:25"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-22 22:17:25"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-22 22:17:33"}
