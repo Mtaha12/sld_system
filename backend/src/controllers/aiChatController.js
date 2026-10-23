@@ -5987,9 +5987,23 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
             }
           }
           if (!cleanDated) {
-            const caseNumStr = Array.isArray(c.caseNumber) ? c.caseNumber.join(' ') : String(c.caseNumber || '');
-            const matchD = caseNumStr.match(/decision dated:\s*([0-9\-\/A-Za-z\s]+?)(?:,|$)/i);
-            if (matchD) cleanDated = matchD[1].trim();
+            const info = getVerifiedDecisionDateInfo(c);
+            if (info && info.isVerified && info.year) {
+              if (info.dateStr) {
+                const dm = String(info.dateStr).match(/(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{4})/);
+                if (dm) {
+                  cleanDated = `${dm[3]}-${dm[2].padStart(2, '0')}-${dm[1].padStart(2, '0')}`;
+                } else {
+                  cleanDated = `${info.year}-01-01`;
+                }
+              } else {
+                cleanDated = `${info.year}-01-01`;
+              }
+            } else {
+              const caseNumStr = Array.isArray(c.caseNumber) ? c.caseNumber.join(' ') : String(c.caseNumber || '');
+              const matchD = caseNumStr.match(/(?:decision\s*dated|decided\s*on)\s*[:\-]?\s*([0-9\.\-\/A-Za-z\s]+?)(?:,|$)/i);
+              if (matchD) cleanDated = matchD[1].trim();
+            }
           }
           return {
             id: c._id.toString(),

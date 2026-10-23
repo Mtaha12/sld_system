@@ -907,3 +907,5 @@
 {"level":"warn","message":"Gemini model gemini-3.8-flash returned error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:49"}
 {"level":"warn","message":"General AI Gemini query error: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","service":"sld-backend-service","timestamp":"2026-10-21 21:05:49"}
 {"level":"warn","message":"Gemini model gemini-flash-lite-latest call error: The operation was aborted due to timeout","service":"sld-backend-service","timestamp":"2026-10-21 21:15:56"}
+{"level":"warn","message":"Party query notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-23 14:22:55"}
+{"level":"warn","message":"Party query notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-23 14:26:27"}

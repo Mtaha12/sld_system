@@ -210,13 +210,16 @@ export const getCaseDatabaseStats = async (req, res, next) => {
 
 
 /**
- * Helper to translate a space or newline separated string into an array of trimmed strings
+ * Helper to translate a newline separated string into an array of trimmed strings.
+ * Strictly preserves commas so judicial suffixes (e.g. "Judge Name, J") and case dates are never broken.
  */
 const stringToArray = (str) => {
   if (!str) return [];
-  if (Array.isArray(str)) return str;
-  return str
-    .split(/[\n,]/)
+  if (Array.isArray(str)) {
+    return str.map(item => String(item).trim()).filter(Boolean);
+  }
+  return String(str)
+    .split(/\r?\n/)
     .map(item => item.trim())
     .filter(item => item.length > 0);
 };

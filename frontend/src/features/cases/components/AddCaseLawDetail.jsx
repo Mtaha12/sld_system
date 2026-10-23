@@ -22,11 +22,57 @@ import { COURT_OPTIONS } from '../../../data/courts';
 import { settingService } from '../../../services/settingService';
 import { courtService, magazineService } from '../../../services/adminSettingsServices';
 import CourtCombobox from './CourtCombobox';
+import SearchableCombobox from './SearchableCombobox';
 
 const safeDate = (val) => {
   if (!val) return null;
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
+};
+
+/**
+ * Accurately translates stored string arrays into textarea text without artificial line breaks.
+ * Heals historical records where sentences were split on commas (e.g. "Judge Name, J" or "decided on...").
+ */
+const formatArrayForTextarea = (arr, fieldType = 'general') => {
+  if (!arr) return '';
+  if (!Array.isArray(arr)) return String(arr);
+  if (arr.length === 0) return '';
+  if (arr.length === 1) return String(arr[0] || '');
+
+  if (fieldType === 'judges') {
+    const result = [];
+    for (let i = 0; i < arr.length; i++) {
+      const item = String(arr[i] || '').trim();
+      if (!item) continue;
+      // If item is a judicial suffix like "J", "J.", "C.J.", "CJ", "ACJ", "JJ", "JJ."
+      if (/^(J|J\.|C\.?J\.?|A\.?C\.?J\.?|JJ\.?|J\s*\.?)$/i.test(item) && result.length > 0) {
+        result[result.length - 1] += `, ${item}`;
+      } else {
+        result.push(item);
+      }
+    }
+    return result.join('\n');
+  }
+
+  if (fieldType === 'caseNumber') {
+    const result = [];
+    for (let i = 0; i < arr.length; i++) {
+      const item = String(arr[i] || '').trim();
+      if (!item) continue;
+      // Recombine fragments split on commas (e.g., "decided on...", "Date of hearing...", "2026...")
+      const isFragment = /^(decided|dated|date of|announced|judgment on|\d{4}\b)/i.test(item) ||
+                         /^[a-z]/.test(item);
+      if (isFragment && result.length > 0) {
+        result[result.length - 1] += `, ${item}`;
+      } else {
+        result.push(item);
+      }
+    }
+    return result.join('\n');
+  }
+
+  return arr.join('\n');
 };
 
 /**
@@ -82,10 +128,10 @@ const getInitialValues = (data = null) => {
     dated: safeDate(data.dated),
     department: data.department || 'tax',
     court: data.court || '',
-    caseNumber: Array.isArray(data.caseNumber) ? data.caseNumber.join('\n') : String(data.caseNumber || ''),
-    judges: Array.isArray(data.judges) ? data.judges.join('\n') : String(data.judges || ''),
-    petitioners: Array.isArray(data.petitioners) ? data.petitioners.join('\n') : String(data.petitioners || ''),
-    lawyers: Array.isArray(data.lawyers) ? data.lawyers.join('\n') : String(data.lawyers || ''),
+    caseNumber: formatArrayForTextarea(data.caseNumber, 'caseNumber'),
+    judges: formatArrayForTextarea(data.judges, 'judges'),
+    petitioners: formatArrayForTextarea(data.petitioners, 'petitioners'),
+    lawyers: formatArrayForTextarea(data.lawyers, 'lawyers'),
     headNote: String(data.headNote || ''),
     references: String(data.references || ''),
     principleLaw: String(data.principleLaw || ''),
@@ -1012,7 +1058,8 @@ const AddCaseLawDetail = ({ onClose }) => {
                         className="flex-1 text-green-600 border-green-200 hover:bg-green-50 h-[34px] text-xs font-semibold" 
                         onClick={() => {
                           const newIdx = publicationFields.length;
-                          appendPublication({ year: '', vol: '', mag: '', page: '' });
+                          const firstRowYear = String(getValues('publications.0.year') || '2026').trim();
+                          appendPublication({ year: firstRowYear || '2026', vol: '', mag: '', page: '' });
                           setPublicationVolumeOpen((prev) => ({
                             ...prev,
                             [newIdx]: false,
@@ -1124,12 +1171,18 @@ const AddCaseLawDetail = ({ onClose }) => {
               {lawFields.map((law, idx) => (
                 <div key={law.id} className="grid grid-cols-12 gap-2 items-end">
                   <FormField label="Law/Statutes" className="col-span-5">
-                    <Input 
-                      variant="light" 
-                      inputSize="sm" 
-                      type="select" 
-                      options={dynamicLawOptions}
-                      {...register(`laws.${idx}.lawStatute`)}
+                    <Controller
+                      control={control}
+                      name={`laws.${idx}.lawStatute`}
+                      render={({ field }) => (
+                        <SearchableCombobox
+                          id={`caselaw-law-${idx}`}
+                          value={field.value || ''}
+                          onChange={(val) => field.onChange(val)}
+                          options={dynamicLawOptions}
+                          placeholder="Select or write law/statute..."
+                        />
+                      )}
                     />
                   </FormField>
                   <FormField label="Sections (comma-separated, e.g. 1, 1(B))" className="col-span-5">

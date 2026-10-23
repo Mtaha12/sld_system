@@ -23,20 +23,6 @@ const AdminLayout = () => {
     }
   }, [location.pathname]);
 
-  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
-
-  // Prevent background scrolling while mobile drawer is open
-  useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isMobileMenuOpen]);
-
   const handleTogglePin = () => {
     setIsSidebarPinned(prev => {
       const next = !prev;
@@ -45,48 +31,20 @@ const AdminLayout = () => {
     });
   };
 
-  const handleMouseEnter = () => {
-    setIsSidebarHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsSidebarHovered(false);
-  };
-
-  const isDesktopSidebarVisible = isSidebarPinned || isSidebarHovered;
+  const isDesktopSidebarVisible = isSidebarPinned;
 
   return (
     <div className="flex h-[100dvh] bg-theme-base font-sans text-theme-main animate-fade-in overflow-hidden relative">
       
-      {/* 1. Left Edge Hover Sensor Strip (Active when sidebar is unpinned/hidden) */}
-      {!isSidebarPinned && (
-        <div 
-          className="hidden lg:flex fixed left-0 top-0 bottom-0 w-8 z-50 group cursor-pointer"
-          onMouseEnter={handleMouseEnter}
-          onMouseMove={handleMouseEnter}
-          title="Hover to reveal side panel"
-        >
-          {/* Subtle grab indicator tab */}
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-16 bg-brand-orange/60 group-hover:bg-brand-orange group-hover:w-2.5 rounded-r-md transition-all duration-200" />
-        </div>
-      )}
-
-      {/* 2. Fixed Desktop Sidebar with Smooth Slide-in / Hover Transition */}
+      {/* Fixed Desktop Sidebar: Toggled ONLY via the 'View Sidebar' / Pin button */}
       <div
         className={`hidden lg:block fixed left-0 top-0 h-screen z-40 transition-transform duration-[300ms] ease-[cubic-bezier(0.4,0,0.2,1)] will-change-transform ${
           isDesktopSidebarVisible ? 'translate-x-0 shadow-2xl' : '-translate-x-full pointer-events-none'
         }`}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
       >
         <AdminSidebar 
           isPinned={isSidebarPinned}
           onTogglePin={handleTogglePin}
-          onItemClick={() => {
-            if (!isSidebarPinned) {
-              setIsSidebarHovered(false);
-            }
-          }}
         />
       </div>
 

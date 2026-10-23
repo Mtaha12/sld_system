@@ -4235,3 +4235,26 @@
 {"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-22 22:17:25"}
 {"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-22 22:17:25"}
 {"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-22 22:17:33"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-23 14:13:13"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-23 14:13:13"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-23 14:13:32"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-23 14:19:17"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-23 14:19:17"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-23 14:19:19"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to audit.user.1792747241292_8568@test.com","service":"sld-backend-service","timestamp":"2026-10-23 14:20:45"}
+{"level":"info","message":"[SMTP Success] OTP email dispatched to audit.admin.1792747241292_8568@test.com","service":"sld-backend-service","timestamp":"2026-10-23 14:20:48"}
+{"level":"info","message":"[Login Success] User audit_admin_1792747241292_8568 logged in.","service":"sld-backend-service","timestamp":"2026-10-23 14:20:49"}
+{"level":"info","message":"[Login Success] User audit_user_1792747241292_8568 logged in.","service":"sld-backend-service","timestamp":"2026-10-23 14:20:49"}
+{"level":"info","message":"[Login Success] User audit_user_1792747241292_8568 logged in.","service":"sld-backend-service","timestamp":"2026-10-23 14:20:49"}
+{"level":"info","message":"[Case Created] Case ID CASE-165814 (SLD #audit_case_1792747241292_8568) added.","service":"sld-backend-service","timestamp":"2026-10-23 14:20:49"}
+{"level":"info","message":"[Case Updated] Case ID CASE-165814 (SLD #audit_case_1792747241292_8568) updated.","service":"sld-backend-service","timestamp":"2026-10-23 14:21:10"}
+{"level":"info","message":"[Case Deleted] Case ID CASE-165814 soft-deleted.","service":"sld-backend-service","timestamp":"2026-10-23 14:21:10"}
+{"level":"info","message":"[Statute Created] Statute ID STAT-009357 (SR #audit_statute_1792747241292_8568) added.","service":"sld-backend-service","timestamp":"2026-10-23 14:21:10"}
+{"level":"info","message":"[Statute Deleted] ID STAT-009357 soft-deleted.","service":"sld-backend-service","timestamp":"2026-10-23 14:21:10"}
+{"level":"info","message":"[Notification Created] Notification ID NOTIF-011635 (SR #audit_notif_1792747241292_8568) added.","service":"sld-backend-service","timestamp":"2026-10-23 14:21:10"}
+{"level":"info","message":"[Notification Deleted] ID NOTIF-011635 soft-deleted.","service":"sld-backend-service","timestamp":"2026-10-23 14:21:10"}
+{"level":"warn","message":"Party query notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-23 14:22:55"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-10-23 14:26:10"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-10-23 14:26:10"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-10-23 14:26:13"}
+{"level":"warn","message":"Party query notice: error while multiplanner was selecting best plan :: caused by :: operation exceeded time limit","service":"sld-backend-service","timestamp":"2026-10-23 14:26:27"}
