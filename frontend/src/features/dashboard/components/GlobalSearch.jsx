@@ -15,6 +15,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
+import SearchableCombobox from '../../../components/ui/SearchableCombobox';
 import { courtService } from '../../../services/adminSettingsServices';
 import { MOCK_CASES } from '../../cases/data/casesMockData';
 import { MOCK_NOTIFICATIONS } from '../../notifications/data/notificationsMockData';
@@ -509,17 +510,14 @@ const GlobalSearch = ({
               <label className="text-xs font-semibold text-theme-muted uppercase tracking-wider block flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5 text-brand-orange" /> Court / Authority
               </label>
-              <select
+              <SearchableCombobox
+                inputSize="sm"
                 value={filters.court}
-                onChange={(e) => handleUpdateFilter('court', e.target.value)}
-                className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-xs text-theme-main focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange cursor-pointer"
-              >
-                {courtsList.map(court => (
-                  <option key={court.value} value={court.value} className="bg-theme-surface text-theme-main">
-                    {court.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => handleUpdateFilter('court', val)}
+                options={courtsList}
+                placeholder="Select or enter court..."
+                allowCustom={true}
+              />
             </div>
 
             {/* Timeframe */}
@@ -527,17 +525,14 @@ const GlobalSearch = ({
               <label className="text-xs font-semibold text-theme-muted uppercase tracking-wider block flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-brand-orange" /> Timeframe
               </label>
-              <select
+              <SearchableCombobox
+                inputSize="sm"
                 value={filters.timeframe}
-                onChange={(e) => handleUpdateFilter('timeframe', e.target.value)}
-                className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-xs text-theme-main focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange cursor-pointer"
-              >
-                {TIMEFRAMES.map(tf => (
-                  <option key={tf.value} value={tf.value} className="bg-theme-surface text-theme-main">
-                    {tf.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => handleUpdateFilter('timeframe', val)}
+                options={TIMEFRAMES}
+                placeholder="Select timeframe..."
+                allowCustom={false}
+              />
             </div>
 
             {/* Status & Attachments */}
@@ -546,17 +541,14 @@ const GlobalSearch = ({
                 Status & Attachment
               </label>
               <div className="flex flex-col gap-2">
-                <select
+                <SearchableCombobox
+                  inputSize="sm"
                   value={filters.status}
-                  onChange={(e) => handleUpdateFilter('status', e.target.value)}
-                  className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-xs text-theme-main focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange cursor-pointer"
-                >
-                  {STATUS_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value} className="bg-theme-surface text-theme-main">
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleUpdateFilter('status', val)}
+                  options={STATUS_OPTIONS}
+                  placeholder="Select status..."
+                  allowCustom={false}
+                />
 
                 <label className="flex items-center gap-2 text-xs text-theme-main cursor-pointer hover:text-brand-orange select-none pt-0.5">
                   <input

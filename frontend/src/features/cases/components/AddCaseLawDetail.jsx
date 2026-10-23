@@ -1010,16 +1010,22 @@ const AddCaseLawDetail = ({ onClose }) => {
                     />
                   </FormField>
                   <FormField label="Mag" className="col-span-2">
-                    <Input 
-                      variant="light" 
-                      inputSize="sm" 
-                      type="select" 
-                      options={magazineOptions} 
-                      {...register(`publications.${idx}.mag`, {
-                        onChange: () => {
-                          if (idx === 0) autofillPublicationPage(0);
-                        },
-                      })}
+                    <Controller
+                      control={control}
+                      name={`publications.${idx}.mag`}
+                      render={({ field }) => (
+                        <SearchableCombobox
+                          inputSize="sm"
+                          value={field.value || ''}
+                          onChange={(val) => {
+                            field.onChange(val);
+                            if (idx === 0) autofillPublicationPage(0);
+                          }}
+                          options={magazineOptions}
+                          placeholder="Mag"
+                          allowCustom={true}
+                        />
+                      )}
                     />
                   </FormField>
                   {publicationVolumeOpen[idx] && (
@@ -1315,13 +1321,20 @@ const AddCaseLawDetail = ({ onClose }) => {
               <Scale className="w-4 h-4" />
               Principle Law
             </div>
-            <Input 
-              variant="light" 
-              inputSize="sm" 
-              type="select"
-              options={principleOptions}
-              error={errors.principleLaw}
-              {...register('principleLaw')}
+            <Controller
+              control={control}
+              name="principleLaw"
+              render={({ field }) => (
+                <SearchableCombobox
+                  inputSize="sm"
+                  value={field.value || ''}
+                  onChange={(val) => field.onChange(val)}
+                  options={principleOptions}
+                  error={errors.principleLaw}
+                  placeholder="Select or write principle law..."
+                  allowCustom={true}
+                />
+              )}
             />
           </div>
 
@@ -1331,13 +1344,20 @@ const AddCaseLawDetail = ({ onClose }) => {
               <Scale className="w-4 h-4" />
               Legal Maxim
             </div>
-            <Input 
-              variant="light" 
-              inputSize="sm" 
-              type="select"
-              options={legalMaximOptions}
-              error={errors.legalMaxim}
-              {...register('legalMaxim')}
+            <Controller
+              control={control}
+              name="legalMaxim"
+              render={({ field }) => (
+                <SearchableCombobox
+                  inputSize="sm"
+                  value={field.value || ''}
+                  onChange={(val) => field.onChange(val)}
+                  options={legalMaximOptions}
+                  error={errors.legalMaxim}
+                  placeholder="Select or write legal maxim..."
+                  allowCustom={true}
+                />
+              )}
             />
           </div>
 

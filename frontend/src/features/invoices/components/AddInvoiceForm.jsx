@@ -3,6 +3,7 @@ import { X, Receipt, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import Input from '../../../components/ui/Input';
 import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
+import SearchableCombobox from '../../../components/ui/SearchableCombobox';
 import { invoiceService } from '../services/invoiceService';
 import { userService } from '../../../services/userService';
 
@@ -104,8 +105,10 @@ const AddInvoiceForm = ({
   }, [editData]);
 
   // Handle user select
-  const handleUserSelect = (e) => {
-    const uId = e.target.value;
+  const handleUserSelect = (valOrEvent) => {
+    const uId = (valOrEvent && typeof valOrEvent === 'object' && 'target' in valOrEvent)
+      ? valOrEvent.target.value
+      : valOrEvent;
     setSelectedUserId(uId);
     if (uId) {
       const found = usersList.find(u => (u._id || u.id || u.userId) === uId);
@@ -252,20 +255,18 @@ const AddInvoiceForm = ({
           </FormField>
 
           <FormField label="User" required>
-            <select
+            <SearchableCombobox
+              inputSize="sm"
               value={selectedUserId}
               onChange={handleUserSelect}
-              className={`w-full px-3 py-1.5 bg-theme-surface border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange transition-colors ${
-                errors.userId ? 'border-red-500' : 'border-theme-border'
-              }`}
-            >
-              <option value="">Select User / Client</option>
-              {usersList.map((u) => (
-                <option key={u._id || u.id || u.userId} value={u._id || u.id || u.userId}>
-                  {u.fullName || u.name || u.email} {u.phone ? `(${u.phone})` : ''}
-                </option>
-              ))}
-            </select>
+              options={usersList.map((u) => ({
+                value: u._id || u.id || u.userId,
+                label: `${u.fullName || u.name || u.email}${u.phone ? ` (${u.phone})` : ''}`
+              }))}
+              placeholder="Select User / Client..."
+              error={errors.userId}
+              allowCustom={false}
+            />
             {errors.userId && <span className="text-[11px] text-red-500">{errors.userId}</span>}
           </FormField>
         </div>

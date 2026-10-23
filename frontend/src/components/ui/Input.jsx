@@ -1,5 +1,6 @@
 import { forwardRef, useState, memo, useMemo } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import SearchableCombobox from './SearchableCombobox'
 
 const SelectOptions = memo(({ options, variant }) => {
   const optClass = variant === 'dark'
@@ -82,7 +83,19 @@ const Input = forwardRef(({ className = '', type, icon: Icon, error, options, va
           </div>
         )}
         
-        {type === 'select' ? (
+        {type === 'combobox' || (type === 'select' && props.searchable) ? (
+          <SearchableCombobox
+            value={props.value}
+            onChange={props.onChange}
+            options={options}
+            placeholder={props.placeholder || 'Select or write...'}
+            error={error}
+            disabled={props.disabled}
+            inputSize={inputSize}
+            className={className}
+            allowCustom={props.allowCustom !== false}
+          />
+        ) : type === 'select' ? (
           <div className="relative w-full">
             <select
               className={`${commonClasses} appearance-none cursor-pointer pr-9`}

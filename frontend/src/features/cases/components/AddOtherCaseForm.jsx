@@ -7,6 +7,7 @@ import FormFooter from '../../../components/ui/FormFooter';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import DatePicker from '../../../components/ui/DatePicker';
 import { otherCaseService } from '../services/otherCaseService';
+import SearchableCombobox from '../../../components/ui/SearchableCombobox';
 
 const getTodayDateString = () => {
   const today = new Date();
@@ -513,38 +514,26 @@ const AddOtherCaseForm = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
             {/* Column I: Apex Court */}
             <FormField label="Apex Court">
-              <div className="relative">
-                <Input
-                  inputSize="sm"
-                  list="apex-court-list"
-                  value={apexCourt}
-                  onChange={(e) => setApexCourt(e.target.value)}
-                  placeholder="Select or enter court (e.g. Supreme Court of Pakistan)"
-                />
-                <datalist id="apex-court-list">
-                  {APEX_COURT_OPTIONS.map(opt => (
-                    <option key={opt} value={opt} />
-                  ))}
-                </datalist>
-              </div>
+              <SearchableCombobox
+                inputSize="sm"
+                value={apexCourt}
+                onChange={(val) => setApexCourt(val)}
+                options={APEX_COURT_OPTIONS}
+                placeholder="Select or enter court (e.g. Supreme Court of Pakistan)"
+                allowCustom={true}
+              />
             </FormField>
 
             {/* Column J: Apex Status */}
             <FormField label="Apex Status">
-              <div className="relative">
-                <Input
-                  inputSize="sm"
-                  list="apex-status-list"
-                  value={apexStatus}
-                  onChange={(e) => setApexStatus(e.target.value)}
-                  placeholder="Select or enter status (e.g. Disposed of, Allowed)"
-                />
-                <datalist id="apex-status-list">
-                  {APEX_STATUS_OPTIONS.map(opt => (
-                    <option key={opt} value={opt} />
-                  ))}
-                </datalist>
-              </div>
+              <SearchableCombobox
+                inputSize="sm"
+                value={apexStatus}
+                onChange={(val) => setApexStatus(val)}
+                options={APEX_STATUS_OPTIONS}
+                placeholder="Select or enter status (e.g. Disposed of, Allowed)"
+                allowCustom={true}
+              />
             </FormField>
           </div>
         </div>

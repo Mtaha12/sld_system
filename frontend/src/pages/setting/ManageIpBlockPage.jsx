@@ -4,6 +4,7 @@ import { ipBlockService } from '../../services/adminSettingsServices';
 import { settingService } from '../../services/settingService';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
 import Modal from '../../components/ui/Modal';
+import SearchableCombobox from '../../components/ui/SearchableCombobox';
 import { useUser } from '../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -298,16 +299,13 @@ const ManageIpBlockPage = () => {
             <label className="block text-xs font-bold text-theme-main mb-1">
               City Name
             </label>
-            <select
+            <SearchableCombobox
               value={modalForm.cityName}
-              onChange={(e) => setModalForm({ ...modalForm, cityName: e.target.value })}
-              className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
-            >
-              <option value="">Select City</option>
-              {cities.map((c) => (
-                <option key={c._id || c.name} value={c.name}>{c.name}</option>
-              ))}
-            </select>
+              onChange={(val) => setModalForm({ ...modalForm, cityName: val })}
+              options={cities.map((c) => ({ label: c.name, value: c.name }))}
+              placeholder="Search or type city..."
+              allowCustom={true}
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-theme-border">

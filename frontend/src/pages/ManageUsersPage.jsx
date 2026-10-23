@@ -8,6 +8,7 @@ import { settingService } from '../services/settingService';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import Modal from '../components/ui/Modal';
 import DatePicker from '../components/ui/DatePicker';
+import SearchableCombobox from '../components/ui/SearchableCombobox';
 import { useUser } from '../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -674,16 +675,14 @@ const ManageUsersPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-theme-main mb-1">City</label>
-              <select
+              <SearchableCombobox
+                inputSize="sm"
                 value={modalForm.city}
-                onChange={(e) => setModalForm({ ...modalForm, city: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
-              >
-                <option value="">Select City</option>
-                {cities.map((c) => (
-                  <option key={c._id || c.name} value={c.name}>{c.name}</option>
-                ))}
-              </select>
+                onChange={(val) => setModalForm(prev => ({ ...prev, city: val }))}
+                options={cities.map((c) => ({ value: c.name, label: c.name }))}
+                placeholder="Select or write city..."
+                allowCustom={true}
+              />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-theme-main mb-1">Active Date</label>

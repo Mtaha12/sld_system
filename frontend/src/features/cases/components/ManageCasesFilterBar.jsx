@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
+import SearchableCombobox from '../../../components/ui/SearchableCombobox';
 import { magazineService } from '../../../services/adminSettingsServices';
 
 const ManageCasesFilterBar = ({
@@ -51,6 +52,23 @@ const ManageCasesFilterBar = ({
       .catch(err => console.warn('Could not load dynamic magazines for filter bar:', err));
     return () => { isMounted = false; };
   }, []);
+
+  const magOptions = useMemo(() => {
+    if (magazineList.length > 0) {
+      return magazineList.map((m) => ({
+        value: m.name,
+        label: `${m.name.toUpperCase()} ${m.description ? `(${m.description})` : ''}`
+      }));
+    }
+    return [
+      { value: 'CLC', label: 'Civil Law Cases (CLC)' },
+      { value: 'PLD', label: 'PLD' },
+      { value: 'PTD', label: 'PTD' },
+      { value: 'SCMR', label: 'Supreme Court Monthly Review (SCMR)' },
+      { value: 'SLD', label: 'SLD Law Report' },
+      { value: 'Tax', label: 'Tax Law Journal' }
+    ];
+  }, [magazineList]);
 
   // Synchronize when initialSearch prop changes (e.g. navigation from Dashboard search)
   useEffect(() => {
@@ -135,35 +153,18 @@ const ManageCasesFilterBar = ({
           />
         </div>
 
-        <div className="relative w-full sm:w-[150px] shrink-0">
-          <select 
+        <div className="w-full sm:w-[170px] shrink-0">
+          <SearchableCombobox 
             value={magazine}
-            onChange={(e) => {
-              const val = e.target.value;
+            onChange={(val) => {
               setMagazine(val);
               onSearch?.({ subject, fromYear, toYear, magazine: val });
             }}
-            className="w-full pl-3 pr-9 py-2.5 border border-theme-border rounded-lg text-sm appearance-none focus:outline-none focus:border-brand-orange bg-theme-surface text-theme-main shadow-sm cursor-pointer"
-          >
-            <option value="">Magazine</option>
-            {magazineList.length > 0 ? (
-              magazineList.map((m) => (
-                <option key={m._id || m.id || m.name} value={m.name}>
-                  {m.name.toUpperCase()} {m.description ? `(${m.description})` : ''}
-                </option>
-              ))
-            ) : (
-              <>
-                <option value="CLC">Civil Law Cases (CLC)</option>
-                <option value="PLD">PLD</option>
-                <option value="PTD">PTD</option>
-                <option value="SCMR">Supreme Court Monthly Review (SCMR)</option>
-                <option value="SLD">SLD Law Report</option>
-                <option value="Tax">Tax Law Journal</option>
-              </>
-            )}
-          </select>
-          <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-theme-disabled pointer-events-none" />
+            options={magOptions}
+            placeholder="Magazine"
+            inputSize="default"
+            allowCustom={true}
+          />
         </div>
 
         <Button 

@@ -10,6 +10,7 @@ import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import FormFooter from '../../../components/ui/FormFooter';
 import SearchableSectionSelect from '../../../components/ui/SearchableSectionSelect';
+import SearchableCombobox from '../../../components/ui/SearchableCombobox';
 import { notificationSchema } from '../validation/notificationSchema';
 import { notificationService } from '../services/notificationService';
 import { settingService } from '../../../services/settingService';
@@ -588,22 +589,29 @@ const AddNotificationForm = () => {
               {/* Department */}
               <div className="lg:col-span-2 col-span-1">
                 <FormField label="Department" required>
-                  <Input
-                    variant="light"
-                    inputSize="sm"
-                    type="select"
-                    error={errors.department}
-                    options={[
-                      { label: 'Notification', value: 'notification' },
-                      { label: 'Notifications', value: 'notifications' },
-                      { label: 'Circular', value: 'circular' },
-                      { label: 'Corporate', value: 'corporate' },
-                      { label: 'General Order', value: 'general order' },
-                      { label: 'Judge Order', value: 'judge order' },
-                      { label: 'Letter', value: 'letter' },
-                      { label: 'Other', value: 'other' }
-                    ]}
-                    {...register('department')}
+                  <Controller
+                    control={control}
+                    name="department"
+                    render={({ field }) => (
+                      <SearchableCombobox
+                        inputSize="sm"
+                        error={errors.department}
+                        value={field.value || ''}
+                        onChange={(val) => field.onChange(val)}
+                        options={[
+                          { label: 'Notification', value: 'notification' },
+                          { label: 'Notifications', value: 'notifications' },
+                          { label: 'Circular', value: 'circular' },
+                          { label: 'Corporate', value: 'corporate' },
+                          { label: 'General Order', value: 'general order' },
+                          { label: 'Judge Order', value: 'judge order' },
+                          { label: 'Letter', value: 'letter' },
+                          { label: 'Other', value: 'other' }
+                        ]}
+                        placeholder="Select or write department..."
+                        allowCustom={true}
+                      />
+                    )}
                   />
                 </FormField>
               </div>
@@ -611,16 +619,23 @@ const AddNotificationForm = () => {
               {/* Sub Department */}
               <div className="lg:col-span-2 col-span-1">
                 <FormField label="Sub Department" required>
-                  <Input
-                    variant="light"
-                    inputSize="sm"
-                    type="select"
-                    error={errors.subDepartment}
-                    options={[
-                      { label: 'Federal', value: 'federal' },
-                      { label: 'Provincial', value: 'provincial' }
-                    ]}
-                    {...register('subDepartment')}
+                  <Controller
+                    control={control}
+                    name="subDepartment"
+                    render={({ field }) => (
+                      <SearchableCombobox
+                        inputSize="sm"
+                        error={errors.subDepartment}
+                        value={field.value || ''}
+                        onChange={(val) => field.onChange(val)}
+                        options={[
+                          { label: 'Federal', value: 'federal' },
+                          { label: 'Provincial', value: 'provincial' }
+                        ]}
+                        placeholder="Select or write sub-department..."
+                        allowCustom={true}
+                      />
+                    )}
                   />
                 </FormField>
               </div>
@@ -680,12 +695,19 @@ const AddNotificationForm = () => {
                 <div key={field.id} className="grid grid-cols-12 gap-3 items-end">
                   <div className={lIdx === 0 ? "col-span-12 sm:col-span-6" : "col-span-11 sm:col-span-6"}>
                     <FormField label={`Law/Statute ${lIdx + 1}`}>
-                      <Input
-                        variant="light"
-                        inputSize="sm"
-                        placeholder="Select or enter Law/Statute..."
-                        list="notification-laws-list"
-                        {...register(`laws.${lIdx}.lawStatute`)}
+                      <Controller
+                        control={control}
+                        name={`laws.${lIdx}.lawStatute`}
+                        render={({ field }) => (
+                          <SearchableCombobox
+                            inputSize="sm"
+                            value={field.value || ''}
+                            onChange={(val) => field.onChange(val)}
+                            options={lawOptions}
+                            placeholder="Select or enter Law/Statute..."
+                            allowCustom={true}
+                          />
+                        )}
                       />
                     </FormField>
                   </div>

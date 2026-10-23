@@ -7,6 +7,7 @@ import { settingService } from '../../services/settingService';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
 import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
+import SearchableCombobox from '../../components/ui/SearchableCombobox';
 
 const ManageSectionsPage = () => {
   const [sections, setSections] = useState([]);
@@ -271,20 +272,23 @@ const ManageSectionsPage = () => {
               />
             </div>
 
-            <div className="w-full sm:w-44">
-              <select
+            <div className="w-full sm:w-48">
+              <SearchableCombobox
                 value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
+                onChange={(val) => {
+                  const nextStatus = val || 'all';
+                  setStatusFilter(nextStatus);
                   setCurrentPage(1);
-                  fetchSections({ page: 1, status: e.target.value });
+                  fetchSections({ page: 1, status: nextStatus });
                 }}
-                className="w-full px-3 py-2 rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500/40 cursor-pointer"
-              >
-                <option value="all">All Statuses</option>
-                <option value="active">Active Only</option>
-                <option value="inactive">Inactive Only</option>
-              </select>
+                options={[
+                  { label: 'All Statuses', value: 'all' },
+                  { label: 'Active Only', value: 'active' },
+                  { label: 'Inactive Only', value: 'inactive' }
+                ]}
+                placeholder="Status filter..."
+                allowCustom={false}
+              />
             </div>
 
             <div className="flex items-center gap-2">
@@ -506,14 +510,15 @@ const ManageSectionsPage = () => {
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
                 Status
               </label>
-              <select
+              <SearchableCombobox
                 value={modalForm.status}
-                onChange={(e) => setModalForm(prev => ({ ...prev, status: e.target.value }))}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 cursor-pointer"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+                onChange={(val) => setModalForm(prev => ({ ...prev, status: val || 'active' }))}
+                options={[
+                  { label: 'Active', value: 'active' },
+                  { label: 'Inactive', value: 'inactive' }
+                ]}
+                allowCustom={false}
+              />
             </div>
           </div>
 

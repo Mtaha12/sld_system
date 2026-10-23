@@ -3,6 +3,7 @@ import { Building2, Plus, Search, Edit2, Trash2, RefreshCw, AlertCircle, Check }
 import { courtService } from '../../services/adminSettingsServices';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
 import Modal from '../../components/ui/Modal';
+import SearchableCombobox from '../../components/ui/SearchableCombobox';
 import { useUser } from '../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -299,15 +300,14 @@ const ManageCourtsPage = () => {
             <label className="block text-xs font-bold text-theme-main mb-1">
               Under Court <span className="text-red-500">*</span>
             </label>
-            <select
-              value={modalForm.underCourt}
-              onChange={(e) => setModalForm({ ...modalForm, underCourt: e.target.value })}
-              className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
-            >
-              {UNDER_COURT_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
+            <SearchableCombobox
+              inputSize="sm"
+              value={modalForm.underCourt === 'Select' ? '' : modalForm.underCourt}
+              onChange={(val) => setModalForm(prev => ({ ...prev, underCourt: val }))}
+              options={UNDER_COURT_OPTIONS}
+              placeholder="Select or enter Under Court..."
+              allowCustom={true}
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-theme-border">

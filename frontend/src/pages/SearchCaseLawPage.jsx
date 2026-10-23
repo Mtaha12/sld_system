@@ -14,66 +14,21 @@ const inp =
   'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 placeholder-gray-400 text-sm px-3.5 py-2 rounded-lg ' +
   'border border-slate-200/90 dark:border-slate-700 outline-none focus:ring-2 focus:ring-[#3d4a7a]/50 h-[38px] shadow-2xs transition-all';
 
-const sel =
-  'w-full bg-white dark:bg-[#1a2234] text-gray-800 dark:text-gray-100 text-sm pl-3.5 pr-8 py-2 rounded-lg ' +
-  'border border-slate-200/90 dark:border-slate-700 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-brand-orange/40 focus:border-brand-orange hover:border-brand-orange/40 h-[38px] shadow-2xs transition-all';
+import SearchableCombobox from '../components/ui/SearchableCombobox';
 
-const SelectField = React.memo(({ value, onChange, options = [] }) => {
-  const allOptions = useMemo(() => {
-    const list = [...options];
-    if (value && !list.some(o => o.value === value)) {
-      list.push({ value, label: value });
-    }
-
-    // Keep placeholder at top, sort regular options in clean natural alphabetical order
-    const placeholders = [];
-    const regular = [];
-    const seen = new Set();
-
-    for (const opt of list) {
-      if (!opt) continue;
-      const key = String(opt.value ?? '');
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const isPlaceholder = opt.value === '' || opt.value === 'all' || 
-        String(opt.label || '').toLowerCase().startsWith('select ') || 
-        String(opt.label || '').toLowerCase().startsWith('choose ');
-      if (isPlaceholder) {
-        placeholders.push(opt);
-      } else {
-        regular.push(opt);
-      }
-    }
-
-    regular.sort((a, b) => 
-      String(a.label || a.value || '').localeCompare(
-        String(b.label || b.value || ''), 
-        undefined, 
-        { numeric: true, sensitivity: 'base' }
-      )
-    );
-
-    return [...placeholders, ...regular];
-  }, [options, value]);
-
+const SelectField = React.memo(({ value, onChange, options = [], placeholder = 'Select or write...' }) => {
   return (
-    <div className="relative w-full">
-      <select className={sel} value={value} onChange={onChange}>
-        {allOptions.map(o => (
-          <option key={o.value} value={o.value} className="bg-theme-surface text-theme-main py-1">
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 flex items-center justify-center">
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 8l4 4 4-4" />
-        </svg>
-      </span>
-    </div>
+    <SearchableCombobox
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+      inputSize="sm"
+      allowCustom={true}
+    />
   );
 });
+
 
 /* ── Yellow Word Highlighting Component ─────────────────────────────────── */
 const Highlight = React.memo(({ text, terms = [] }) => {
@@ -435,7 +390,10 @@ const SearchCaseLawPage = () => {
     }))
   ], [sectionOptions]);
 
-  const set = field => e => setF(p => ({ ...p, [field]: e.target.value }));
+  const set = field => e => {
+    const val = (e && typeof e === 'object' && 'target' in e) ? e.target.value : e;
+    setF(p => ({ ...p, [field]: val ?? '' }));
+  };
 
   // Extract all active search terms to pass to yellow highlighter
   const activeSearchTerms = useMemo(() => {

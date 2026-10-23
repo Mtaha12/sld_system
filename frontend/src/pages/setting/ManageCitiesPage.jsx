@@ -8,6 +8,7 @@ import { PROVINCES } from '../../constants/provinces';
 import AdminFooter from '../../features/dashboard/components/AdminFooter';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
+import SearchableCombobox from '../../components/ui/SearchableCombobox';
 import { useUser } from '../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -200,16 +201,16 @@ const ManageCitiesPage = () => {
             className="px-3.5 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange w-60 shadow-inner"
           />
 
-          <select
-            value={selectedProvince}
-            onChange={(e) => setSelectedProvince(e.target.value)}
-            className="px-3.5 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
-          >
-            <option value="All">Provinces</option>
-            {DEFAULT_PROVINCES.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
+          <div className="w-52">
+            <SearchableCombobox
+              inputSize="sm"
+              value={selectedProvince === 'All' ? '' : selectedProvince}
+              onChange={(val) => setSelectedProvince(val || 'All')}
+              options={DEFAULT_PROVINCES}
+              placeholder="Provinces (All)"
+              allowCustom={false}
+            />
+          </div>
 
           <button
             type="submit"
@@ -363,16 +364,14 @@ const ManageCitiesPage = () => {
             <label className="block text-xs font-bold text-theme-main mb-1">
               Province <span className="text-red-500">*</span>
             </label>
-            <select
-              required
+            <SearchableCombobox
+              inputSize="sm"
               value={modalForm.province}
-              onChange={(e) => setModalForm({ ...modalForm, province: e.target.value })}
-              className="w-full px-3.5 py-2 bg-white dark:bg-theme-surface border border-theme-border rounded-lg text-xs text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
-            >
-              {DEFAULT_PROVINCES.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+              onChange={(val) => setModalForm(prev => ({ ...prev, province: val }))}
+              options={DEFAULT_PROVINCES}
+              placeholder="Select province..."
+              allowCustom={false}
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-theme-border">
