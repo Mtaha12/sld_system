@@ -47,7 +47,11 @@ export const getNextWhatsappSr = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       nextSr,
-      lastDated
+      lastDated,
+      data: {
+        nextSr,
+        lastDated
+      }
     });
   } catch (error) {
     next(error);

@@ -5,16 +5,29 @@ import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
 import { whatsappService } from '../services/whatsappService';
 
-const getTodayDateString = () => {
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, '0');
-  const d = String(today.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+const formatDateForDateInput = (val) => {
+  if (!val) return '';
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const dmy = s.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  return s;
 };
 
 const AddWhatsappForm = ({
   editData = null,
+  latestEntry = null,
+  lastSavedDate = '',
   onClose,
   onSuccess,
   className = ""
@@ -24,9 +37,26 @@ const AddWhatsappForm = ({
   const fileInputRef = useRef(null);
   const headingInputRef = useRef(null);
 
-  const [srNumber, setSrNumber] = useState('');
+  const resolveInitialDate = () => {
+    if (editData?.dated || editData?.date) {
+      return formatDateForDateInput(editData.dated || editData.date);
+    }
+    const candidate = lastSavedDate || latestEntry?.dated || latestEntry?.date;
+    if (candidate) {
+      return formatDateForDateInput(candidate);
+    }
+    return '';
+  };
+
+  const resolveInitialSr = () => {
+    if (editData?.srNumber) return String(editData.srNumber);
+    if (latestEntry?.srNumber) return String(Number(latestEntry.srNumber) + 1);
+    return '';
+  };
+
+  const [srNumber, setSrNumber] = useState(resolveInitialSr());
   const [heading, setHeading] = useState('');
-  const [dated, setDated] = useState(getTodayDateString());
+  const [dated, setDated] = useState(resolveInitialDate());
   const [attachment, setAttachment] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
 
@@ -35,24 +65,38 @@ const AddWhatsappForm = ({
   const [serverError, setServerError] = useState('');
   const [successBanner, setSuccessBanner] = useState('');
 
-  // Initial load or when editData prop changes
+  // Initial load or when editData/latestEntry/lastSavedDate prop changes
   useEffect(() => {
     setCurrentEditData(editData);
     if (editData) {
       setSrNumber(editData.srNumber ? String(editData.srNumber) : String(editData.id || ''));
       setHeading(editData.heading || '');
-      setDated(editData.dated || editData.date || getTodayDateString());
+      setDated(formatDateForDateInput(editData.dated || editData.date));
       setAttachment(editData.attachment || '');
       setAttachmentName(editData.attachmentName || '');
     } else {
       setHeading('');
       setAttachment('');
       setAttachmentName('');
-      // Fetch next SR number and last saved date
+
+      // Pick date of last entry immediately from props
+      const immediateDate = formatDateForDateInput(lastSavedDate || latestEntry?.dated || latestEntry?.date);
+      if (immediateDate) {
+        setDated(immediateDate);
+      }
+      if (latestEntry?.srNumber) {
+        setSrNumber(String(Number(latestEntry.srNumber) + 1));
+      }
+
+      // Authoritative fallback from backend /next-sr
       whatsappService.getNextSr()
         .then((res) => {
-          if (res?.nextSr) setSrNumber(String(res.nextSr));
-          if (res?.lastDated) setDated(res.lastDated);
+          const sSr = res?.nextSr ?? res?.data?.nextSr;
+          const sDate = res?.lastDated ?? res?.data?.lastDated;
+          if (sSr) setSrNumber(String(sSr));
+          if (sDate) {
+            setDated(formatDateForDateInput(sDate));
+          }
         })
         .catch((err) => {
           console.warn('[AddWhatsappForm] Could not fetch next SR:', err);
@@ -61,7 +105,7 @@ const AddWhatsappForm = ({
     setErrors({});
     setServerError('');
     setSuccessBanner('');
-  }, [editData]);
+  }, [editData, latestEntry, lastSavedDate]);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];

@@ -21,12 +21,16 @@ const WhatsappUpdatesPage = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [lastSavedDate, setLastSavedDate] = useState('');
 
   const fetchUpdates = useCallback(async (page = 1, query = '') => {
     setIsLoading(true);
     try {
       const data = await whatsappService.getUpdates({ page, limit: 25, query });
       setUpdates(data);
+      if (Array.isArray(data) && data.length > 0 && (data[0].dated || data[0].date)) {
+        setLastSavedDate(prev => prev || data[0].dated || data[0].date);
+      }
       setTotalItems(data.total || data.length || 0);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
@@ -146,11 +150,18 @@ const WhatsappUpdatesPage = () => {
       {isAdmin && isFormOpen && (
         <AddWhatsappForm
           editData={editingItem}
+          latestEntry={updates && updates.length > 0 ? updates[0] : null}
+          lastSavedDate={lastSavedDate || (updates && updates.length > 0 ? (updates[0]?.dated || updates[0]?.date) : '')}
           onClose={() => {
             setIsFormOpen(false);
             setEditingItem(null);
           }}
-          onSuccess={handleFormSuccess}
+          onSuccess={(savedItem, message, opts) => {
+            if (savedItem?.dated || savedItem?.date) {
+              setLastSavedDate(savedItem.dated || savedItem.date);
+            }
+            handleFormSuccess(savedItem, message, opts);
+          }}
         />
       )}
 
