@@ -19,6 +19,10 @@ export const whatsappService = {
     const res = await api.get(`/api/whatsapp-updates/${id}`);
     return res.data?.data;
   },
+  getNextSr: async () => {
+    const res = await api.get('/api/whatsapp-updates/next-sr');
+    return res.data;
+  },
   createUpdate: async (data) => {
     const res = await api.post('/api/whatsapp-updates', data);
     return res.data?.data;
@@ -30,6 +34,14 @@ export const whatsappService = {
   deleteUpdate: async (id) => {
     const res = await api.delete(`/api/whatsapp-updates/${id}`);
     return res.data;
+  },
+  getViewUrl: (id) => {
+    const token = localStorage.getItem('token');
+    return `/api/whatsapp-updates/${id}/view${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
+  getDownloadUrl: (id) => {
+    const token = localStorage.getItem('token');
+    return `/api/whatsapp-updates/${id}/download${token ? `?token=${encodeURIComponent(token)}` : ''}`;
   }
 };
 

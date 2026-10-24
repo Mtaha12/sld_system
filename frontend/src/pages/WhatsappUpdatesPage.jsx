@@ -63,10 +63,12 @@ const WhatsappUpdatesPage = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleFormSuccess = (savedItem, message) => {
+  const handleFormSuccess = (savedItem, message, options = {}) => {
     setToastMessage(message || 'Success');
-    setIsFormOpen(false);
-    setEditingItem(null);
+    if (!options?.keepOpen) {
+      setIsFormOpen(false);
+      setEditingItem(null);
+    }
     fetchUpdates(currentPage, searchKeyword);
   };
 

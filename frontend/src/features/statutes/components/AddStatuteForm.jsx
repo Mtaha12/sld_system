@@ -177,12 +177,20 @@ const AddStatuteForm = () => {
     handleSubmit,
     setValue,
     getValues,
+    reset,
     watch,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(statuteSchema),
     defaultValues,
   });
+
+  useEffect(() => {
+    if (location.state?.statuteData) {
+      // Clear location state so advancing to next SR is never overridden by original editData
+      window.history.replaceState({}, document.title);
+    }
+  }, []);
 
   const watchedSr = watch('srNumber');
 
@@ -197,28 +205,29 @@ const AddStatuteForm = () => {
       const data = await statuteService.getStatuteById(cleanSr);
       if (data) {
         setCurrentRecordId(data._id || data.id);
-        setValue('srNumber', String(data.srNumber || cleanSr));
-        setValue('department', data.department?.toLowerCase() || 'tax');
-        setValue('chapter', data.chapter || '');
-        setValue('display', data.display?.toLowerCase() === 'no' ? 'no' : 'yes');
-        setValue('status', data.display === 'No' ? 'inactive' : 'active');
-        setValue('law', data.law || '');
-        setValue('section', data.section || '');
-        setValue('heading', data.heading || '');
-        if (Array.isArray(data.blocks) && data.blocks.length > 0) {
-          setValue('blocks', data.blocks.map((b, i) => ({
-            id: b._id || `existing-${i}`,
-            sectionHeading: b.sectionHeading || '',
-            fromDate: formatDateForInput(b.fromDate),
-            toDate: formatDateForInput(b.toDate),
-            detail: b.detail || '',
-            attachments: b.attachments || []
-          })));
-        } else {
-          setValue('blocks', [
-            { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
-          ]);
-        }
+        const newBlocks = (Array.isArray(data.blocks) && data.blocks.length > 0)
+          ? data.blocks.map((b, i) => ({
+              id: b._id || `existing-${i}-${Date.now()}`,
+              sectionHeading: b.sectionHeading || '',
+              fromDate: formatDateForInput(b.fromDate),
+              toDate: formatDateForInput(b.toDate),
+              detail: b.detail || '',
+              attachments: b.attachments || []
+            }))
+          : [{ id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }];
+
+        reset({
+          srNumber: String(data.srNumber || cleanSr),
+          department: data.department?.toLowerCase() || 'tax',
+          chapter: data.chapter || '',
+          display: data.display?.toLowerCase() === 'no' ? 'no' : 'yes',
+          status: data.display === 'No' ? 'inactive' : 'active',
+          law: data.law || '',
+          section: data.section || '',
+          heading: data.heading || '',
+          blocks: newBlocks
+        });
+
         setLoadFeedback({
           type: 'success',
           message: `SR #${cleanSr} loaded: ${data.heading ? (data.heading.slice(0, 32) + '...') : (data.law || 'Statute Record')}`
@@ -228,12 +237,20 @@ const AddStatuteForm = () => {
       console.warn(`[Statute Load] SR #${cleanSr} lookup notice:`, err?.response?.data?.message || err.message);
       // Not found in database — keep SR and allow creating new record
       setCurrentRecordId(null);
-      setValue('srNumber', cleanSr);
-      // Requirement 6 & 7: Keep last entered Law, Chapter, and Heading, but clear Section and reset Blocks to 1 clean empty block without attachments!
-      setValue('section', '');
-      setValue('blocks', [
-        { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
-      ]);
+      reset({
+        srNumber: cleanSr,
+        department: getValues('department') || 'tax',
+        chapter: getValues('chapter') || '',
+        display: 'yes',
+        status: 'active',
+        law: getValues('law') || '',
+        section: '',
+        heading: getValues('heading') || '',
+        blocks: [
+          { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
+        ]
+      });
+
       setLoadFeedback({
         type: 'notFound',
         message: `SR #${cleanSr} not found in database. Ready to create new statute.`
@@ -242,7 +259,7 @@ const AddStatuteForm = () => {
       setLoadingStatute(false);
       setTimeout(() => setLoadFeedback(null), 6000);
     }
-  }, [getValues, setValue]);
+  }, [getValues, reset]);
 
   const handleStepSr = (delta) => {
     const rawVal = getValues('srNumber');
@@ -327,11 +344,9 @@ const AddStatuteForm = () => {
     });
 
     try {
-      const isNavEdit = Boolean(isEdit || editData || currentRecordId);
-      const targetSr = editData?.srNumber
-        ? String(editData.srNumber).trim()
-        : String(data.srNumber || '').trim();
-      let targetId = currentRecordId || editData?.id || editData?._id;
+      const targetSr = String(data.srNumber ?? getValues('srNumber') ?? '').trim();
+      let targetId = currentRecordId;
+
       if (!targetId && targetSr) {
         try {
           const existing = await statuteService.getStatuteById(targetSr);
@@ -352,19 +367,20 @@ const AddStatuteForm = () => {
       const isNext = isSaveAndNextRef.current;
       isSaveAndNextRef.current = false;
 
-      if (targetId || isNavEdit) {
+      if (targetId) {
         await statuteService.updateStatute(targetId || targetSr, payload);
-        if (targetSr) {
-          setValue('srNumber', targetSr, { shouldDirty: false });
-        }
         setShowSuccess(true);
       } else {
-        await statuteService.createStatute(payload);
+        const created = await statuteService.createStatute(payload);
+        if (created?.data?._id || created?._id) {
+          targetId = created?.data?._id || created?._id;
+          setCurrentRecordId(targetId);
+        }
         setShowSuccess(true);
       }
 
       if (isNext) {
-        // Move to NEXT statute: current SR # + 1 so user can keep moving to next statute
+        // Move to NEXT statute: current SR # + 1 so user can keep moving to next statute repeatedly
         const currentSrNum = parseInt(targetSr || '1', 10);
         const nextSrNum = Math.max(1, (isNaN(currentSrNum) ? 1 : currentSrNum) + 1);
         const nextSr = String(nextSrNum);
@@ -386,12 +402,20 @@ const AddStatuteForm = () => {
             nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
           }
           setAutoNewSr(nextSr);
-          setValue('srNumber', nextSr);
-          setValue('section', '');
-          setValue('blocks', [
-            { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
-          ]);
           setCurrentRecordId(null);
+          reset({
+            srNumber: nextSr,
+            department: getValues('department') || 'tax',
+            chapter: getValues('chapter') || '',
+            display: 'yes',
+            status: 'active',
+            law: getValues('law') || '',
+            section: '',
+            heading: getValues('heading') || '',
+            blocks: [
+              { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
+            ]
+          });
         }
       }
 

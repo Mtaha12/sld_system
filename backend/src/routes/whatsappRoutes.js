@@ -1,7 +1,10 @@
 import express from 'express';
 import {
   getWhatsappUpdates,
+  getNextWhatsappSr,
   getWhatsappUpdateById,
+  viewWhatsappAttachment,
+  downloadWhatsappAttachment,
   createWhatsappUpdate,
   updateWhatsappUpdate,
   deleteWhatsappUpdate
@@ -13,6 +16,9 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/', getWhatsappUpdates);
+router.get('/next-sr', getNextWhatsappSr);
+router.get('/:id/view', viewWhatsappAttachment);
+router.get('/:id/download', downloadWhatsappAttachment);
 router.get('/:id', getWhatsappUpdateById);
 
 router.post('/', requireAdmin, createWhatsappUpdate);

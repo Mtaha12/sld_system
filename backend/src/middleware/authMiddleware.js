@@ -17,9 +17,11 @@ export const clearUserSessionCache = (userId) => {
 export const protect = async (req, res, next) => {
   let token;
 
-  // Check Authorization header for Bearer token
+  // Check Authorization header for Bearer token or query param (for new-tab document views)
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
   }
 
   if (!token) {
