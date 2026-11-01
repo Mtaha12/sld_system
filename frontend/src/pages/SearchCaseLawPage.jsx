@@ -171,6 +171,11 @@ const CaseTableRow = React.memo(({
         </div>
       </td>
 
+      {/* Dated */}
+      <td className="px-3 py-3 whitespace-nowrap align-top text-center font-mono text-[11px] text-gray-700 font-medium">
+        {c.dated ? String(c.dated).split('T')[0] : '—'}
+      </td>
+
       {/* Dynamic Law Column */}
       {showLawColumns && (
         <>
@@ -867,6 +872,7 @@ const SearchCaseLawPage = () => {
                     <th className="px-3 py-3 font-bold w-12 text-center">#</th>
                     <th className="px-3 py-3 font-bold whitespace-nowrap min-w-[80px]">SLD #</th>
                     <th className="px-3 py-3 font-bold whitespace-nowrap min-w-[140px]">Citation</th>
+                    <th className="px-3 py-3 font-bold whitespace-nowrap min-w-[95px] text-center">Dated</th>
                     
                     {/* Dynamic Columns based on queried fields */}
                     {showLawColumns && (

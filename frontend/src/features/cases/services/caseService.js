@@ -152,5 +152,21 @@ export const caseService = {
   getNextSld: async () => {
     const response = await api.get('/api/cases/next-sld');
     return response.data;
+  },
+
+  /**
+   * Uploads an attachment file (PDF, Word, Image) for a case law record
+   * @param {File} file
+   * @returns {Promise<{name: string, url: string, size: string, type: string}>}
+   */
+  uploadAttachment: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/api/cases/upload-attachment', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data?.data;
   }
 };

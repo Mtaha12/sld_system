@@ -200,8 +200,13 @@ const ManageCasesTable = ({
   // Sync active attachments when a case is selected for attachment viewing
   useEffect(() => {
     if (attachmentModalCase) {
-      if (Array.isArray(attachmentModalCase.attachments) && attachmentModalCase.attachments.length > 0) {
-        setActiveCaseAttachments(attachmentModalCase.attachments.map((f, i) => {
+      const rawList = Array.isArray(attachmentModalCase.attachmentsData) && attachmentModalCase.attachmentsData.length > 0
+        ? attachmentModalCase.attachmentsData
+        : (Array.isArray(attachmentModalCase.attachments) && attachmentModalCase.attachments.length > 0
+          ? attachmentModalCase.attachments
+          : null);
+      if (rawList) {
+        setActiveCaseAttachments(rawList.map((f, i) => {
           if (typeof f === 'string') {
             const fileName = f.split('/').pop() || `Attachment_${i + 1}.pdf`;
             return {
@@ -578,6 +583,7 @@ const ManageCasesTable = ({
                 <TableHeader title="SLD #" sortKey="sldNumber" sortConfig={sortConfig} onSort={handleSort} widthClassName={isMagazineSearch ? "w-24" : "w-16 text-center"} />
                 {isMagazineSearch ? (
                   <>
+                    <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} widthClassName="w-24 text-center" />
                     <TableHeader
                       title={searchMagazine ? `Year / Mag / Vol (${searchMagazine.toUpperCase()})` : "Year / Mag / Vol (All Entries)"}
                       sortKey="mapYearPage"
@@ -607,13 +613,13 @@ const ManageCasesTable = ({
             <tbody className="divide-y divide-theme-border/50">
               {loading ? (
                 <tr>
-                  <td colSpan={isMagazineSearch ? 6 : 12} className="py-12 text-center">
+                  <td colSpan={isMagazineSearch ? 7 : 12} className="py-12 text-center">
                     <SquareLoader text="Loading Case Law records..." />
                   </td>
                 </tr>
               ) : currentData.length === 0 ? (
                 <tr>
-                  <td colSpan={isMagazineSearch ? 6 : 12} className="py-12 text-center text-sm text-theme-muted">
+                  <td colSpan={isMagazineSearch ? 7 : 12} className="py-12 text-center text-sm text-theme-muted">
                     No Case Law records found.
                   </td>
                 </tr>
@@ -645,6 +651,7 @@ const ManageCasesTable = ({
 
                     {isMagazineSearch ? (
                       <>
+                      <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated ? String(item.dated).split('T')[0] : '—'}</td>
                       <td className="px-2 py-2.5 align-top text-theme-main">
                         <div className="flex flex-wrap gap-1 max-h-[64px] overflow-y-auto">
                           {(() => {
@@ -728,7 +735,7 @@ const ManageCasesTable = ({
                       </>
                     ) : (
                       <>
-                        <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated ? item.dated.split('T')[0] : ''}</td>
+                        <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated ? String(item.dated).split('T')[0] : '—'}</td>
                         <td className="px-2 py-2.5 align-top text-theme-muted">
                           <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden max-h-[64px]">
                             {formatCitations(item.mapYearPage, item.publications)
@@ -771,7 +778,7 @@ const ManageCasesTable = ({
                           </div>
                         </td>
                         <td className="px-2 py-2.5 align-top text-center whitespace-nowrap">
-                          {Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                          {((Array.isArray(item.attachments) && item.attachments.length > 0) || (typeof item.attachments === 'number' && item.attachments > 0) || (Array.isArray(item.attachmentsData) && item.attachmentsData.length > 0)) ? (
                             <button 
                               type="button"
                               onClick={() => setAttachmentModalCase(item)}
@@ -779,7 +786,7 @@ const ManageCasesTable = ({
                               title="View Attached Documents"
                             >
                               <Eye className="w-3.5 h-3.5 shrink-0" />
-                              <span>View ({item.attachments.length})</span>
+                              <span>View ({typeof item.attachments === 'number' ? item.attachments : (item.attachments?.length || item.attachmentsData?.length || 1)})</span>
                             </button>
                           ) : (
                             <span className="text-theme-disabled font-bold text-sm select-none">—</span>

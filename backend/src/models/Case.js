@@ -16,7 +16,7 @@ const lawReferenceSchema = new mongoose.Schema({
 });
 
 const attachmentSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  name: { type: String, default: 'Attachment' },
   url: { type: String, default: '' },
   size: { type: String, default: '' },
   type: { type: String, default: 'pdf' }

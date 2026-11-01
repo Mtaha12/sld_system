@@ -4,6 +4,7 @@ import UserActivity from '../models/UserActivity.js';
 import { spoofCase, spoofCaseList } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
+import path from 'path';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -317,6 +318,86 @@ export const extractRelevantParagraph = (judgmentText, headNoteText, searchTerms
 /**
  * Helper to format case model for frontend compatibility
  */
+/**
+ * Intelligently resolves and normalizes case decision date.
+ * If case has a dated property, returns that (normalized).
+ * Otherwise extracts date from caseNumber array, laws, or publication year.
+ */
+export const extractCaseDate = (c) => {
+  if (!c) return '';
+  if (c.dated && String(c.dated).trim()) {
+    return String(c.dated).trim().split('T')[0];
+  }
+
+  // Fallback 1: Extract from caseNumber strings
+  const caseNumbers = Array.isArray(c.caseNumber) ? c.caseNumber : (c.caseNumber ? [c.caseNumber] : []);
+  for (const cn of caseNumbers) {
+    if (!cn) continue;
+    const str = String(cn);
+    const match = str.match(/(?:decision\s+dated|decided\s+on|order\s+dtd|dated|hearing\s+date|judgment\s+dated)\s*[:\-]?\s*(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/i);
+    if (match) {
+      let day = match[1].padStart(2, '0');
+      let month = match[2].padStart(2, '0');
+      let year = match[3];
+      if (year.length === 2) year = `20${year}`;
+      return `${year}-${month}-${day}`;
+    }
+    const isoMatch = str.match(/\b(19\d{2}|20\d{2})[-/.](0[1-9]|1[0-2])[-/.](0[1-9]|[12]\d|3[01])\b/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+    }
+    const dmyMatch = str.match(/\b(0[1-9]|[12]\d|3[01])[-/.](0[1-9]|1[0-2])[-/.](19\d{2}|20\d{2})\b/);
+    if (dmyMatch) {
+      return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+    }
+  }
+
+  // Fallback 2: Extract from laws array
+  if (Array.isArray(c.laws)) {
+    for (const law of c.laws) {
+      const d = law?.dated || law?.date;
+      if (d && String(d).trim()) {
+        return String(d).trim().split('T')[0];
+      }
+    }
+  }
+
+  // Fallback 3: Extract from publications year
+  if (Array.isArray(c.publications) && c.publications.length > 0) {
+    const pubYear = c.publications.find(p => p?.year && /^\d{4}$/.test(String(p.year).trim()))?.year;
+    if (pubYear) {
+      return String(pubYear).trim();
+    }
+  }
+
+  return '';
+};
+
+/**
+ * Normalizes attachment inputs to ensure every attachment object adheres to schema
+ */
+export const sanitizeAttachments = (attachments) => {
+  if (!Array.isArray(attachments)) return [];
+  return attachments
+    .filter(att => att && typeof att === 'object')
+    .map((att, idx) => {
+      const name = att.name || att.originalName || att.filename || `Attachment_${idx + 1}.pdf`;
+      const url = att.url || att.path || '';
+      let size = att.size || '';
+      if (typeof size === 'number') {
+        size = `${(size / (1024 * 1024)).toFixed(2)} MB`;
+      }
+      const ext = String(name).split('.').pop()?.toLowerCase();
+      const type = att.type || (['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? 'image' : (['doc', 'docx'].includes(ext) ? 'word' : 'pdf'));
+      return {
+        name: String(name).trim() || `Attachment_${idx + 1}.pdf`,
+        url: String(url).trim(),
+        size: String(size).trim(),
+        type: String(type).trim()
+      };
+    });
+};
+
 const formatCaseForFrontend = (c) => {
   const mappedCitations = Array.isArray(c.mapYearPage) ? c.mapYearPage.filter(Boolean) : [];
   const publicationCitations = buildMapYearPage(c.publications || []);
@@ -333,7 +414,7 @@ const formatCaseForFrontend = (c) => {
     caseId: c.caseId || c.case_id || '',
     case_id: c.case_id || c.caseId || '',
     sldNumber: c.sldNumber || c.caseId || '',
-    dated: c.dated || '',
+    dated: extractCaseDate(c),
     department: c.department || 'tax',
     court: c.court || '',
     caseNumber: c.caseNumber || [],
@@ -952,7 +1033,7 @@ export const createCase = async (req, res, next) => {
       judgment: judgment || '',
       publications: pubs,
       laws: normalizeLawReferences(laws),
-      attachments: attachments || [],
+      attachments: sanitizeAttachments(attachments),
       mapYearPage
     });
 
@@ -1049,7 +1130,7 @@ export const updateCase = async (req, res, next) => {
       c.mapYearPage = buildMapYearPage(publications);
     }
     if (laws !== undefined) c.laws = normalizeLawReferences(laws);
-    if (attachments !== undefined) c.attachments = attachments;
+    if (attachments !== undefined) c.attachments = sanitizeAttachments(attachments);
 
     await c.save();
     caseDetailCache.clear();
@@ -1465,5 +1546,32 @@ export const searchCases = async (req, res, next) => {
   } catch (error) {
     logger.error('Error in searchCases:', error);
     next(error);
+
+  }
+};
+
+/**
+ * Handles dedicated document/PDF attachment upload for case records
+ */
+export const uploadCaseAttachment = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded.' });
+    }
+    const relativeUrl = `/uploads/reference_views/${req.file.filename}`;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const type = ext === '.docx' || ext === '.doc' ? 'word' : (['.png', '.jpg', '.jpeg', '.webp'].includes(ext) ? 'image' : 'pdf');
+    return res.status(200).json({
+      success: true,
+      message: 'Attachment uploaded successfully.',
+      data: {
+        name: req.file.originalname,
+        url: relativeUrl,
+        size: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
+        type
+      }
+    });
+  } catch (err) {
+    next(err);
   }
 };

@@ -3,9 +3,11 @@ import {
   getCases, getCaseById, getCaseBySld, createCase, 
   updateCase, deleteCase, deleteMultiple,
   searchCases, getMaxPage, getNextSld,
-  getCaseDatabaseStats
+  getCaseDatabaseStats,
+  uploadCaseAttachment
 } from '../controllers/caseController.js';
 import { protect, requireAdmin, checkCaseAccess } from '../middleware/authMiddleware.js';
+import { uploadReferenceViewMiddleware } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -22,6 +24,7 @@ router.get('/sld/:sld', getCaseBySld); // direct lookup by SLD number
 router.get('/:id', getCaseById);
 
 // Write/Edit actions (Restricted strictly to Administrators)
+router.post('/upload-attachment', requireAdmin, uploadReferenceViewMiddleware, uploadCaseAttachment);
 router.post('/', requireAdmin, createCase);
 router.put('/:id', requireAdmin, updateCase);
 router.delete('/:id', requireAdmin, deleteCase);

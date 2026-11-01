@@ -163,6 +163,7 @@ const AddCaseLawDetail = ({ onClose }) => {
   const [currentCaseId, setCurrentCaseId] = useState(editData?.id || editData?._id || null);
   const isEdit = Boolean(currentCaseId || isNavEdit);
   const [assignedSldNumber, setAssignedSldNumber] = useState(editData?.sldNumber ? String(editData.sldNumber) : '');
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [loadSldInput, setLoadSldInput] = useState('');
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
   const [loadingCase, setLoadingCase] = useState(false);
@@ -736,8 +737,21 @@ const AddCaseLawDetail = ({ onClose }) => {
       const targetSld = editData?.sldNumber 
         ? String(editData.sldNumber).trim() 
         : (assignedSldNumber || data.srNumber || '').trim();
+      const safeAttachments = (Array.isArray(data.attachments) ? data.attachments : [])
+        .map((att, idx) => {
+          if (!att || typeof att !== 'object') return null;
+          return {
+            name: att.name || att.originalName || att.filename || `Attachment_${idx + 1}.pdf`,
+            url: att.url || '',
+            size: typeof att.size === 'number' ? `${(att.size / (1024 * 1024)).toFixed(2)} MB` : (att.size || ''),
+            type: att.type || (att.name?.endsWith('.docx') ? 'word' : (att.name?.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf'))
+          };
+        })
+        .filter(Boolean);
+
       const payload = {
         ...data,
+        attachments: safeAttachments,
         srNumber: targetSld
       };
 
@@ -1268,22 +1282,70 @@ const AddCaseLawDetail = ({ onClose }) => {
                     const files = Array.isArray(field.value) ? field.value : (field.value ? [field.value] : []);
                     return (
                       <div className="flex flex-col gap-1.5">
-                        <label className="cursor-pointer w-fit">
+                        <label className={`cursor-pointer w-fit ${isUploadingAttachment ? 'opacity-60 pointer-events-none' : ''}`}>
                           <input
                             type="file"
                             multiple
                             accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
                             className="hidden"
-                            onChange={(e) => {
-                              const newFiles = Array.from(e.target.files || []);
-                              const combined = [...files, ...newFiles.filter(nf => !files.some(ef => ef.name === nf.name && ef.size === nf.size))];
-                              field.onChange(combined);
-                              e.target.value = '';
+                            disabled={isUploadingAttachment}
+                            onChange={async (e) => {
+                              const selected = Array.from(e.target.files || []);
+                              if (selected.length === 0) return;
+                              setIsUploadingAttachment(true);
+                              try {
+                                const uploadedItems = [];
+                                for (const f of selected) {
+                                  try {
+                                    const res = await caseService.uploadAttachment(f);
+                                    if (res && res.url) {
+                                      uploadedItems.push({
+                                        name: res.name || f.name,
+                                        url: res.url,
+                                        size: res.size || `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
+                                        type: res.type || (f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf'))
+                                      });
+                                    } else {
+                                      uploadedItems.push({
+                                        name: f.name,
+                                        url: '',
+                                        size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
+                                        type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
+                                      });
+                                    }
+                                  } catch (uploadErr) {
+                                    console.warn('Direct attachment upload warning:', uploadErr);
+                                    uploadedItems.push({
+                                      name: f.name,
+                                      url: '',
+                                      size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
+                                      type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
+                                    });
+                                  }
+                                }
+                                const combined = [
+                                  ...files,
+                                  ...uploadedItems.filter(nf => !files.some(ef => ef.name === nf.name))
+                                ];
+                                field.onChange(combined);
+                              } finally {
+                                setIsUploadingAttachment(false);
+                                e.target.value = '';
+                              }
                             }}
                           />
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-orange/40 bg-brand-orange/5 hover:bg-brand-orange/10 text-xs font-semibold text-brand-orange transition-colors cursor-pointer select-none">
-                            <Upload className="w-3.5 h-3.5" />
-                            Choose File
+                            {isUploadingAttachment ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5" />
+                                Choose File
+                              </>
+                            )}
                           </span>
                         </label>
                         {files.length > 0 && (
