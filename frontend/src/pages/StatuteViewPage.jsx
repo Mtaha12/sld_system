@@ -48,6 +48,7 @@ const StatuteViewPage = () => {
   const [statute, setStatute] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAllBlocks, setShowAllBlocks] = useState(false);
   useSecurePrintShortcut();
 
   // UI States matching Case Law View
@@ -75,16 +76,54 @@ const StatuteViewPage = () => {
     fetchStatute();
   }, [id]);
 
+  const rawBlocks = Array.isArray(statute?.blocks) && statute.blocks.length > 0 ? statute.blocks : null;
+
+  // Filter to show ONLY the relevant block when blockId or blockIndex is provided
+  const { displayBlocks, matchedBlockIndex, isSingleBlockView } = useMemo(() => {
+    if (!rawBlocks || rawBlocks.length <= 1) {
+      return { displayBlocks: rawBlocks, matchedBlockIndex: -1, isSingleBlockView: false };
+    }
+
+    if (showAllBlocks) {
+      return { displayBlocks: rawBlocks, matchedBlockIndex: -1, isSingleBlockView: false };
+    }
+
+    const hasTargetParam = (targetBlockId !== null && targetBlockId !== undefined && targetBlockId !== '') ||
+      (targetBlockIndex !== null && targetBlockIndex !== undefined && targetBlockIndex !== '');
+
+    if (!hasTargetParam) {
+      return { displayBlocks: rawBlocks, matchedBlockIndex: -1, isSingleBlockView: false };
+    }
+
+    // 1. Try to match by blockId
+    if (targetBlockId) {
+      const idx = rawBlocks.findIndex(b => {
+        const bId = String(b._id || b.id || '');
+        return bId && bId === String(targetBlockId);
+      });
+      if (idx >= 0) {
+        return { displayBlocks: [rawBlocks[idx]], matchedBlockIndex: idx, isSingleBlockView: true };
+      }
+    }
+
+    // 2. Try to match by blockIndex
+    if (targetBlockIndex !== null && targetBlockIndex !== undefined && targetBlockIndex !== '') {
+      const parsedIdx = parseInt(targetBlockIndex, 10);
+      if (!isNaN(parsedIdx) && parsedIdx >= 0 && parsedIdx < rawBlocks.length) {
+        return { displayBlocks: [rawBlocks[parsedIdx]], matchedBlockIndex: parsedIdx, isSingleBlockView: true };
+      }
+    }
+
+    // Fallback if target cannot be resolved
+    return { displayBlocks: rawBlocks, matchedBlockIndex: -1, isSingleBlockView: false };
+  }, [rawBlocks, targetBlockId, targetBlockIndex, showAllBlocks]);
+
   const allAttachments = useMemo(() => {
     if (!statute) return [];
     const list = [];
-    if (Array.isArray(statute.attachments)) {
-      list.push(...statute.attachments);
-    } else if (statute.attachment) {
-      list.push(statute.attachment);
-    }
-    if (Array.isArray(statute.blocks)) {
-      statute.blocks.forEach(b => {
+    const blocksToScan = displayBlocks && displayBlocks.length > 0 ? displayBlocks : rawBlocks;
+    if (blocksToScan && blocksToScan.length > 0) {
+      blocksToScan.forEach(b => {
         if (Array.isArray(b?.attachments)) {
           list.push(...b.attachments);
         } else if (b?.attachment) {
@@ -92,8 +131,17 @@ const StatuteViewPage = () => {
         }
       });
     }
+    if (list.length === 0) {
+      if (Array.isArray(statute.attachments)) {
+        list.push(...statute.attachments);
+      } else if (statute.attachment) {
+        list.push(statute.attachment);
+      }
+    }
     return list.filter(Boolean);
-  }, [statute]);
+  }, [statute, displayBlocks, rawBlocks]);
+
+  const singleContent = statute?.content || statute?.description || statute?.detail || statute?.text || '';
 
   const handleCopy = async () => {
     try {
@@ -102,8 +150,8 @@ const StatuteViewPage = () => {
         chapter: statute?.chapter || '',
         section: statute?.section ? `Section ${statute.section}` : '',
         heading: statute?.heading || '',
-        blocks: Array.isArray(statute?.blocks) ? statute.blocks : [],
-        singleContent: statute?.content || statute?.description || statute?.detail || statute?.text || '',
+        blocks: displayBlocks || rawBlocks || [],
+        singleContent: singleContent || '',
         referenceNumber: (statute?.srNumber || statute?.id) ? `#STAT-${String(statute.srNumber || statute.id).padStart(6, '0')}` : ''
       });
       setCopied(true);
@@ -149,8 +197,7 @@ const StatuteViewPage = () => {
   const lawTitle = statute.law || statute.lawStatute || 'Statute / Legislation';
   const sectionTitle = statute.section ? `Section ${statute.section}` : '';
   const mainHeading = statute.heading || statute.title || '';
-  const blocks = Array.isArray(statute.blocks) && statute.blocks.length > 0 ? statute.blocks : null;
-  const singleContent = statute.content || statute.description || statute.detail || statute.text || '';
+  const blocks = displayBlocks;
 
   return (
     <div className="min-h-screen w-full bg-[#F4F1EA] dark:bg-[#0c0e14] text-[#1c1d22] dark:text-[#E2E8F0] overflow-y-auto print:bg-white print:text-black print:overflow-visible transition-colors font-sans antialiased selection:bg-[#f15a24]/20 selection:text-[#f15a24]">
@@ -369,18 +416,49 @@ const StatuteViewPage = () => {
                   ? block.attachments 
                   : (block.attachment ? [block.attachment] : []);
 
+                const originalBlockNum = matchedBlockIndex >= 0 ? matchedBlockIndex + 1 : (bIdx + 1);
+
                 return (
                   <section 
-                    key={bIdx} 
+                    key={block._id || block.id || bIdx} 
                     className="p-5 sm:p-6 bg-white dark:bg-stone-900/80 rounded-xl border border-stone-200 dark:border-stone-700/80 shadow-2xs space-y-4"
                   >
                     {/* Block Title and Date Header */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-3">
                       <div>
-                        {blocks.length > 1 && (
-                          <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 mb-1">
-                            Block {bIdx + 1}
-                          </span>
+                        {isSingleBlockView ? (
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="inline-block text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#f15a24]/10 text-[#f15a24] border border-[#f15a24]/30 shadow-2xs">
+                              Relevant Legal Block {matchedBlockIndex >= 0 ? `(${matchedBlockIndex + 1} of ${rawBlocks?.length || 1})` : ''}
+                            </span>
+                            {rawBlocks && rawBlocks.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setShowAllBlocks(true)}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-semibold cursor-pointer print:hidden"
+                                title="Click to view all legal blocks in this statute document"
+                              >
+                                View All {rawBlocks.length} Blocks
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          rawBlocks && rawBlocks.length > 1 && (
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
+                                Block {bIdx + 1} of {rawBlocks.length}
+                              </span>
+                              {showAllBlocks && matchedBlockIndex >= 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAllBlocks(false)}
+                                  className="text-[11px] text-[#f15a24] hover:underline font-semibold cursor-pointer print:hidden"
+                                >
+                                  Show Only Block {matchedBlockIndex + 1}
+                                </button>
+                              )}
+                            </div>
+                          )
                         )}
                         {block.sectionHeading && (
                           <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100">

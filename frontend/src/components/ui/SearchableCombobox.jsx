@@ -5,8 +5,9 @@ import { ChevronDown, X, Check } from 'lucide-react';
  * Highlights matching query terms within text
  */
 const highlightMatch = (text, query) => {
-  if (!query || !query.trim() || !text) return text;
-  const q = query.trim();
+  const safeQuery = typeof query === 'object' && query !== null ? (query.target?.value ?? query.value ?? '') : query;
+  if (!safeQuery || !String(safeQuery).trim() || !text) return text;
+  const q = String(safeQuery).trim();
   const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`(${escaped})`, 'gi');
   const parts = String(text).split(regex);
@@ -25,6 +26,14 @@ const highlightMatch = (text, query) => {
       part
     )
   );
+};
+
+const getDisplayString = (val) => {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') {
+    return String(val.target?.value ?? val.value ?? val.label ?? '');
+  }
+  return String(val);
 };
 
 /**
@@ -251,7 +260,7 @@ const SearchableCombobox = ({
           id={id}
           name={name}
           disabled={disabled}
-          value={value ?? ''}
+          value={getDisplayString(value)}
           placeholder={placeholder}
           autoComplete="off"
           onChange={(e) => {
@@ -271,7 +280,7 @@ const SearchableCombobox = ({
 
         {/* Right Action Icons (Clear + Dropdown Toggle) */}
         <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10">
-          {Boolean(String(value ?? '')) && !disabled && (
+          {Boolean(getDisplayString(value).trim()) && !disabled && (
             <button
               type="button"
               tabIndex={-1}
@@ -307,12 +316,12 @@ const SearchableCombobox = ({
           className="absolute left-0 min-w-full sm:min-w-[340px] max-w-[540px] top-full mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl z-50 py-1 divide-y divide-gray-100 dark:divide-zinc-800/60 animate-in fade-in duration-150"
         >
           {/* Custom typed option if user typed something new and allowCustom is true */}
-          {allowCustom && Boolean(String(value ?? '').trim()) && !hasExactMatch && (
+          {allowCustom && Boolean(getDisplayString(value).trim()) && !hasExactMatch && (
             <div
-              onClick={() => handleSelect(String(value ?? '').trim())}
+              onClick={() => handleSelect(getDisplayString(value).trim())}
               className="px-3 py-2 text-xs text-brand-orange hover:bg-brand-orange/10 cursor-pointer flex items-center justify-between font-semibold"
             >
-              <span className="pr-2 break-words">Use typed: &ldquo;{value}&rdquo;</span>
+              <span className="pr-2 break-words">Use typed: &ldquo;{getDisplayString(value)}&rdquo;</span>
               <span className="text-[10px] bg-brand-orange/20 px-1.5 py-0.5 rounded text-brand-orange shrink-0">
                 Custom
               </span>
@@ -325,7 +334,7 @@ const SearchableCombobox = ({
               <>
                 {filteredOptions.slice(0, 150).map((opt, optIdx) => {
                   const isSelected =
-                    String(value ?? '').trim().toLowerCase() === opt.value.trim().toLowerCase();
+                    getDisplayString(value).trim().toLowerCase() === opt.value.trim().toLowerCase();
                   const isHighlighted = optIdx === highlightedIndex;
 
                   return (
@@ -344,7 +353,7 @@ const SearchableCombobox = ({
                       }`}
                     >
                       <span className="break-words whitespace-normal leading-snug">
-                        {highlightMatch(opt.label || opt.value, String(value ?? ''))}
+                        {highlightMatch(opt.label || opt.value, getDisplayString(value))}
                       </span>
                       {isSelected && (
                         <Check className="w-3.5 h-3.5 text-brand-orange shrink-0" />
@@ -360,7 +369,7 @@ const SearchableCombobox = ({
               </>
             ) : (
               <div className="px-3 py-3 text-xs text-center text-gray-400">
-                No matching options for &ldquo;{value}&rdquo;.{allowCustom ? ' Your typed text will be saved.' : ''}
+                No matching options for &ldquo;{getDisplayString(value)}&rdquo;.{allowCustom ? ' Your typed text will be saved.' : ''}
               </div>
             )}
           </div>

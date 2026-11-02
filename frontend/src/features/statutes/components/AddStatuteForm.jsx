@@ -329,42 +329,64 @@ const AddStatuteForm = () => {
         .catch(err => console.warn('Could not load statute by editId:', err));
     }
 
-    // Prefill Chapter, Law, and Heading from latest entry when adding a new statute
+    // Prefill Chapter, Law, Heading and assign next SR # from previous entry when adding a new statute
     if (!isEdit && !editData && !urlEditId) {
-      statuteService.getLatestStatuteMeta()
-        .then(meta => {
-          if (isMounted && meta) {
-            if (meta.law && !getValues('law')) {
-              setValue('law', meta.law, { shouldDirty: false });
-            }
-            if (meta.chapter && !getValues('chapter')) {
-              setValue('chapter', meta.chapter, { shouldDirty: false });
-            }
-            if (meta.heading && !getValues('heading')) {
-              setValue('heading', meta.heading, { shouldDirty: false });
-            }
-          }
-        })
-        .catch(err => console.warn('Could not prefill latest statute meta:', err));
+      Promise.allSettled([
+        statuteService.getNextSr(),
+        statuteService.getLatestStatuteMeta()
+      ]).then(([nextSrResult, latestMetaResult]) => {
+        if (!isMounted) return;
+
+        const nextRes = nextSrResult.status === 'fulfilled' ? nextSrResult.value : null;
+        const metaRes = latestMetaResult.status === 'fulfilled' ? latestMetaResult.value : null;
+
+        const nextSr = nextRes?.nextSr ? String(nextRes.nextSr) : '';
+        if (nextSr) {
+          setAutoNewSr(nextSr);
+        }
+
+        const prevLaw = nextRes?.lastEntry?.law || metaRes?.law || '';
+        const prevChapter = nextRes?.lastEntry?.chapter || metaRes?.chapter || '';
+        const prevHeading = nextRes?.lastEntry?.heading || metaRes?.heading || '';
+        const prevDepartment = (nextRes?.lastEntry?.department || metaRes?.department || 'tax').toLowerCase();
+
+        const currentSr = getValues('srNumber');
+        const currentLaw = getValues('law');
+        const currentChapter = getValues('chapter');
+        const currentHeading = getValues('heading');
+
+        const finalSr = (!currentSr || currentSr === '1') && nextSr ? nextSr : (currentSr || nextSr || '');
+        const finalLaw = !currentLaw && prevLaw ? prevLaw : (currentLaw || '');
+        const finalChapter = !currentChapter && prevChapter ? prevChapter : (currentChapter || '');
+        const finalHeading = !currentHeading && prevHeading ? prevHeading : (currentHeading || '');
+        const finalDept = getValues('department') || prevDepartment || 'tax';
+
+        reset({
+          srNumber: finalSr,
+          department: finalDept,
+          chapter: finalChapter,
+          display: 'yes',
+          status: 'active',
+          law: finalLaw,
+          section: getValues('section') || '',
+          heading: finalHeading,
+          blocks: getValues('blocks')?.length ? getValues('blocks') : [
+            { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
+          ]
+        });
+
+        if (finalSr) setValue('srNumber', finalSr, { shouldDirty: false });
+        if (finalLaw) setValue('law', finalLaw, { shouldDirty: false, shouldValidate: true });
+        if (finalChapter) setValue('chapter', finalChapter, { shouldDirty: false, shouldValidate: true });
+        if (finalHeading) setValue('heading', finalHeading, { shouldDirty: false, shouldValidate: true });
+        if (finalDept) setValue('department', finalDept, { shouldDirty: false });
+      }).catch(err => {
+        console.warn('Could not auto-fetch previous statute metadata:', err);
+      });
     }
 
-    // Automatically assign next sequential SR # for new statutes and set autoNewSr
-    statuteService.getNextSr()
-      .then(res => {
-        if (isMounted && res?.nextSr) {
-          const fetchedNext = String(res.nextSr);
-          setAutoNewSr(fetchedNext);
-          if (!isEdit && !editData?.srNumber) {
-            setValue('srNumber', fetchedNext, { shouldDirty: false });
-          }
-        }
-      })
-      .catch(err => {
-        console.warn('Could not auto-fetch next Statute SR #:', err);
-      });
-
     return () => { isMounted = false; };
-  }, [isEdit, editData, urlEditId, setValue]);
+  }, [isEdit, editData, urlEditId, setValue, reset, getValues]);
 
 
 

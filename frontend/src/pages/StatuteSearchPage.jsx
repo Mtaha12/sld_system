@@ -399,10 +399,10 @@ const StatuteSearchPage = () => {
   const hasTextSearch = Boolean(text.trim() || text2.trim());
 
   const handleRowViewAction = (row) => {
-    const statuteId = row.statute?.mongoId || row.statute?._id || row.statute?.id || row.statute?.statuteId || row.statute?.srNumber;
-    const blockId = row.blockId || row.block?._id || row.block?.id || '';
-    const blockIndex = row.blockIndex !== undefined ? row.blockIndex : 0;
-    const url = `/statutes/view/${statuteId}?blockId=${blockId}&blockIndex=${blockIndex}`;
+    const statuteId = row.statute?._id || row.statute?.mongoId || row.statute?.id || row.statute?.statuteId || row.statute?.srNumber || row.srNumber || row.statuteId;
+    const blockId = row.block?._id || row.block?.id || row.blockId || '';
+    const blockIndex = row.blockIndex !== undefined && row.blockIndex !== null ? row.blockIndex : '';
+    const url = `/statutes/view/${encodeURIComponent(statuteId)}?blockId=${encodeURIComponent(blockId)}&blockIndex=${encodeURIComponent(blockIndex)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 

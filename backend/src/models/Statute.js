@@ -123,7 +123,7 @@ statuteSchema.index({ isDeleted: 1, createdAt: -1 });
 
 // Soft delete query filter middleware
 statuteSchema.pre(/^find/, function () {
-  this.where({ isDeleted: false });
+  this.where({ isDeleted: { $ne: true } });
 });
 
 

@@ -243,9 +243,9 @@ export const getStatuteById = async (req, res, next) => {
  */
 export const getNextStatuteSr = async (req, res, next) => {
   try {
-    const topStatute = await Statute.findOne({ isDeleted: { $ne: true }, srNumberInt: { $ne: null } })
-      .sort({ srNumberInt: -1 })
-      .select('srNumber srNumberInt')
+    const topStatute = await Statute.findOne({ isDeleted: { $ne: true } })
+      .sort({ srNumberInt: -1, _id: -1 })
+      .select('srNumber srNumberInt law chapter heading department section')
       .lean();
 
     let latestSr = 0;
@@ -259,10 +259,44 @@ export const getNextStatuteSr = async (req, res, next) => {
 
     const nextSr = latestSr > 0 ? latestSr + 1 : 1;
 
+    // Retrieve previous entry fields (chapter, law, heading, department)
+    let law = topStatute?.law || '';
+    let chapter = topStatute?.chapter || '';
+    let heading = topStatute?.heading || '';
+    let department = topStatute?.department || 'tax';
+
+    if (!law) {
+      const withLaw = await Statute.findOne({ isDeleted: { $ne: true }, law: { $exists: true, $ne: '' } })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('law')
+        .lean();
+      if (withLaw?.law) law = withLaw.law;
+    }
+    if (!chapter) {
+      const withChapter = await Statute.findOne({ isDeleted: { $ne: true }, chapter: { $exists: true, $ne: '' } })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('chapter')
+        .lean();
+      if (withChapter?.chapter) chapter = withChapter.chapter;
+    }
+    if (!heading) {
+      const withHeading = await Statute.findOne({ isDeleted: { $ne: true }, heading: { $exists: true, $ne: '' } })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('heading')
+        .lean();
+      if (withHeading?.heading) heading = withHeading.heading;
+    }
+
     return res.status(200).json({
       success: true,
       latestSr,
-      nextSr
+      nextSr,
+      lastEntry: {
+        law,
+        chapter,
+        heading,
+        department
+      }
     });
   } catch (error) {
     next(error);
@@ -528,18 +562,47 @@ export const updateLawDate = async (req, res, next) => {
  */
 export const getLatestStatuteMeta = async (req, res, next) => {
   try {
-    const latest = await Statute.findOne({ isDeleted: false })
-      .sort({ createdAt: -1, _id: -1 })
-      .select('law chapter heading department')
+    // Look up previous statute by highest SR number
+    let latest = await Statute.findOne({ isDeleted: { $ne: true } })
+      .sort({ srNumberInt: -1, _id: -1 })
+      .select('law chapter heading department srNumber srNumberInt')
       .lean();
+
+    let law = latest?.law || '';
+    let chapter = latest?.chapter || '';
+    let heading = latest?.heading || '';
+    let department = latest?.department || 'tax';
+
+    if (!law) {
+      const withLaw = await Statute.findOne({ isDeleted: { $ne: true }, law: { $exists: true, $ne: '' } })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('law')
+        .lean();
+      if (withLaw?.law) law = withLaw.law;
+    }
+    if (!chapter) {
+      const withChapter = await Statute.findOne({ isDeleted: { $ne: true }, chapter: { $exists: true, $ne: '' } })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('chapter')
+        .lean();
+      if (withChapter?.chapter) chapter = withChapter.chapter;
+    }
+    if (!heading) {
+      const withHeading = await Statute.findOne({ isDeleted: { $ne: true }, heading: { $exists: true, $ne: '' } })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('heading')
+        .lean();
+      if (withHeading?.heading) heading = withHeading.heading;
+    }
 
     return res.status(200).json({
       success: true,
       data: {
-        law: latest?.law || '',
-        chapter: latest?.chapter || '',
-        heading: latest?.heading || '',
-        department: latest?.department || 'Tax'
+        law,
+        chapter,
+        heading,
+        department,
+        srNumber: latest?.srNumber || ''
       }
     });
   } catch (error) {

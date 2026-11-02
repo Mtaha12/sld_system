@@ -11,11 +11,11 @@ const router = express.Router();
 // Public / Search / Prefill endpoints (optional protect so search and dropdown work reliably)
 router.get('/laws', optionalProtect, getDistinctLaws);
 router.get('/latest-meta', optionalProtect, getLatestStatuteMeta);
+router.get('/next-sr', optionalProtect, getNextStatuteSr);
 router.get('/', optionalProtect, getStatutes);
 router.get('/:id', optionalProtect, getStatuteById);
 
 // Admin-managed sequential SR and Date update
-router.get('/next-sr', protect, checkStatuteAccess, getNextStatuteSr);
 router.post('/update-law-date', protect, requireAdmin, updateLawDate);
 
 // Write/Edit actions (Restricted strictly to Administrators)
