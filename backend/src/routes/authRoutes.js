@@ -4,7 +4,8 @@ import {
   forgotPassword, verifyResetOtp, getResetPasswordForm, resetPassword, 
   googleLogin, googleSignup, getMe, updateProfile, 
   updateAvatar, removeAvatar, refreshToken,
-  changeCurrentUserPassword
+  changeCurrentUserPassword,
+  logout
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
@@ -32,11 +33,6 @@ router.put('/avatar', protect, updateAvatar);
 router.delete('/avatar', protect, removeAvatar);
 
 // Mock logout endpoint (Frontend invalidates tokens locally)
-router.post('/logout', protect, (req, res) => {
-  return res.status(200).json({
-    success: true,
-    message: 'Logged out successfully.'
-  });
-});
+router.post('/logout', protect, logout);
 
 export default router;

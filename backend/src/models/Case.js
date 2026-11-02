@@ -16,11 +16,15 @@ const lawReferenceSchema = new mongoose.Schema({
 });
 
 const attachmentSchema = new mongoose.Schema({
-  name: { type: String, default: 'Attachment' },
+  name: { 
+    type: String, 
+    default: 'Attachment',
+    set: v => (v && String(v).trim()) ? String(v).trim() : 'Attachment'
+  },
   url: { type: String, default: '' },
   size: { type: String, default: '' },
   type: { type: String, default: 'pdf' }
-});
+}, { _id: false });
 
 const caseSchema = new mongoose.Schema({
   caseId: {
@@ -47,6 +51,18 @@ const caseSchema = new mongoose.Schema({
     index: true,
   },
   dated: {
+    type: String,
+    default: null,
+  },
+  date: {
+    type: String,
+    default: null,
+  },
+  decisionDate: {
+    type: String,
+    default: null,
+  },
+  judgmentDate: {
     type: String,
     default: null,
   },

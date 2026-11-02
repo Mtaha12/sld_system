@@ -13,6 +13,24 @@ const setClientCache = (key, data) => {
 
 export const caseService = {
   /**
+   * Downloads Excel file of all cases with missing/empty headnotes
+   */
+  exportMissingHeadnotes: async () => {
+    const response = await api.get('/api/cases/export-missing-headnotes', {
+      responseType: 'blob'
+    });
+    const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Missing_Headnotes_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
+
+  /**
    * Fetches paginated cases from backend
    * @param {Object} params - { page, limit, subject, fromDate, toDate, magazine, sortField, sortOrder }
    * @returns {Promise<{ data: Array, pagination: Object }>}

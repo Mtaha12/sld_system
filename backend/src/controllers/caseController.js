@@ -1,3 +1,4 @@
+import XLSX from 'xlsx';
 import Case from '../models/Case.js';
 import OtherCaseLaw from '../models/OtherCaseLaw.js';
 import UserActivity from '../models/UserActivity.js';
@@ -325,22 +326,45 @@ export const extractRelevantParagraph = (judgmentText, headNoteText, searchTerms
  */
 export const extractCaseDate = (c) => {
   if (!c) return '';
-  if (c.dated && String(c.dated).trim()) {
-    return String(c.dated).trim().split('T')[0];
+
+  // 1. Direct fields: dated, date, decisionDate, judgmentDate
+  const candidate = c.dated || c.date || c.decisionDate || c.judgmentDate;
+  if (candidate && String(candidate).trim()) {
+    const s = String(candidate).trim();
+    if (!s.startsWith('1970') && !s.startsWith('0000') && s !== 'null' && s !== 'undefined') {
+      if (s.includes('T')) return s.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const dmy = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+      if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+      const ymd = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+      if (ymd) return `${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`;
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900) {
+        return parsed.toISOString().split('T')[0];
+      }
+      return s;
+    }
   }
 
-  // Fallback 1: Extract from caseNumber strings
+  // 2. Extract from caseNumber strings
   const caseNumbers = Array.isArray(c.caseNumber) ? c.caseNumber : (c.caseNumber ? [c.caseNumber] : []);
   for (const cn of caseNumbers) {
     if (!cn) continue;
     const str = String(cn);
-    const match = str.match(/(?:decision\s+dated|decided\s+on|order\s+dtd|dated|hearing\s+date|judgment\s+dated)\s*[:\-]?\s*(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/i);
+    const match = str.match(/(?:decision\s+dated|decided\s+on|order\s+dtd|dated|hearing\s+date|judgment\s+dated|decided|order)\s*[:\-]?\s*(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/i);
     if (match) {
       let day = match[1].padStart(2, '0');
       let month = match[2].padStart(2, '0');
       let year = match[3];
       if (year.length === 2) year = `20${year}`;
       return `${year}-${month}-${day}`;
+    }
+    const monthWordMatch = str.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember))[,\s]+(\d{4})\b/i);
+    if (monthWordMatch) {
+      const monthNames = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+      const mKey = monthWordMatch[2].slice(0, 3).toLowerCase();
+      const mNum = monthNames[mKey] || '01';
+      return `${monthWordMatch[3]}-${mNum}-${monthWordMatch[1].padStart(2, '0')}`;
     }
     const isoMatch = str.match(/\b(19\d{2}|20\d{2})[-/.](0[1-9]|1[0-2])[-/.](0[1-9]|[12]\d|3[01])\b/);
     if (isoMatch) {
@@ -352,21 +376,53 @@ export const extractCaseDate = (c) => {
     }
   }
 
-  // Fallback 2: Extract from laws array
+  // 3. Extract from laws array
   if (Array.isArray(c.laws)) {
     for (const law of c.laws) {
       const d = law?.dated || law?.date;
-      if (d && String(d).trim()) {
-        return String(d).trim().split('T')[0];
+      if (d && String(d).trim() && !String(d).startsWith('1970')) {
+        const s = String(d).trim();
+        if (s.includes('T')) return s.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        const dmy = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+        if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+        return s;
       }
     }
   }
 
-  // Fallback 3: Extract from publications year
+  // 4. Extract from publications array
   if (Array.isArray(c.publications) && c.publications.length > 0) {
     const pubYear = c.publications.find(p => p?.year && /^\d{4}$/.test(String(p.year).trim()))?.year;
     if (pubYear) {
       return String(pubYear).trim();
+    }
+  }
+
+  // 5. Extract from mapYearPage citations (e.g. "2021 PTD 105" or "(2020) 123 TAX 45")
+  const citations = Array.isArray(c.mapYearPage) ? c.mapYearPage : [];
+  for (const cit of citations) {
+    if (!cit) continue;
+    const yMatch = String(cit).match(/\b(19\d{2}|20\d{2})\b/);
+    if (yMatch) {
+      return yMatch[1];
+    }
+  }
+
+  // 6. Extract 4-digit year from caseNumber (e.g. "of 2021" or "/2021")
+  for (const cn of caseNumbers) {
+    if (!cn) continue;
+    const yMatch = String(cn).match(/\b(?:of|\/|-|\s)(19\d{2}|20\d{2})\b/i);
+    if (yMatch) {
+      return yMatch[1];
+    }
+  }
+
+  // 7. Fallback to createdAt if valid and not 1970
+  if (c.createdAt) {
+    const cDate = new Date(c.createdAt);
+    if (!isNaN(cDate.getTime()) && cDate.getFullYear() > 2000) {
+      return cDate.toISOString().split('T')[0];
     }
   }
 
@@ -381,7 +437,8 @@ export const sanitizeAttachments = (attachments) => {
   return attachments
     .filter(att => att && typeof att === 'object')
     .map((att, idx) => {
-      const name = att.name || att.originalName || att.filename || `Attachment_${idx + 1}.pdf`;
+      const rawName = (att.name && String(att.name).trim()) || (att.originalName && String(att.originalName).trim()) || (att.filename && String(att.filename).trim());
+      const name = rawName || `Attachment_${idx + 1}.pdf`;
       const url = att.url || att.path || '';
       let size = att.size || '';
       if (typeof size === 'number') {
@@ -658,8 +715,8 @@ export const getCases = async (req, res, next) => {
     // Only include judgment if it's a range extraction or includeJudgment is explicitly true.
     // This provides lightning-fast sub-20 millisecond database response times!
     const selectFields = (isRangeSearch || req.query.includeJudgment === 'true')
-      ? 'caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw judgment'
-      : 'caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw';
+      ? 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw judgment createdAt'
+      : 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw createdAt';
 
     let casesQuery = Case.find(query)
       .select(selectFields)
@@ -1477,8 +1534,8 @@ export const searchCases = async (req, res, next) => {
     const searchLimit = requestedLimit > 0 ? requestedLimit : 3000;
     const hasTextSearch = Boolean(kw1 || kw2 || filters.phrase);
     const selectFields = hasTextSearch
-      ? 'caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim judgment'
-      : 'caseId case_id sldNumber dated court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim';
+      ? 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim judgment createdAt'
+      : 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim createdAt';
 
     let queryExec = Case.find(query)
       .select(selectFields)
@@ -1565,7 +1622,7 @@ export const uploadCaseAttachment = async (req, res, next) => {
       success: true,
       message: 'Attachment uploaded successfully.',
       data: {
-        name: req.file.originalname,
+        name: (req.file.originalname && String(req.file.originalname).trim()) || `Attachment_${Date.now()}.pdf`,
         url: relativeUrl,
         size: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
         type
@@ -1573,5 +1630,74 @@ export const uploadCaseAttachment = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+/**
+ * Export all case-law records with missing, empty, or whitespace-only headnotes to Excel (.xlsx)
+ * Uses streaming cursor processing to avoid excessive memory usage.
+ */
+export const exportMissingHeadnotes = async (req, res, next) => {
+  try {
+    const filter = {
+      isDeleted: false,
+      $or: [
+        { headNote: { $exists: false } },
+        { headNote: null },
+        { headNote: '' },
+        { headNote: { $regex: /^\s*$/ } }
+      ]
+    };
+
+    // Use cursor for memory-safe streaming processing
+    const cursor = Case.find(filter)
+      .select('caseId sldNumber citation title caseNumber dated court references attachments mapYearPage publications judgment')
+      .cursor();
+
+    const rows = [];
+    let serial = 1;
+
+    for await (const doc of cursor) {
+      let citationStr = doc.citation || '';
+      if (!citationStr && Array.isArray(doc.mapYearPage) && doc.mapYearPage.length > 0) {
+        citationStr = doc.mapYearPage.map(m => [m.year, m.mag, m.page].filter(Boolean).join(' ')).filter(Boolean).join(' = ');
+      }
+      if (!citationStr && doc.sldNumber) {
+        citationStr = `SLD Ref #${doc.sldNumber}`;
+      }
+
+      const caseNumStr = Array.isArray(doc.caseNumber) ? doc.caseNumber.join('; ') : (doc.caseNumber || '');
+      const dateStr = doc.dated ? (typeof doc.dated === 'string' ? doc.dated.slice(0, 10) : new Date(doc.dated).toISOString().slice(0, 10)) : '';
+
+      let refUrl = doc.references || '';
+      if (!refUrl && Array.isArray(doc.attachments) && doc.attachments.length > 0) {
+        refUrl = doc.attachments[0].url || doc.attachments[0].path || doc.attachments[0].name || '';
+      }
+
+      rows.push({
+        'Serial Number': serial++,
+        'Case ID / Database ID': doc._id.toString(),
+        'Citation': citationStr,
+        'Case Title': doc.title || '',
+        'Case Number': caseNumStr,
+        'Decision Date': dateStr,
+        'Court': doc.court || '',
+        'Judgment Reference / URL': refUrl,
+        'Headnote Status': 'Missing',
+        'Recovery Status': doc.judgment && doc.judgment.trim().length > 50 ? 'Ready for Extraction' : 'Pending'
+      });
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Missing Headnotes');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=Missing_Headnotes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    return res.status(200).send(buffer);
+  } catch (error) {
+    next(error);
   }
 };

@@ -1,3 +1,4 @@
+import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { customTariffService } from '../features/custom-tariffs/services/customTariffService';
@@ -20,6 +21,7 @@ const CustomTariffViewPage = () => {
   const [tariff, setTariff] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  useSecurePrintShortcut();
 
   const [copied, setCopied] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1);
@@ -52,7 +54,7 @@ const CustomTariffViewPage = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    verifyAndPrint();
   };
 
   if (loading) {

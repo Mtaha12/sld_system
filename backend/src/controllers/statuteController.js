@@ -522,3 +522,27 @@ export const updateLawDate = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Retrieves latest statute metadata (law, chapter, heading) for prefilling new entries
+ */
+export const getLatestStatuteMeta = async (req, res, next) => {
+  try {
+    const latest = await Statute.findOne({ isDeleted: false })
+      .sort({ createdAt: -1, _id: -1 })
+      .select('law chapter heading department')
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        law: latest?.law || '',
+        chapter: latest?.chapter || '',
+        heading: latest?.heading || '',
+        department: latest?.department || 'Tax'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

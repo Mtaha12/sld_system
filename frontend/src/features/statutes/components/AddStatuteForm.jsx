@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
@@ -298,6 +298,45 @@ const AddStatuteForm = () => {
       .catch(err => {
         console.warn('Could not load dynamic sections for AddStatuteForm:', err);
       });
+
+    // Load record if opened via URL editId in a new tab
+    if (urlEditId && !editData) {
+      statuteService.getStatuteById(urlEditId)
+        .then(rec => {
+          if (isMounted && rec) {
+            setCurrentRecordId(rec.mongoId || rec._id || rec.id);
+            if (rec.srNumber) setValue('srNumber', String(rec.srNumber));
+            if (rec.law) setValue('law', rec.law);
+            if (rec.chapter) setValue('chapter', rec.chapter);
+            if (rec.section) setValue('section', rec.section);
+            if (rec.heading) setValue('heading', rec.heading);
+            if (rec.department) setValue('department', rec.department.toLowerCase());
+            if (Array.isArray(rec.blocks) && rec.blocks.length > 0) {
+              setValue('blocks', rec.blocks);
+            }
+          }
+        })
+        .catch(err => console.warn('Could not load statute by editId:', err));
+    }
+
+    // Prefill Chapter, Law, and Heading from latest entry when adding a new statute
+    if (!isEdit && !editData && !urlEditId) {
+      statuteService.getLatestStatuteMeta()
+        .then(meta => {
+          if (isMounted && meta) {
+            if (meta.law && !getValues('law')) {
+              setValue('law', meta.law, { shouldDirty: false });
+            }
+            if (meta.chapter && !getValues('chapter')) {
+              setValue('chapter', meta.chapter, { shouldDirty: false });
+            }
+            if (meta.heading && !getValues('heading')) {
+              setValue('heading', meta.heading, { shouldDirty: false });
+            }
+          }
+        })
+        .catch(err => console.warn('Could not prefill latest statute meta:', err));
+    }
 
     // Automatically assign next sequential SR # for new statutes and set autoNewSr
     statuteService.getNextSr()

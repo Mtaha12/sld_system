@@ -6,7 +6,8 @@ import {
   updateUser, 
   deleteUser, 
   toggleSpammer,
-  changeUserPassword
+  changeUserPassword,
+  forceLogoutUser
 } from '../controllers/userController.js';
 import { protect, requireAdmin } from '../middleware/authMiddleware.js';
 
@@ -23,5 +24,7 @@ router.patch('/:id/password', changeUserPassword);
 router.put('/:id/password', changeUserPassword);
 router.delete('/:id', deleteUser);
 router.patch('/:id/spammer', toggleSpammer);
+router.post('/:id/force-logout', forceLogoutUser);
+router.post('/:id/logout', forceLogoutUser);
 
 export default router;

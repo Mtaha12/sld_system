@@ -7,28 +7,133 @@ html, body, #root {
   margin: 0;
 }
 
+:root {
+  --print-font-size: 14px;
+  --print-line-height: 1.55;
+  --print-margin-top: 12mm;
+  --print-margin-bottom: 12mm;
+  --print-margin-left: 15mm;
+  --print-margin-right: 15mm;
+}
+
 @media print {
   @page {
-    margin: 0.5in;
+    margin: 12mm 15mm 12mm 15mm;
   }
 
   html, body, #root {
     height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     background: white !important;
+    color: black !important;
   }
 
   body {
     margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Universal consistent typography across A4, Legal, Letter */
+  .print-document,
+  .print-document * {
+    font-size: var(--print-font-size) !important;
+    line-height: var(--print-line-height) !important;
+    color: black !important;
+    box-sizing: border-box !important;
   }
 
   .print-document {
-    font-size: 15px !important;
-    line-height: 1.75 !important;
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .print-document h1 {
-    font-size: 75% !important;
+    font-size: 1.3rem !important;
+    line-height: 1.25 !important;
+    font-weight: 800 !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.4rem !important;
+  }
+
+  .print-document h2 {
+    font-size: 1.15rem !important;
+    line-height: 1.25 !important;
+    font-weight: 700 !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.35rem !important;
+  }
+
+  .print-document h3 {
+    font-size: 1.05rem !important;
+    line-height: 1.25 !important;
+    font-weight: 700 !important;
+    margin-top: 0.4rem !important;
+    margin-bottom: 0.3rem !important;
+  }
+
+  .print-document h4 {
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+  }
+
+  .print-document p,
+  .print-document div.word-p {
+    margin: 0 0 0.45rem 0 !important;
+    line-height: var(--print-line-height) !important;
+    orphans: 3 !important;
+    widows: 3 !important;
+  }
+
+  /* Balanced page breaking without bottom gaps or cutoffs */
+  .print-document section,
+  .print-document article {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .print-document header,
+  .print-document h1,
+  .print-document h2,
+  .print-document h3,
+  .print-document h4 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Tables page breaks & formatting in print */
+  .print-document table {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    margin: 0.5rem 0 !important;
+    max-width: 100% !important;
+  }
+
+  .print-document tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-document thead {
+    display: table-header-group !important;
+  }
+
+  .print-document th,
+  .print-document td {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    padding: 4px 6px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    word-break: break-word !important;
   }
 }
 
@@ -247,28 +352,33 @@ html, body, #root {
 }
 
 .word-document-content table {
-  width: 100% !important;
-  border-collapse: collapse !important;
-  margin: 0.85rem 0 !important;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  max-width: 100%;
+}
+
+.word-document-content table:not([style*="width"]):not([width]) {
+  width: 100%;
 }
 
 .word-document-content th, 
 .word-document-content td {
-  border: 1px solid #e2e8f0 !important;
-  padding: 6px 10px !important;
-  text-align: left !important;
-  font-size: 0.9em !important;
-  line-height: 1.45 !important;
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  font-size: 0.9em;
+  line-height: 1.45;
+  vertical-align: top;
+  text-align: left;
 }
 .dark .word-document-content th,
 .dark .word-document-content td {
-  border-color: #334155 !important;
+  border-color: #334155;
 }
 
 .word-document-content th {
-  background-color: rgba(241, 245, 249, 0.7) !important;
-  font-weight: 600 !important;
+  background-color: rgba(241, 245, 249, 0.7);
+  font-weight: 600;
 }
 .dark .word-document-content th {
-  background-color: rgba(30, 41, 59, 0.7) !important;
+  background-color: rgba(30, 41, 59, 0.7);
 }

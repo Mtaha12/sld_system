@@ -1,3 +1,4 @@
+import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { invoiceService } from '../features/invoices/services/invoiceService';
@@ -12,6 +13,7 @@ const InvoiceViewPage = () => {
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  useSecurePrintShortcut();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -42,7 +44,7 @@ const InvoiceViewPage = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    verifyAndPrint();
   };
 
   if (loading) {

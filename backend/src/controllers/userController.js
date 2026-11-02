@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import logger from '../utils/logger.js';
+import { clearUserSessionCache } from '../middleware/authMiddleware.js';
 
 const parseBoolean = (val, defaultValue = true) => {
   if (val === undefined || val === null) return defaultValue;
@@ -274,12 +275,27 @@ export const updateUser = async (req, res, next) => {
     if (activeDate !== undefined) user.activeDate = activeDate ? new Date(activeDate) : user.activeDate;
     if (inactiveDate !== undefined) user.inactiveDate = inactiveDate ? new Date(inactiveDate) : null;
     if (agencyName !== undefined) user.agencyName = agencyName.trim();
-    if (status !== undefined) user.status = String(status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    if (status !== undefined) {
+      const newStatus = String(status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      user.status = newStatus;
+      if (newStatus === 'INACTIVE') {
+        user.alreadyLogin = false;
+        user.sessionVersion = (user.sessionVersion || 1) + 1;
+        user.lastLogoutAt = new Date();
+      }
+    }
     if (userType !== undefined) user.userType = userType;
     if (role !== undefined) user.role = role;
 
     if (aiAssistant !== undefined) user.aiAssistant = parseBoolean(aiAssistant, user.aiAssistant);
-    if (alreadyLogin !== undefined) user.alreadyLogin = parseBoolean(alreadyLogin, user.alreadyLogin);
+    if (alreadyLogin !== undefined) {
+      const parsedLogin = parseBoolean(alreadyLogin, user.alreadyLogin);
+      user.alreadyLogin = parsedLogin;
+      if (!parsedLogin) {
+        user.sessionVersion = (user.sessionVersion || 1) + 1;
+        user.lastLogoutAt = new Date();
+      }
+    }
     if (isSpammer !== undefined) user.isSpammer = parseBoolean(isSpammer, user.isSpammer);
     if (ipRestriction !== undefined) user.ipRestriction = parseBoolean(ipRestriction, user.ipRestriction);
     if (displayStatute !== undefined) user.displayStatute = parseBoolean(displayStatute, user.displayStatute);
@@ -288,6 +304,7 @@ export const updateUser = async (req, res, next) => {
     if (allowAllForms !== undefined) user.allowAllForms = parseBoolean(allowAllForms, user.allowAllForms);
 
     await user.save();
+    clearUserSessionCache(user._id);
     logger.info(`[User Updated] Admin updated user: ${user.username}`);
 
     const userObj = user.toObject();
@@ -334,9 +351,13 @@ export const deleteUser = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    user.alreadyLogin = false;
+    user.sessionVersion = (user.sessionVersion || 1) + 1;
+    user.lastLogoutAt = new Date();
     user.isDeleted = true;
     user.deletedAt = new Date();
     await user.save();
+    clearUserSessionCache(user._id);
 
     return res.status(200).json({
       success: true,
@@ -373,7 +394,11 @@ export const changeUserPassword = async (req, res, next) => {
     // Direct password update - No previous password required!
     user.password = password.trim();
     user.plainPassword = password.trim();
+    user.alreadyLogin = false;
+    user.sessionVersion = (user.sessionVersion || 1) + 1;
+    user.lastLogoutAt = new Date();
     await user.save();
+    clearUserSessionCache(user._id);
 
     logger.info(`[Admin Password Change] Password updated for user: "${user.username}" by admin: "${req.user?.username}"`);
 
@@ -381,6 +406,41 @@ export const changeUserPassword = async (req, res, next) => {
       success: true,
       message: `Password for "${user.fullName || user.username}" updated successfully.`,
       plainPassword: user.plainPassword
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin force logout endpoint:
+ * Instantly terminates any user's active session, resets alreadyLogin to false,
+ * bumps sessionVersion, and clears in-memory session cache immediately.
+ */
+export const forceLogoutUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    user.alreadyLogin = false;
+    user.sessionVersion = (user.sessionVersion || 1) + 1;
+    user.lastLogoutAt = new Date();
+    await user.save();
+    clearUserSessionCache(user._id);
+
+    logger.info(`[Admin Force Logout] Admin "${req.user?.username}" forcibly terminated session for user "${user.username}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: `User "${user.fullName || user.username}" has been logged out successfully. Their active session has been closed immediately.`,
+      data: {
+        id: user._id,
+        username: user.username,
+        alreadyLogin: false
+      }
     });
   } catch (error) {
     next(error);

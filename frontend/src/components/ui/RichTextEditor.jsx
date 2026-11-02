@@ -250,13 +250,16 @@ const RichTextEditor = ({
               font-style: italic !important;
             }
             table {
-              width: 100% !important;
-              border-collapse: collapse !important;
-              margin: 8px 0 !important;
+              border-collapse: collapse;
+              margin: 8px 0;
+              max-width: 100%;
+            }
+            table:not([style*="width"]):not([width]) {
+              width: 100%;
             }
             th, td {
-              border: 1px solid #e2e8f0 !important;
-              padding: 6px 10px !important;
+              border: 1px solid #d1d5db;
+              padding: 6px 10px;
             }
           `;
         }
@@ -361,6 +364,8 @@ const RichTextEditor = ({
             { name: 'colors', items: ['TextColor', 'BGColor'] },
             { name: 'tools', items: ['Maximize'] }
           ],
+          allowedContent: true,
+          extraPlugins: 'tableresize,justify,colorbutton,colordialog,font',
           removePlugins: 'resize',
           uiColor: isDark ? '#14151A' : '#ffffff',
           versionCheck: false,

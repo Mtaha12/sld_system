@@ -1,3 +1,4 @@
+import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { newsletterService } from '../features/newsletters/services/newsletterService';
@@ -14,6 +15,7 @@ const NewsletterViewPage = () => {
   const [newsletter, setNewsletter] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  useSecurePrintShortcut();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ const NewsletterViewPage = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    verifyAndPrint();
   };
 
   const handleDownloadAttachment = () => {

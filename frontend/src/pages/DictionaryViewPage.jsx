@@ -1,3 +1,4 @@
+import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { dictionaryService } from '../features/dictionary/services/dictionaryService';
@@ -21,6 +22,7 @@ const DictionaryViewPage = () => {
   const [entry, setEntry] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  useSecurePrintShortcut();
 
   const [copied, setCopied] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1);
@@ -53,7 +55,7 @@ const DictionaryViewPage = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    verifyAndPrint();
   };
 
   if (loading) {

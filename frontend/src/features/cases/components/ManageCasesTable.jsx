@@ -415,7 +415,9 @@ const ManageCasesTable = ({
   };
 
   const handleEdit = (item) => {
-    navigate('/manage-cases/add', { state: { caseData: item, isEdit: true } });
+    const editId = item._id || item.id || '';
+    const sld = item.sldNumber || '';
+    window.open(`/manage-cases/add?editId=${editId}&sld=${sld}`, '_blank');
   };
 
   const handleDeleteConfirm = async () => {
@@ -651,7 +653,7 @@ const ManageCasesTable = ({
 
                     {isMagazineSearch ? (
                       <>
-                      <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated ? String(item.dated).split('T')[0] : '—'}</td>
+                      <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated || item.date ? String(item.dated || item.date).split('T')[0] : '—'}</td>
                       <td className="px-2 py-2.5 align-top text-theme-main">
                         <div className="flex flex-wrap gap-1 max-h-[64px] overflow-y-auto">
                           {(() => {
@@ -735,7 +737,7 @@ const ManageCasesTable = ({
                       </>
                     ) : (
                       <>
-                        <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated ? String(item.dated).split('T')[0] : '—'}</td>
+                        <td className="px-2 py-2.5 align-top text-theme-muted text-center whitespace-nowrap">{item.dated || item.date ? String(item.dated || item.date).split('T')[0] : '—'}</td>
                         <td className="px-2 py-2.5 align-top text-theme-muted">
                           <div className="flex flex-wrap gap-1 whitespace-nowrap overflow-hidden max-h-[64px]">
                             {formatCitations(item.mapYearPage, item.publications)

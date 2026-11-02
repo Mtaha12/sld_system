@@ -175,7 +175,8 @@ const ManageNotificationsTable = ({
   };
 
   const handleEdit = (item) => {
-    navigate('/manage-notifications/add', { state: { notificationData: item, isEdit: true } });
+    const editId = item.mongoId || item._id || item.id || item.srNumber;
+    window.open(`/manage-notifications/add?editId=${editId}`, '_blank');
   };
 
   const handleDeleteConfirm = async () => {

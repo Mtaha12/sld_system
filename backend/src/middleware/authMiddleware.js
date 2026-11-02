@@ -3,7 +3,7 @@ import User from '../models/User.js';
 
 // Fast in-memory user cache for authorized sessions (60 second TTL, bounded size)
 const userSessionCache = new Map();
-const USER_CACHE_TTL = 60 * 1000;
+const USER_CACHE_TTL = 15 * 1000;
 const USER_CACHE_MAX = 500;
 
 export const clearUserSessionCache = (userId) => {
@@ -64,6 +64,22 @@ export const protect = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: `Access Denied: Your account is currently ${user.status}.`
+      });
+    }
+
+    // Immediate Session Invalidation: Check session version
+    if (decoded.sessionVersion && user.sessionVersion && decoded.sessionVersion !== user.sessionVersion) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access Denied: Your active session has been closed or revoked. Please log in again.'
+      });
+    }
+
+    // Immediate Session Invalidation: Standard users require active login session
+    if (user.role !== 'Administrator' && user.alreadyLogin === false) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access Denied: Your session has been closed by an administrator. Please log in again.'
       });
     }
 
@@ -147,6 +163,31 @@ export const checkCaseAccess = (req, res, next) => {
       success: false,
       message: 'Access Denied: You do not have permission to view Case Law.'
     });
+  }
+  next();
+};
+
+/**
+ * Optional protection: attaches user if valid token present, but does not block guests
+ */
+export const optionalProtect = async (req, res, next) => {
+  let token;
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  }
+  if (!token) {
+    return next();
+  }
+  try {
+    const decoded = verifyAccessToken(token);
+    const user = await User.findById(decoded.id).select('-password');
+    if (user) {
+      req.user = user;
+    }
+  } catch (err) {
+    // Ignore invalid token
   }
   next();
 };

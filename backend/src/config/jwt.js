@@ -18,7 +18,8 @@ export const generateAccessToken = (user) => {
       id: user._id, 
       username: user.username, 
       email: user.email, 
-      role: user.role 
+      role: user.role,
+      sessionVersion: user.sessionVersion || 1
     },
     JWT_SECRET,
     { expiresIn: process.env.JWT_ACCESS_EXPIRES || '1h' }

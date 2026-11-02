@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
@@ -140,8 +140,10 @@ const formatNotificationParagraphs = (html) => {
 const AddNotificationForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const urlEditId = searchParams.get('editId') || searchParams.get('id');
 
-  const isEdit = Boolean(location.state?.isEdit);
+  const isEdit = Boolean(location.state?.isEdit || urlEditId);
   const editData = location.state?.notificationData;
 
   const [showSuccess, setShowSuccess] = useState(false);
@@ -219,31 +221,34 @@ const AddNotificationForm = () => {
       const data = await notificationService.getNotificationById(cleanSr);
       if (data) {
         setCurrentRecordId(data._id || data.id);
-        setValue('srNumber', String(data.srNumber || cleanSr));
-        setValue('department', normalizeDepartment(data.department));
-        setValue('subDepartment', data.subDepartment || 'federal');
-        setValue('year', String(data.year || '2026'));
-        setValue('number', String(data.number || '14'));
-        setValue('sroNumber', data.sroNumber || '');
-        setValue('subject', data.subject || '');
-        setValue('status', data.status?.toLowerCase() || 'active');
-        setValue('lawStatute', data.lawStatute || '');
-        setValue('section', data.section || '');
-        if (Array.isArray(data.laws) && data.laws.length > 0) {
-          setValue('laws', data.laws);
-        } else {
-          setValue('laws', [{ lawStatute: data.lawStatute || '', section: data.section || '' }]);
-        }
-        if (Array.isArray(data.blocks) && data.blocks.length > 0) {
-          setValue('blocks', data.blocks.map((b, i) => ({
-            id: b._id || `existing-${i}`,
-            date: formatDateForInput(b.date),
-            detail: formatNotificationParagraphs(b.detail || ''),
-            attachments: b.attachments || []
-          })));
-        } else {
-          setValue('blocks', [{ id: 'new-block-1', date: '', detail: '', attachments: [] }]);
-        }
+        const formattedLaws = (Array.isArray(data.laws) && data.laws.length > 0)
+          ? data.laws
+          : [{ lawStatute: data.lawStatute || '', section: data.section || '' }];
+
+        const formattedBlocks = (Array.isArray(data.blocks) && data.blocks.length > 0)
+          ? data.blocks.map((b, i) => ({
+              id: b._id || `existing-${i}`,
+              date: formatDateForInput(b.date),
+              detail: formatNotificationParagraphs(b.detail || ''),
+              attachments: b.attachments || []
+            }))
+          : [{ id: 'new-block-1', date: '', detail: '', attachments: [] }];
+
+        reset({
+          srNumber: String(data.srNumber || cleanSr),
+          department: normalizeDepartment(data.department),
+          subDepartment: data.subDepartment || 'federal',
+          year: String(data.year || '2026'),
+          number: String(data.number || '14'),
+          sroNumber: data.sroNumber || '',
+          subject: data.subject || '',
+          status: data.status?.toLowerCase() || 'active',
+          lawStatute: data.lawStatute || '',
+          section: data.section || '',
+          laws: formattedLaws,
+          blocks: formattedBlocks
+        });
+
         setLoadFeedback({
           type: 'success',
           message: `SR #${cleanSr} loaded: ${data.subject ? (data.subject.slice(0, 32) + '...') : 'Notification Record'}`
@@ -264,7 +269,7 @@ const AddNotificationForm = () => {
       setLoadingNotification(false);
       setTimeout(() => setLoadFeedback(null), 6000);
     }
-  }, [getValues, setValue]);
+  }, [getValues, setValue, reset]);
 
   const handleStepSr = (delta) => {
     const rawVal = getValues('srNumber');
@@ -320,6 +325,14 @@ const AddNotificationForm = () => {
 
     return () => { isMounted = false; };
   }, [isEdit, editData, setValue]);
+
+  const hasLoadedUrlEdit = useRef(false);
+  useEffect(() => {
+    if (urlEditId && !hasLoadedUrlEdit.current) {
+      hasLoadedUrlEdit.current = true;
+      loadNotificationBySr(urlEditId);
+    }
+  }, [urlEditId, loadNotificationBySr]);
 
   const memoizedLawOptions = useMemo(() => (
     lawOptions.slice(0, 1000).map((lawName, idx) => (

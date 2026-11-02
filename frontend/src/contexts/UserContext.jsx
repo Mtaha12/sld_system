@@ -46,28 +46,67 @@ export const UserProvider = ({ children }) => {
     return DEFAULT_USER;
   });
 
-  // Keep user permissions & status synced from backend
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      api.get('/api/auth/me')
-        .then(res => {
-          if (res?.data?.data) {
-            const sanitized = sanitizeUserAvatar(res.data.data);
-            setUser(sanitized);
-            try {
-              localStorage.setItem('sld_user_profile', JSON.stringify(sanitized));
-            } catch (e) {
-              console.error(e);
-            }
-          }
-        })
-        .catch(err => {
-          // If token expired or unauthorized, logout
-          if (err.response?.status === 401 || err.response?.status === 403) {
-            logoutUser();
-          }
-        });
+  const logoutUser = (reason) => {
+    setIsAuthenticated(false);
+    try {
+      localStorage.removeItem('sld_auth_session');
+      localStorage.removeItem('sld_access_token');
+      localStorage.removeItem('sld_refresh_token');
+      localStorage.removeItem('sld_user_profile');
+    } catch (e) {
+      console.error('Failed to clear auth session', e);
     }
+    // Signal logout to backend in background
+    api.post('/api/auth/logout').catch(() => {});
+    if (reason) {
+      alert(reason);
+      window.location.href = '/login';
+    }
+  };
+
+  // Keep user permissions & status synced from backend; immediately terminate session if admin logs user out
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let isMounted = true;
+
+    const verifySession = async () => {
+      try {
+        const res = await api.get('/api/auth/me');
+        if (res?.data?.data && isMounted) {
+          const sanitized = sanitizeUserAvatar(res.data.data);
+          setUser(sanitized);
+          try {
+            localStorage.setItem('sld_user_profile', JSON.stringify(sanitized));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      } catch (err) {
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          const msg = err.response?.data?.message || 'Access Denied: Your session has been closed by an administrator. Please log in again.';
+          logoutUser(msg);
+        }
+      }
+    };
+
+    // 1. Initial check on mount/auth
+    verifySession();
+
+    // 2. Check whenever user switches back to this window/tab
+    const handleFocus = () => {
+      verifySession();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 3. Heartbeat check every 25 seconds
+    const interval = setInterval(verifySession, 25000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, [isAuthenticated]);
 
   const loginUser = (userProfile) => {
@@ -81,15 +120,6 @@ export const UserProvider = ({ children }) => {
       localStorage.setItem('sld_user_profile', JSON.stringify(sanitized));
     } catch (e) {
       console.error('Failed to persist auth session', e);
-    }
-  };
-
-  const logoutUser = () => {
-    setIsAuthenticated(false);
-    try {
-      localStorage.removeItem('sld_auth_session');
-    } catch (e) {
-      console.error('Failed to clear auth session', e);
     }
   };
 

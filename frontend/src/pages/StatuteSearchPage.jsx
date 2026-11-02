@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Eye, BookOpen, AlertCircle, RotateCcw, X, Search as SearchIcon, FileText, Paperclip, History, Trash2, Clock } from 'lucide-react';
 import { statuteService } from '../features/statutes/services/statuteService';
+import { settingService } from '../services/settingService';
 import SearchableLawSelect from '../features/statutes/components/SearchableLawSelect';
 import Modal from '../components/ui/Modal';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
@@ -119,23 +120,49 @@ const StatuteSearchPage = () => {
     }
   }, [urlSearchParams]);
 
-  // Fetch Laws that have records in the statutes database
+  // Fetch Laws that exist in Manage Law/Statute settings + statutes database
   useEffect(() => {
     let isMounted = true;
-    statuteService.getDistinctLaws()
-      .then(laws => {
-        if (isMounted && Array.isArray(laws)) {
-          const list = laws
-            .map(l => String(l || '').trim())
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-            .map(l => ({ value: l, label: l }));
-          setLawOptions(list);
+    Promise.allSettled([
+      settingService.getLaws({ limit: 10000 }),
+      statuteService.getDistinctLaws()
+    ]).then(([settingsRes, distinctRes]) => {
+      if (!isMounted) return;
+      const seen = new Set();
+      const list = [];
+
+      // 1. Laws from Manage Law / Statute (settingService)
+      if (settingsRes.status === 'fulfilled') {
+        const lawsArr = Array.isArray(settingsRes.value?.data)
+          ? settingsRes.value.data
+          : Array.isArray(settingsRes.value)
+          ? settingsRes.value
+          : [];
+        for (const item of lawsArr) {
+          const name = String(item.name || item.law || '').trim();
+          if (name && !seen.has(name.toLowerCase())) {
+            seen.add(name.toLowerCase());
+            list.push({ value: name, label: name });
+          }
         }
-      })
-      .catch(err => {
-        console.warn('Could not load distinct statute laws:', err);
-      });
+      }
+
+      // 2. Distinct laws from Statutes collection
+      if (distinctRes.status === 'fulfilled' && Array.isArray(distinctRes.value)) {
+        for (const raw of distinctRes.value) {
+          const name = String(raw || '').trim();
+          if (name && !seen.has(name.toLowerCase())) {
+            seen.add(name.toLowerCase());
+            list.push({ value: name, label: name });
+          }
+        }
+      }
+
+      list.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+      setLawOptions(list);
+    }).catch(err => {
+      console.warn('Could not load laws for StatuteSearchPage:', err);
+    });
 
     return () => { isMounted = false; };
   }, []);
@@ -315,10 +342,15 @@ const StatuteSearchPage = () => {
       return isNaN(t) ? 0 : t;
     };
 
+    const t1 = text.trim().toLowerCase();
+    const t2 = text2.trim().toLowerCase();
+    const hasTextFilter = Boolean(t1 || t2);
+
     statuteResults.forEach((s, sIdx) => {
       const rawBlocks = Array.isArray(s.blocks) && s.blocks.length > 0
-        ? [...s.blocks]
+        ? s.blocks
         : [{
+            _id: s._id || s.id,
             sectionHeading: s.sectionHeading || s.heading || '',
             fromDate: s.dated || s.fromDate || '',
             toDate: s.toDate || '',
@@ -326,22 +358,25 @@ const StatuteSearchPage = () => {
             attachments: s.attachments || []
           }];
 
-      // Sort blocks of each statute so latest date is on top, then descending by date
-      const sortedBlocks = rawBlocks.sort((a, b) => {
-        const timeA = parseDateVal(a.fromDate || a.toDate || s.dated || s.fromDate);
-        const timeB = parseDateVal(b.fromDate || b.toDate || s.dated || s.fromDate);
-        return timeB - timeA;
-      });
+      rawBlocks.forEach((b, bIdx) => {
+        // When text query is active, only include blocks that match the search term(s)
+        if (hasTextFilter) {
+          const blkContent = `${b.sectionHeading || ''} ${b.detail || ''}`.toLowerCase();
+          if (t1 && !blkContent.includes(t1)) return;
+          if (t2 && !blkContent.includes(t2)) return;
+        }
 
-      sortedBlocks.forEach((b, bIdx) => {
         const att = findRowAttachment(b, s);
         const blockDate = b.fromDate || s.dated || s.fromDate || '';
+        const sortTime = parseDateVal(blockDate);
+
         rows.push({
-          rowKey: `${s.id || s._id || sIdx}-block-${bIdx}-${parseDateVal(blockDate)}`,
+          rowKey: `${s.id || s._id || sIdx}-block-${b._id || bIdx}-${sortTime}`,
           statute: s,
           block: b,
+          blockId: b._id || b.id || '',
           blockIndex: bIdx,
-          totalBlocks: sortedBlocks.length,
+          totalBlocks: rawBlocks.length,
           srNumber: s.srNumber || s.id || (sIdx + 1),
           statuteId: s.statuteId || s.statute_id || s.srNumber || '',
           law: s.law || '—',
@@ -351,31 +386,24 @@ const StatuteSearchPage = () => {
           detail: b.detail || '',
           fromDate: blockDate,
           toDate: b.toDate || '',
-          sortTime: parseDateVal(blockDate),
+          sortTime,
           attachment: att
         });
       });
     });
 
-    // Overall sort: latest date on top, then all others according to date
-    return rows.sort((a, b) => {
-      if (b.sortTime !== a.sortTime) {
-        return b.sortTime - a.sortTime;
-      }
-      return 0;
-    });
-  }, [statuteResults]);
+    // Sort: latest applicable legal date first descending (handle missing dates safely)
+    return rows.sort((a, b) => b.sortTime - a.sortTime);
+  }, [statuteResults, text, text2]);
 
   const hasTextSearch = Boolean(text.trim() || text2.trim());
 
   const handleRowViewAction = (row) => {
-    const attUrl = getAttachmentUrl(row.attachment);
-    if (attUrl) {
-      window.open(attUrl, '_blank', 'noopener,noreferrer');
-    } else {
-      const id = row.statute?.mongoId || row.statute?._id || row.statute?.id || row.statute?.statuteId || row.statute?.srNumber;
-      window.open(`/statutes/view/${id}`, '_blank', 'noopener,noreferrer');
-    }
+    const statuteId = row.statute?.mongoId || row.statute?._id || row.statute?.id || row.statute?.statuteId || row.statute?.srNumber;
+    const blockId = row.blockId || row.block?._id || row.block?.id || '';
+    const blockIndex = row.blockIndex !== undefined ? row.blockIndex : 0;
+    const url = `/statutes/view/${statuteId}?blockId=${blockId}&blockIndex=${blockIndex}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -420,7 +448,10 @@ const StatuteSearchPage = () => {
               <div className="w-full sm:w-[70%]">
                 <SearchableLawSelect
                   value={selectLaw}
-                  onChange={setSelectLaw}
+                  onChange={(val) => {
+                    const clean = typeof val === 'string' ? val : (val?.target?.value ?? '');
+                    setSelectLaw(clean);
+                  }}
                   options={lawOptions}
                   placeholder="Select or enter Law/Statute..."
                 />
@@ -620,12 +651,12 @@ const StatuteSearchPage = () => {
           <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 gap-3">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-xs text-gray-700 dark:text-gray-200">
-                Statute Provisions Search Results
+                Statute Provisions Search Results (Separated by Legal Block)
               </span>
             </div>
 
             <span className="px-2.5 py-1 bg-[#a8cfe0] text-[#1e3a5a] text-xs font-bold rounded-full">
-              {flattenedRows.length} Statute Provision{flattenedRows.length !== 1 ? 's' : ''} Found
+              {flattenedRows.length} Legal Block Result{flattenedRows.length !== 1 ? 's' : ''} Found
             </span>
           </div>
 
@@ -638,121 +669,79 @@ const StatuteSearchPage = () => {
                 Clear and try another search
               </button>
             </div>
-          ) : hasTextSearch ? (
-            /* ── TEXT SEARCH MODE: Shows ONLY Case No and Block column with words highlighted (Requirement 3) ── */
+          ) : (
+            /* ── UNIFIED INDIVIDUAL BLOCK RESULTS TABLE (Requirements 4.A, 4.B, 4.C) ── */
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="bg-[#3d4a7a] text-white">
                     <th className="px-3 py-2.5 font-semibold w-12 text-center">#</th>
-                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap min-w-[140px]">Case / SR No.</th>
-                    <th className="px-3 py-2.5 font-semibold min-w-[340px]">Block</th>
-                    <th className="px-3 py-2.5 font-semibold text-center w-28 whitespace-nowrap">Action</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[170px] max-w-[240px]">Law Name</th>
+                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap min-w-[110px]">Chapter</th>
+                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap min-w-[90px]">Section / Article</th>
+                    <th className="px-3 py-2.5 font-semibold min-w-[320px]">Relevant Block Content</th>
+                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap min-w-[110px]">Latest Date</th>
+                    <th className="px-3 py-2.5 font-semibold text-center w-24 whitespace-nowrap">View Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {flattenedRows.map((row, idx) => (
                     <tr key={row.rowKey || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-3 py-3 text-gray-400 text-center align-top">{idx + 1}</td>
-                      <td className="px-3 py-3 font-bold text-gray-800 dark:text-gray-100 whitespace-nowrap align-top">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs">{row.srNumber || row.statuteId || '—'}</span>
-                          {row.totalBlocks > 1 && (
-                            <span className="text-[10px] text-brand-orange font-semibold">
-                              Block {row.blockIndex + 1} of {row.totalBlocks}
-                            </span>
-                          )}
-                          {row.fromDate && (
-                            <span className="text-[10px] text-gray-400 font-normal">
-                              {formatDisplayDate(row.fromDate)}
-                            </span>
-                          )}
+                      <td className="px-3 py-3 text-gray-400 text-center align-top font-mono">{idx + 1}</td>
+                      
+                      {/* Law Name */}
+                      <td className="px-3 py-3 text-gray-800 dark:text-gray-100 font-bold align-top min-w-[170px] max-w-[240px] leading-snug">
+                        <div>
+                          <span>{row.law}</span>
+                          <span className="block text-[10px] text-gray-400 font-normal mt-0.5 font-mono">
+                            SR #{row.srNumber} {row.totalBlocks > 1 ? `(Block ${row.blockIndex + 1} of ${row.totalBlocks})` : ''}
+                          </span>
                         </div>
                       </td>
+
+                      {/* Chapter */}
+                      <td className="px-3 py-3 text-gray-600 dark:text-gray-300 align-top whitespace-nowrap">
+                        {row.chapter || '—'}
+                      </td>
+
+                      {/* Section / Article */}
+                      <td className="px-3 py-3 font-black text-brand-orange align-top whitespace-nowrap">
+                        {String(row.section || '—').replace(/^section\s+/i, '')}
+                      </td>
+
+                      {/* Relevant Block Content */}
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-200 align-top">
                         <div className="space-y-1.5">
                           {row.sectionHeading && (
-                            <p className="font-bold text-xs text-gray-900 dark:text-white">
+                            <p className="font-bold text-xs text-gray-900 dark:text-white leading-snug">
                               <Highlight text={row.sectionHeading} terms={[text, text2]} />
                             </p>
                           )}
                           {row.detail ? (
-                            <div className="text-xs leading-relaxed line-clamp-4 bg-yellow-50/50 dark:bg-yellow-950/20 p-2.5 rounded border border-yellow-200/70 dark:border-yellow-900/40">
+                            <div className="text-xs leading-relaxed line-clamp-3 bg-yellow-50/40 dark:bg-yellow-950/20 p-2 rounded border border-yellow-200/60 dark:border-yellow-900/40">
                               <Highlight text={row.detail.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()} terms={[text, text2]} />
                             </div>
                           ) : (
-                            <p className="text-xs text-gray-400 italic">No block provision text available</p>
+                            <p className="text-xs text-gray-400 italic">No substantive block provision text available</p>
                           )}
                         </div>
                       </td>
+
+                      {/* Latest Applicable Date */}
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 font-semibold whitespace-nowrap align-top">
+                        {formatDisplayDate(row.fromDate)}
+                      </td>
+
+                      {/* View Action: Opens ONLY this selected legal block */}
                       <td className="px-3 py-3 text-center whitespace-nowrap align-top">
                         <button
                           type="button"
                           onClick={() => handleRowViewAction(row)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
-                          title={row.attachment ? "Open Attachment in new tab" : "View Statute in new tab"}
+                          title="View this legal block provision in new tab"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>View</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            /* ── STANDARD MODE (Law / Section search): Shows all standard columns ── */
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead>
-                  <tr className="bg-[#3d4a7a] text-white">
-                    <th className="px-3 py-2.5 font-semibold">#</th>
-                    <th className="px-3 py-2.5 font-semibold">ID / SR #</th>
-                    <th className="px-3 py-2.5 font-semibold">Law</th>
-                    <th className="px-3 py-2.5 font-semibold">Chapter</th>
-                    <th className="px-3 py-2.5 font-semibold">Section</th>
-                    <th className="px-3 py-2.5 font-semibold min-w-[280px]">Heading</th>
-                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap">Date</th>
-                    <th className="px-3 py-2.5 font-semibold text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {flattenedRows.map((row, idx) => (
-                    <tr key={row.rowKey || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
-                      <td className="px-3 py-2.5 font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
-                        {row.srNumber}
-                        {row.totalBlocks > 1 && (
-                          <span className="ml-1 text-[10px] text-brand-orange font-semibold">
-                            (B{row.blockIndex + 1})
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-800 dark:text-gray-200 max-w-[220px] font-medium">
-                        {row.law}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                        {row.chapter}
-                      </td>
-                      <td className="px-3 py-2.5 font-bold text-brand-orange whitespace-nowrap">
-                        {String(row.section || '—').replace(/^section\s+/i, '')}
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-700 dark:text-gray-200 min-w-[280px]">
-                        <p className="line-clamp-2 font-medium">{row.sectionHeading}</p>
-                      </td>
-                      <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 whitespace-nowrap font-medium">
-                        {formatDisplayDate(row.fromDate)}
-                      </td>
-                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleRowViewAction(row)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
-                          title={row.attachment ? "Open Attachment in new tab" : "View Statute in new tab"}
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View Statute</span>
+                          <span>View Block</span>
                         </button>
                       </td>
                     </tr>

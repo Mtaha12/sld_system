@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
+import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -22,6 +23,7 @@ const NotificationViewPage = () => {
   const [notification, setNotification] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  useSecurePrintShortcut();
 
   const [copied, setCopied] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1);
@@ -64,7 +66,7 @@ const NotificationViewPage = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    verifyAndPrint();
   };
 
   if (loading) {

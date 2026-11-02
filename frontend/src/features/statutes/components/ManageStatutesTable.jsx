@@ -228,7 +228,8 @@ const ManageStatutesTable = ({
   };
 
   const handleEdit = (row) => {
-    navigate('/manage-statutes/add', { state: { statuteData: row, isEdit: true } });
+    const editId = row.mongoId || row._id || row.id || row.srNumber;
+    window.open(`/manage-statutes/add?editId=${editId}`, '_blank');
   };
 
   const handleDeleteConfirm = async () => {

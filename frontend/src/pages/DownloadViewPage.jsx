@@ -1,3 +1,4 @@
+import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { downloadService } from '../features/downloads/services/downloadService';
@@ -20,6 +21,7 @@ const DownloadViewPage = () => {
   const [downloadItem, setDownloadItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  useSecurePrintShortcut();
 
   const [copied, setCopied] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1);
@@ -52,7 +54,7 @@ const DownloadViewPage = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    verifyAndPrint();
   };
 
   if (loading) {

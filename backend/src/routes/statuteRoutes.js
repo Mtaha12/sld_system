@@ -1,23 +1,26 @@
 import express from 'express';
 import { 
   getStatutes, getStatuteById, getNextStatuteSr, createStatute, 
-  updateStatute, deleteStatute, getDistinctLaws, updateLawDate
+  updateStatute, deleteStatute, getDistinctLaws, updateLawDate,
+  getLatestStatuteMeta
 } from '../controllers/statuteController.js';
-import { protect, requireAdmin, checkStatuteAccess } from '../middleware/authMiddleware.js';
+import { protect, requireAdmin, checkStatuteAccess, optionalProtect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.use(protect, checkStatuteAccess);
+// Public / Search / Prefill endpoints (optional protect so search and dropdown work reliably)
+router.get('/laws', optionalProtect, getDistinctLaws);
+router.get('/latest-meta', optionalProtect, getLatestStatuteMeta);
+router.get('/', optionalProtect, getStatutes);
+router.get('/:id', optionalProtect, getStatuteById);
 
-router.get('/next-sr', getNextStatuteSr);
-router.get('/laws', getDistinctLaws);
-router.post('/update-law-date', requireAdmin, updateLawDate);
+// Admin-managed sequential SR and Date update
+router.get('/next-sr', protect, checkStatuteAccess, getNextStatuteSr);
+router.post('/update-law-date', protect, requireAdmin, updateLawDate);
 
-router.get('/', getStatutes);
-router.get('/:id', getStatuteById);
-
-router.post('/', requireAdmin, createStatute);
-router.put('/:id', requireAdmin, updateStatute);
-router.delete('/:id', requireAdmin, deleteStatute);
+// Write/Edit actions (Restricted strictly to Administrators)
+router.post('/', protect, requireAdmin, createStatute);
+router.put('/:id', protect, requireAdmin, updateStatute);
+router.delete('/:id', protect, requireAdmin, deleteStatute);
 
 export default router;

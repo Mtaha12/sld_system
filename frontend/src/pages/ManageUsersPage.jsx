@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, Plus, Search, Edit2, Trash2, X, AlertCircle, RefreshCw, 
-  ShieldAlert, ShieldCheck, Check, Lock, Eye, EyeOff, KeyRound, Sparkles
+  ShieldAlert, ShieldCheck, Check, Lock, Eye, EyeOff, KeyRound, Sparkles, LogOut
 } from 'lucide-react';
 import { userService } from '../services/userService';
 import { settingService } from '../services/settingService';
@@ -322,6 +322,19 @@ const ManageUsersPage = () => {
     }
   };
 
+  const handleForceLogout = async (u) => {
+    if (!window.confirm(`Are you sure you want to log out user "${u.fullName || u.username}"?\nTheir active session will be terminated immediately.`)) {
+      return;
+    }
+    try {
+      await userService.forceLogout(u._id || u.id);
+      showToast('success', `User "${u.fullName || u.username}" has been logged out. Active session closed immediately.`);
+      fetchUsers();
+    } catch {
+      showToast('error', 'Failed to log out user.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F0F2F5] dark:bg-theme-bg flex flex-col font-sans transition-colors">
       
@@ -415,7 +428,7 @@ const ManageUsersPage = () => {
                   <th className="py-2.5 px-3 text-center border-r border-[#d35400]">Status</th>
                   <th className="py-2.5 px-3 text-center border-r border-[#d35400]">Permissions</th>
                   <th className="py-2.5 px-3 text-center border-r border-[#d35400]">Spammer?</th>
-                  <th className="py-2.5 px-3 text-center w-24">Action</th>
+                  <th className="py-2.5 px-3 text-center w-28">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-theme-border">
@@ -466,13 +479,24 @@ const ManageUsersPage = () => {
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          String(u.status).toUpperCase() === 'ACTIVE'
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                        }`}>
-                          {u.status || 'Active'}
-                        </span>
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            String(u.status).toUpperCase() === 'ACTIVE'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                          }`}>
+                            {u.status || 'Active'}
+                          </span>
+                          {u.alreadyLogin ? (
+                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5" title="User is currently logged in">
+                              ● Online
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-gray-400 dark:text-gray-500" title="User is logged out / offline">
+                              ○ Offline
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
                         <div className="flex flex-wrap items-center justify-center gap-1 text-[10px]">
@@ -535,6 +559,14 @@ const ManageUsersPage = () => {
                             title="Edit User"
                           >
                             <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleForceLogout(u)}
+                            className="w-6 h-6 rounded bg-[#DC2626] hover:bg-[#B91C1C] text-white flex items-center justify-center shadow-sm cursor-pointer transition-colors"
+                            title="Log Out User (Close Session Immediately)"
+                          >
+                            <LogOut className="w-3 h-3" />
                           </button>
                           <button
                             type="button"

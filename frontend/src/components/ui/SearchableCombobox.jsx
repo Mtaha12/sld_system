@@ -175,16 +175,7 @@ const SearchableCombobox = ({
 
   const triggerChange = (selectedVal) => {
     if (!onChange) return;
-    // Call with direct string value
     onChange(selectedVal);
-    // Also support event-like object for react-hook-form or traditional handlers if expected
-    if (typeof onChange === 'function' && onChange.length > 0) {
-      try {
-        onChange({ target: { name, value: selectedVal } });
-      } catch {
-        // onChange already handled direct value
-      }
-    }
   };
 
   const handleSelect = (selectedVal) => {
@@ -331,35 +322,42 @@ const SearchableCombobox = ({
           {/* Filtered Options List */}
           <div className="py-0.5">
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt, optIdx) => {
-                const isSelected =
-                  String(value ?? '').trim().toLowerCase() === opt.value.trim().toLowerCase();
-                const isHighlighted = optIdx === highlightedIndex;
+              <>
+                {filteredOptions.slice(0, 150).map((opt, optIdx) => {
+                  const isSelected =
+                    String(value ?? '').trim().toLowerCase() === opt.value.trim().toLowerCase();
+                  const isHighlighted = optIdx === highlightedIndex;
 
-                return (
-                  <div
-                    key={`${opt.value}-${optIdx}`}
-                    data-combobox-item
-                    onClick={() => handleSelect(opt.value)}
-                    onMouseEnter={() => setHighlightedIndex(optIdx)}
-                    title={opt.label || opt.value}
-                    className={`px-3 py-2 text-xs cursor-pointer transition-colors flex items-center justify-between gap-2 ${
-                      isHighlighted
-                        ? 'bg-brand-orange/15 text-brand-orange font-medium'
-                        : isSelected
-                        ? 'bg-brand-orange/10 text-brand-orange font-semibold'
-                        : 'text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    <span className="break-words whitespace-normal leading-snug">
-                      {highlightMatch(opt.label || opt.value, String(value ?? ''))}
-                    </span>
-                    {isSelected && (
-                      <Check className="w-3.5 h-3.5 text-brand-orange shrink-0" />
-                    )}
+                  return (
+                    <div
+                      key={`${opt.value}-${optIdx}`}
+                      data-combobox-item
+                      onClick={() => handleSelect(opt.value)}
+                      onMouseEnter={() => setHighlightedIndex(optIdx)}
+                      title={opt.label || opt.value}
+                      className={`px-3 py-2 text-xs cursor-pointer transition-colors flex items-center justify-between gap-2 ${
+                        isHighlighted
+                          ? 'bg-brand-orange/15 text-brand-orange font-medium'
+                          : isSelected
+                          ? 'bg-brand-orange/10 text-brand-orange font-semibold'
+                          : 'text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      <span className="break-words whitespace-normal leading-snug">
+                        {highlightMatch(opt.label || opt.value, String(value ?? ''))}
+                      </span>
+                      {isSelected && (
+                        <Check className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+                      )}
+                    </div>
+                  );
+                })}
+                {filteredOptions.length > 150 && (
+                  <div className="px-3 py-1.5 text-[11px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-zinc-800/50 text-center border-t border-gray-100 dark:border-zinc-800 font-medium">
+                    Showing 150 of {filteredOptions.length} laws. Type more to narrow down.
                   </div>
-                );
-              })
+                )}
+              </>
             ) : (
               <div className="px-3 py-3 text-xs text-center text-gray-400">
                 No matching options for &ldquo;{value}&rdquo;.{allowCustom ? ' Your typed text will be saved.' : ''}

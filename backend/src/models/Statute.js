@@ -115,6 +115,8 @@ statuteSchema.index({ isDeleted: 1, department: 1, srNumberInt: -1 });
 statuteSchema.index({ isDeleted: 1, law: 1, srNumberInt: -1 });
 statuteSchema.index({ isDeleted: 1, department: 1 });
 statuteSchema.index({ isDeleted: 1, law: 1 });
+statuteSchema.index({ isDeleted: 1, section: 1 });
+statuteSchema.index({ isDeleted: 1, law: 1, section: 1 });
 
 statuteSchema.index({ isDeleted: 1, updatedAt: -1 });
 statuteSchema.index({ isDeleted: 1, createdAt: -1 });

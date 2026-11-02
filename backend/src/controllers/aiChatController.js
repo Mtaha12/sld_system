@@ -207,33 +207,138 @@ export const searchOtherCaseLaws = async (queryText) => {
  */
 export const searchStatutes = async (queryText) => {
   if (!queryText || typeof queryText !== 'string') return [];
-  const cleanQ = queryText.trim();
-  if (cleanQ.length < 2) return [];
+  const rawQ = queryText.trim();
+  if (rawQ.length < 2) return [];
 
-  const searchRegex = new RegExp(escapeRegex(cleanQ), 'i');
+  try {
+    // 1. Extract Section number/identifier:
+    // e.g. "Section 177", "Sec 122(5A)", "Section 65B", "Sec. 8", "Article 199"
+    let secMatch = rawQ.match(/(?:sec(?:tion)?|art(?:icle)?)\.?\s*(\d+[a-z0-9()]*)/i);
+    let secNum = secMatch ? secMatch[1].trim() : null;
 
-  // First priority: blocks that actually contain the searched text in their own
-  // section heading or detail body — this is the specific block-level content match.
-  const blockMatches = await Statute.find({
-    isDeleted: false,
-    $or: [
-      { 'blocks.sectionHeading': searchRegex },
-      { 'blocks.detail': searchRegex }
-    ]
-  }).limit(5).maxTimeMS(2000).lean();
+    // 2. Clean conversational filler words
+    const cleanQ = rawQ
+      .replace(/^\s*\d+[\.\)]\s*/, '')
+      .replace(/^(?:give|show|find|search|get|retrieve|fetch|display|explain|what\s+is|analyze|interpret|meaning\s+of|please)\s+/i, '')
+      .trim();
 
-  if (blockMatches.length > 0) return blockMatches;
+    // 3. Extract Law / Statute name if present
+    // e.g. "Income Tax Ordinance", "Sales Tax Act", "Customs Act", "Companies Act"
+    const lawMatch = cleanQ.match(/(?:of\s+the\s+|in\s+the\s+|under\s+)?([a-zA-Z\s]+(?:ordinance|act|statute|rules?|code|constitution)(?:\s*,?\s*\d{4})?)/i);
+    let lawName = lawMatch ? lawMatch[1].trim() : '';
+    if (secMatch && lawName) {
+      lawName = lawName.replace(/(?:sec(?:tion)?|art(?:icle)?)\.?\s*\d+[a-z0-9()]*/i, '').trim();
+    }
 
-  // Fallback only if no block-level match: search statute-level metadata fields
-  // (law name, section number, heading) — useful for navigating to the right act.
-  return await Statute.find({
-    isDeleted: false,
-    $or: [
-      { law: searchRegex },
-      { section: searchRegex },
-      { heading: searchRegex }
-    ]
-  }).limit(5).maxTimeMS(1500).lean();
+    // Fallback: If section was not found via "section X", check for number directly following an Act/Ordinance
+    if (!secNum) {
+      const lawNumMatch = cleanQ.match(/(?:ordinance|act|statute|rules?|code|constitution)\s*(?:,?\s*\d{4})?\s*(?:section|sec\.?|art\.?|article)?\s*(\d+[a-z0-9()]*)/i);
+      if (lawNumMatch) {
+        secNum = lawNumMatch[1].trim();
+      }
+    }
+
+    // A. Priority 1: Search Statute collection by Section
+    if (secNum) {
+      const secRegex = new RegExp(`^${escapeRegex(secNum)}$`, 'i');
+      const secWordRegex = new RegExp(`\\b${escapeRegex(secNum)}\\b`, 'i');
+
+      const statuteQuery = { isDeleted: false };
+      if (lawName && lawName.length > 2) {
+        statuteQuery.law = new RegExp(escapeRegex(lawName), 'i');
+      }
+
+      statuteQuery.$or = [
+        { section: secRegex },
+        { section: secWordRegex },
+        { heading: secWordRegex },
+        { 'blocks.sectionHeading': secWordRegex }
+      ];
+
+      let results = await Statute.find(statuteQuery).limit(10).lean();
+
+      // If not found with law filter, relax law filter and search across all statutes for this section
+      if ((!results || results.length === 0) && lawName) {
+        delete statuteQuery.law;
+        results = await Statute.find(statuteQuery).limit(10).lean();
+      }
+
+      if (results && results.length > 0) {
+        results.sort((a, b) => {
+          if (lawName) {
+            const aLaw = String(a.law || '').toLowerCase().includes(lawName.toLowerCase());
+            const bLaw = String(b.law || '').toLowerCase().includes(lawName.toLowerCase());
+            if (aLaw !== bLaw) return bLaw ? 1 : -1;
+          }
+          return (b.srNumberInt || 0) - (a.srNumberInt || 0);
+        });
+        return results;
+      }
+    }
+
+    // B. Priority 2: Text index search on Statute collection
+    const searchRegex = new RegExp(escapeRegex(cleanQ), 'i');
+    try {
+      const textMatches = await Statute.find({
+        $text: { $search: cleanQ.replace(/[^a-zA-Z0-9\s]/g, ' ').trim() },
+        isDeleted: false
+      }).limit(5).lean();
+      if (textMatches && textMatches.length > 0) return textMatches;
+    } catch (sTextErr) {}
+
+    // C. Priority 3: Fallback search on Statute metadata fields
+    const metaMatches = await Statute.find({
+      isDeleted: false,
+      $or: [
+        { law: searchRegex },
+        { section: searchRegex },
+        { heading: searchRegex }
+      ]
+    }).limit(5).lean();
+
+    if (metaMatches && metaMatches.length > 0) return metaMatches;
+
+    // D. Priority 4: Search authoritative Case Law records decided on this Section
+    if (secNum) {
+      const caseCond = {
+        isDeleted: false,
+        'laws.section': new RegExp(`^${escapeRegex(secNum)}$`, 'i'),
+        court: { $not: /India|Supreme Court of India/i }
+      };
+      if (lawName && lawName.length > 2) {
+        caseCond['laws.lawStatute'] = new RegExp(escapeRegex(lawName), 'i');
+      }
+
+      let matchedCases = await Case.find(caseCond)
+        .select('sldNumber citation caseTitle caseNumber court judges dated judgmentDate decisionDate headNote laws principleLaw mapYearPage')
+        .sort({ sldNumberInt: -1, createdAt: -1 })
+        .limit(5)
+        .lean();
+
+      if ((!matchedCases || matchedCases.length === 0) && lawName) {
+        delete caseCond['laws.lawStatute'];
+        matchedCases = await Case.find(caseCond)
+          .select('sldNumber citation caseTitle caseNumber court judges dated judgmentDate decisionDate headNote laws principleLaw mapYearPage')
+          .sort({ sldNumberInt: -1, createdAt: -1 })
+          .limit(5)
+          .lean();
+      }
+
+      if (matchedCases && matchedCases.length > 0) {
+        return matchedCases.map(c => ({
+          ...c,
+          isJudicialPrecedent: true,
+          searchedSection: secNum,
+          searchedLaw: lawName || (c.laws?.find(l => String(l.section).toLowerCase() === secNum.toLowerCase())?.lawStatute) || 'Statutory Enactment'
+        }));
+      }
+    }
+
+    return [];
+  } catch (err) {
+    logger.warn('searchStatutes error: ' + err.message);
+    return [];
+  }
 };
 
 /**
@@ -241,19 +346,110 @@ export const searchStatutes = async (queryText) => {
  */
 export const searchNotifications = async (queryText) => {
   if (!queryText || typeof queryText !== 'string') return [];
-  const cleanQ = queryText.trim();
-  if (cleanQ.length < 2) return [];
+  const rawQ = queryText.trim();
+  if (rawQ.length < 2) return [];
 
-  const searchRegex = new RegExp(escapeRegex(cleanQ), 'i');
-  return await Notification.find({
-    isDeleted: false,
-    $or: [
-      { subject: searchRegex },
-      { number: searchRegex },
-      { sroNumber: searchRegex },
-      { 'blocks.detail': searchRegex }
-    ]
-  }).limit(5).maxTimeMS(2500).lean();
+  try {
+    // 1. Strip list numbering (e.g., "3. ", "3) ") and conversational filler words
+    const cleanQ = rawQ
+      .replace(/^\s*\d+[\.\)]\s*/, '')
+      .replace(/^(?:give|show|find|search|get|retrieve|fetch|display|check|please|view)\s+(?:me\s+)?/i, '')
+      .trim();
+
+    // 2. Identify SRO / Notification identifiers:
+    // Pattern A: S.R.O. 877(I)/2026, sro 877, S.R.O. 877(1), sro no. 877
+    const sroExplicit = cleanQ.match(/s\.?r\.?o\.?\s*(?:no\.?|#)?\s*(\d+)(?:\s*\(([a-z0-9]+)\))?(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+    // Pattern B: Notification 877/2026, notif 877, circular 12, cgo 5
+    const notifExplicit = cleanQ.match(/(?:notif(?:i|ee)?cat(?:i|ee)on|circular|c\.?g\.?o)\s*(?:no\.?|#)?\s*(\d+)(?:\s*\(([a-z0-9]+)\))?(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+    // Pattern C: Standalone bracketed format like 877(I)/2026 or 877(1)/2026
+    const bracketNum = cleanQ.match(/\b(\d+)\s*\(([a-z0-9]+)\)(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+
+    const match = sroExplicit || notifExplicit || bracketNum;
+    const sroNum = match ? match[1] : null;
+    const sroYear = match && match[3] ? parseInt(match[3], 10) : null;
+
+    // A. Priority 1: Exact SRO Number + Year Lookup (< 30ms)
+    if (sroNum && sroYear) {
+      const exactYearResults = await Notification.find({
+        isDeleted: false,
+        year: sroYear,
+        $or: [
+          { number: sroNum },
+          { sroNumber: new RegExp(escapeRegex(sroNum), 'i') },
+          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
+        ]
+      }).sort({ createdAt: -1 }).limit(10).lean();
+
+      if (exactYearResults && exactYearResults.length > 0) {
+        return exactYearResults;
+      }
+    }
+
+    // B. Priority 2: SRO Number Across All Years (< 30ms)
+    if (sroNum) {
+      const numResults = await Notification.find({
+        isDeleted: false,
+        $or: [
+          { number: sroNum },
+          { sroNumber: new RegExp(escapeRegex(sroNum), 'i') },
+          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
+        ]
+      }).sort({ year: -1, createdAt: -1 }).limit(10).lean();
+
+      if (numResults && numResults.length > 0) {
+        if (sroYear) {
+          numResults.sort((a, b) => {
+            const aMatch = Number(a.year) === sroYear || String(a.sroNumber).includes(String(sroYear));
+            const bMatch = Number(b.year) === sroYear || String(b.sroNumber).includes(String(sroYear));
+            return (bMatch ? 1 : 0) - (aMatch ? 1 : 0);
+          });
+        }
+        return numResults;
+      }
+    }
+
+    // C. Priority 3: Full-text search using text index (< 25ms)
+    const textQuery = cleanQ
+      .replace(/\b(?:notiifcations?|notifications?|notiifcation|notification|s\.?r\.?o\.?)\b/gi, ' ')
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')
+      .trim();
+
+    if (textQuery.length >= 3) {
+      try {
+        const textMatches = await Notification.find(
+          { $text: { $search: textQuery }, isDeleted: false },
+          { score: { $meta: 'textScore' } }
+        ).sort({ score: { $meta: 'textScore' } }).limit(10).lean();
+
+        if (textMatches && textMatches.length > 0) {
+          return textMatches;
+        }
+      } catch (tErr) {}
+    }
+
+    // D. Priority 4: Search top-level indexed fields (subject, sroNumber, number, department)
+    if (textQuery.length >= 2) {
+      const searchRegex = new RegExp(escapeRegex(textQuery), 'i');
+      const fieldMatches = await Notification.find({
+        isDeleted: false,
+        $or: [
+          { subject: searchRegex },
+          { sroNumber: searchRegex },
+          { number: searchRegex },
+          { department: searchRegex }
+        ]
+      }).sort({ year: -1, createdAt: -1 }).limit(10).lean();
+
+      if (fieldMatches && fieldMatches.length > 0) {
+        return fieldMatches;
+      }
+    }
+
+    return [];
+  } catch (err) {
+    logger.warn('searchNotifications error: ' + err.message);
+    return [];
+  }
 };
 
 /**
@@ -353,28 +549,91 @@ export const formatOtherCasesResponse = (results, queryText) => {
  * Formats results from Statutes & Legislation database
  */
 export const formatStatutesResponse = (results, queryText) => {
-  let text = `### 📜 SLD Certified Statutory Law Record\n\n` +
-    `Found **${results.length}** official statutory provision(s) for "**${queryText}**":\n\n`;
+  if (!Array.isArray(results) || results.length === 0) return '';
+
+  // If results are authoritative judicial precedents deciding this statutory section
+  if (results[0].isJudicialPrecedent) {
+    const primaryLaw = results[0].searchedLaw || 'Statutory Enactment';
+    const primarySec = results[0].searchedSection || 'Provision';
+    let text = `### 📜 SLD Statutory Provision & Governing Judicial Precedents\n\n` +
+      `**Statutory Provision**: **${primaryLaw}** — **Section ${primarySec}**\n\n` +
+      `Retrieved **${results.length}** authoritative judicial precedent(s) interpreting and governing this statutory provision for "**${queryText}**":\n\n`;
+
+    for (let i = 0; i < results.length; i++) {
+      const c = results[i];
+      const citeStr = (Array.isArray(c.mapYearPage) && c.mapYearPage.length > 0)
+        ? c.mapYearPage.join(' | ')
+        : (c.citation && c.citation !== 'Nil' ? c.citation : `SLD #${c.sldNumber || c._id}`);
+      const caseTitle = (Array.isArray(c.petitioners) && c.petitioners.length > 0)
+        ? c.petitioners.join(' vs ')
+        : (c.caseTitle || 'Judicial Precedent');
+      const cDate = c.dated || c.date || c.decisionDate || c.judgmentDate || '';
+
+      text += `---\n\n` +
+        `### Precedent ${i + 1}: ${citeStr}\n` +
+        `• **Court**: ${c.court || 'Superior Court of Pakistan'}\n` +
+        `• **Parties**: *${caseTitle}*\n` +
+        (cDate ? `• **Decision Date**: ${cDate}\n` : '') +
+        (Array.isArray(c.judges) && c.judges.length > 0 ? `• **Coram / Bench**: ${c.judges.join(', ')}\n` : '') +
+        (c.headNote ? `\n#### 📜 Statutory Headnote & Judicial Construction:\n${c.headNote.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1200)}\n\n` : '\n') +
+        `🔗 **Certified Judgment Record**: [View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+    }
+
+    text += `*All judicial precedents retrieved directly from the SLD Official Case Law & Statutory Database.*\n\n` +
+      `### 📚 Governing Statutory References\n` +
+      results.map((c, idx) => {
+        const cCite = (Array.isArray(c.mapYearPage) && c.mapYearPage.length > 0) ? c.mapYearPage[0] : (c.citation || `SLD #${c.sldNumber || c._id}`);
+        return `- **${primaryLaw}**, Section ${primarySec} — ${cCite}: [View Precedent ↗](/cases/view/${c._id})`;
+      }).join('\n');
+
+    return text;
+  }
+
+  // Standard Statute collection documents:
+  let text = `### 📜 SLD Certified Statutory Law Provision\n\n` +
+    `Retrieved **${results.length}** official statutory provision(s) for "**${queryText}**":\n\n`;
 
   for (let i = 0; i < results.length; i++) {
     const s = results[i];
+    const sldLink = s._id ? `[View Official Statute Provision ↗](/statutes/view/${s._id})` : '';
+
     text += `---\n\n` +
       `### Provision ${i + 1}: ${s.law || 'Statute'} — Section ${s.section || 'N/A'}\n` +
-      (s.heading ? `• **Heading**: ${s.heading}\n` : '') +
-      (s.subSection ? `• **Sub-Section**: ${s.subSection}\n` : '') +
-      (s.clause ? `• **Clause**: ${s.clause}\n` : '');
+      (s.heading ? `• **Heading / Subject**: ${s.heading}\n` : '') +
+      (s.chapter ? `• **Chapter**: ${s.chapter}\n` : '') +
+      (sldLink ? `• **SLD Statute Record**: ${sldLink}\n` : '');
 
     if (Array.isArray(s.blocks) && s.blocks.length > 0) {
-      const blockDetails = s.blocks
-        .map(b => (b.sectionHeading ? `**${b.sectionHeading}**\n` : '') + (b.detail || ''))
-        .filter(Boolean)
-        .join('\n\n');
-      if (blockDetails) {
-        text += `\n#### 📄 Statutory Text:\n${blockDetails.slice(0, 1500)}\n\n`;
+      // Sort blocks so latest applicable date is first descending
+      const sortedBlocks = [...s.blocks].sort((a, b) => {
+        const tA = a.fromDate ? new Date(a.fromDate).getTime() : 0;
+        const tB = b.fromDate ? new Date(b.fromDate).getTime() : 0;
+        return tB - tA;
+      });
+
+      const currentBlock = sortedBlocks[0];
+      const olderBlocks = sortedBlocks.slice(1);
+
+      if (currentBlock && (currentBlock.detail || currentBlock.sectionHeading)) {
+        const fromD = currentBlock.fromDate ? new Date(currentBlock.fromDate).toLocaleDateString() : 'Current Applicable Law';
+        text += `\n#### 🏛️ Current Applicable Statutory Text (Effective: ${fromD}):\n` +
+          (currentBlock.sectionHeading ? `**${currentBlock.sectionHeading}**\n` : '') +
+          `${(currentBlock.detail || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()}\n\n`;
+      }
+
+      if (olderBlocks.length > 0) {
+        text += `#### ⏳ Historical Amendments & Prior Versions (${olderBlocks.length} prior amendment(s) recorded):\n`;
+        olderBlocks.forEach((ob, obIdx) => {
+          const obDate = ob.fromDate ? new Date(ob.fromDate).toLocaleDateString() : 'Historical Version';
+          text += `• **Amendment ${obIdx + 1} (${obDate})**: ${(ob.sectionHeading || '').trim() || (ob.detail || '').replace(/<[^>]*>/g, ' ').slice(0, 150)}...\n`;
+        });
+        text += `\n`;
       }
     }
   }
-  text += `*Certified directly from the SLD Official Legislation & Acts Database.*`;
+  text += `*Certified directly from the SLD Official Legislation Database.*\n\n` +
+    `### 📚 Statutory References\n` +
+    results.map(s => `- **${s.law || 'Statute'}**, Section ${s.section || ''}${s.chapter ? ` (${s.chapter})` : ''}: [View Full Statute ↗](/statutes/view/${s._id})`).join('\n');
   return text;
 };
 
@@ -382,29 +641,69 @@ export const formatStatutesResponse = (results, queryText) => {
  * Formats results from Official Notifications & SROs database
  */
 export const formatNotificationsResponse = (results, queryText) => {
+  if (!Array.isArray(results) || results.length === 0) return '';
   let text = `### 🏛️ SLD Official Regulatory SRO & Notifications Archive\n\n` +
     `Retrieved **${results.length}** verified regulatory notification(s) for "**${queryText}**":\n\n`;
 
   for (let i = 0; i < results.length; i++) {
     const n = results[i];
-    const sroNum = n.sroNumber || n.number || 'Regulatory SRO';
+    const sroNum = n.sroNumber || n.number || 'Official SRO';
+    const notifId = n.srNumber || n.notificationId || n._id;
+    const viewUrl = `/notifications/view/${notifId}`;
+
     text += `---\n\n` +
       `### SRO ${i + 1}: ${sroNum}\n` +
       (n.subject ? `• **Subject**: ${n.subject}\n` : '') +
       (n.year ? `• **Year**: ${n.year}\n` : '') +
+      (n.department ? `• **Department / Authority**: ${n.department}\n` : '') +
+      (n.lawStatute ? `• **Statute / Enactment**: ${n.lawStatute} ${n.section ? `(Section ${n.section})` : ''}\n` : '') +
       (n.notificationDate ? `• **Notification Date**: ${new Date(n.notificationDate).toLocaleDateString()}\n` : '');
 
     if (Array.isArray(n.blocks) && n.blocks.length > 0) {
       const blockDetails = n.blocks
-        .map(b => (b.sectionHeading ? `**${b.sectionHeading}**\n` : '') + (b.detail || ''))
+        .map(b => {
+          const dt = b.date ? `**Date: ${b.date}**\n` : '';
+          const cleanedText = (b.detail || '')
+            .replace(/<table[^>]*>[\s\S]*?<\/table>/gi, tbl => tbl.replace(/<tr[^>]*>/gi, '\n').replace(/<td[^>]*>/gi, ' | ').replace(/<[^>]+>/g, ' '))
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n\n')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          return dt + cleanedText;
+        })
         .filter(Boolean)
         .join('\n\n');
+
       if (blockDetails) {
-        text += `\n#### 📄 Regulatory Order Text:\n${blockDetails.slice(0, 1500)}\n\n`;
+        text += `\n#### 📄 Official Gazette Notification Text:\n${blockDetails.slice(0, 1600)}...\n\n`;
       }
     }
+
+    // Attachments if present
+    const attachmentsList = [];
+    if (Array.isArray(n.blocks)) {
+      n.blocks.forEach(b => {
+        if (Array.isArray(b.attachments)) {
+          b.attachments.forEach(att => {
+            if (att && (att.url || att.path)) {
+              attachmentsList.push(`[${att.name || 'Official Attachment'}](${att.url || att.path})`);
+            }
+          });
+        }
+      });
+    }
+    if (attachmentsList.length > 0) {
+      text += `• **Attachments**: ${attachmentsList.join(', ')}\n`;
+    }
+
+    text += `🔗 **Official Regulatory Document**: [View Official Notification in New Tab ↗](${viewUrl})\n\n`;
   }
-  text += `*Official Government Gazette & Federal Board of Revenue regulatory records verified.*`;
+
+  text += `*Official Government Gazette & Federal Board of Revenue regulatory records verified.*\n\n` +
+    `### 📚 Regulatory References\n` +
+    results.map(n => `- **${n.sroNumber || n.number || 'SRO'}** (${n.year || 'Gazette'}): [View Full Notification ↗](/notifications/view/${n.srNumber || n._id})`).join('\n');
   return text;
 };
 
@@ -3098,7 +3397,27 @@ ${casesSummary}
     ]);
 
     if (geminiText && geminiText.trim().length > 50) {
-      return geminiText.trim();
+      let finalAnswer = geminiText.trim();
+
+      // Ensure structured Legal Case References appear at the end
+      if (!finalAnswer.includes('### 📚 Legal Case References')) {
+        let refsSection = '\n\n### 📚 Legal Case References\n\n**Internal SLD Case Law Records:**\n';
+        topCases.forEach((c, cIdx) => {
+          const cCite = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' = ') : (c.citation || `SLD #${c.sldNumber}`);
+          const cTitle = cleanParties(c.petitioners) || c.title || 'Reported Appeal';
+          const cCourt = c.court || 'Superior Court of Record';
+          const cDate = formatDate(c) || 'Recorded';
+          const cLink = `[View Case Record ↗](/cases/view/${c._id})`;
+
+          refsSection += `- **Case Title**: ${cTitle}\n` +
+            `  - **Citation**: ${cCite}\n` +
+            `  - **Court**: ${cCourt}\n` +
+            `  - **Decision Date**: ${cDate}\n` +
+            `  - **SLD Record**: ${cLink}\n\n`;
+        });
+        finalAnswer += refsSection;
+      }
+      return finalAnswer;
     }
   } catch (err) {
     logger.warn('Gemini synthesis notice: ' + err.message);
@@ -3147,8 +3466,16 @@ export const isPakistaniLegalQuery = (queryText) => {
     return true;
   }
 
-  // 4. Pakistani Statutes, Codes & Enactments
-  if (/\b(?:income\s*tax\s*(?:ordinance|act)|sales\s*tax\s*act|customs\s*act|federal\s*excise\s*(?:act|rules)|companies\s*act|pakistan\s*penal\s*code|\bppc\b|\bcrpc\b|\bcpc\b|constitution\s*of\s*pakistan|article\s*199|second\s*schedule|first\s*schedule|section\s*\d+[a-z]?|\bsro\s*\d+|statutory\s*regulatory\s*order)\b/i.test(q)) {
+  // 4A. Official Notifications, SROs & Regulatory Enactments
+  if (/\b(?:s\.?r\.?o\.?|notif(?:i|ee)?cat(?:i|ee)ons?|regulatory\s*orders?|c\.?g\.?o|statutory\s*regulatory\s*order|circulars?)\b/i.test(q) ||
+      /s\.?r\.?o\.?\s*[\d(]/i.test(q)) {
+    return true;
+  }
+
+  // 4B. Pakistani Statutes, Codes, Sections & Articles
+  if (/\b(?:sec(?:tion)?|art(?:icle)?|rule|clause|sub-?section)\.?\s*\d+[a-z0-9()]*/i.test(q) ||
+      /\b(?:income\s*tax\s*(?:ordinance|act)?|sales\s*tax\s*act?|customs\s*act?|federal\s*excise\s*(?:act|rules)?|companies\s*act?|pakistan\s*penal\s*code|\bppc\b|\bcrpc\b|\bcpc\b|constitution\s*of\s*pakistan|article\s*\d+|second\s*schedule|first\s*schedule|stamp\s*act|transfer\s*of\s*property)\b/i.test(q) ||
+      /\b(?:statutes?|ordinances?|enactments?|codes?)\b/i.test(q)) {
     return true;
   }
 
@@ -3846,18 +4173,24 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
       }
     }
 
-    // 0.5C Official Notifications & SROs
-    if (/\b(?:sro|notification|regulatory\s*order|fbr\s*sro)\b/i.test(rawClean)) {
+    // 0.5C Strict Official Notifications & SROs Routing (Requirement 5.C)
+    // When the user's query specifically contains "SRO", "Notification", or "Notifications":
+    // The AI must search ONLY the Notifications module. Do not search or include Statutes or Case Law.
+    const isStrictNotifQuery = (
+      /\b(?:s\.?r\.?o\.?|notif(?:i|ee)?cat(?:i|ee)ons?|c\.?g\.?o|circulars?)\b/i.test(rawClean) ||
+      /s\.?r\.?o\.?\s*[\d(]/i.test(rawClean)
+    ) && !/\b(?:case\s*law|judgm?ents?|petition|appeal|vs\.?|versus)\b/i.test(rawClean);
+    if (isStrictNotifQuery) {
       if (!canAccessNotifications) {
         return {
           text: `### 🔒 Access Authorization Notice\n\nYour account role does not have authorization to view **Official Notifications & SROs**. Please contact your administrator.`,
           legalAnalysis: { matchedCase: null, matchType: 'permission_denied', confidence: 100, sourcesFound: 0 }
         };
       }
-      const notifRecords = await searchNotifications(cleanQuery);
+      const notifRecords = await searchNotifications(rawClean);
       if (notifRecords && notifRecords.length > 0) {
         return {
-          text: formatNotificationsResponse(notifRecords, cleanQuery),
+          text: formatNotificationsResponse(notifRecords, rawClean),
           legalAnalysis: {
             matchedCase: null,
             exactQuote: null,
@@ -3867,21 +4200,43 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
             sourcesFound: notifRecords.length
           }
         };
+      } else {
+        return {
+          text: `### 🏛️ SLD Official Regulatory SRO & Notifications Archive\n\nNo verified regulatory notification or SRO was found in the official database matching "**${cleanQuery}**".\n\n*(Note: This search was restricted strictly to the Notifications module as requested. Unrelated court judgments and statutory provisions were not introduced).*\n\n### 📚 References\n- No verified regulatory SRO or notification reference was found matching this query in the SLD database.`,
+          legalAnalysis: {
+            matchedCase: null,
+            exactQuote: null,
+            matchType: 'regulatory_notification_not_found',
+            confidence: 100,
+            activeReferences: ['notifications'],
+            sourcesFound: 0
+          }
+        };
       }
     }
 
-    // 0.5D Specific Statutory Sections
-    if (/\b(?:statute|act|ordinance)\b/i.test(rawClean) && /\bsection\b/i.test(rawClean)) {
+    // 0.5D Statute & Section Routing
+    // When the user specifies a Section/Article (e.g. "Section 177", "Income Tax Ordinance Section 177", "Sec 8")
+    // or asks to explain/analyze a statutory provision:
+    const isStatuteQuery = (
+      /\b(?:sec(?:tion)?|art(?:icle)?)\.?\s*\d+[a-z0-9()]*/i.test(rawClean) ||
+      /\b(?:explain|what\s+is|analyze|interpret|meaning\s+of)\s+(?:the\s+)?(?:section|sec\.?|article|clause)\s+\d+[a-z]?/i.test(rawClean) ||
+      (/\bsection\s+\d+[a-z]?\b/i.test(rawClean) && /\b(?:income\s*tax|sales\s*tax|customs|ordinance|act|statute|companies\s*act|constitution)\b/i.test(rawClean)) ||
+      (/\b(?:statute|act|ordinance)\b/i.test(rawClean) && /\bsection\b/i.test(rawClean)) ||
+      /\b(?:income\s*tax\s*(?:ordinance|act)?|sales\s*tax\s*act?|customs\s*act?|companies\s*act?)\s*(?:section|sec\.?|art\.?|article)?\s*\d+/i.test(rawClean)
+    ) && !/\b(?:case\s*law|precedents?|judgm?ents?|citations?|rulings?|versus|vs\.?)\b/i.test(rawClean);
+
+    if (isStatuteQuery) {
       if (!canAccessStatutes) {
         return {
           text: `### 🔒 Access Authorization Notice\n\nYour account role does not have authorization to view **Statutory Provisions**. Please contact your administrator.`,
           legalAnalysis: { matchedCase: null, matchType: 'permission_denied', confidence: 100, sourcesFound: 0 }
         };
       }
-      const statRecords = await searchStatutes(cleanQuery);
+      const statRecords = await searchStatutes(rawClean);
       if (statRecords && statRecords.length > 0) {
         return {
-          text: formatStatutesResponse(statRecords, cleanQuery),
+          text: formatStatutesResponse(statRecords, rawClean),
           legalAnalysis: {
             matchedCase: null,
             exactQuote: null,
@@ -3889,6 +4244,18 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, at
             confidence: 100,
             activeReferences: ['statutes', 'legislation'],
             sourcesFound: statRecords.length
+          }
+        };
+      } else {
+        return {
+          text: `### 📜 SLD Official Statute & Legislation Archive\n\nNo verified statutory provision was found in the official database matching "**${cleanQuery}**".\n\n*(Note: This search was restricted strictly to the Statutes & Legislation module as requested. Unrelated court judgments and notifications were not introduced).*`,
+          legalAnalysis: {
+            matchedCase: null,
+            exactQuote: null,
+            matchType: 'statute_not_found',
+            confidence: 100,
+            activeReferences: ['statutes'],
+            sourcesFound: 0
           }
         };
       }

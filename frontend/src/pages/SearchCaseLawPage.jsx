@@ -173,7 +173,7 @@ const CaseTableRow = React.memo(({
 
       {/* Dated */}
       <td className="px-3 py-3 whitespace-nowrap align-top text-center font-mono text-[11px] text-gray-700 font-medium">
-        {c.dated ? String(c.dated).split('T')[0] : '—'}
+        {c.dated || c.date ? String(c.dated || c.date).split('T')[0] : '—'}
       </td>
 
       {/* Dynamic Law Column */}
@@ -244,22 +244,45 @@ const CaseTableRow = React.memo(({
         />
       </td>
 
-      {/* Head Note OR Judgment Paragraph */}
-      <td className="px-3 py-3 text-gray-700 min-w-[260px] max-w-[380px] break-words align-top">
-        {matchedPara ? (
-          <div className="space-y-1">
-            <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider">
-              Judgment Operative Excerpt
+      {/* Lawyer / Petitioner / Author Information (Replaced Headnote column) */}
+      <td className="px-3 py-3 text-gray-700 min-w-[280px] max-w-[380px] break-words align-top">
+        <div className="space-y-2 text-xs">
+          {/* Petitioner / Parties */}
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 inline-block mb-0.5">
+              Petitioner / Parties
             </span>
-            <p className="line-clamp-3 text-xs leading-relaxed italic bg-yellow-50/70 p-2 rounded border border-yellow-200/80">
-              "<Highlight text={matchedPara} terms={activeSearchTerms} />"
+            <p className="font-semibold text-gray-900 leading-tight">
+              <Highlight text={c.petitioners || c.parties || '—'} terms={activeSearchTerms} />
             </p>
           </div>
-        ) : (
-          <p className="line-clamp-3 leading-relaxed text-xs">
-            <Highlight text={c.headNote || '—'} terms={activeSearchTerms} />
-          </p>
-        )}
+
+          {/* Author Judge */}
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-block mb-0.5">
+              Author Judge
+            </span>
+            <p className="text-gray-800 font-medium leading-tight">
+              <Highlight 
+                text={c.authorJudge || (c.judges && c.judges.length > 0 ? (Array.isArray(c.judges) ? c.judges.join('; ') : c.judges) : '—')} 
+                terms={activeSearchTerms} 
+              />
+            </p>
+          </div>
+
+          {/* Lawyer */}
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 inline-block mb-0.5">
+              Lawyer / Legal Counsel
+            </span>
+            <p className="text-gray-700 leading-tight">
+              <Highlight 
+                text={c.lawyers && c.lawyers.length > 0 ? (Array.isArray(c.lawyers) ? c.lawyers.join('; ') : c.lawyers) : '—'} 
+                terms={activeSearchTerms} 
+              />
+            </p>
+          </div>
+        </div>
       </td>
 
       {/* Action View */}
@@ -896,7 +919,7 @@ const SearchCaseLawPage = () => {
 
                     <th className="px-3 py-3 font-bold min-w-[140px]">Court</th>
                     <th className="px-3 py-3 font-bold min-w-[160px]">Case No.</th>
-                    <th className="px-3 py-3 font-bold min-w-[260px]">Head Note / Operative Paragraph</th>
+                    <th className="px-3 py-3 font-bold min-w-[280px]">Lawyer / Petitioner / Author</th>
                     <th className="px-3 py-3 font-bold w-20 text-center min-w-[85px]">Action</th>
                   </tr>
                 </thead>

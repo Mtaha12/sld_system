@@ -1,3 +1,4 @@
+import { verifyAndPrint } from '../../../utils/securePrint';
 import React, { useRef, useState } from 'react';
 import { Printer, Download, Receipt, X, Check } from 'lucide-react';
 import Modal from '../../../components/ui/Modal';
@@ -34,7 +35,7 @@ const InvoicePrintModal = ({ invoice, isOpen, onClose }) => {
   if (!invoice) return null;
 
   const handlePrint = () => {
-    window.print();
+    verifyAndPrint();
   };
 
   const finalReceivable = Number(invoice.totalReceivable) || (Number(invoice.totalBillAmount) - (Number(invoice.deductionAmount) || 0));

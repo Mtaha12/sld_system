@@ -1,3 +1,4 @@
+import { verifyAndPrint } from '../../utils/securePrint';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { caseService } from '../../features/cases/services/caseService';
@@ -119,7 +120,7 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
               SLD #{caseData?.sldNumber || caseId}
             </span>
             <button 
-              onClick={() => window.print()}
+              onClick={() => verifyAndPrint()}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 text-xs font-medium text-stone-700 shadow-2xs transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5 text-amber-600" /> Print Document

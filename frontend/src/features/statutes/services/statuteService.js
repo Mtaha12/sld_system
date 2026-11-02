@@ -97,6 +97,12 @@ export const statuteService = {
    */
   getDistinctLaws: async () => {
     const response = await api.get('/api/statutes/laws');
-    return response.data.data || [];
+    const res = response.data;
+    return Array.isArray(res) ? res : (res?.data || []);
+  },
+
+  getLatestStatuteMeta: async () => {
+    const response = await api.get('/api/statutes/latest-meta');
+    return response.data?.data || null;
   }
 };

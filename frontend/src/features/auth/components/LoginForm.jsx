@@ -164,7 +164,6 @@ const LoginForm = () => {
             </div>
             <div className="space-y-0.5 pt-0.5">
               <p className="text-white font-bold">Abdul Sami Abbasi <span className="text-[11px] font-normal text-slate-400">(Sales Manager)</span></p>
-              <p className="leading-snug text-slate-300">Karachi Branch Office No. 408, 4th Floor, Al-Ayesha Chambers, Sharar-e-Iraq, Near Passport Office, Saddar-Karachi</p>
               <p className="leading-snug text-slate-400 font-mono text-[11px]">0325-8986393 • sami@sldsystem.com</p>
             </div>
           </div>

@@ -88,6 +88,14 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  sessionVersion: {
+    type: Number,
+    default: 1,
+  },
+  lastLogoutAt: {
+    type: Date,
+    default: null,
+  },
   isSpammer: {
     type: Boolean,
     default: false,

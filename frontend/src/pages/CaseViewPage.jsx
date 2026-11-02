@@ -9,6 +9,7 @@ import {
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { formatCitations } from '../utils/citationFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
+import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
 
 /**
  * Robust Cause Title parser for Commonwealth / Pakistani law reports
@@ -75,7 +76,8 @@ const CaseViewPage = () => {
   const [copiedCitation, setCopiedCitation] = useState(false);
   const [copiedJudgment, setCopiedJudgment] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1); // 0: Standard, 1: Comfortable, 2: Large, 3: Enlarged
-  const [pageSize, setPageSize] = useState('a4'); // 'a4' | 'legal' | 'letter'
+  const [pageSize, setPageSize] = useState('a4');
+  useSecurePrintShortcut(); // 'a4' | 'legal' | 'letter'
 
   useEffect(() => {
     const fetchCase = async () => {
@@ -224,14 +226,15 @@ const CaseViewPage = () => {
         @media print {
           @page {
             size: ${pageSize};
-            margin: 0.5in;
+            margin: 12mm 15mm 12mm 15mm;
           }
-          .print-document {
-            font-size: 15px !important;
-            line-height: 1.75 !important;
+          .print-document,
+          .print-document * {
+            font-size: var(--print-font-size, 14px) !important;
+            line-height: var(--print-line-height, 1.55) !important;
           }
           .print-document h1 {
-            font-size: 75% !important;
+            font-size: 1.3rem !important;
           }
           body {
             background: white !important;
@@ -375,7 +378,7 @@ const CaseViewPage = () => {
             {/* Print Official Law Report Button */}
             <button 
               type="button"
-              onClick={() => window.print()}
+              onClick={() => verifyAndPrint()}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
               title="Print certified law report"
             >
@@ -424,10 +427,10 @@ const CaseViewPage = () => {
                   <span>{caseData.caseNumber.join('; ')}</span>
                 </span>
               )}
-              {caseData.dated && (
+              {(caseData.dated || caseData.date) && (
                 <span className="inline-flex items-center gap-1.5 text-stone-600 dark:text-stone-400">
                   <Calendar className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                  <span>Decision Dated: {formatLegalDate(caseData.dated)}</span>
+                  <span>Decision Dated: {formatLegalDate(caseData.dated || caseData.date)}</span>
                 </span>
               )}
             </div>

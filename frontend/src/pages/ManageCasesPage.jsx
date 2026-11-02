@@ -27,6 +27,12 @@ const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '', customO
   const count = caseItems.length;
 
   if (format === 'pdf') {
+    const token = localStorage.getItem('sld_access_token');
+    if (!token) {
+      alert('Access Denied: You must be logged in to print or export official law reports.');
+      window.location.href = '/login';
+      return;
+    }
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Popup blocker blocked case export. Please enable popups.');

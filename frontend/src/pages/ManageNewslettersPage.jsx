@@ -14,6 +14,21 @@ const ManageNewslettersPage = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [searchParams] = useSearchParams();
+  const urlEditId = searchParams.get('editId') || searchParams.get('id');
+
+  useEffect(() => {
+    if (urlEditId) {
+      newsletterService.getNewsletterById(urlEditId)
+        .then(rec => {
+          if (rec) {
+            setEditingItem(rec);
+            setIsFormOpen(true);
+          }
+        })
+        .catch(err => console.warn('Could not load newsletter by editId:', err));
+    }
+  }, [urlEditId]);
 
   const fetchNewsletters = useCallback(async (query = '') => {
     setIsLoading(true);
@@ -47,9 +62,8 @@ const ManageNewslettersPage = () => {
   };
 
   const handleEditItem = (item) => {
-    setEditingItem(item);
-    setIsFormOpen(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const editId = item._id || item.id || item.newsletterId;
+    window.open(`/manage-newsletters?editId=${editId}`, '_blank');
   };
 
   const handleFormSuccess = (savedItem, message) => {

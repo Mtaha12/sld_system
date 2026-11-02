@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { statuteService } from '../features/statutes/services/statuteService';
 import Spinner from '../components/ui/Spinner';
 import { 
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
+import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -41,9 +42,13 @@ const formatDisplayDate = (dVal) => {
 const StatuteViewPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const targetBlockId = searchParams.get('blockId');
+  const targetBlockIndex = searchParams.get('blockIndex');
   const [statute, setStatute] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  useSecurePrintShortcut();
 
   // UI States matching Case Law View
   const [copied, setCopied] = useState(false);
@@ -109,7 +114,7 @@ const StatuteViewPage = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    verifyAndPrint();
   };
 
   if (loading) {
@@ -155,14 +160,15 @@ const StatuteViewPage = () => {
         @media print {
           @page {
             size: ${pageSize};
-            margin: 0.5in;
+            margin: 12mm 15mm 12mm 15mm;
           }
-          .print-document {
-            font-size: 15px !important;
-            line-height: 1.75 !important;
+          .print-document,
+          .print-document * {
+            font-size: var(--print-font-size, 14px) !important;
+            line-height: var(--print-line-height, 1.55) !important;
           }
           .print-document h1 {
-            font-size: 75% !important;
+            font-size: 1.3rem !important;
           }
           body {
             background: white !important;

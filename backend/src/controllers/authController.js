@@ -3,6 +3,7 @@ import PaymentSubmission from '../models/PaymentSubmission.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../config/jwt.js';
 import { sendAdminContactEmail } from '../../services/emailService.js';
 import logger from '../utils/logger.js';
+import { clearUserSessionCache } from '../middleware/authMiddleware.js';
 import nodemailer from 'nodemailer';
 
 /**
@@ -347,6 +348,12 @@ export const login = async (req, res, next) => {
         message: `Access Denied: Your account is currently ${user.status}.`
       });
     }
+
+    // Mark active session & increment session version
+    user.alreadyLogin = true;
+    user.sessionVersion = (user.sessionVersion || 1) + 1;
+    await user.save();
+    clearUserSessionCache(user._id);
 
     // Generate tokens
     const accessToken = generateAccessToken(user);
@@ -721,6 +728,12 @@ export const googleLogin = async (req, res, next) => {
       });
     }
 
+    // Mark active session & increment session version
+    user.alreadyLogin = true;
+    user.sessionVersion = (user.sessionVersion || 1) + 1;
+    await user.save();
+    clearUserSessionCache(user._id);
+
     // Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
@@ -934,6 +947,13 @@ export const refreshToken = async (req, res, next) => {
       });
     }
 
+    if (user.role !== 'Administrator' && user.alreadyLogin === false) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access Denied: Your session has been revoked. Please log in again.'
+      });
+    }
+
     const accessToken = generateAccessToken(user);
 
     return res.status(200).json({
@@ -976,6 +996,26 @@ export const changeCurrentUserPassword = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Password changed successfully.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const logout = async (req, res, next) => {
+  try {
+    if (req.user && req.user._id) {
+      await User.findByIdAndUpdate(req.user._id, {
+        alreadyLogin: false,
+        sessionVersion: (req.user.sessionVersion || 1) + 1,
+        lastLogoutAt: new Date()
+      });
+      clearUserSessionCache(req.user._id);
+      logger.info(`[Logout Success] User ${req.user.username} logged out.`);
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully. Session closed.'
     });
   } catch (error) {
     next(error);

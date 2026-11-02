@@ -4,7 +4,8 @@ import {
   updateCase, deleteCase, deleteMultiple,
   searchCases, getMaxPage, getNextSld,
   getCaseDatabaseStats,
-  uploadCaseAttachment
+  uploadCaseAttachment,
+  exportMissingHeadnotes
 } from '../controllers/caseController.js';
 import { protect, requireAdmin, checkCaseAccess } from '../middleware/authMiddleware.js';
 import { uploadReferenceViewMiddleware } from '../middleware/uploadMiddleware.js';
@@ -16,6 +17,7 @@ router.use(protect, checkCaseAccess);
 
 // Read-only actions (Accessible to both standard Users and Administrators)
 router.get('/', getCases);
+router.get('/export-missing-headnotes', exportMissingHeadnotes);
 router.get('/database-counts', getCaseDatabaseStats); // must be before /:id
 router.post('/search', searchCases);
 router.get('/max-page', getMaxPage);   // must be before /:id

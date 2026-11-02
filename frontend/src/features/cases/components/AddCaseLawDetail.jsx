@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { 
   X, CheckCircle2, Scale, Plus, Upload, FileText,
   Search, Loader2, ChevronLeft, ChevronRight, Check,
-  ArrowLeft, Trash2
+  ArrowLeft, Trash2, ExternalLink
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
@@ -28,6 +28,20 @@ const safeDate = (val) => {
   if (!val) return null;
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
+};
+
+const getSafeUrl = (text) => {
+  if (!text || typeof text !== 'string') return null;
+  const str = text.trim();
+  if (/^(?:javascript|data|vbscript):/i.test(str)) return null;
+  if (/^https?:\/\/[^\s]+$/i.test(str)) return str;
+  if (/^\/[a-zA-Z0-9_\-\/]+/.test(str)) return str;
+  if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(str)) return `mailto:${str}`;
+  const embedded = str.match(/https?:\/\/[^\s)\]">]+/i);
+  if (embedded && !/^(?:javascript|data|vbscript):/i.test(embedded[0])) {
+    return embedded[0];
+  }
+  return null;
 };
 
 /**
@@ -740,11 +754,13 @@ const AddCaseLawDetail = ({ onClose }) => {
       const safeAttachments = (Array.isArray(data.attachments) ? data.attachments : [])
         .map((att, idx) => {
           if (!att || typeof att !== 'object') return null;
+          const rawName = (att.name && String(att.name).trim()) || (att.originalName && String(att.originalName).trim()) || (att.filename && String(att.filename).trim());
+          const name = rawName || `Attachment_${idx + 1}.pdf`;
           return {
-            name: att.name || att.originalName || att.filename || `Attachment_${idx + 1}.pdf`,
+            name,
             url: att.url || '',
             size: typeof att.size === 'number' ? `${(att.size / (1024 * 1024)).toFixed(2)} MB` : (att.size || ''),
-            type: att.type || (att.name?.endsWith('.docx') ? 'word' : (att.name?.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf'))
+            type: att.type || (name.endsWith('.docx') ? 'word' : (name.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf'))
           };
         })
         .filter(Boolean);
@@ -1174,14 +1190,49 @@ const AddCaseLawDetail = ({ onClose }) => {
                 </FormField>
               </div>
               <div className="md:col-span-3">
-                <FormField label="References">
-                  <Textarea 
-                    placeholder="Enter references..."
-                    minHeight="280px"
-                    className="text-sm"
-                    style={{ height: '280px', resize: 'vertical' }}
-                    {...register('references')}
-                  />
+                <FormField label="Email">
+                  <div className="flex flex-col gap-2">
+                    <Controller
+                      name="references"
+                      control={control}
+                      render={({ field }) => {
+                        const safeUrl = getSafeUrl(field.value);
+                        return (
+                          <div className="space-y-1.5">
+                            <Textarea 
+                              placeholder="Enter or paste Email, URL, or reference..."
+                              minHeight="280px"
+                              className="text-sm"
+                              style={{ height: '280px', resize: 'vertical' }}
+                              value={field.value || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val && /^(?:javascript|data|vbscript):/i.test(val.trim())) {
+                                  alert('Unsafe link protocol not permitted.');
+                                  return;
+                                }
+                                field.onChange(val);
+                              }}
+                            />
+                            {safeUrl && (
+                              <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 p-2 rounded border border-blue-200 dark:border-blue-900">
+                                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                                <a 
+                                  href={safeUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="font-medium hover:underline truncate"
+                                  title="Open link"
+                                >
+                                  {safeUrl}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }}
+                    />
+                  </div>
                 </FormField>
               </div>
             </div>
@@ -1300,14 +1351,14 @@ const AddCaseLawDetail = ({ onClose }) => {
                                     const res = await caseService.uploadAttachment(f);
                                     if (res && res.url) {
                                       uploadedItems.push({
-                                        name: res.name || f.name,
+                                        name: (res?.name && String(res.name).trim()) || (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
                                         url: res.url,
                                         size: res.size || `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
                                         type: res.type || (f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf'))
                                       });
                                     } else {
                                       uploadedItems.push({
-                                        name: f.name,
+                                        name: (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
                                         url: '',
                                         size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
                                         type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
@@ -1316,7 +1367,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                                   } catch (uploadErr) {
                                     console.warn('Direct attachment upload warning:', uploadErr);
                                     uploadedItems.push({
-                                      name: f.name,
+                                      name: (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
                                       url: '',
                                       size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
                                       type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')

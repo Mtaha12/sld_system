@@ -24,6 +24,21 @@ const OtherCaseLawsPage = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [searchParams] = useSearchParams();
+  const urlEditId = searchParams.get('editId') || searchParams.get('id');
+
+  useEffect(() => {
+    if (urlEditId) {
+      otherCaseLawService.getOtherCaseById(urlEditId)
+        .then(rec => {
+          if (rec) {
+            setEditingItem(rec);
+            setIsFormOpen(true);
+          }
+        })
+        .catch(err => console.warn('Could not load other case by editId:', err));
+    }
+  }, [urlEditId]);
 
   const fetchCases = useCallback(async (page = 1, limit = 100, sortKey = 'srNumber', sortDir = 'asc', query = '', judge = '') => {
     setIsLoading(true);
