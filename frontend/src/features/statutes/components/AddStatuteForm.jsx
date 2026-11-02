@@ -127,8 +127,10 @@ const CompactFileButton = ({ value, onChange }) => {
 const AddStatuteForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const urlEditId = searchParams.get('editId') || searchParams.get('id');
   const editData = location.state?.statuteData;
-  const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || null);
+  const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || urlEditId || null);
   const isEdit = Boolean(currentRecordId);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lawOptions, setLawOptions] = useState([]);
@@ -312,7 +314,15 @@ const AddStatuteForm = () => {
             if (rec.heading) setValue('heading', rec.heading);
             if (rec.department) setValue('department', rec.department.toLowerCase());
             if (Array.isArray(rec.blocks) && rec.blocks.length > 0) {
-              setValue('blocks', rec.blocks);
+              const formattedBlocks = rec.blocks.map((b, i) => ({
+                id: b._id || `existing-${i}`,
+                sectionHeading: b.sectionHeading || '',
+                fromDate: formatDateForInput(b.fromDate),
+                toDate: formatDateForInput(b.toDate),
+                detail: b.detail || '',
+                attachments: b.attachments || []
+              }));
+              setValue('blocks', formattedBlocks);
             }
           }
         })
@@ -354,7 +364,7 @@ const AddStatuteForm = () => {
       });
 
     return () => { isMounted = false; };
-  }, [isEdit, editData, setValue]);
+  }, [isEdit, editData, urlEditId, setValue]);
 
 
 
