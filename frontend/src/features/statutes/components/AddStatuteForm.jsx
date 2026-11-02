@@ -135,38 +135,61 @@ const AddStatuteForm = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [lawOptions, setLawOptions] = useState([]);
   const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
-  const defaultValues = {
-    srNumber: editData?.srNumber?.toString() || editData?.id?.toString() || '',
-    department: editData?.department?.toLowerCase() || 'tax',
-    chapter: editData?.chapter || '',
-    display: editData?.display?.toLowerCase() === 'no' ? 'no' : 'yes',
-    status: editData?.display === 'No' ? 'inactive' : 'active',
-    law: editData?.law || '',
-    section: editData?.section || '',
-    heading: editData?.heading || '',
-    blocks: (() => {
-      const empty1 = { id: 'new-block-1', sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] };
-      if (!editData) return [empty1];
-      
-      const existingFilled = (editData?.blocks || []).filter(b => {
-        const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
-        const hasSectionHeading = b.sectionHeading && b.sectionHeading.trim() !== '';
-        const hasFromDate = b.fromDate !== null && b.fromDate !== '';
-        const hasToDate = b.toDate !== null && b.toDate !== '';
-        const hasAttachments = b.attachments && b.attachments.length > 0;
-        return hasDetail || hasSectionHeading || hasFromDate || hasToDate || hasAttachments;
-      }).map((b, i) => ({
-        id: b._id || `existing-${i}`,
-        sectionHeading: b.sectionHeading || '',
-        fromDate: formatDateForInput(b.fromDate),
-        toDate: formatDateForInput(b.toDate),
-        detail: b.detail || '',
-        attachments: b.attachments || []
-      }));
-      
-      return existingFilled.length > 0 ? existingFilled : [empty1];
-    })()
-  };
+
+  const defaultValues = useMemo(() => {
+    let cachedLaw = '';
+    let cachedChapter = '';
+    let cachedHeading = '';
+    let cachedDept = 'Tax';
+
+    if (!editData && !urlEditId) {
+      try {
+        const cached = localStorage.getItem('sld_last_statute_meta');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.law) cachedLaw = parsed.law;
+            if (parsed.chapter) cachedChapter = parsed.chapter;
+            if (parsed.heading) cachedHeading = parsed.heading;
+            if (parsed.department) cachedDept = parsed.department;
+          }
+        }
+      } catch {}
+    }
+
+    return {
+      srNumber: editData?.srNumber?.toString() || editData?.id?.toString() || '',
+      department: editData?.department || cachedDept || 'Tax',
+      chapter: editData?.chapter || cachedChapter || '',
+      display: editData?.display?.toLowerCase() === 'no' ? 'no' : 'yes',
+      status: editData?.display === 'No' ? 'inactive' : 'active',
+      law: editData?.law || cachedLaw || '',
+      section: editData?.section || '',
+      heading: editData?.heading || cachedHeading || '',
+      blocks: (() => {
+        const empty1 = { id: 'new-block-1', sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] };
+        if (!editData) return [empty1];
+        
+        const existingFilled = (editData?.blocks || []).filter(b => {
+          const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
+          const hasSectionHeading = b.sectionHeading && b.sectionHeading.trim() !== '';
+          const hasFromDate = b.fromDate !== null && b.fromDate !== '';
+          const hasToDate = b.toDate !== null && b.toDate !== '';
+          const hasAttachments = b.attachments && b.attachments.length > 0;
+          return hasDetail || hasSectionHeading || hasFromDate || hasToDate || hasAttachments;
+        }).map((b, i) => ({
+          id: b._id || `existing-${i}`,
+          sectionHeading: b.sectionHeading || '',
+          fromDate: formatDateForInput(b.fromDate),
+          toDate: formatDateForInput(b.toDate),
+          detail: b.detail || '',
+          attachments: b.attachments || []
+        }));
+        
+        return existingFilled.length > 0 ? existingFilled : [empty1];
+      })()
+    };
+  }, [editData, urlEditId]);
 
   const [autoNewSr, setAutoNewSr] = useState('');
   const [loadingStatute, setLoadingStatute] = useState(false);
@@ -229,6 +252,15 @@ const AddStatuteForm = () => {
           heading: data.heading || '',
           blocks: newBlocks
         });
+
+        try {
+          localStorage.setItem('sld_last_statute_meta', JSON.stringify({
+            law: data.law || '',
+            chapter: data.chapter || '',
+            heading: data.heading || '',
+            department: data.department?.toLowerCase() || 'tax'
+          }));
+        } catch {}
 
         setLoadFeedback({
           type: 'success',
@@ -331,55 +363,110 @@ const AddStatuteForm = () => {
 
     // Prefill Chapter, Law, Heading and assign next SR # from previous entry when adding a new statute
     if (!isEdit && !editData && !urlEditId) {
+      const LAST_STATUTE_KEY = 'sld_last_statute_meta';
+
+      // 1. Instant 0ms cache prefill
+      try {
+        const cached = localStorage.getItem(LAST_STATUTE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.law && !getValues('law')) setValue('law', parsed.law, { shouldValidate: true });
+            if (parsed.chapter && !getValues('chapter')) setValue('chapter', parsed.chapter, { shouldValidate: true });
+            if (parsed.heading && !getValues('heading')) setValue('heading', parsed.heading, { shouldValidate: true });
+            if (parsed.department && !getValues('department')) setValue('department', parsed.department.toLowerCase());
+          }
+        }
+      } catch {}
+
+      // 2. Fetch fresh nextSr, latestMeta, and recent statutes from DB
       Promise.allSettled([
         statuteService.getNextSr(),
-        statuteService.getLatestStatuteMeta()
-      ]).then(([nextSrResult, latestMetaResult]) => {
+        statuteService.getLatestStatuteMeta(),
+        statuteService.getStatutes({ limit: 5 })
+      ]).then(async ([nextSrRes, latestMetaRes, listRes]) => {
         if (!isMounted) return;
 
-        const nextRes = nextSrResult.status === 'fulfilled' ? nextSrResult.value : null;
-        const metaRes = latestMetaResult.status === 'fulfilled' ? latestMetaResult.value : null;
+        const nextData = nextSrRes.status === 'fulfilled' ? nextSrRes.value : null;
+        const metaData = latestMetaRes.status === 'fulfilled' ? latestMetaRes.value : null;
+        const listData = listRes.status === 'fulfilled' && Array.isArray(listRes.value) ? listRes.value : [];
 
-        const nextSr = nextRes?.nextSr ? String(nextRes.nextSr) : '';
-        if (nextSr) {
-          setAutoNewSr(nextSr);
+        // Determine next SR #
+        let resolvedNextSr = nextData?.nextSr ? String(nextData.nextSr) : '';
+        let latestSrNum = nextData?.latestSr || 0;
+
+        if (!resolvedNextSr && listData.length > 0) {
+          const topInList = listData[0];
+          const topSr = parseInt(topInList?.srNumber || topInList?.id || '0', 10);
+          if (topSr > 0) {
+            latestSrNum = topSr;
+            resolvedNextSr = String(topSr + 1);
+          }
         }
 
-        const prevLaw = nextRes?.lastEntry?.law || metaRes?.law || '';
-        const prevChapter = nextRes?.lastEntry?.chapter || metaRes?.chapter || '';
-        const prevHeading = nextRes?.lastEntry?.heading || metaRes?.heading || '';
-        const prevDepartment = (nextRes?.lastEntry?.department || metaRes?.department || 'tax').toLowerCase();
+        if (resolvedNextSr) {
+          setAutoNewSr(resolvedNextSr);
+          if (!getValues('srNumber') || getValues('srNumber') === '1') {
+            setValue('srNumber', resolvedNextSr, { shouldValidate: true });
+          }
+        }
 
-        const currentSr = getValues('srNumber');
-        const currentLaw = getValues('law');
-        const currentChapter = getValues('chapter');
-        const currentHeading = getValues('heading');
+        // Determine previous entry values
+        let foundLaw = nextData?.lastEntry?.law || metaData?.law || '';
+        let foundChapter = nextData?.lastEntry?.chapter || metaData?.chapter || '';
+        let foundHeading = nextData?.lastEntry?.heading || metaData?.heading || '';
+        let foundDept = nextData?.lastEntry?.department || metaData?.department || 'tax';
 
-        const finalSr = (!currentSr || currentSr === '1') && nextSr ? nextSr : (currentSr || nextSr || '');
-        const finalLaw = !currentLaw && prevLaw ? prevLaw : (currentLaw || '');
-        const finalChapter = !currentChapter && prevChapter ? prevChapter : (currentChapter || '');
-        const finalHeading = !currentHeading && prevHeading ? prevHeading : (currentHeading || '');
-        const finalDept = getValues('department') || prevDepartment || 'tax';
+        // Fallback to recent statutes list if any field remains blank
+        if ((!foundLaw || !foundChapter || !foundHeading) && listData.length > 0) {
+          for (const item of listData) {
+            if (!foundLaw && item.law) foundLaw = item.law;
+            if (!foundChapter && item.chapter) foundChapter = item.chapter;
+            if (!foundHeading && (item.heading || item.sectionHeading)) foundHeading = item.heading || item.sectionHeading;
+            if (!foundDept && item.department) foundDept = item.department;
+          }
+        }
 
-        reset({
-          srNumber: finalSr,
-          department: finalDept,
-          chapter: finalChapter,
-          display: 'yes',
-          status: 'active',
-          law: finalLaw,
-          section: getValues('section') || '',
-          heading: finalHeading,
-          blocks: getValues('blocks')?.length ? getValues('blocks') : [
-            { id: `new-block-${Date.now()}-1`, sectionHeading: '', fromDate: '', toDate: '', detail: '', attachments: [] }
-          ]
-        });
+        // Fallback to specific previous SR record if known
+        if ((!foundLaw || !foundChapter || !foundHeading) && latestSrNum > 0) {
+          try {
+            const prevRecord = await statuteService.getStatuteById(latestSrNum);
+            if (prevRecord) {
+              if (!foundLaw && prevRecord.law) foundLaw = prevRecord.law;
+              if (!foundChapter && prevRecord.chapter) foundChapter = prevRecord.chapter;
+              if (!foundHeading && (prevRecord.heading || prevRecord.sectionHeading)) {
+                foundHeading = prevRecord.heading || prevRecord.sectionHeading;
+              }
+              if (!foundDept && prevRecord.department) foundDept = prevRecord.department;
+            }
+          } catch {}
+        }
 
-        if (finalSr) setValue('srNumber', finalSr, { shouldDirty: false });
-        if (finalLaw) setValue('law', finalLaw, { shouldDirty: false, shouldValidate: true });
-        if (finalChapter) setValue('chapter', finalChapter, { shouldDirty: false, shouldValidate: true });
-        if (finalHeading) setValue('heading', finalHeading, { shouldDirty: false, shouldValidate: true });
-        if (finalDept) setValue('department', finalDept, { shouldDirty: false });
+        // Apply to form
+        if (foundLaw && !getValues('law')) {
+          setValue('law', foundLaw, { shouldValidate: true, shouldDirty: false });
+        }
+        if (foundChapter && !getValues('chapter')) {
+          setValue('chapter', foundChapter, { shouldValidate: true, shouldDirty: false });
+        }
+        if (foundHeading && !getValues('heading')) {
+          setValue('heading', foundHeading, { shouldValidate: true, shouldDirty: false });
+        }
+        if (foundDept && !getValues('department')) {
+          setValue('department', foundDept.toLowerCase(), { shouldValidate: true, shouldDirty: false });
+        }
+
+        // Persist to localStorage cache
+        if (foundLaw || foundChapter || foundHeading) {
+          try {
+            localStorage.setItem(LAST_STATUTE_KEY, JSON.stringify({
+              law: foundLaw || '',
+              chapter: foundChapter || '',
+              heading: foundHeading || '',
+              department: foundDept || 'tax'
+            }));
+          } catch {}
+        }
       }).catch(err => {
         console.warn('Could not auto-fetch previous statute metadata:', err);
       });
@@ -462,6 +549,15 @@ const AddStatuteForm = () => {
           message: `${targetId ? 'Updated' : 'Saved'}! Advanced to Statute SR #${nextSr}.`
         });
       } else {
+        try {
+          localStorage.setItem('sld_last_statute_meta', JSON.stringify({
+            law: data.law || '',
+            chapter: data.chapter || '',
+            heading: data.heading || '',
+            department: data.department || 'tax'
+          }));
+        } catch {}
+
         if (!targetId) {
           let nextSr = '';
           try {
@@ -580,11 +676,11 @@ const AddStatuteForm = () => {
           {/* Record Information */}
           <FormSection compact>
 
-            {/* Top row: Auto New SR # · Load SR # · Chapter — Department removed per requirement */}
+            {/* Top row: Auto New SR # · Load SR # · Chapter · Department */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end mb-3">
               
               {/* Auto New SR # (Non-editable) Generate Block */}
-              <div className="sm:col-span-3 col-span-1">
+              <div className="sm:col-span-2 col-span-12">
                 <FormField label="Auto New SR #">
                   <input
                     type="text"
@@ -597,16 +693,32 @@ const AddStatuteForm = () => {
               </div>
 
               {/* Reduced size Load SR # Block */}
-              <div className="sm:col-span-5 col-span-1">
+              <div className="sm:col-span-4 col-span-12">
                 <FormField label="Load SR #" required>
                   <div className="flex items-center gap-1">
                     <div className="relative flex-1">
-                      <Input
-                        variant="light"
-                        inputSize="sm"
-                        placeholder="e.g. 9339"
-                        error={errors.srNumber}
-                        {...register('srNumber')}
+                      <Controller
+                        control={control}
+                        name="srNumber"
+                        render={({ field }) => (
+                          <Input
+                            variant="light"
+                            inputSize="sm"
+                            placeholder="e.g. 9339"
+                            error={errors.srNumber}
+                            value={field.value ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              field.onChange(val);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                loadStatuteBySr();
+                              }
+                            }}
+                          />
+                        )}
                       />
                       {loadingStatute && (
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
@@ -657,14 +769,41 @@ const AddStatuteForm = () => {
               </div>
 
               {/* Chapter */}
-              <div className="sm:col-span-4 col-span-1">
+              <div className="sm:col-span-3 col-span-12">
                 <FormField label="Chapter">
-                  <Input
-                    variant="light"
-                    inputSize="sm"
-                    placeholder="e.g. CHAPTER-XIX"
-                    error={errors.chapter}
-                    {...register('chapter')}
+                  <Controller
+                    control={control}
+                    name="chapter"
+                    render={({ field }) => (
+                      <Input
+                        variant="light"
+                        inputSize="sm"
+                        placeholder="e.g. CHAPTER-XIX"
+                        error={errors.chapter}
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                      />
+                    )}
+                  />
+                </FormField>
+              </div>
+
+              {/* Department */}
+              <div className="sm:col-span-3 col-span-12">
+                <FormField label="Department">
+                  <Controller
+                    control={control}
+                    name="department"
+                    render={({ field }) => (
+                      <Input
+                        variant="light"
+                        inputSize="sm"
+                        placeholder="e.g. Tax"
+                        error={errors.department}
+                        value={field.value ?? 'Tax'}
+                        onChange={field.onChange}
+                      />
+                    )}
                   />
                 </FormField>
               </div>
@@ -712,11 +851,18 @@ const AddStatuteForm = () => {
             {/* Bottom row: Heading — full width with double size (rows=6) */}
             <div>
               <FormField label="Heading">
-                <textarea
-                  rows={6}
-                  className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm resize-y text-theme-main bg-theme-surface min-h-[130px]"
-                  placeholder="Enter heading..."
-                  {...register('heading')}
+                <Controller
+                  control={control}
+                  name="heading"
+                  render={({ field }) => (
+                    <textarea
+                      rows={6}
+                      className="w-full px-3 py-2 border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange shadow-sm resize-y text-theme-main bg-theme-surface min-h-[130px]"
+                      placeholder="Enter heading..."
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                    />
+                  )}
                 />
               </FormField>
             </div>

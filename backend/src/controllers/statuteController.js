@@ -59,7 +59,7 @@ export const getStatutes = async (req, res, next) => {
       law, section, chapter, text, text2, heading, department, exact
     } = req.query;
 
-    const filter = { isDeleted: false };
+    const filter = { isDeleted: { $ne: true } };
 
 
     // Explicit law filter (e.g. from dropdown or exact law search)
@@ -243,48 +243,98 @@ export const getStatuteById = async (req, res, next) => {
  */
 export const getNextStatuteSr = async (req, res, next) => {
   try {
-    const topStatute = await Statute.findOne({ isDeleted: { $ne: true } })
+    let topStatute = await Statute.findOne({ isDeleted: { $ne: true } })
       .sort({ srNumberInt: -1, _id: -1 })
-      .select('srNumber srNumberInt law chapter heading department section')
+      .select('srNumber srNumberInt law chapter heading department section blocks')
       .lean();
+
+    if (!topStatute) {
+      topStatute = await Statute.findOne({ isDeleted: { $ne: true } })
+        .sort({ _id: -1 })
+        .select('srNumber srNumberInt law chapter heading department section blocks')
+        .lean();
+    }
 
     let latestSr = 0;
     if (topStatute) {
-      if (typeof topStatute.srNumberInt === 'number' && !isNaN(topStatute.srNumberInt)) {
+      if (typeof topStatute.srNumberInt === 'number' && !isNaN(topStatute.srNumberInt) && topStatute.srNumberInt > 0) {
         latestSr = topStatute.srNumberInt;
       } else if (topStatute.srNumber && !isNaN(parseInt(topStatute.srNumber, 10))) {
         latestSr = parseInt(topStatute.srNumber, 10);
       }
     }
 
+    if (latestSr === 0) {
+      const byId = await Statute.findOne({ isDeleted: { $ne: true } })
+        .sort({ _id: -1 })
+        .select('srNumber srNumberInt')
+        .lean();
+      if (byId?.srNumberInt && !isNaN(byId.srNumberInt)) {
+        latestSr = byId.srNumberInt;
+      } else if (byId?.srNumber && !isNaN(parseInt(byId.srNumber, 10))) {
+        latestSr = parseInt(byId.srNumber, 10);
+      }
+    }
+
     const nextSr = latestSr > 0 ? latestSr + 1 : 1;
 
     // Retrieve previous entry fields (chapter, law, heading, department)
-    let law = topStatute?.law || '';
-    let chapter = topStatute?.chapter || '';
-    let heading = topStatute?.heading || '';
-    let department = topStatute?.department || 'tax';
+    let law = (topStatute?.law || '').trim();
+    let chapter = (topStatute?.chapter || '').trim();
+    let heading = (topStatute?.heading || topStatute?.blocks?.[0]?.sectionHeading || '').trim();
+    let department = (topStatute?.department || 'tax').toLowerCase().trim();
 
     if (!law) {
-      const withLaw = await Statute.findOne({ isDeleted: { $ne: true }, law: { $exists: true, $ne: '' } })
-        .sort({ srNumberInt: -1, _id: -1 })
+      const withLaw = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ _id: -1 })
         .select('law')
         .lean();
-      if (withLaw?.law) law = withLaw.law;
+      if (withLaw?.law && withLaw.law.trim()) law = withLaw.law.trim();
     }
+
     if (!chapter) {
-      const withChapter = await Statute.findOne({ isDeleted: { $ne: true }, chapter: { $exists: true, $ne: '' } })
-        .sort({ srNumberInt: -1, _id: -1 })
+      const withChapter = await Statute.findOne({
+        isDeleted: { $ne: true },
+        chapter: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ _id: -1 })
         .select('chapter')
         .lean();
-      if (withChapter?.chapter) chapter = withChapter.chapter;
+      if (withChapter?.chapter && withChapter.chapter.trim()) chapter = withChapter.chapter.trim();
     }
+
     if (!heading) {
-      const withHeading = await Statute.findOne({ isDeleted: { $ne: true }, heading: { $exists: true, $ne: '' } })
-        .sort({ srNumberInt: -1, _id: -1 })
-        .select('heading')
+      const withHeading = await Statute.findOne({
+        isDeleted: { $ne: true },
+        $or: [
+          { heading: { $exists: true, $nin: ['', null], $regex: /\S/ } },
+          { 'blocks.0.sectionHeading': { $exists: true, $nin: ['', null], $regex: /\S/ } }
+        ]
+      })
+        .sort({ _id: -1 })
+        .select('heading blocks')
         .lean();
-      if (withHeading?.heading) heading = withHeading.heading;
+      if (withHeading?.heading && withHeading.heading.trim()) {
+        heading = withHeading.heading.trim();
+      } else if (withHeading?.blocks?.[0]?.sectionHeading && withHeading.blocks[0].sectionHeading.trim()) {
+        heading = withHeading.blocks[0].sectionHeading.trim();
+      }
+    }
+
+    if (!department || department === 'tax') {
+      const withDept = await Statute.findOne({
+        isDeleted: { $ne: true },
+        department: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ _id: -1 })
+        .select('department')
+        .lean();
+      if (withDept?.department && withDept.department.trim()) {
+        department = withDept.department.toLowerCase().trim();
+      }
     }
 
     return res.status(200).json({
@@ -484,7 +534,7 @@ export const getDistinctLaws = async (req, res, next) => {
       });
     }
 
-    const laws = await Statute.distinct('law', { isDeleted: false });
+    const laws = await Statute.distinct('law', { isDeleted: { $ne: true } });
     const cleanLaws = Array.from(
       new Set(laws.filter(Boolean).map(l => String(l).trim()).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b));
@@ -562,37 +612,74 @@ export const updateLawDate = async (req, res, next) => {
  */
 export const getLatestStatuteMeta = async (req, res, next) => {
   try {
-    // Look up previous statute by highest SR number
     let latest = await Statute.findOne({ isDeleted: { $ne: true } })
       .sort({ srNumberInt: -1, _id: -1 })
-      .select('law chapter heading department srNumber srNumberInt')
+      .select('law chapter heading department srNumber srNumberInt blocks')
       .lean();
 
-    let law = latest?.law || '';
-    let chapter = latest?.chapter || '';
-    let heading = latest?.heading || '';
-    let department = latest?.department || 'tax';
+    if (!latest) {
+      latest = await Statute.findOne({ isDeleted: { $ne: true } })
+        .sort({ _id: -1 })
+        .select('law chapter heading department srNumber srNumberInt blocks')
+        .lean();
+    }
+
+    let law = (latest?.law || '').trim();
+    let chapter = (latest?.chapter || '').trim();
+    let heading = (latest?.heading || latest?.blocks?.[0]?.sectionHeading || '').trim();
+    let department = (latest?.department || 'tax').toLowerCase().trim();
 
     if (!law) {
-      const withLaw = await Statute.findOne({ isDeleted: { $ne: true }, law: { $exists: true, $ne: '' } })
-        .sort({ srNumberInt: -1, _id: -1 })
+      const withLaw = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ _id: -1 })
         .select('law')
         .lean();
-      if (withLaw?.law) law = withLaw.law;
+      if (withLaw?.law && withLaw.law.trim()) law = withLaw.law.trim();
     }
+
     if (!chapter) {
-      const withChapter = await Statute.findOne({ isDeleted: { $ne: true }, chapter: { $exists: true, $ne: '' } })
-        .sort({ srNumberInt: -1, _id: -1 })
+      const withChapter = await Statute.findOne({
+        isDeleted: { $ne: true },
+        chapter: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ _id: -1 })
         .select('chapter')
         .lean();
-      if (withChapter?.chapter) chapter = withChapter.chapter;
+      if (withChapter?.chapter && withChapter.chapter.trim()) chapter = withChapter.chapter.trim();
     }
+
     if (!heading) {
-      const withHeading = await Statute.findOne({ isDeleted: { $ne: true }, heading: { $exists: true, $ne: '' } })
-        .sort({ srNumberInt: -1, _id: -1 })
-        .select('heading')
+      const withHeading = await Statute.findOne({
+        isDeleted: { $ne: true },
+        $or: [
+          { heading: { $exists: true, $nin: ['', null], $regex: /\S/ } },
+          { 'blocks.0.sectionHeading': { $exists: true, $nin: ['', null], $regex: /\S/ } }
+        ]
+      })
+        .sort({ _id: -1 })
+        .select('heading blocks')
         .lean();
-      if (withHeading?.heading) heading = withHeading.heading;
+      if (withHeading?.heading && withHeading.heading.trim()) {
+        heading = withHeading.heading.trim();
+      } else if (withHeading?.blocks?.[0]?.sectionHeading && withHeading.blocks[0].sectionHeading.trim()) {
+        heading = withHeading.blocks[0].sectionHeading.trim();
+      }
+    }
+
+    if (!department || department === 'tax') {
+      const withDept = await Statute.findOne({
+        isDeleted: { $ne: true },
+        department: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ _id: -1 })
+        .select('department')
+        .lean();
+      if (withDept?.department && withDept.department.trim()) {
+        department = withDept.department.toLowerCase().trim();
+      }
     }
 
     return res.status(200).json({
