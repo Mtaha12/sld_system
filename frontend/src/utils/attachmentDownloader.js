@@ -123,3 +123,4 @@ export const downloadOrViewAttachment = (att, { download = false } = {}) => {
     console.error('downloadOrViewAttachment error:', err);
   }
 };
+
