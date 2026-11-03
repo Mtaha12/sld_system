@@ -15,7 +15,7 @@
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $false)]
-    [string]$VpsHost = "root@srv2028761",
+    [string]$VpsHost = "root@201.18.218.3",
 
     [Parameter(Mandatory = $false)]
     [string]$VpsDir = "/var/www/sld_system"
