@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
+import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye , AlertTriangle } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
@@ -15,6 +15,7 @@ import { statuteSchema } from '../validation/statuteSchema';
 import { statuteService } from '../services/statuteService';
 import { settingService } from '../../../services/settingService';
 import { ALL_SECTIONS } from '../../../data/sections';
+import { downloadOrViewAttachment, getAttachmentDisplayName } from '../../../utils/attachmentDownloader';
 
 const formatDateForInput = (d) => {
   if (!d) return '';
@@ -27,23 +28,12 @@ const formatDateForInput = (d) => {
 /* ── Compact inline file-chooser with View and Remove actions ─────── */
 const CompactFileButton = ({ value, onChange }) => {
   const ref = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
   const files = Array.isArray(value) ? value : (value ? [value] : []);
 
   const handleViewFile = (f) => {
     if (!f) return;
-    let url = '';
-    if (typeof f === 'string') {
-      url = f.startsWith('http') || f.startsWith('data:') || f.startsWith('blob:') ? f : `/uploads/${f}`;
-    } else if (f instanceof File) {
-      url = URL.createObjectURL(f);
-    } else if (f.url) {
-      url = f.url;
-    } else if (f.name) {
-      url = `/uploads/${f.name}`;
-    }
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
+    downloadOrViewAttachment(f);
   };
 
   return (
@@ -56,27 +46,38 @@ const CompactFileButton = ({ value, onChange }) => {
         className="hidden"
         onChange={async (e) => {
           const incomingFiles = Array.from(e.target.files || []);
-          const readPromises = incomingFiles.map(file => {
-            return new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                resolve({
+          if (incomingFiles.length === 0) return;
+          setIsUploading(true);
+          const uploaded = [];
+          for (const file of incomingFiles) {
+            try {
+              const res = await statuteService.uploadAttachment(file);
+              if (res?.success && res.url) {
+                uploaded.push({
                   name: file.name,
+                  originalName: file.name,
                   size: file.size,
                   type: file.type,
-                  url: reader.result
+                  url: res.url
                 });
-              };
-              reader.onerror = () => {
-                resolve({ name: file.name, size: file.size });
-              };
+                continue;
+              }
+            } catch (err) {
+              console.warn('Statute attachment server upload error, fallback to data URL:', err);
+            }
+            // Fallback to data URL only if network/server upload failed
+            const b64 = await new Promise(resolve => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = () => resolve('');
               reader.readAsDataURL(file);
             });
-          });
-          const processed = await Promise.all(readPromises);
+            uploaded.push({ name: file.name, size: file.size, type: file.type, url: b64 });
+          }
+          setIsUploading(false);
           const merged = [
             ...files,
-            ...processed.filter(f => !files.some(x => (x.name || x) === f.name))
+            ...uploaded.filter(f => !files.some(x => (x.name || x) === f.name))
           ];
           onChange(merged);
           e.target.value = '';
@@ -84,16 +85,26 @@ const CompactFileButton = ({ value, onChange }) => {
       />
       <button
         type="button"
+        disabled={isUploading}
         onClick={() => ref.current?.click()}
-        className="flex items-center gap-1.5 px-3 h-[38px] w-full rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-medium text-theme-main transition-colors"
+        className="flex items-center gap-1.5 px-3 h-[38px] w-full rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-medium text-theme-main transition-colors disabled:opacity-60 cursor-pointer"
       >
-        <Paperclip className="w-3.5 h-3.5 text-brand-orange shrink-0" />
-        <span className="truncate">{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Choose File'}</span>
+        {isUploading ? (
+          <>
+            <Loader2 className="w-3.5 h-3.5 text-brand-orange animate-spin shrink-0" />
+            <span className="truncate">Uploading...</span>
+          </>
+        ) : (
+          <>
+            <Paperclip className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+            <span className="truncate">{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Choose File'}</span>
+          </>
+        )}
       </button>
       {files.length > 0 && (
         <div className="space-y-0.5 max-h-20 overflow-y-auto">
           {files.map((f, i) => {
-            const fileName = typeof f === 'string' ? f : (f.name || `File ${i + 1}`);
+            const fileName = getAttachmentDisplayName(f);
             return (
               <div key={i} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded text-[10px] bg-theme-surface-alt border border-theme-border/60">
                 <span className="truncate text-theme-muted max-w-[95px]" title={fileName}>{fileName}</span>
@@ -101,15 +112,15 @@ const CompactFileButton = ({ value, onChange }) => {
                   <button
                     type="button"
                     onClick={() => handleViewFile(f)}
-                    className="text-brand-orange hover:text-orange-600 p-0.5"
-                    title="View file in new window"
+                    className="text-brand-orange hover:text-orange-600 p-0.5 cursor-pointer"
+                    title="View / Download file"
                   >
                     <Eye className="w-3 h-3" />
                   </button>
                   <button
                     type="button"
                     onClick={() => onChange(files.filter((_, j) => j !== i))}
-                    className="text-theme-disabled hover:text-red-500 p-0.5"
+                    className="text-theme-disabled hover:text-red-500 p-0.5 cursor-pointer"
                     title="Remove file"
                   >
                     <X className="w-2.5 h-2.5" />
@@ -133,6 +144,7 @@ const AddStatuteForm = () => {
   const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || urlEditId || null);
   const isEdit = Boolean(currentRecordId);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const [lawOptions, setLawOptions] = useState([]);
   const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
 
@@ -218,6 +230,34 @@ const AddStatuteForm = () => {
   }, []);
 
   const watchedSr = watch('srNumber');
+  const watchedLaw = watch('law');
+  const prevWatchedLawRef = useRef(null);
+
+  // When Law is selected or changed, auto-fill Chapter, Heading, and Department from previous entry of that law
+  useEffect(() => {
+    if (!watchedLaw || isEdit) return;
+    const cleanLaw = String(watchedLaw).trim();
+    if (!cleanLaw) return;
+
+    const lawChanged = prevWatchedLawRef.current !== null && prevWatchedLawRef.current.toLowerCase() !== cleanLaw.toLowerCase();
+    prevWatchedLawRef.current = cleanLaw;
+
+    statuteService.getLatestStatuteMeta(cleanLaw).then(meta => {
+      if (!meta) return;
+      if (meta.chapter && (lawChanged || !getValues('chapter'))) {
+        setValue('chapter', meta.chapter, { shouldValidate: true, shouldDirty: false });
+      }
+      if (meta.heading && (lawChanged || !getValues('heading'))) {
+        setValue('heading', meta.heading, { shouldValidate: true, shouldDirty: false });
+      }
+      if (meta.department && (lawChanged || !getValues('department') || getValues('department') === 'tax')) {
+        setValue('department', meta.department.toLowerCase(), { shouldValidate: true, shouldDirty: false });
+      }
+    }).catch(err => {
+      console.warn('Could not auto-fetch meta for law:', cleanLaw, err);
+    });
+  }, [watchedLaw, isEdit, setValue, getValues]);
+
 
   const loadStatuteBySr = React.useCallback(async (targetSr) => {
     const cleanSr = String(targetSr ?? getValues('srNumber') ?? '').trim();
@@ -491,6 +531,7 @@ const AddStatuteForm = () => {
   });
 
   const onSubmit = async (data) => {
+    setSubmitError(null);
     // Strip empty blocks before saving
     data.blocks = data.blocks.filter(b => {
       const hasDetail = b.detail && b.detail.replace(/<[^>]*>?/gm, '').trim() !== '';
@@ -591,6 +632,9 @@ const AddStatuteForm = () => {
       }, 3500);
     } catch (error) {
       console.error('Submission error:', error);
+      const msg = error?.response?.data?.message || error?.message || 'Error saving statute record. Please check the values and try again.';
+      setSubmitError(msg);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -599,6 +643,25 @@ const AddStatuteForm = () => {
       
       <div className="p-4">
         
+        {submitError && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl flex items-center justify-between text-red-700 dark:text-red-400 animate-fade-in shadow-xs">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
+              <div>
+                <p className="font-bold text-sm">Submission Error</p>
+                <p className="text-xs mt-0.5">{submitError}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSubmitError(null)}
+              className="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-1 rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {showSuccess && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl flex items-center justify-between text-green-700 dark:text-green-400 animate-fade-in">
             <div className="flex items-center gap-3">

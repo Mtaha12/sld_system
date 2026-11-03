@@ -116,8 +116,8 @@ app.use(cors({
 }));
 
 // Request parsers
-app.use(express.json({ limit: '10mb' })); // Higher limit for base64 avatars
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' })); // Higher limit for base64 avatars
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Strip NoSQL operator injections from query, body, and params
 app.use(sanitizeNoSql);

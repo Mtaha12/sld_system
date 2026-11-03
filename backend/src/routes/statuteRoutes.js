@@ -2,9 +2,10 @@ import express from 'express';
 import { 
   getStatutes, getStatuteById, getNextStatuteSr, createStatute, 
   updateStatute, deleteStatute, getDistinctLaws, updateLawDate,
-  getLatestStatuteMeta
+  getLatestStatuteMeta, uploadStatuteAttachment
 } from '../controllers/statuteController.js';
 import { protect, requireAdmin, checkStatuteAccess, optionalProtect } from '../middleware/authMiddleware.js';
+import { uploadReferenceViewMiddleware } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -17,6 +18,9 @@ router.get('/:id', optionalProtect, getStatuteById);
 
 // Admin-managed sequential SR and Date update
 router.post('/update-law-date', protect, requireAdmin, updateLawDate);
+
+// Attachment upload for statute detail blocks
+router.post('/upload-attachment', protect, requireAdmin, uploadReferenceViewMiddleware, uploadStatuteAttachment);
 
 // Write/Edit actions (Restricted strictly to Administrators)
 router.post('/', protect, requireAdmin, createStatute);

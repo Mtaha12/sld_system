@@ -32,10 +32,13 @@ export const statuteService = {
 
   /**
    * Retrieves the latest existing and next sequential Statute SR #
-   * @returns {Promise<{latestSr: number, nextSr: number}>}
+   * @param {string} [law] Optional law name to get previous entry for that specific law
+   * @returns {Promise<{latestSr: number, nextSr: number, lastEntry: Object}>}
    */
-  getNextSr: async () => {
-    const response = await api.get('/api/statutes/next-sr');
+  getNextSr: async (law = '') => {
+    const response = await api.get('/api/statutes/next-sr', {
+      params: law ? { law } : {}
+    });
     return response.data;
   },
 
@@ -47,6 +50,20 @@ export const statuteService = {
   searchStatutes: async (query = '') => {
     const response = await api.get('/api/statutes', { params: { query } });
     return response.data.data;
+  },
+
+  /**
+   * Upload single attachment document for a statute provision block
+   * @param {File} file
+   * @returns {Promise<{success: boolean, url: string, name: string, size: number, type: string}>}
+   */
+  uploadAttachment: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/api/statutes/upload-attachment', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
   },
 
   /**
@@ -101,8 +118,15 @@ export const statuteService = {
     return Array.isArray(res) ? res : (res?.data || []);
   },
 
-  getLatestStatuteMeta: async () => {
-    const response = await api.get('/api/statutes/latest-meta');
+  /**
+   * Retrieves latest statute metadata (law, chapter, heading, department)
+   * @param {string} [law]
+   * @returns {Promise<Object|null>}
+   */
+  getLatestStatuteMeta: async (law = '') => {
+    const response = await api.get('/api/statutes/latest-meta', {
+      params: law ? { law } : {}
+    });
     return response.data?.data || null;
   }
 };

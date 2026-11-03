@@ -9,6 +9,7 @@ import {
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
 import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
+import { downloadOrViewAttachment, getAttachmentDisplayName } from '../utils/attachmentDownloader';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -78,45 +79,35 @@ const StatuteViewPage = () => {
 
   const rawBlocks = Array.isArray(statute?.blocks) && statute.blocks.length > 0 ? statute.blocks : null;
 
-  // Filter to show ONLY the relevant block when blockId or blockIndex is provided
-  const { displayBlocks, matchedBlockIndex, isSingleBlockView } = useMemo(() => {
-    if (!rawBlocks || rawBlocks.length <= 1) {
-      return { displayBlocks: rawBlocks, matchedBlockIndex: -1, isSingleBlockView: false };
-    }
-
-    if (showAllBlocks) {
-      return { displayBlocks: rawBlocks, matchedBlockIndex: -1, isSingleBlockView: false };
-    }
-
-    const hasTargetParam = (targetBlockId !== null && targetBlockId !== undefined && targetBlockId !== '') ||
-      (targetBlockIndex !== null && targetBlockIndex !== undefined && targetBlockIndex !== '');
-
-    if (!hasTargetParam) {
-      return { displayBlocks: rawBlocks, matchedBlockIndex: -1, isSingleBlockView: false };
-    }
-
-    // 1. Try to match by blockId
+  // Resolve matched block index for smooth auto-scroll and visual badge
+  const matchedBlockIndex = useMemo(() => {
+    if (!rawBlocks || rawBlocks.length === 0) return -1;
     if (targetBlockId) {
-      const idx = rawBlocks.findIndex(b => {
-        const bId = String(b._id || b.id || '');
-        return bId && bId === String(targetBlockId);
-      });
-      if (idx >= 0) {
-        return { displayBlocks: [rawBlocks[idx]], matchedBlockIndex: idx, isSingleBlockView: true };
-      }
+      const idx = rawBlocks.findIndex(b => String(b._id || b.id || '') === String(targetBlockId));
+      if (idx >= 0) return idx;
     }
-
-    // 2. Try to match by blockIndex
     if (targetBlockIndex !== null && targetBlockIndex !== undefined && targetBlockIndex !== '') {
-      const parsedIdx = parseInt(targetBlockIndex, 10);
-      if (!isNaN(parsedIdx) && parsedIdx >= 0 && parsedIdx < rawBlocks.length) {
-        return { displayBlocks: [rawBlocks[parsedIdx]], matchedBlockIndex: parsedIdx, isSingleBlockView: true };
-      }
+      const parsed = parseInt(targetBlockIndex, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed < rawBlocks.length) return parsed;
     }
+    return -1;
+  }, [rawBlocks, targetBlockId, targetBlockIndex]);
 
-    // Fallback if target cannot be resolved
-    return { displayBlocks: rawBlocks, matchedBlockIndex: -1, isSingleBlockView: false };
-  }, [rawBlocks, targetBlockId, targetBlockIndex, showAllBlocks]);
+  // View page ALWAYS displays COMPLETE document with all blocks
+  const displayBlocks = rawBlocks;
+
+  // Auto-scroll to matched search block on load
+  useEffect(() => {
+    if (matchedBlockIndex >= 0) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`statute-block-${matchedBlockIndex}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [matchedBlockIndex]);
 
   const allAttachments = useMemo(() => {
     if (!statute) return [];
@@ -213,6 +204,14 @@ const StatuteViewPage = () => {
           .print-document * {
             font-size: var(--print-font-size, 14px) !important;
             line-height: var(--print-line-height, 1.55) !important;
+          }
+          .print-document {
+            overflow: visible !important;
+            height: auto !important;
+          }
+          .statute-block-card {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           .print-document h1 {
             font-size: 1.3rem !important;
@@ -338,16 +337,15 @@ const StatuteViewPage = () => {
 
             {/* Attachment Button if attachments exist */}
             {allAttachments.length > 0 && (
-              <a
-                href={resolveFileUrl(allAttachments[0])}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
-                title="Open attached official file in new tab"
+              <button
+                type="button"
+                onClick={() => downloadOrViewAttachment(allAttachments[0])}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+                title={`Open/download ${getAttachmentDisplayName(allAttachments[0])}`}
               >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Attachment</span>
-              </a>
+                <Download className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[180px]">{getAttachmentDisplayName(allAttachments[0])}</span>
+              </button>
             )}
 
           </div>
@@ -359,7 +357,7 @@ const StatuteViewPage = () => {
       <main className="max-w-4xl mx-auto my-4 sm:my-8 px-3 sm:px-6 pb-24 print:m-0 print:p-0 print:max-w-none">
         
         {/* Document Folio Paper Container */}
-        <article className="print-document bg-[#FCFBF8] dark:bg-[#151821] border border-stone-300/90 dark:border-stone-800/90 rounded-2xl shadow-lg print:border-none print:shadow-none print:bg-white p-6 sm:p-12 print:p-0 print:m-0 relative overflow-hidden transition-colors">
+        <article className="print-document bg-[#FCFBF8] dark:bg-[#151821] border border-stone-300/90 dark:border-stone-800/90 rounded-2xl shadow-lg print:border-none print:shadow-none print:bg-white p-6 sm:p-12 print:p-0 print:m-0 relative overflow-hidden print:overflow-visible transition-colors">
           
           {/* Subtle Judicial Watermark Emblem */}
           <div className="absolute top-12 right-12 opacity-[0.035] dark:opacity-[0.05] pointer-events-none select-none print:hidden">
@@ -416,31 +414,26 @@ const StatuteViewPage = () => {
                   ? block.attachments 
                   : (block.attachment ? [block.attachment] : []);
 
-                const originalBlockNum = matchedBlockIndex >= 0 ? matchedBlockIndex + 1 : (bIdx + 1);
+                const isTargetMatched = bIdx === matchedBlockIndex;
 
                 return (
                   <section 
                     key={block._id || block.id || bIdx} 
-                    className="p-5 sm:p-6 bg-white dark:bg-stone-900/80 rounded-xl border border-stone-200 dark:border-stone-700/80 shadow-2xs space-y-4"
+                    id={`statute-block-${bIdx}`}
+                    className={`statute-block-card p-5 sm:p-6 bg-white dark:bg-stone-900/80 rounded-xl border shadow-2xs space-y-4 transition-all ${
+                      isTargetMatched 
+                        ? 'border-[#f15a24] ring-2 ring-[#f15a24]/20 shadow-md' 
+                        : 'border-stone-200 dark:border-stone-700/80'
+                    }`}
                   >
                     {/* Block Title and Date Header */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-3">
                       <div>
-                        {isSingleBlockView ? (
+                        {isTargetMatched ? (
                           <div className="flex items-center gap-2 mb-1.5">
                             <span className="inline-block text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#f15a24]/10 text-[#f15a24] border border-[#f15a24]/30 shadow-2xs">
-                              Relevant Legal Block {matchedBlockIndex >= 0 ? `(${matchedBlockIndex + 1} of ${rawBlocks?.length || 1})` : ''}
+                              ★ Relevant Search Block ({bIdx + 1} of {rawBlocks?.length || 1})
                             </span>
-                            {rawBlocks && rawBlocks.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setShowAllBlocks(true)}
-                                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-semibold cursor-pointer print:hidden"
-                                title="Click to view all legal blocks in this statute document"
-                              >
-                                View All {rawBlocks.length} Blocks
-                              </button>
-                            )}
                           </div>
                         ) : (
                           rawBlocks && rawBlocks.length > 1 && (
@@ -448,15 +441,6 @@ const StatuteViewPage = () => {
                               <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
                                 Block {bIdx + 1} of {rawBlocks.length}
                               </span>
-                              {showAllBlocks && matchedBlockIndex >= 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setShowAllBlocks(false)}
-                                  className="text-[11px] text-[#f15a24] hover:underline font-semibold cursor-pointer print:hidden"
-                                >
-                                  Show Only Block {matchedBlockIndex + 1}
-                                </button>
-                              )}
                             </div>
                           )
                         )}
@@ -492,26 +476,29 @@ const StatuteViewPage = () => {
                       <p className="italic text-stone-400 text-sm">No detail text recorded for this block provision.</p>
                     )}
 
-                    {/* Block Attachments */}
+                    {/* Block Attachments (Rendered in screen and print) */}
                     {bAtts.length > 0 && (
-                      <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center gap-2 print:hidden">
+                      <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center gap-2">
                         <span className="text-xs font-bold text-stone-500 dark:text-stone-400 flex items-center gap-1">
-                          <FileText className="w-3.5 h-3.5 text-[#f15a24]" /> Attachments:
+                          <FileText className="w-3.5 h-3.5 text-[#f15a24]" /> Attachments ({bAtts.length}):
                         </span>
                         {bAtts.map((att, aIdx) => {
-                          const attUrl = resolveFileUrl(att);
-                          const attName = att?.name || (typeof att === 'string' ? att.split('/').pop() : 'Attachment Document');
+                          const attName = getAttachmentDisplayName(att);
                           return (
-                            <a
-                              key={aIdx}
-                              href={attUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold rounded-md border border-amber-500/30 transition-colors"
-                            >
-                              <Download className="w-3 h-3" />
-                              <span>{attName}</span>
-                            </a>
+                            <React.Fragment key={aIdx}>
+                              <button
+                                type="button"
+                                onClick={() => downloadOrViewAttachment(att)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold rounded-md border border-amber-500/30 transition-colors cursor-pointer print:hidden"
+                                title={`Download/view ${attName}`}
+                              >
+                                <Download className="w-3 h-3 shrink-0" />
+                                <span>{attName}</span>
+                              </button>
+                              <span className="hidden print:inline-flex text-xs font-mono text-stone-800 bg-stone-100 border border-stone-300 px-2 py-0.5 rounded">
+                                📄 {attName}
+                              </span>
+                            </React.Fragment>
                           );
                         })}
                       </div>
@@ -540,6 +527,44 @@ const StatuteViewPage = () => {
           ) : (
             <div className="py-8 text-center text-stone-500 italic">
               Full statutory provision text is maintained under the primary Act catalog.
+            </div>
+          )}
+
+          {/* Complete Attachments & Annexures Roster (Screen & Print) */}
+          {allAttachments.length > 0 && (
+            <div className="mt-8 pt-6 border-t-2 border-dashed border-stone-300 dark:border-stone-700 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#f15a24]" />
+                  <span>All Attached Documents & Annexures ({allAttachments.length} Total Files)</span>
+                </h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {allAttachments.map((att, idx) => {
+                  const name = getAttachmentDisplayName(att);
+                  return (
+                    <div 
+                      key={idx}
+                      className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800/80 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-bold text-stone-400 shrink-0">#{idx + 1}</span>
+                        <span className="truncate font-medium text-stone-800 dark:text-stone-200" title={name}>
+                          {name}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => downloadOrViewAttachment(att)}
+                        className="shrink-0 p-1 text-[#f15a24] hover:text-[#d44e35] hover:bg-orange-50 rounded cursor-pointer print:hidden"
+                        title="Download / View"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

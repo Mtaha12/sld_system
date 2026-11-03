@@ -149,14 +149,27 @@ export const getStatutes = async (req, res, next) => {
     const total = await Statute.countDocuments(filter);
     const totalPages = Math.ceil(total / safeLimit) || 1;
 
-    const order = sortOrder === 'asc' ? 1 : -1;
-    let sortObj = { srNumberInt: order };
-    if (sortField === 'law') sortObj = { law: order, srNumberInt: order };
-    else if (sortField === 'chapter') sortObj = { chapter: order };
-    else if (sortField === 'section') sortObj = { section: order };
-    else if (sortField === 'department') sortObj = { department: order };
+    const order = sortOrder === 'desc' ? -1 : 1;
+    let sortObj = { srNumberInt: -1 };
+    let useCollation = false;
+
+    if (sortField === 'section' || (!sortField && targetLaw)) {
+      sortObj = { section: order, srNumberInt: order };
+      useCollation = true;
+    } else if (sortField === 'law') {
+      sortObj = { law: order, srNumberInt: order };
+    } else if (sortField === 'chapter') {
+      sortObj = { chapter: order, srNumberInt: order };
+    } else if (sortField === 'department') {
+      sortObj = { department: order, srNumberInt: order };
+    } else if (sortField === 'srNumber' || sortField === 'id') {
+      sortObj = { srNumberInt: order };
+    }
 
     let dbQuery = Statute.find(filter).sort(sortObj);
+    if (useCollation) {
+      dbQuery = dbQuery.collation({ locale: 'en', numericOrdering: true });
+    }
 
     if (full !== 'true') {
       dbQuery = dbQuery.select('statuteId statute_id srNumber law chapter section heading department status blocks createdAt updatedAt');
@@ -243,6 +256,19 @@ export const getStatuteById = async (req, res, next) => {
  */
 export const getNextStatuteSr = async (req, res, next) => {
   try {
+    const { law: targetLaw } = req.query;
+
+    let lawStatute = null;
+    if (targetLaw && targetLaw.trim()) {
+      lawStatute = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i')
+      })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('srNumber srNumberInt law chapter heading department section blocks')
+        .lean();
+    }
+
     let topStatute = await Statute.findOne({ isDeleted: { $ne: true } })
       .sort({ srNumberInt: -1, _id: -1 })
       .select('srNumber srNumberInt law chapter heading department section blocks')
@@ -279,20 +305,34 @@ export const getNextStatuteSr = async (req, res, next) => {
     const nextSr = latestSr > 0 ? latestSr + 1 : 1;
 
     // Retrieve previous entry fields (chapter, law, heading, department)
-    let law = (topStatute?.law || '').trim();
-    let chapter = (topStatute?.chapter || '').trim();
-    let heading = (topStatute?.heading || topStatute?.blocks?.[0]?.sectionHeading || '').trim();
-    let department = (topStatute?.department || 'tax').toLowerCase().trim();
+    let law = (lawStatute?.law || topStatute?.law || targetLaw || '').trim();
+    let chapter = (lawStatute?.chapter || topStatute?.chapter || '').trim();
+    let heading = (lawStatute?.heading || lawStatute?.blocks?.[0]?.sectionHeading || topStatute?.heading || topStatute?.blocks?.[0]?.sectionHeading || '').trim();
+    let department = (lawStatute?.department || topStatute?.department || 'tax').toLowerCase().trim();
 
     if (!law) {
       const withLaw = await Statute.findOne({
         isDeleted: { $ne: true },
         law: { $exists: true, $nin: ['', null], $regex: /\S/ }
       })
-        .sort({ _id: -1 })
+        .sort({ srNumberInt: -1, _id: -1 })
         .select('law')
         .lean();
       if (withLaw?.law && withLaw.law.trim()) law = withLaw.law.trim();
+    }
+
+    if (!chapter && targetLaw && targetLaw.trim()) {
+      const withLawChapter = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i'),
+        chapter: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('chapter')
+        .lean();
+      if (withLawChapter?.chapter && withLawChapter.chapter.trim()) {
+        chapter = withLawChapter.chapter.trim();
+      }
     }
 
     if (!chapter) {
@@ -300,10 +340,29 @@ export const getNextStatuteSr = async (req, res, next) => {
         isDeleted: { $ne: true },
         chapter: { $exists: true, $nin: ['', null], $regex: /\S/ }
       })
-        .sort({ _id: -1 })
+        .sort({ srNumberInt: -1, _id: -1 })
         .select('chapter')
         .lean();
       if (withChapter?.chapter && withChapter.chapter.trim()) chapter = withChapter.chapter.trim();
+    }
+
+    if (!heading && targetLaw && targetLaw.trim()) {
+      const withLawHeading = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i'),
+        $or: [
+          { heading: { $exists: true, $nin: ['', null], $regex: /\S/ } },
+          { 'blocks.0.sectionHeading': { $exists: true, $nin: ['', null], $regex: /\S/ } }
+        ]
+      })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('heading blocks')
+        .lean();
+      if (withLawHeading?.heading && withLawHeading.heading.trim()) {
+        heading = withLawHeading.heading.trim();
+      } else if (withLawHeading?.blocks?.[0]?.sectionHeading && withLawHeading.blocks[0].sectionHeading.trim()) {
+        heading = withLawHeading.blocks[0].sectionHeading.trim();
+      }
     }
 
     if (!heading) {
@@ -314,7 +373,7 @@ export const getNextStatuteSr = async (req, res, next) => {
           { 'blocks.0.sectionHeading': { $exists: true, $nin: ['', null], $regex: /\S/ } }
         ]
       })
-        .sort({ _id: -1 })
+        .sort({ srNumberInt: -1, _id: -1 })
         .select('heading blocks')
         .lean();
       if (withHeading?.heading && withHeading.heading.trim()) {
@@ -324,12 +383,26 @@ export const getNextStatuteSr = async (req, res, next) => {
       }
     }
 
+    if ((!department || department === 'tax') && targetLaw && targetLaw.trim()) {
+      const withLawDept = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i'),
+        department: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('department')
+        .lean();
+      if (withLawDept?.department && withLawDept.department.trim()) {
+        department = withLawDept.department.toLowerCase().trim();
+      }
+    }
+
     if (!department || department === 'tax') {
       const withDept = await Statute.findOne({
         isDeleted: { $ne: true },
         department: { $exists: true, $nin: ['', null], $regex: /\S/ }
       })
-        .sort({ _id: -1 })
+        .sort({ srNumberInt: -1, _id: -1 })
         .select('department')
         .lean();
       if (withDept?.department && withDept.department.trim()) {
@@ -612,6 +685,19 @@ export const updateLawDate = async (req, res, next) => {
  */
 export const getLatestStatuteMeta = async (req, res, next) => {
   try {
+    const { law: targetLaw } = req.query;
+
+    let lawStatute = null;
+    if (targetLaw && targetLaw.trim()) {
+      lawStatute = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i')
+      })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('srNumber srNumberInt law chapter heading department section blocks')
+        .lean();
+    }
+
     let latest = await Statute.findOne({ isDeleted: { $ne: true } })
       .sort({ srNumberInt: -1, _id: -1 })
       .select('law chapter heading department srNumber srNumberInt blocks')
@@ -624,20 +710,34 @@ export const getLatestStatuteMeta = async (req, res, next) => {
         .lean();
     }
 
-    let law = (latest?.law || '').trim();
-    let chapter = (latest?.chapter || '').trim();
-    let heading = (latest?.heading || latest?.blocks?.[0]?.sectionHeading || '').trim();
-    let department = (latest?.department || 'tax').toLowerCase().trim();
+    let law = (lawStatute?.law || latest?.law || targetLaw || '').trim();
+    let chapter = (lawStatute?.chapter || latest?.chapter || '').trim();
+    let heading = (lawStatute?.heading || lawStatute?.blocks?.[0]?.sectionHeading || latest?.heading || latest?.blocks?.[0]?.sectionHeading || '').trim();
+    let department = (lawStatute?.department || latest?.department || 'tax').toLowerCase().trim();
 
     if (!law) {
       const withLaw = await Statute.findOne({
         isDeleted: { $ne: true },
         law: { $exists: true, $nin: ['', null], $regex: /\S/ }
       })
-        .sort({ _id: -1 })
+        .sort({ srNumberInt: -1, _id: -1 })
         .select('law')
         .lean();
       if (withLaw?.law && withLaw.law.trim()) law = withLaw.law.trim();
+    }
+
+    if (!chapter && targetLaw && targetLaw.trim()) {
+      const withLawChapter = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i'),
+        chapter: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('chapter')
+        .lean();
+      if (withLawChapter?.chapter && withLawChapter.chapter.trim()) {
+        chapter = withLawChapter.chapter.trim();
+      }
     }
 
     if (!chapter) {
@@ -645,10 +745,29 @@ export const getLatestStatuteMeta = async (req, res, next) => {
         isDeleted: { $ne: true },
         chapter: { $exists: true, $nin: ['', null], $regex: /\S/ }
       })
-        .sort({ _id: -1 })
+        .sort({ srNumberInt: -1, _id: -1 })
         .select('chapter')
         .lean();
       if (withChapter?.chapter && withChapter.chapter.trim()) chapter = withChapter.chapter.trim();
+    }
+
+    if (!heading && targetLaw && targetLaw.trim()) {
+      const withLawHeading = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i'),
+        $or: [
+          { heading: { $exists: true, $nin: ['', null], $regex: /\S/ } },
+          { 'blocks.0.sectionHeading': { $exists: true, $nin: ['', null], $regex: /\S/ } }
+        ]
+      })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('heading blocks')
+        .lean();
+      if (withLawHeading?.heading && withLawHeading.heading.trim()) {
+        heading = withLawHeading.heading.trim();
+      } else if (withLawHeading?.blocks?.[0]?.sectionHeading && withLawHeading.blocks[0].sectionHeading.trim()) {
+        heading = withLawHeading.blocks[0].sectionHeading.trim();
+      }
     }
 
     if (!heading) {
@@ -659,7 +778,7 @@ export const getLatestStatuteMeta = async (req, res, next) => {
           { 'blocks.0.sectionHeading': { $exists: true, $nin: ['', null], $regex: /\S/ } }
         ]
       })
-        .sort({ _id: -1 })
+        .sort({ srNumberInt: -1, _id: -1 })
         .select('heading blocks')
         .lean();
       if (withHeading?.heading && withHeading.heading.trim()) {
@@ -669,12 +788,26 @@ export const getLatestStatuteMeta = async (req, res, next) => {
       }
     }
 
+    if ((!department || department === 'tax') && targetLaw && targetLaw.trim()) {
+      const withLawDept = await Statute.findOne({
+        isDeleted: { $ne: true },
+        law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i'),
+        department: { $exists: true, $nin: ['', null], $regex: /\S/ }
+      })
+        .sort({ srNumberInt: -1, _id: -1 })
+        .select('department')
+        .lean();
+      if (withLawDept?.department && withLawDept.department.trim()) {
+        department = withLawDept.department.toLowerCase().trim();
+      }
+    }
+
     if (!department || department === 'tax') {
       const withDept = await Statute.findOne({
         isDeleted: { $ne: true },
         department: { $exists: true, $nin: ['', null], $regex: /\S/ }
       })
-        .sort({ _id: -1 })
+        .sort({ srNumberInt: -1, _id: -1 })
         .select('department')
         .lean();
       if (withDept?.department && withDept.department.trim()) {
@@ -694,5 +827,28 @@ export const getLatestStatuteMeta = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * Upload single attachment document for a statute provision block
+ */
+export const uploadStatuteAttachment = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded.' });
+    }
+    const relativeUrl = `/uploads/reference_views/${req.file.filename}`;
+    return res.status(200).json({
+      success: true,
+      url: relativeUrl,
+      name: req.file.originalname,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      type: req.file.mimetype
+    });
+  } catch (err) {
+    next(err);
   }
 };

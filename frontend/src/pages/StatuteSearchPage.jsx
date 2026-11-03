@@ -6,6 +6,8 @@ import { settingService } from '../services/settingService';
 import SearchableLawSelect from '../features/statutes/components/SearchableLawSelect';
 import Modal from '../components/ui/Modal';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
+import { compareSections } from '../utils/sectionComparator';
+import { downloadOrViewAttachment, getAttachmentDisplayName } from '../utils/attachmentDownloader';
 
 /* ── Shared form field styles ────────────────────────────────────────── */
 const inp =
@@ -106,7 +108,7 @@ const StatuteSearchPage = () => {
       setLoading(true);
       setError(null);
       statuteService.getStatutes({
-        limit: 100,
+        limit: 1000,
         ...(lawQ ? { law: lawQ } : {}),
         ...(secQ ? { section: secQ } : {}),
         ...(txtQ ? { text: txtQ } : {})
@@ -242,7 +244,7 @@ const StatuteSearchPage = () => {
     setStatuteResults(null);
 
     try {
-      const searchParams = { limit: 100 };
+      const searchParams = { limit: 1000 };
       if (activeLaw.trim())   searchParams.law     = activeLaw.trim();
       if (activeSec.trim())   searchParams.section = activeSec.trim();
       if (activeText.trim())  searchParams.text    = activeText.trim();
@@ -392,8 +394,12 @@ const StatuteSearchPage = () => {
       });
     });
 
-    // Sort: latest applicable legal date first descending (handle missing dates safely)
-    return rows.sort((a, b) => b.sortTime - a.sortTime);
+    // Sort: Section-wise ascending (smart numeric & schedule ordinals), then latest date descending
+    return rows.sort((a, b) => {
+      const secDiff = compareSections(a.section, b.section);
+      if (secDiff !== 0) return secDiff;
+      return b.sortTime - a.sortTime;
+    });
   }, [statuteResults, text, text2]);
 
   const hasTextSearch = Boolean(text.trim() || text2.trim());
@@ -822,15 +828,16 @@ const StatuteSearchPage = () => {
                     {Array.isArray(b.attachments) && b.attachments.length > 0 && (
                       <div className="mt-2.5 pt-2 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
                         {b.attachments.map((att, ai) => (
-                          <a 
+                          <button 
                             key={ai}
-                            href={att.url || `/uploads/${att.name}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 rounded text-[11px] font-medium transition-colors"
+                            type="button"
+                            onClick={() => downloadOrViewAttachment(att)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                            title={`Download/view ${getAttachmentDisplayName(att)}`}
                           >
-                            <span>{att.name || 'Attachment'}</span>
-                          </a>
+                            <Paperclip className="w-3 h-3 text-[#f15a24]" />
+                            <span>{getAttachmentDisplayName(att)}</span>
+                          </button>
                         ))}
                       </div>
                     )}

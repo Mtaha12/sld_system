@@ -95,6 +95,33 @@ const ManageStatutesTable = ({
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
+  // Collect all unique attachments from viewModalItem (record-level & block-level)
+  const modalAttachments = useMemo(() => {
+    if (!viewModalItem) return [];
+    const list = [];
+    const add = (att) => {
+      if (!att) return;
+      if (Array.isArray(att)) {
+        att.forEach(add);
+        return;
+      }
+      const url = typeof att === 'string' ? att : att.url;
+      const name = typeof att === 'string' ? getAttachmentDisplayName(att) : (att.name || att.originalName || getAttachmentDisplayName(url));
+      if (url && !list.some(x => x.url === url)) {
+        list.push({ url, name, raw: att });
+      }
+    };
+    add(viewModalItem.attachments);
+    add(viewModalItem.attachment);
+    if (Array.isArray(viewModalItem.blocks)) {
+      viewModalItem.blocks.forEach(b => {
+        add(b.attachments);
+        add(b.attachment);
+      });
+    }
+    return list;
+  }, [viewModalItem]);
+
   // Load distinct laws for the update date modal
   useEffect(() => {
     statuteService.getDistinctLaws()
@@ -121,7 +148,16 @@ const ManageStatutesTable = ({
   };
 
   const sortedStatutes = useMemo(() => {
-    if (!sortConfig.key || !sortConfig.direction) return statutes;
+    if (!sortConfig.key || !sortConfig.direction) {
+      // Default: section-wise ascending order, then srNumber ascending
+      return [...statutes].sort((a, b) => {
+        const secDiff = compareSections(a.section, b.section);
+        if (secDiff !== 0) return secDiff;
+        const srA = Number(a.srNumber || a.id || 0);
+        const srB = Number(b.srNumber || b.id || 0);
+        return srA - srB;
+      });
+    }
 
     const { key, direction } = sortConfig;
     const isAsc = direction === 'asc';
@@ -137,6 +173,11 @@ const ManageStatutesTable = ({
 
       if (valA === null || valA === undefined || valA === '') return 1;
       if (valB === null || valB === undefined || valB === '') return -1;
+
+      if (key === 'section') {
+        const cmp = compareSections(valA, valB);
+        return isAsc ? cmp : -cmp;
+      }
 
       if (Array.isArray(valA)) valA = valA.join(', ');
       if (Array.isArray(valB)) valB = valB.join(', ');
@@ -486,6 +527,35 @@ const ManageStatutesTable = ({
             <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
               <span className="block text-xs text-theme-muted mb-1 font-medium">Main Heading</span>
               <p className="text-theme-main leading-relaxed">{viewModalItem.heading}</p>
+            </div>
+
+            {/* Attachments Section with Download / View Actions */}
+            <div className="p-3.5 rounded-xl border border-theme-border bg-theme-surface-alt/20">
+              <span className="block text-xs text-theme-muted mb-2 font-medium">
+                Attachments ({modalAttachments.length})
+              </span>
+              {modalAttachments.length > 0 ? (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {modalAttachments.map((att, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-theme-surface border border-theme-border">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-brand-orange shrink-0" />
+                        <span className="text-xs font-medium text-theme-main truncate" title={att.name}>{att.name}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => downloadOrViewAttachment(att.raw || att.url)}
+                        className="shrink-0 text-brand-orange hover:text-white hover:bg-brand-orange border-brand-orange/40 text-xs py-1 px-2.5"
+                      >
+                        <ExternalLink className="w-3 h-3 mr-1" /> View / Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-theme-muted">No attachments attached to this statute record.</p>
+              )}
             </div>
           </div>
         )}
