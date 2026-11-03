@@ -7,3 +7,10 @@
 database_backup/
 *.tar
 *.archive
+
+# Large data delta files and scratch files
+backend/scratch/
+*.gz
+*.html
+*_files/
+logs/*.log
