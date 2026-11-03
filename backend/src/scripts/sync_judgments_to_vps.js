@@ -2,6 +2,16 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+
+// Load .env automatically from backend/.env or .env if present
+if (fs.existsSync('backend/.env')) {
+  dotenv.config({ path: 'backend/.env' });
+} else if (fs.existsSync('.env')) {
+  dotenv.config({ path: '.env' });
+} else {
+  dotenv.config();
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -26,7 +36,9 @@ async function main() {
   // Candidate paths for delta file (compressed or raw)
   const candidatePaths = [
     { p: path.resolve('backend/scratch/transferred_judgments_delta.json.gz'), isGz: true },
+    { p: path.resolve('scratch/transferred_judgments_delta.json.gz'), isGz: true },
     { p: path.resolve('backend/scratch/transferred_judgments_delta.json'), isGz: false },
+    { p: path.resolve('scratch/transferred_judgments_delta.json'), isGz: false },
     { p: path.resolve('transferred_judgments_delta.json.gz'), isGz: true },
     { p: path.resolve('transferred_judgments_delta.json'), isGz: false }
   ];

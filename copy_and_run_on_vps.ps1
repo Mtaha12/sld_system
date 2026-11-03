@@ -15,10 +15,10 @@
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $false)]
-    [string]$VpsHost,
+    [string]$VpsHost = "root@srv2028761",
 
     [Parameter(Mandatory = $false)]
-    [string]$VpsDir = "/root/sld_system"
+    [string]$VpsDir = "/var/www/sld_system"
 )
 
 Clear-Host
@@ -35,23 +35,20 @@ if (-not (Test-Path $DeltaGz)) {
     exit 1
 }
 
-if ([string]::IsNullOrWhiteSpace($VpsHost)) {
-    $VpsHost = Read-Host "Enter VPS SSH connection (e.g. root@YOUR_VPS_IP)"
-}
-
-if ([string]::IsNullOrWhiteSpace($VpsHost)) {
-    Write-Host "[ERROR] VPS SSH host is required. Aborting." -ForegroundColor Red
-    exit 1
-}
-
+Write-Host "Target VPS: $VpsHost" -ForegroundColor Green
+Write-Host "Target Dir: $VpsDir" -ForegroundColor Green
 Write-Host ""
-Write-Host "[1/3] Uploading compressed payload (72 MB) to VPS..." -ForegroundColor Cyan
+
+Write-Host "[1/4] Ensuring remote directories exist on VPS..." -ForegroundColor Cyan
+ssh $VpsHost "mkdir -p $($VpsDir)/backend/scratch $($VpsDir)/backend/src/scripts"
+
+Write-Host "[2/4] Uploading compressed payload (72 MB) to VPS..." -ForegroundColor Cyan
 scp $DeltaGz "$($VpsHost):$($VpsDir)/backend/scratch/"
 
-Write-Host "[2/3] Uploading sync script to VPS..." -ForegroundColor Cyan
+Write-Host "[3/4] Uploading sync script to VPS..." -ForegroundColor Cyan
 scp $SyncScript "$($VpsHost):$($VpsDir)/backend/src/scripts/"
 
-Write-Host "[3/3] Running sync directly on VPS against local MongoDB..." -ForegroundColor Cyan
+Write-Host "[4/4] Running sync directly on VPS against local MongoDB..." -ForegroundColor Cyan
 ssh $VpsHost "cd $($VpsDir) && node backend/src/scripts/sync_judgments_to_vps.js"
 
 if ($LASTEXITCODE -eq 0) {
