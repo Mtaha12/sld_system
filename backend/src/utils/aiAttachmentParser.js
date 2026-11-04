@@ -144,3 +144,4 @@ export function parseAllAIAttachments(attachments = []) {
   if (!Array.isArray(attachments)) return [];
   return attachments.map(parseAIAttachment);
 }
+
