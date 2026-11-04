@@ -3,7 +3,7 @@ import {
   Send, User, Scale, ExternalLink, 
   Copy, Check, FileText, RefreshCw,
   MessageSquare, Plus, X, Sparkles,
-  Paperclip, Image as ImageIcon, FileUp, XCircle,
+  Paperclip, Image as ImageIcon, FileUp, XCircle, FileSpreadsheet, File,
   PanelLeftClose, PanelLeftOpen, Gavel, BookOpen,
   ShieldCheck, FileCheck, Landmark, ChevronRight,
   HelpCircle, ArrowUpRight, Download, History
@@ -44,7 +44,26 @@ const AIChatPanel = ({
   const prevMessagesCount = useRef(messages.length);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
+  const wordInputRef = useRef(null);
+  const excelInputRef = useRef(null);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const attachMenuRef = useRef(null);
   const textareaRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(event.target)) {
+        setShowAttachMenu(false);
+      }
+    };
+    if (showAttachMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAttachMenu]);
 
   // Precision Scroll Management:
   // When assistant gives a response, keep the user at the BEGINNING / TOP of the response
@@ -517,12 +536,26 @@ th { background-color: #f2f2f2; font-weight: bold; }
                       {/* Attached files indicator inside lawyer brief bubble */}
                       {msg.attachments && msg.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-3 pb-2.5 border-b border-white/15">
-                          {msg.attachments.map((att, attIdx) => (
-                            <div key={attIdx} className="inline-flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-300 border border-white/10">
-                              <Paperclip className="w-3.5 h-3.5" />
-                              <span className="truncate max-w-[180px]">{att.name}</span>
-                            </div>
-                          ))}
+                          {msg.attachments.map((att, attIdx) => {
+                            const ext = (att.name || '').split('.').pop()?.toLowerCase();
+                            const isExcel = ['xlsx', 'xls', 'csv'].includes(ext);
+                            const isWord = ['docx', 'doc'].includes(ext);
+                            const isPdf = ext === 'pdf';
+                            return (
+                              <div key={attIdx} className="inline-flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-300 border border-white/10">
+                                {isExcel ? (
+                                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                                ) : isWord ? (
+                                  <FileText className="w-3.5 h-3.5 text-blue-400" />
+                                ) : isPdf ? (
+                                  <File className="w-3.5 h-3.5 text-red-400" />
+                                ) : (
+                                  <Paperclip className="w-3.5 h-3.5" />
+                                )}
+                                <span className="truncate max-w-[180px]">{att.name}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
@@ -807,11 +840,35 @@ th { background-color: #f2f2f2; font-weight: bold; }
       {/* Executive Lawyer Drafting Dock (Bottom Input Bar) */}
       <div className="p-3.5 bg-white dark:bg-[#12141c] border-t border-slate-200 dark:border-slate-800 shrink-0 space-y-2">
 
-        {/* Hidden File Inputs */}
+        {/* Hidden File Inputs for Explicit Options */}
+        <input
+          ref={pdfInputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          multiple
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <input
+          ref={wordInputRef}
+          type="file"
+          accept=".doc,.docx,.rtf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          multiple
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <input
+          ref={excelInputRef}
+          type="file"
+          accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          multiple
+          className="hidden"
+          onChange={handleFileChange}
+        />
         <input
           ref={imageInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.jpg,.jpeg,.png,.webp"
           multiple
           className="hidden"
           onChange={handleFileChange}
@@ -819,7 +876,7 @@ th { background-color: #f2f2f2; font-weight: bold; }
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.csv"
+          accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,.txt,image/*"
           multiple
           className="hidden"
           onChange={handleFileChange}
@@ -828,57 +885,183 @@ th { background-color: #f2f2f2; font-weight: bold; }
         {/* Queued Attachments Strip */}
         {attachments.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap px-1 pb-1">
-            {attachments.map(att => (
-              <div
-                key={att.id}
-                className="relative flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 max-w-[200px] shadow-2xs"
-              >
-                {att.isImage ? (
-                  <img
-                    src={att.previewUrl}
-                    alt={att.name}
-                    className="w-7 h-7 object-cover rounded shrink-0 border border-amber-500/40"
-                  />
-                ) : (
-                  <FileUp className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                )}
-                <span className="truncate max-w-[120px] font-medium">{att.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removeAttachment(att.id)}
-                  className="ml-auto shrink-0 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
-                  title="Remove document"
+            {attachments.map(att => {
+              const ext = (att.name || '').split('.').pop()?.toLowerCase();
+              const isExcel = ['xlsx', 'xls', 'csv'].includes(ext);
+              const isWord = ['docx', 'doc'].includes(ext);
+              const isPdf = ext === 'pdf';
+              return (
+                <div
+                  key={att.id}
+                  className={`relative flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs max-w-[220px] shadow-2xs border ${
+                    isExcel
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                      : isWord
+                      ? 'bg-blue-500/10 border-blue-500/30 text-blue-800 dark:text-blue-300'
+                      : isPdf
+                      ? 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300'
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300'
+                  }`}
                 >
-                  <XCircle className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
+                  {att.isImage ? (
+                    <img
+                      src={att.previewUrl}
+                      alt={att.name}
+                      className="w-7 h-7 object-cover rounded shrink-0 border border-amber-500/40"
+                    />
+                  ) : isExcel ? (
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  ) : isWord ? (
+                    <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  ) : (
+                    <File className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <span className="truncate block max-w-[110px] font-medium" title={att.name}>{att.name}</span>
+                    <span className="text-[9px] uppercase font-bold opacity-75">
+                      {isExcel ? 'Excel' : isWord ? 'Word' : isPdf ? 'PDF' : (att.isImage ? 'JPG' : 'Doc')}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(att.id)}
+                    className="ml-auto shrink-0 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                    title="Remove document"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
         {/* Input Bar Form */}
         <form onSubmit={handleSubmit} className="flex items-end gap-2">
 
-          {/* Attach Image Button */}
+          {/* Attachment Hub with Floating Menu */}
+          <div className="relative" ref={attachMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowAttachMenu(prev => !prev)}
+              disabled={isLoading}
+              title="Attach File (Word, Excel, PDF, or JPG)"
+              className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all cursor-pointer shrink-0 disabled:opacity-40 ${
+                showAttachMenu
+                  ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-amber-500'
+              }`}
+            >
+              <Paperclip className="w-4.5 h-4.5" />
+            </button>
+
+            {/* Quick Attachment Menu Popover */}
+            {showAttachMenu && (
+              <div className="absolute bottom-12 left-0 z-50 w-56 rounded-2xl bg-white dark:bg-[#181b26] border border-slate-200 dark:border-slate-700 shadow-2xl p-1.5 space-y-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Select Document Type
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAttachMenu(false);
+                    pdfInputRef.current?.click();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left hover:bg-red-500/10 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                    <File className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-red-600 dark:group-hover:text-red-400">PDF Document</div>
+                    <div className="text-[10px] text-slate-400">Orders, SROs (.pdf)</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAttachMenu(false);
+                    wordInputRef.current?.click();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left hover:bg-blue-500/10 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">Word Document</div>
+                    <div className="text-[10px] text-slate-400">Pleadings, Petitions (.docx, .doc)</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAttachMenu(false);
+                    excelInputRef.current?.click();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left hover:bg-emerald-500/10 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">Excel Spreadsheet</div>
+                    <div className="text-[10px] text-slate-400">Calculations, Tariffs (.xlsx, .xls)</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAttachMenu(false);
+                    imageInputRef.current?.click();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left hover:bg-amber-500/10 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                    <ImageIcon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400">Image / JPG / Scanned</div>
+                    <div className="text-[10px] text-slate-400">Scanned orders (.jpg, .png)</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Direct 1-Click Fast Attachment Buttons (Word & Excel & Image) */}
+          <button
+            type="button"
+            onClick={() => wordInputRef.current?.click()}
+            disabled={isLoading}
+            title="Attach Word Document (.docx, .doc)"
+            className="w-10 h-10 hidden sm:flex items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/15 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer shrink-0 disabled:opacity-40"
+          >
+            <FileText className="w-4.5 h-4.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => excelInputRef.current?.click()}
+            disabled={isLoading}
+            title="Attach Excel Spreadsheet (.xlsx, .xls, .csv)"
+            className="w-10 h-10 hidden sm:flex items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer shrink-0 disabled:opacity-40"
+          >
+            <FileSpreadsheet className="w-4.5 h-4.5" />
+          </button>
+
           <button
             type="button"
             onClick={() => imageInputRef.current?.click()}
             disabled={isLoading}
-            title="Attach scanned copy / image of order"
-            className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-amber-500 transition-colors cursor-pointer shrink-0 disabled:opacity-40"
+            title="Attach Scanned Copy / Image (.jpg, .png)"
+            className="w-10 h-10 hidden sm:flex items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/15 text-amber-600 dark:text-amber-400 transition-colors cursor-pointer shrink-0 disabled:opacity-40"
           >
             <ImageIcon className="w-4.5 h-4.5" />
-          </button>
-
-          {/* Attach Notice / Document Button */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            title="Attach show cause notice, assessment order, or PDF document"
-            className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-amber-500 transition-colors cursor-pointer shrink-0 disabled:opacity-40"
-          >
-            <Paperclip className="w-4.5 h-4.5" />
           </button>
 
           {/* Multiline Expandable Textarea */}

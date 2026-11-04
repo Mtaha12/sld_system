@@ -9,6 +9,7 @@ import LegalMaxim from '../models/LegalMaxim.js';
 import PrincipleOfLaw from '../models/PrincipleOfLaw.js';
 import ChatSession from '../models/ChatSession.js';
 import logger from '../utils/logger.js';
+import { parseAllAIAttachments } from '../utils/aiAttachmentParser.js';
 import {
   checkIsCodeRequest,
   checkIsLegalDraftingRequest,
@@ -3938,7 +3939,8 @@ RESPONSE GUIDELINES:
  * SLD Core Legal AI Intelligence Engine
  * Grounded 100% in the 162,865+ cases database across all fields
  */
-export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, attachments = [], requestingUser = null, conversationHistory = []) => {
+export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, rawAttachments = [], requestingUser = null, conversationHistory = []) => {
+  const attachments = parseAllAIAttachments(rawAttachments);
   const rawClean = (userQuery || '').trim();
   const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
 

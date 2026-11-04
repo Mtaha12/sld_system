@@ -138,3 +138,4 @@ export const sanitizeBlocksAttachments = (blocks) => {
     return blockCopy;
   });
 };
+

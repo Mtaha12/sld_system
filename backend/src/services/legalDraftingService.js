@@ -2,6 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
+import { parseAllAIAttachments } from '../utils/aiAttachmentParser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -597,7 +598,8 @@ ${cleanSource || facts.combinedText}
  * 2. AFTER THAT show the complete corrected document.
  * 3. Format downloadable file as a presentable Microsoft Word (.doc) document.
  */
-export const performDocumentCorrectionAndReview = async (queryText, attachments = []) => {
+export const performDocumentCorrectionAndReview = async (queryText, rawAttachments = []) => {
+  const attachments = parseAllAIAttachments(rawAttachments);
   const primaryAttachment = attachments?.[0];
   const originalFileName = primaryAttachment?.name || 'Appeal_u_s_45B_Sales_Tax.doc';
   const baseName = originalFileName.replace(/\.[^/.]+$/, "");
@@ -651,7 +653,9 @@ export const performDocumentCorrectionAndReview = async (queryText, attachments 
   // Prepare inline parts for LLM if base64 file exists
   const inlineParts = [];
   for (const att of attachments) {
-    if (att.base64 && att.type && att.base64.length < 5000000) {
+    const mime = (att.type || '').toLowerCase();
+    const isGeminiSupportedMime = mime.startsWith('image/') || mime === 'application/pdf';
+    if (att.base64 && isGeminiSupportedMime && att.base64.length < 5000000) {
       inlineParts.push({ inlineData: { mimeType: att.type, data: att.base64 } });
     }
   }
@@ -1333,7 +1337,8 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
 /**
  * Main Drafting Orchestrator
  */
-export const generatePleadingDocument = async (queryText, attachments = []) => {
+export const generatePleadingDocument = async (queryText, rawAttachments = []) => {
+  const attachments = parseAllAIAttachments(rawAttachments);
   // 1. Extract extracted facts from text & attachments
   const facts = extractDocumentFacts(queryText, attachments);
   const formatType = determineFormatType(queryText, attachments);
@@ -1341,16 +1346,15 @@ export const generatePleadingDocument = async (queryText, attachments = []) => {
   // 2. Prepare inline parts for any base64 files (PDFs/Images)
   const inlineParts = [];
   for (const att of attachments) {
-    if (att.base64 && att.type) {
-      // Limit attachment payload to prevent huge base64 transfers
-      if (att.base64.length < 5000000) {
-        inlineParts.push({
-          inlineData: {
-            mimeType: att.type,
-            data: att.base64
-          }
-        });
-      }
+    const mime = (att.type || '').toLowerCase();
+    const isGeminiSupportedMime = mime.startsWith('image/') || mime === 'application/pdf';
+    if (att.base64 && isGeminiSupportedMime && att.base64.length < 5000000) {
+      inlineParts.push({
+        inlineData: {
+          mimeType: att.type,
+          data: att.base64
+        }
+      });
     }
   }
 
