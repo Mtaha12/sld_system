@@ -6,6 +6,7 @@ import { spoofCase, spoofCaseList } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 import path from 'path';
+import { sanitizeAttachments as sanitizeAttachmentsStorage } from '../utils/attachmentStorage.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -433,40 +434,7 @@ export const extractCaseDate = (c) => {
  * Normalizes attachment inputs to ensure every attachment object adheres to schema
  */
 export const sanitizeAttachments = (attachments) => {
-  if (!attachments) return [];
-  const list = Array.isArray(attachments) ? attachments : [attachments];
-  return list
-    .filter(Boolean)
-    .map((att, idx) => {
-      if (typeof att === 'string') {
-        const cleanUrl = att.trim();
-        let filename = cleanUrl.split(/[\/\\]/).pop() || `Attachment_${idx + 1}.pdf`;
-        filename = filename.replace(/[\r\n\0]/g, '').trim();
-        return {
-          name: filename,
-          url: cleanUrl,
-          size: '',
-          type: cleanUrl.endsWith('.docx') || cleanUrl.endsWith('.doc') ? 'word' : (cleanUrl.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
-        };
-      }
-      const rawName = (att.name && String(att.name).trim()) || (att.originalName && String(att.originalName).trim()) || (att.filename && String(att.filename).trim());
-      const url = att.url || att.path || '';
-      let name = rawName || (url ? url.split(/[\/\\]/).pop() : `Attachment_${idx + 1}.pdf`);
-      name = String(name).replace(/[\r\n\0]/g, '').trim();
-      let size = att.size || '';
-      if (typeof size === 'number') {
-        size = `${(size / (1024 * 1024)).toFixed(2)} MB`;
-      }
-      const ext = String(name).split('.').pop()?.toLowerCase();
-      const type = att.type || (['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? 'image' : (['doc', 'docx'].includes(ext) ? 'word' : 'pdf'));
-      return {
-        name: name || `Attachment_${idx + 1}.pdf`,
-        url: String(url).trim(),
-        size: String(size).trim(),
-        type: String(type).trim()
-      };
-    })
-    .filter(a => a.url || a.name);
+  return sanitizeAttachmentsStorage(attachments);
 };
 
 const formatCaseForFrontend = (c) => {

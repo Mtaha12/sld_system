@@ -107,7 +107,16 @@ export const downloadOrViewAttachment = (att, { download = false } = {}) => {
       try {
         const parts = url.split(',');
         const mimeMatch = parts[0].match(/:(.*?);/);
-        const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        let mimeType = mimeMatch ? mimeMatch[1] : '';
+        if (!mimeType || mimeType === 'application/octet-stream') {
+          const lowerName = (name || '').toLowerCase();
+          if (lowerName.endsWith('.pdf')) mimeType = 'application/pdf';
+          else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) mimeType = 'image/jpeg';
+          else if (lowerName.endsWith('.png')) mimeType = 'image/png';
+          else if (lowerName.endsWith('.webp')) mimeType = 'image/webp';
+          else if (lowerName.endsWith('.txt')) mimeType = 'text/plain';
+          else mimeType = 'application/pdf';
+        }
         const base64Data = parts[1];
         const binaryString = atob(base64Data);
         const len = binaryString.length;
@@ -135,15 +144,16 @@ export const downloadOrViewAttachment = (att, { download = false } = {}) => {
           // Open in a new tab safely via Blob URL
           const newWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
           if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-            // Popup blocker intercepted: fallback to direct download
+            // Popup blocker intercepted: fallback to anchor click without download attribute so it opens in new tab
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = blobUrl;
-            a.download = name;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
             document.body.appendChild(a);
             a.click();
             setTimeout(() => {
-              document.body.removeChild(a);
+              if (document.body.contains(a)) document.body.removeChild(a);
               URL.revokeObjectURL(blobUrl);
             }, 60000);
           } else {

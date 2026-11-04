@@ -4,7 +4,7 @@ import { notificationService } from '../features/notifications/services/notifica
 import Spinner from '../components/ui/Spinner';
 import { 
   ArrowLeft, Printer, Bell, Copy, Check, 
-  Calendar, FileText, Download, Building, ShieldCheck, ExternalLink, Award
+  Calendar, FileText, Download, Building, ShieldCheck, ExternalLink, Award, Eye
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
@@ -403,11 +403,11 @@ const NotificationViewPage = () => {
                       <button
                         type="button"
                         onClick={() => downloadOrViewAttachment(att.raw || att.url)}
-                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-orange text-white text-[11px] font-bold hover:bg-brand-orange/90 transition-colors cursor-pointer print:hidden shadow-xs"
-                        title="Open attachment in new tab"
+                        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-orange text-white text-[11px] font-bold hover:bg-brand-orange/90 transition-colors cursor-pointer print:hidden shadow-xs"
+                        title="View full document in new tab"
                       >
-                        <Download className="w-3 h-3" />
-                        <span>View</span>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View full document</span>
                       </button>
                       <span className="hidden print:inline-block font-mono text-[11px] text-stone-600">
                         [Annexure Ref #{idx + 1}]

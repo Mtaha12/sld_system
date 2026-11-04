@@ -32,6 +32,7 @@ const formatDateForInput = (val) => {
 /* ── Compact inline file-chooser with View and Remove actions ─────── */
 const CompactFileButton = ({ value, onChange }) => {
   const ref = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
   const files = Array.isArray(value) ? value : (value ? [value] : []);
 
   const handleViewFile = (f) => {
@@ -47,41 +48,69 @@ const CompactFileButton = ({ value, onChange }) => {
         multiple
         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
         className="hidden"
+        disabled={isUploading}
         onChange={async (e) => {
           const incomingFiles = Array.from(e.target.files || []);
-          const readPromises = incomingFiles.map(file => {
-            return new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                resolve({
-                  name: file.name,
-                  size: file.size,
-                  type: file.type,
-                  url: reader.result
-                });
+          if (incomingFiles.length === 0) return;
+          setIsUploading(true);
+          try {
+            const uploadPromises = incomingFiles.map(async (file) => {
+              try {
+                const res = await notificationService.uploadAttachment(file);
+                if (res?.url) {
+                  return {
+                    name: (res.name && String(res.name).trim()) || file.name,
+                    size: res.size || `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+                    type: res.type || (file.name?.endsWith('.docx') ? 'word' : (file.type?.startsWith('image/') ? 'image' : 'pdf')),
+                    url: res.url
+                  };
+                }
+              } catch (upErr) {
+                console.warn('Direct notification upload warning, falling back to data URL:', upErr);
+              }
+              const b64 = await new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => resolve('');
+                reader.readAsDataURL(file);
+              });
+              return {
+                name: file.name,
+                size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+                type: file.name?.endsWith('.docx') ? 'word' : (file.type?.startsWith('image/') ? 'image' : 'pdf'),
+                url: b64
               };
-              reader.onerror = () => {
-                resolve({ name: file.name, size: file.size });
-              };
-              reader.readAsDataURL(file);
             });
-          });
-          const processed = await Promise.all(readPromises);
-          const merged = [
-            ...files,
-            ...processed.filter(f => !files.some(x => (x.name || x) === f.name))
-          ];
-          onChange(merged);
-          e.target.value = '';
+
+            const processed = await Promise.all(uploadPromises);
+            const merged = [
+              ...files,
+              ...processed.filter(f => !files.some(x => (x.name || x) === f.name))
+            ];
+            onChange(merged);
+          } finally {
+            setIsUploading(false);
+            e.target.value = '';
+          }
         }}
       />
       <button
         type="button"
+        disabled={isUploading}
         onClick={() => ref.current?.click()}
-        className="flex items-center gap-1.5 px-3 h-[38px] w-full rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-medium text-theme-main transition-colors"
+        className="flex items-center gap-1.5 px-3 h-[38px] w-full rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-alt text-xs font-medium text-theme-main transition-colors disabled:opacity-60 cursor-pointer"
       >
-        <Paperclip className="w-3.5 h-3.5 text-brand-orange shrink-0" />
-        <span className="truncate">{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Choose File'}</span>
+        {isUploading ? (
+          <>
+            <Loader2 className="w-3.5 h-3.5 text-brand-orange animate-spin shrink-0" />
+            <span className="truncate">Uploading...</span>
+          </>
+        ) : (
+          <>
+            <Paperclip className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+            <span className="truncate">{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Choose File'}</span>
+          </>
+        )}
       </button>
       {files.length > 0 && (
         <div className="space-y-0.5 max-h-20 overflow-y-auto">

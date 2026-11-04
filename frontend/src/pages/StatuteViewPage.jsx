@@ -4,7 +4,7 @@ import { statuteService } from '../features/statutes/services/statuteService';
 import Spinner from '../components/ui/Spinner';
 import { 
   ArrowLeft, Printer, Scale, Copy, Check, 
-  FileText, Calendar, BookOpen, ExternalLink, ShieldCheck, Download
+  FileText, Calendar, BookOpen, ExternalLink, ShieldCheck, Download, Eye
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';

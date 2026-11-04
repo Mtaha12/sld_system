@@ -512,7 +512,20 @@ const ManageCasesTable = ({
       setIsUpdatingAttachments(true);
       const caseId = attachmentModalCase.id || attachmentModalCase.mongoId || attachmentModalCase.sldNumber;
 
-      const readPromises = newFiles.map(file => {
+      const uploadPromises = newFiles.map(async (file) => {
+        try {
+          const res = await caseService.uploadAttachment(file);
+          if (res && res.url) {
+            return {
+              name: (res.name && String(res.name).trim()) || file.name,
+              size: res.size || `${((file.size || 1048576) / (1024 * 1024)).toFixed(2)} MB`,
+              type: res.type || (file.name?.endsWith('.docx') ? 'word' : (file.type?.startsWith('image/') || file.name?.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')),
+              url: res.url
+            };
+          }
+        } catch (upErr) {
+          console.warn('Direct case attachment upload warning, fallback to data URL:', upErr);
+        }
         return new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = () => {
@@ -535,7 +548,7 @@ const ManageCasesTable = ({
         });
       });
 
-      const processedNew = await Promise.all(readPromises);
+      const processedNew = await Promise.all(uploadPromises);
       const updatedAttachments = [
         ...activeCaseAttachments.map(f => ({
           name: f.name,

@@ -1349,41 +1349,34 @@ const AddCaseLawDetail = ({ onClose }) => {
                               if (selected.length === 0) return;
                               setIsUploadingAttachment(true);
                               try {
-                                const uploadedItems = [];
-                                for (const f of selected) {
+                                const uploadPromises = selected.map(async (f) => {
                                   try {
                                     const res = await caseService.uploadAttachment(f);
                                     if (res && res.url) {
-                                      uploadedItems.push({
+                                      return {
                                         name: (res?.name && String(res.name).trim()) || (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
                                         url: res.url,
                                         size: res.size || `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
                                         type: res.type || (f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf'))
-                                      });
-                                    } else {
-                                      uploadedItems.push({
-                                        name: (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
-                                        url: '',
-                                        size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
-                                        type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
-                                      });
+                                      };
                                     }
                                   } catch (uploadErr) {
                                     console.warn('Direct attachment upload warning, fallback to data URL:', uploadErr);
-                                    const b64 = await new Promise(resolve => {
-                                      const reader = new FileReader();
-                                      reader.onload = () => resolve(reader.result);
-                                      reader.onerror = () => resolve('');
-                                      reader.readAsDataURL(f);
-                                    });
-                                    uploadedItems.push({
-                                      name: (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
-                                      url: b64,
-                                      size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
-                                      type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
-                                    });
                                   }
-                                }
+                                  const b64 = await new Promise(resolve => {
+                                    const reader = new FileReader();
+                                    reader.onload = () => resolve(reader.result);
+                                    reader.onerror = () => resolve('');
+                                    reader.readAsDataURL(f);
+                                  });
+                                  return {
+                                    name: (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
+                                    url: b64,
+                                    size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
+                                    type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
+                                  };
+                                });
+                                const uploadedItems = await Promise.all(uploadPromises);
                                 const combined = [
                                   ...files,
                                   ...uploadedItems.filter(nf => !files.some(ef => ef.name === nf.name))

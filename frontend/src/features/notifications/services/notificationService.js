@@ -54,6 +54,20 @@ export const notificationService = {
    * @param {Object} newNotif 
    * @returns {Promise<Object>}
    */
+  /**
+   * Upload single attachment document for a notification
+   */
+  uploadAttachment: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/api/notifications/upload-attachment', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data?.data || response.data;
+  },
+
   createNotification: async (newNotif) => {
     const response = await api.post('/api/notifications', newNotif);
     return response.data;

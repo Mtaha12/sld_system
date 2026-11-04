@@ -48,33 +48,35 @@ const CompactFileButton = ({ value, onChange }) => {
           const incomingFiles = Array.from(e.target.files || []);
           if (incomingFiles.length === 0) return;
           setIsUploading(true);
-          const uploaded = [];
-          for (const file of incomingFiles) {
-            try {
-              const res = await statuteService.uploadAttachment(file);
-              if (res?.success && res.url) {
-                uploaded.push({
-                  name: file.name,
-                  originalName: file.name,
-                  size: file.size,
-                  type: file.type,
-                  url: res.url
-                });
-                continue;
+          let uploaded = [];
+          try {
+            const uploadPromises = incomingFiles.map(async (file) => {
+              try {
+                const res = await statuteService.uploadAttachment(file);
+                if (res?.success && res.url) {
+                  return {
+                    name: file.name,
+                    originalName: file.name,
+                    size: file.size,
+                    type: file.type,
+                    url: res.url
+                  };
+                }
+              } catch (err) {
+                console.warn('Statute attachment server upload error, fallback to data URL:', err);
               }
-            } catch (err) {
-              console.warn('Statute attachment server upload error, fallback to data URL:', err);
-            }
-            // Fallback to data URL only if network/server upload failed
-            const b64 = await new Promise(resolve => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result);
-              reader.onerror = () => resolve('');
-              reader.readAsDataURL(file);
+              const b64 = await new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => resolve('');
+                reader.readAsDataURL(file);
+              });
+              return { name: file.name, size: file.size, type: file.type, url: b64 };
             });
-            uploaded.push({ name: file.name, size: file.size, type: file.type, url: b64 });
+            uploaded = await Promise.all(uploadPromises);
+          } finally {
+            setIsUploading(false);
           }
-          setIsUploading(false);
           const merged = [
             ...files,
             ...uploaded.filter(f => !files.some(x => (x.name || x) === f.name))

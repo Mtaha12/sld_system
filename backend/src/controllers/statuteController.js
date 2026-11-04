@@ -467,7 +467,7 @@ export const createStatute = async (req, res, next) => {
       law: law || '',
       section: section || '',
       heading: heading || '',
-      blocks: blocks || []
+      blocks: sanitizeBlocksAttachments(blocks || [])
     });
 
     await newStatute.save();
@@ -541,7 +541,7 @@ export const updateStatute = async (req, res, next) => {
     if (law !== undefined) s.law = law;
     if (section !== undefined) s.section = section;
     if (heading !== undefined) s.heading = heading;
-    if (blocks !== undefined) s.blocks = blocks;
+    if (blocks !== undefined) s.blocks = sanitizeBlocksAttachments(blocks);
 
     await s.save();
     logger.info(`[Statute Updated] SR #${s.srNumber} updated.`);

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { sanitizeBlocksAttachments } from '../utils/attachmentStorage.js';
 import Notification from '../models/Notification.js';
 import UserActivity from '../models/UserActivity.js';
 import { spoofNotification } from '../utils/spammerHoneypot.js';
@@ -393,7 +394,7 @@ export const createNotification = async (req, res, next) => {
       subject: subject || '',
       lawStatute: lawStatute || '',
       section: section || '',
-      blocks: blocks || []
+      blocks: sanitizeBlocksAttachments(blocks || [])
     });
 
     await newNotif.save();
@@ -480,7 +481,7 @@ export const updateNotification = async (req, res, next) => {
     if (status !== undefined) n.status = status;
     if (lawStatute !== undefined) n.lawStatute = lawStatute;
     if (section !== undefined) n.section = section;
-    if (blocks !== undefined) n.blocks = blocks;
+    if (blocks !== undefined) n.blocks = sanitizeBlocksAttachments(blocks);
 
     await n.save();
     logger.info(`[Notification Updated] SR #${n.srNumber} updated.`);
@@ -627,6 +628,37 @@ export const getNotificationAttachmentStream = async (req, res, next) => {
     }
 
     return res.status(404).send('Attachment document file could not be located on server.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Dedicated document attachment upload for notification records
+ */
+export const uploadNotificationAttachment = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded.' });
+    }
+    const relativeUrl = `/uploads/reference_views/${req.file.filename}`;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const type = ext === '.docx' || ext === '.doc' ? 'word' : (['.png', '.jpg', '.jpeg', '.webp'].includes(ext) ? 'image' : 'pdf');
+    return res.status(200).json({
+      success: true,
+      message: 'Notification attachment uploaded successfully.',
+      data: {
+        name: (req.file.originalname && String(req.file.originalname).trim()) || `Attachment_${Date.now()}.pdf`,
+        url: relativeUrl,
+        size: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
+        type
+      },
+      url: relativeUrl,
+      name: req.file.originalname,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
   } catch (err) {
     next(err);
   }

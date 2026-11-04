@@ -181,9 +181,13 @@ const staticUploadOptions = {
   maxAge: '7d',
   etag: true,
   lastModified: true,
-  setHeaders: (res, path) => {
+  setHeaders: (res, filePath) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Disposition', 'inline');
+    if (filePath && filePath.toLowerCase().endsWith('.pdf')) {
+      res.setHeader('Content-Type', 'application/pdf');
+    }
   }
 };
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), staticUploadOptions));

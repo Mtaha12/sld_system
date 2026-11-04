@@ -4,7 +4,7 @@ import { caseService } from '../features/cases/services/caseService';
 import Spinner from '../components/ui/Spinner';
 import { 
   ArrowLeft, Printer, Scale, Copy, Check, 
-  FileText, Calendar, Gavel, Award, Download
+  FileText, Calendar, Gavel, Award, Download, Eye
 } from 'lucide-react';
 import { downloadOrViewAttachment, getAttachmentDisplayName } from '../utils/attachmentDownloader';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
