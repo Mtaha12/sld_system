@@ -4,8 +4,9 @@ import { caseService } from '../features/cases/services/caseService';
 import Spinner from '../components/ui/Spinner';
 import { 
   ArrowLeft, Printer, Scale, Copy, Check, 
-  FileText, Calendar, Gavel, Award
+  FileText, Calendar, Gavel, Award, Download
 } from 'lucide-react';
+import { downloadOrViewAttachment, getAttachmentDisplayName } from '../utils/attachmentDownloader';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { formatCitations } from '../utils/citationFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
@@ -100,6 +101,27 @@ const CaseViewPage = () => {
   }, [id]);
 
   // Parsed cause list
+  // Gather all attachments safely
+  const caseAttachments = useMemo(() => {
+    if (!caseData) return [];
+    const list = [];
+    const add = (att) => {
+      if (!att) return;
+      if (Array.isArray(att)) {
+        att.forEach(add);
+        return;
+      }
+      const url = typeof att === 'string' ? att : (att.url || att.path);
+      const name = typeof att === 'string' ? getAttachmentDisplayName(att) : (att.name || att.originalName || getAttachmentDisplayName(url));
+      if (url && !list.some(x => x.url === url)) {
+        list.push({ url, name, size: att.size || '', type: att.type || 'pdf', raw: att });
+      }
+    };
+    add(caseData.attachments);
+    add(caseData.attachmentsData);
+    return list;
+  }, [caseData]);
+
   const causeList = useMemo(() => {
     return parseCauseTitle(caseData?.petitioners);
   }, [caseData]);
@@ -570,6 +592,51 @@ const CaseViewPage = () => {
               </div>
             </section>
           ) : null}
+
+          {/* 7. OFFICIAL CASE ATTACHMENTS & ANNEXURES (Screen and Print) */}
+          {caseAttachments.length > 0 && (
+            <section className="my-8 pt-6 border-t-2 border-dashed border-stone-300 dark:border-stone-700 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-stone-600 dark:text-stone-300 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-brand-orange" />
+                  <span>Official Attached Documents & Annexures ({caseAttachments.length})</span>
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {caseAttachments.map((att, idx) => {
+                  const attName = att.name || `Attachment_${idx + 1}.pdf`;
+                  return (
+                    <div 
+                      key={idx}
+                      className="flex items-center justify-between gap-2 p-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/60 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="font-mono font-bold text-stone-400 shrink-0">#{idx + 1}</span>
+                        <div className="min-w-0">
+                          <p className="font-serif font-bold text-stone-900 dark:text-stone-100 truncate" title={attName}>
+                            {attName}
+                          </p>
+                          {att.size && <span className="text-[10px] text-stone-500 font-sans block">{att.size}</span>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => downloadOrViewAttachment(att.raw || att.url)}
+                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-orange text-white text-[11px] font-bold hover:bg-brand-orange/90 transition-colors cursor-pointer print:hidden shadow-xs"
+                        title="Open attachment in new tab"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>View</span>
+                      </button>
+                      <span className="hidden print:inline-block font-mono text-[11px] text-stone-600">
+                        [Annexure Ref #{idx + 1}]
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* 7. AUTHENTIC LAW REPORTER VERIFICATION FOOTER (Hidden in print) */}
           <footer className="mt-12 pt-6 border-t border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3 text-[11px] font-sans text-stone-500 dark:text-stone-400 footer-print-hide print:!hidden" data-print-hide="true">

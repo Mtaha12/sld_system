@@ -153,7 +153,11 @@ const getInitialValues = (data = null) => {
     judgment: String(data.judgment || ''),
     publications: pubs,
     laws: laws,
-    attachments: Array.isArray(data.attachments) ? data.attachments : []
+    attachments: Array.isArray(data.attachments)
+      ? data.attachments
+      : (Array.isArray(data.attachmentsData)
+          ? data.attachmentsData
+          : (data.attachments && typeof data.attachments === 'object' ? [data.attachments] : []))
   };
 };
 
@@ -1365,10 +1369,16 @@ const AddCaseLawDetail = ({ onClose }) => {
                                       });
                                     }
                                   } catch (uploadErr) {
-                                    console.warn('Direct attachment upload warning:', uploadErr);
+                                    console.warn('Direct attachment upload warning, fallback to data URL:', uploadErr);
+                                    const b64 = await new Promise(resolve => {
+                                      const reader = new FileReader();
+                                      reader.onload = () => resolve(reader.result);
+                                      reader.onerror = () => resolve('');
+                                      reader.readAsDataURL(f);
+                                    });
                                     uploadedItems.push({
                                       name: (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
-                                      url: '',
+                                      url: b64,
                                       size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
                                       type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
                                     });

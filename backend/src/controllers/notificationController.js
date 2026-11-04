@@ -55,7 +55,7 @@ export const getNotifications = async (req, res, next) => {
   try {
     const { 
       query, page, limit, all, full, sortField, sortOrder,
-      lawStatute, law, section, number, year, date, text, subject, department, sroNumber, exact
+      lawStatute, law, section, number, year, date, text, text2, subject, department, sroNumber, exact
     } = req.query;
 
     const filter = { isDeleted: false };
@@ -120,19 +120,41 @@ export const getNotifications = async (req, res, next) => {
       filter.subject = new RegExp(escapeRegex(subject.trim()), 'i');
     }
 
-    if (text && text.trim()) {
-      const textRegex = new RegExp(escapeRegex(text.trim()), 'i');
-      const textOr = [
-        { subject: textRegex },
-        { 'blocks.detail': textRegex }
-      ];
+    const text1 = (text || '').trim();
+    const text2Clean = (text2 || req.query.text2 || '').trim();
+    const textConditions = [];
+
+    if (text1) {
+      const r1 = new RegExp(escapeRegex(text1), 'i');
+      textConditions.push({
+        $or: [
+          { subject: r1 },
+          { sroNumber: r1 },
+          { 'blocks.detail': r1 },
+          { content: r1 }
+        ]
+      });
+    }
+
+    if (text2Clean) {
+      const r2 = new RegExp(escapeRegex(text2Clean), 'i');
+      textConditions.push({
+        $or: [
+          { subject: r2 },
+          { sroNumber: r2 },
+          { 'blocks.detail': r2 },
+          { content: r2 }
+        ]
+      });
+    }
+
+    if (textConditions.length > 0) {
+      filter.$and = filter.$and || [];
       if (filter.$or) {
-        filter.$and = filter.$and || [];
-        filter.$and.push({ $or: filter.$or }, { $or: textOr });
+        filter.$and.push({ $or: filter.$or });
         delete filter.$or;
-      } else {
-        filter.$or = textOr;
       }
+      textConditions.forEach(cond => filter.$and.push(cond));
     }
 
     // Generic query fallback

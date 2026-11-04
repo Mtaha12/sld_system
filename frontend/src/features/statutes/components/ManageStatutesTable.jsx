@@ -20,6 +20,8 @@ import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { statuteService } from '../services/statuteService';
+import { compareSections } from '../../../utils/sectionComparator';
+import { downloadOrViewAttachment, getAttachmentDisplayName } from '../../../utils/attachmentDownloader';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className }) => {
   const isSorted = sortConfig?.key === sortKey;

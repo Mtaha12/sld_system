@@ -433,13 +433,24 @@ export const extractCaseDate = (c) => {
  * Normalizes attachment inputs to ensure every attachment object adheres to schema
  */
 export const sanitizeAttachments = (attachments) => {
-  if (!Array.isArray(attachments)) return [];
-  return attachments
-    .filter(att => att && typeof att === 'object')
+  if (!attachments) return [];
+  const list = Array.isArray(attachments) ? attachments : [attachments];
+  return list
+    .filter(Boolean)
     .map((att, idx) => {
+      if (typeof att === 'string') {
+        const cleanUrl = att.trim();
+        const filename = cleanUrl.split('/').pop() || `Attachment_${idx + 1}.pdf`;
+        return {
+          name: filename,
+          url: cleanUrl,
+          size: '',
+          type: cleanUrl.endsWith('.docx') ? 'word' : (cleanUrl.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
+        };
+      }
       const rawName = (att.name && String(att.name).trim()) || (att.originalName && String(att.originalName).trim()) || (att.filename && String(att.filename).trim());
-      const name = rawName || `Attachment_${idx + 1}.pdf`;
       const url = att.url || att.path || '';
+      const name = rawName || (url ? url.split('/').pop() : `Attachment_${idx + 1}.pdf`);
       let size = att.size || '';
       if (typeof size === 'number') {
         size = `${(size / (1024 * 1024)).toFixed(2)} MB`;
@@ -452,7 +463,8 @@ export const sanitizeAttachments = (attachments) => {
         size: String(size).trim(),
         type: String(type).trim()
       };
-    });
+    })
+    .filter(a => a.url || a.name);
 };
 
 const formatCaseForFrontend = (c) => {
@@ -465,6 +477,9 @@ const formatCaseForFrontend = (c) => {
     seenCitations.add(key);
     return true;
   });
+
+  const rawAtts = Array.isArray(c.attachments) ? c.attachments : (c.attachments && typeof c.attachments === 'object' ? [c.attachments] : []);
+  const cleanAtts = sanitizeAttachments(rawAtts);
 
   return {
     id: c._id.toString(),
@@ -485,8 +500,9 @@ const formatCaseForFrontend = (c) => {
     judgment: c.judgment || '',
     publications: c.publications || [],
     laws: c.laws || [],
-    attachments: c.attachments ? c.attachments.length : 0,
-    attachmentsData: c.attachments || [],
+    attachments: cleanAtts,
+    attachmentsCount: cleanAtts.length,
+    attachmentsData: cleanAtts,
     mapYearPage
   };
 };
