@@ -7,7 +7,7 @@ import {
   uploadCaseAttachment,
   exportMissingHeadnotes
 } from '../controllers/caseController.js';
-import { protect, requireAdmin, checkCaseAccess } from '../middleware/authMiddleware.js';
+import { protect, requireAdmin, requireAdminOrAllForms, checkCaseAccess } from '../middleware/authMiddleware.js';
 import { uploadReferenceViewMiddleware } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
@@ -29,7 +29,8 @@ router.get('/:id', getCaseById);
 router.post('/upload-attachment', requireAdmin, uploadReferenceViewMiddleware, uploadCaseAttachment);
 router.post('/', requireAdmin, createCase);
 router.put('/:id', requireAdmin, updateCase);
-router.patch('/:id/attachments', requireAdmin, updateCaseAttachments);
+router.patch('/:id/attachments', requireAdminOrAllForms, updateCaseAttachments);
+router.put('/:id/attachments', requireAdminOrAllForms, updateCaseAttachments);
 router.delete('/:id', requireAdmin, deleteCase);
 router.post('/delete-multiple', requireAdmin, deleteMultiple);
 

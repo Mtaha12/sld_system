@@ -397,6 +397,19 @@ const CaseViewPage = () => {
               </select>
             </div>
 
+            {/* View Full Document / Attached Annexure in Toolbar */}
+            {caseAttachments.length > 0 && (
+              <button
+                type="button"
+                onClick={() => downloadOrViewAttachment(caseAttachments[0].raw || caseAttachments[0].url)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-brand-orange/40 bg-brand-orange/10 hover:bg-brand-orange text-brand-orange hover:text-white shadow-xs transition-all cursor-pointer"
+                title={`View full document (${caseAttachments[0].name || 'Attachment'}) in new tab`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>View full document {caseAttachments.length > 1 ? `(${caseAttachments.length})` : ''}</span>
+              </button>
+            )}
+
             {/* Print Official Law Report Button */}
             <button 
               type="button"
@@ -622,11 +635,11 @@ const CaseViewPage = () => {
                       <button
                         type="button"
                         onClick={() => downloadOrViewAttachment(att.raw || att.url)}
-                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-orange text-white text-[11px] font-bold hover:bg-brand-orange/90 transition-colors cursor-pointer print:hidden shadow-xs"
-                        title="Open attachment in new tab"
+                        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-orange text-white text-[11px] font-bold hover:bg-brand-orange/90 transition-colors cursor-pointer print:hidden shadow-xs"
+                        title="View full document in new tab"
                       >
-                        <Download className="w-3 h-3" />
-                        <span>View</span>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View full document</span>
                       </button>
                       <span className="hidden print:inline-block font-mono text-[11px] text-stone-600">
                         [Annexure Ref #{idx + 1}]

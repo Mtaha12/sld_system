@@ -340,11 +340,11 @@ const StatuteViewPage = () => {
               <button
                 type="button"
                 onClick={() => downloadOrViewAttachment(allAttachments[0])}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
-                title={`Open/download ${getAttachmentDisplayName(allAttachments[0])}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-orange hover:bg-brand-orange/90 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+                title={`View full document (${getAttachmentDisplayName(allAttachments[0])}) in new tab`}
               >
-                <Download className="w-3.5 h-3.5" />
-                <span className="truncate max-w-[180px]">{getAttachmentDisplayName(allAttachments[0])}</span>
+                <Eye className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[180px]">View full document {allAttachments.length > 1 ? `(${allAttachments.length})` : ''}</span>
               </button>
             )}
 
@@ -556,10 +556,11 @@ const StatuteViewPage = () => {
                       <button
                         type="button"
                         onClick={() => downloadOrViewAttachment(att)}
-                        className="shrink-0 p-1 text-[#f15a24] hover:text-[#d44e35] hover:bg-orange-50 rounded cursor-pointer print:hidden"
-                        title="Download / View"
+                        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-orange text-white text-[11px] font-bold hover:bg-brand-orange/90 transition-colors cursor-pointer print:hidden shadow-xs"
+                        title="View full document in new tab"
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View full document</span>
                       </button>
                     </div>
                   );

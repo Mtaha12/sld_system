@@ -460,9 +460,15 @@ const ManageCasesTable = ({
     try {
       setDeletingAttName(fileToDelete.name || fileToDelete.id);
       setIsUpdatingAttachments(true);
-      const caseId = attachmentModalCase.id || attachmentModalCase.mongoId || attachmentModalCase.sldNumber;
+      const caseId = attachmentModalCase._id || attachmentModalCase.id || attachmentModalCase.caseId || attachmentModalCase.mongoId || attachmentModalCase.sldNumber;
 
-      const remaining = activeCaseAttachments.filter(f => (f.id || f.name) !== (fileToDelete.id || fileToDelete.name));
+      const remaining = activeCaseAttachments.filter(f => {
+        if (fileToDelete.id && f.id && f.id === fileToDelete.id) return false;
+        if (fileToDelete.url && f.url && f.url === fileToDelete.url) return false;
+        if (fileToDelete.name && f.name && f.name === fileToDelete.name) return false;
+        return true;
+      });
+
       const payloadAttachments = remaining.map(f => ({
         name: f.name,
         url: f.url,
@@ -473,16 +479,21 @@ const ManageCasesTable = ({
       await caseService.updateCaseAttachments(caseId, payloadAttachments);
 
       setActiveCaseAttachments(remaining);
-      setCases(prev => prev.map(c => 
-        (c.id === attachmentModalCase.id || c.sldNumber === attachmentModalCase.sldNumber)
-          ? {
-              ...c,
-              attachments: payloadAttachments,
-              attachmentsData: payloadAttachments,
-              attachmentsCount: payloadAttachments.length
-            }
-          : c
-      ));
+      setCases(prev => prev.map(c => {
+        const isMatch = (
+          (attachmentModalCase.id && c.id === attachmentModalCase.id) ||
+          (attachmentModalCase._id && c._id === attachmentModalCase._id) ||
+          (attachmentModalCase.sldNumber && c.sldNumber === attachmentModalCase.sldNumber) ||
+          (attachmentModalCase.caseId && c.caseId === attachmentModalCase.caseId)
+        );
+        if (!isMatch) return c;
+        return {
+          ...c,
+          attachments: payloadAttachments,
+          attachmentsData: payloadAttachments,
+          attachmentsCount: payloadAttachments.length
+        };
+      }));
 
       setAttachmentModalCase(prev => prev ? {
         ...prev,
@@ -495,7 +506,7 @@ const ManageCasesTable = ({
       setTimeout(() => setToastMessage(''), 3500);
     } catch (err) {
       console.error('Failed to delete attachment from database:', err);
-      setToastMessage(`Error deleting attachment: ${err.message || 'Server error'}`);
+      setToastMessage(`Error deleting attachment: ${err?.response?.data?.message || err.message || 'Server error'}`);
       setTimeout(() => setToastMessage(''), 4000);
     } finally {
       setIsUpdatingAttachments(false);
@@ -510,7 +521,7 @@ const ManageCasesTable = ({
 
     try {
       setIsUpdatingAttachments(true);
-      const caseId = attachmentModalCase.id || attachmentModalCase.mongoId || attachmentModalCase.sldNumber;
+      const caseId = attachmentModalCase._id || attachmentModalCase.id || attachmentModalCase.caseId || attachmentModalCase.mongoId || attachmentModalCase.sldNumber;
 
       const uploadPromises = newFiles.map(async (file) => {
         try {
@@ -563,16 +574,21 @@ const ManageCasesTable = ({
 
       const newActive = updatedAttachments.map((f, i) => ({ ...f, id: `att-${i}-${Date.now()}` }));
       setActiveCaseAttachments(newActive);
-      setCases(prev => prev.map(c => 
-        (c.id === attachmentModalCase.id || c.sldNumber === attachmentModalCase.sldNumber)
-          ? {
-              ...c,
-              attachments: updatedAttachments,
-              attachmentsData: updatedAttachments,
-              attachmentsCount: updatedAttachments.length
-            }
-          : c
-      ));
+      setCases(prev => prev.map(c => {
+        const isMatch = (
+          (attachmentModalCase.id && c.id === attachmentModalCase.id) ||
+          (attachmentModalCase._id && c._id === attachmentModalCase._id) ||
+          (attachmentModalCase.sldNumber && c.sldNumber === attachmentModalCase.sldNumber) ||
+          (attachmentModalCase.caseId && c.caseId === attachmentModalCase.caseId)
+        );
+        if (!isMatch) return c;
+        return {
+          ...c,
+          attachments: updatedAttachments,
+          attachmentsData: updatedAttachments,
+          attachmentsCount: updatedAttachments.length
+        };
+      }));
 
       setAttachmentModalCase(prev => prev ? {
         ...prev,
@@ -1226,7 +1242,10 @@ const ManageCasesTable = ({
                         <button
                           type="button"
                           disabled={isUpdatingAttachments}
-                          onClick={() => handleDeleteAttachment(file)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteAttachment(file);
+                          }}
                           className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                           title="Delete attachment from database"
                         >

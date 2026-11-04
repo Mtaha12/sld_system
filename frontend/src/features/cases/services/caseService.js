@@ -135,8 +135,15 @@ export const caseService = {
    */
   updateCaseAttachments: async (id, attachments) => {
     clientCaseCache.clear();
-    const response = await api.patch(`/api/cases/${id}/attachments`, { attachments });
-    return response.data;
+    const cleanId = String(id || '').trim();
+    try {
+      const response = await api.patch(`/api/cases/${encodeURIComponent(cleanId)}/attachments`, { attachments });
+      return response.data;
+    } catch (patchErr) {
+      // Fallback to PUT if PATCH is restricted by host/proxy
+      const response = await api.put(`/api/cases/${encodeURIComponent(cleanId)}/attachments`, { attachments });
+      return response.data;
+    }
   },
 
   /**

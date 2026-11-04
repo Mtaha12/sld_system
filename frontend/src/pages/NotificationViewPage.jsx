@@ -268,10 +268,10 @@ const NotificationViewPage = () => {
                 type="button"
                 onClick={() => downloadOrViewAttachment(allAttachments[0].raw || allAttachments[0].url)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-orange bg-brand-orange/10 hover:bg-brand-orange text-brand-orange hover:text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                title={`Open ${allAttachments[0].name} in new tab`}
+                title={`View full document (${allAttachments[0].name}) in new tab`}
               >
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">View Attachment {allAttachments.length > 1 ? `(${allAttachments.length})` : ''}</span>
+                <Eye className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">View full document {allAttachments.length > 1 ? `(${allAttachments.length})` : ''}</span>
               </button>
             )}
 

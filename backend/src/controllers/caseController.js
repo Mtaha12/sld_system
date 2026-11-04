@@ -1689,7 +1689,41 @@ export const exportMissingHeadnotes = async (req, res, next) => {
 };
 
 /**
- * PATCH /api/cases/:id/attachments
+ * Helper to build an exhaustive and robust MongoDB lookup query for any case reference
+ * Supports Mongo ObjectId, clean number, prefixed SLD #, CASE-xxxx, and caseId
+ */
+export const buildCaseLookupQuery = (id) => {
+  if (!id) return null;
+  const rawId = String(id).trim();
+  const cleanId = rawId.replace(/^(?:case\s*(?:id|no\.?|#)?\s*[:\-]?\s*|sld\s*(?:no\.?|#)?\s*[:\-]?\s*)/i, '').trim();
+  const numInt = parseInt(cleanId, 10);
+
+  const orList = [
+    { caseId: new RegExp(`^${escapeRegex(rawId)}$`, 'i') },
+    { case_id: new RegExp(`^${escapeRegex(rawId)}$`, 'i') },
+    { sldNumber: rawId },
+    { caseId: new RegExp(`^${escapeRegex(cleanId)}$`, 'i') },
+    { case_id: new RegExp(`^${escapeRegex(cleanId)}$`, 'i') },
+    { sldNumber: cleanId },
+    { caseId: `CASE-IMPORT-${cleanId}` },
+    { caseId: `CASE-IMPORT-${rawId}` },
+    { caseId: `CASE-${cleanId}` }
+  ];
+  if (mongoose.isValidObjectId(rawId)) {
+    orList.unshift({ _id: rawId });
+  }
+  if (!isNaN(numInt)) {
+    orList.unshift({ sldNumberInt: numInt });
+    orList.push({ sldNumber: String(numInt) });
+    orList.push({ sldNumber: numInt });
+    orList.push({ caseId: `CASE-${String(numInt).padStart(6, '0')}` });
+    orList.push({ caseId: `CASE-${numInt}` });
+  }
+  return { $or: orList, isDeleted: false };
+};
+
+/**
+ * PATCH & PUT /api/cases/:id/attachments
  * Dedicated endpoint to update/delete attachments directly from outside edit
  */
 export const updateCaseAttachments = async (req, res, next) => {
@@ -1697,24 +1731,23 @@ export const updateCaseAttachments = async (req, res, next) => {
     const { id } = req.params;
     const { attachments } = req.body;
 
-    const query = {
-      $or: [
-        { caseId: id },
-        { case_id: id },
-        { sldNumber: id },
-        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
-      ],
-      isDeleted: false
-    };
+    const query = buildCaseLookupQuery(id);
+    if (!query) {
+      return res.status(400).json({ success: false, message: 'Invalid Case ID parameter.' });
+    }
 
     const c = await Case.findOne(query);
     if (!c) {
-      return res.status(404).json({ success: false, message: 'Case law record not found.' });
+      return res.status(404).json({ success: false, message: `Case law record with reference "${id}" not found.` });
     }
 
     const clean = sanitizeAttachments(attachments);
     c.attachments = clean;
+    c.markModified('attachments');
     await c.save();
+
+    // Direct atomic write to guarantee MongoDB persistence
+    await Case.updateOne({ _id: c._id }, { $set: { attachments: clean } });
 
     caseDetailCache.clear();
     searchResultsCache.clear();

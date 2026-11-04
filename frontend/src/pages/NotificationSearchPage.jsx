@@ -615,9 +615,9 @@ const NotificationSearchPage = () => {
                               type="button"
                               onClick={() => downloadOrViewAttachment(att)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-amber-500/30"
-                              title={`Open ${attName} in new tab`}
+                              title={`View full document (${attName}) in new tab`}
                             >
-                              <Download className="w-3.5 h-3.5" />
+                              <Eye className="w-3.5 h-3.5" />
                               <span>{attName}</span>
                             </button>
                           );
