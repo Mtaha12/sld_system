@@ -176,7 +176,11 @@ app.use('/api/other-cases', otherCaseLawRoutes);
 app.use('/api/other-caselaws', otherCaseLawRoutes);
 
 // Static uploads serving
+// Static uploads serving (serves both cwd/uploads, parent uploads, and reference views)
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
+app.use('/uploads', express.static(path.resolve(process.cwd(), '../uploads')));
+app.use('/uploads/reference_views', express.static(path.resolve(process.cwd(), 'uploads/reference_views')));
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads/reference_views')));
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

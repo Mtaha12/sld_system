@@ -1,11 +1,15 @@
 import express from 'express';
 import { 
   getNotifications, getNotificationById, getNextNotificationSr,
-  createNotification, updateNotification, deleteNotification 
+  createNotification, updateNotification, deleteNotification,
+  getNotificationAttachmentStream
 } from '../controllers/notificationController.js';
 import { protect, requireAdmin, checkNotificationAccess } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+// Public inline attachment stream so new browser tabs can view document directly
+router.get('/:id/attachment', getNotificationAttachmentStream);
 
 router.use(protect, checkNotificationAccess);
 

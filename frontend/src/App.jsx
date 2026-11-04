@@ -69,6 +69,7 @@ const ManageCustomTariffsPage = lazy(() => import('./pages/ManageCustomTariffsPa
 const ManageInvoicesPage = lazy(() => import('./pages/ManageInvoicesPage'))
 const OtherCaseLawsPage = lazy(() => import('./pages/OtherCaseLawsPage'))
 const OtherCaseDocumentRedirector = lazy(() => import('./pages/OtherCaseDocumentRedirector'))
+const AttachmentViewerRedirector = lazy(() => import('./pages/AttachmentViewerRedirector'))
 const OtherCaseViewPage = lazy(() => import('./pages/OtherCaseViewPage'))
 const NewsViewPage = lazy(() => import('./pages/NewsViewPage'))
 const DownloadViewPage = lazy(() => import('./pages/DownloadViewPage'))
@@ -216,6 +217,8 @@ function App() {
             {/* Direct Document Viewer Bridge for Production Vercel */}
             <Route path="/api/other-cases/view-document" element={<OtherCaseDocumentRedirector />} />
             <Route path="/other-cases/view-document" element={<OtherCaseDocumentRedirector />} />
+            <Route path="/uploads/*" element={<AttachmentViewerRedirector />} />
+            <Route path="/uploads" element={<AttachmentViewerRedirector />} />
 
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import Notification from '../models/Notification.js';
 import UserActivity from '../models/UserActivity.js';
 import { spoofNotification } from '../utils/spammerHoneypot.js';
@@ -23,6 +25,17 @@ const formatNotificationForFrontend = (n) => {
     }
   }
 
+  // Format blocks to ensure attachments array is consistently populated
+  const safeBlocks = Array.isArray(n.blocks) ? n.blocks.map(b => {
+    const bAtts = Array.isArray(b.attachments) ? [...b.attachments] : (b.attachment ? [b.attachment] : []);
+    return {
+      ...b,
+      attachments: bAtts
+    };
+  }) : [];
+
+  const safeRootAttachments = Array.isArray(n.attachments) ? [...n.attachments] : (n.attachment ? [n.attachment] : []);
+
   return {
     id: n.srNumber || n.notificationId || n._id.toString(), // Frontend looks up by id, which maps to srNumber or notificationId
     mongoId: n._id.toString(),
@@ -39,7 +52,9 @@ const formatNotificationForFrontend = (n) => {
     lawStatute: n.lawStatute || '',
     section: n.section || '',
     status: n.status || 'Active',
-    blocks: n.blocks || []
+    attachments: safeRootAttachments,
+    attachment: n.attachment || '',
+    blocks: safeBlocks
   };
 };
 
@@ -515,5 +530,104 @@ export const deleteNotification = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * GET /api/notifications/:id/attachment
+ * Public inline attachment stream so new browser tabs can view document directly
+ */
+export const getNotificationAttachmentStream = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const blockIndex = parseInt(req.query.block || '0', 10);
+    const attIndex = parseInt(req.query.att || '0', 10);
+
+    const query = {
+      $or: [
+        { notificationId: id },
+        { notification_id: id },
+        { srNumber: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ],
+      isDeleted: { $ne: true }
+    };
+    if (!isNaN(Number(id))) query.$or.push({ srNumber: Number(id) });
+
+    const notif = await Notification.findOne(query).lean();
+    if (!notif) {
+      return res.status(404).send('Notification not found.');
+    }
+
+    // Find attachment from blocks or root
+    let target = null;
+    if (Array.isArray(notif.blocks) && notif.blocks[blockIndex]) {
+      const b = notif.blocks[blockIndex];
+      if (Array.isArray(b.attachments) && b.attachments[attIndex]) target = b.attachments[attIndex];
+      else if (b.attachment) target = b.attachment;
+    }
+    if (!target) {
+      if (Array.isArray(notif.attachments) && notif.attachments[attIndex]) target = notif.attachments[attIndex];
+      else if (notif.attachment) target = notif.attachment;
+    }
+
+    if (!target) {
+      return res.status(404).send('No attachment recorded for this notification.');
+    }
+
+    let url = typeof target === 'string' ? target : (target.url || target.path || target.name || '');
+    let filename = (typeof target === 'object' && target.name) ? target.name : path.basename(url || 'document.pdf');
+
+    // 1. Base64 Data URL
+    if (url.startsWith('data:')) {
+      const matches = url.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        const mimeType = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        res.setHeader('Content-Length', buffer.length);
+        return res.send(buffer);
+      }
+    }
+
+    // 2. Local File in uploads
+    const cleanRel = url.replace(/^\/+/, '').replace(/^uploads\/+/, '');
+    const searchDirs = [
+      path.resolve(process.cwd(), 'uploads', cleanRel),
+      path.resolve(process.cwd(), 'uploads/reference_views', cleanRel),
+      path.resolve(process.cwd(), '../uploads', cleanRel),
+      path.resolve(process.cwd(), cleanRel)
+    ];
+
+    for (const p of searchDirs) {
+      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        const ext = path.extname(p).toLowerCase();
+        const mimeMap = {
+          '.pdf': 'application/pdf',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.webp': 'image/webp',
+          '.doc': 'application/msword',
+          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.txt': 'text/plain'
+        };
+        if (mimeMap[ext]) {
+          res.setHeader('Content-Type', mimeMap[ext]);
+        }
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        return res.sendFile(p);
+      }
+    }
+
+    // 3. Remote URL
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return res.redirect(url);
+    }
+
+    return res.status(404).send('Attachment document file could not be located on server.');
+  } catch (err) {
+    next(err);
   }
 };

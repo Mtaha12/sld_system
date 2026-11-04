@@ -1,7 +1,9 @@
+import { API_URL } from '../services/api';
+
 /**
  * Universal Attachment Downloader & Safe Viewer
- * Handles base64 data URLs, Blob URLs, and server static files safely across modern browsers.
- * Prevents Chrome/Edge 'about:blank#blocked' errors when handling PDF/image data URIs.
+ * Handles base64 data URLs, Blob URLs, local files, and server static files safely across modern browsers.
+ * Prevents Chrome/Edge 'about:blank#blocked' errors and Vercel SPA router redirecting to '/login'.
  */
 
 export const getAttachmentDisplayName = (att) => {
@@ -14,23 +16,80 @@ export const getAttachmentDisplayName = (att) => {
   return att.name || att.originalName || att.filename || (att.url ? att.url.split('/').pop() : 'Attachment Document');
 };
 
+/**
+ * Resolves a relative path to an absolute backend URL when running in production
+ */
+export const getResolvedBackendUrl = (pathOrUrl) => {
+  if (!pathOrUrl) return '';
+  if (
+    pathOrUrl.startsWith('http://') || 
+    pathOrUrl.startsWith('https://') || 
+    pathOrUrl.startsWith('data:') || 
+    pathOrUrl.startsWith('blob:')
+  ) {
+    return pathOrUrl;
+  }
+
+  const clean = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+  const uploadPath = clean.startsWith('/uploads') ? clean : `/uploads${clean}`;
+  
+  const rawBase = (API_URL || '').trim().replace(/\/+$/, '');
+  // If API_URL points to an external server (e.g. Hostinger VPS or custom API domain)
+  if (rawBase && typeof window !== 'undefined' && !rawBase.includes(window.location.host)) {
+    return `${rawBase}${uploadPath}`;
+  }
+
+  return uploadPath;
+};
+
 export const getAttachmentUrl = (att) => {
   if (!att) return '';
+
+  // Direct string handling
   if (typeof att === 'string') {
     if (att.startsWith('http://') || att.startsWith('https://') || att.startsWith('data:') || att.startsWith('blob:')) {
       return att;
     }
-    return att.startsWith('/') ? att : `/uploads/${att}`;
+    return getResolvedBackendUrl(att);
   }
-  if (att.url) return att.url;
-  if (att.path) return att.path.startsWith('/') ? att.path : `/${att.path}`;
-  if (att.name) return `/uploads/${att.name}`;
+
+  // File or Blob instance
+  if (typeof File !== 'undefined' && att instanceof File) {
+    try {
+      return URL.createObjectURL(att);
+    } catch (e) {
+      return '';
+    }
+  }
+  if (typeof Blob !== 'undefined' && att instanceof Blob) {
+    try {
+      return URL.createObjectURL(att);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  // Object candidate checks
+  const candidate = att.url || att.path || att.attachment || att.raw?.url || att.raw || '';
+  if (typeof candidate === 'string' && candidate) {
+    if (candidate.startsWith('http://') || candidate.startsWith('https://') || candidate.startsWith('data:') || candidate.startsWith('blob:')) {
+      return candidate;
+    }
+    return getResolvedBackendUrl(candidate);
+  }
+
+  if (att.name) {
+    return getResolvedBackendUrl(att.name);
+  }
+
   return '';
 };
 
 /**
  * Safely downloads or views an attachment in the browser.
- * For data URLs (base64): converts to a binary Blob first to bypass top-level data: URL navigation blocks.
+ * - For data URLs (base64): converts to a binary Blob to bypass top-level data: URL blocks ('about:blank#blocked').
+ * - For Blob URLs: opens or downloads directly.
+ * - For server URLs: resolves to absolute backend API host and opens/downloads without triggering SPA redirect to /login.
  */
 export const downloadOrViewAttachment = (att, { download = false } = {}) => {
   try {
@@ -97,30 +156,62 @@ export const downloadOrViewAttachment = (att, { download = false } = {}) => {
       }
     }
 
-    // 2. Regular Server URL / Remote URL
-    let targetUrl = url;
-    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://') && !targetUrl.startsWith('blob:')) {
-      targetUrl = targetUrl.startsWith('/') ? targetUrl : `/${targetUrl}`;
+    // 2. Blob URL Handler
+    if (url.startsWith('blob:')) {
+      if (download) {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (document.body.contains(a)) document.body.removeChild(a);
+        }, 1000);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      return;
     }
 
-    const link = document.createElement('a');
-    link.style.display = 'none';
-    link.href = targetUrl;
+    // 3. Regular Server URL / Remote URL
+    let targetUrl = url;
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = getResolvedBackendUrl(targetUrl);
+    }
+
     if (download) {
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = targetUrl;
       link.download = name;
-    } else {
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-    }
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(() => {
-      if (document.body.contains(link)) {
-        document.body.removeChild(link);
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 2000);
+    } else {
+      // Safely open in a new browser tab directly
+      const newWin = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+        // Fallback via anchor click if window.open is blocked
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = targetUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          if (document.body.contains(link)) document.body.removeChild(link);
+        }, 2000);
       }
-    }, 2000);
+    }
   } catch (err) {
     console.error('downloadOrViewAttachment error:', err);
   }
 };
-

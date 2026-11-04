@@ -18,6 +18,7 @@ import Modal from '../../../components/ui/Modal';
 import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { notificationService } from '../services/notificationService';
+import { downloadOrViewAttachment } from '../../../utils/attachmentDownloader';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort }) => {
   const isSorted = sortConfig?.key === sortKey;
@@ -205,35 +206,20 @@ const ManageNotificationsTable = ({
     setTimeout(() => setToastMessage(''), 3500);
   };
 
-  const getNotificationAttachmentUrl = (item) => {
+  const getNotificationAttachment = (item) => {
     if (!item) return null;
-    let target = null;
     if (Array.isArray(item.attachments) && item.attachments.length > 0) {
-      target = item.attachments[0];
-    } else if (item.attachment) {
-      target = item.attachment;
-    } else if (item.attachmentName) {
-      target = item.attachmentName;
-    } else if (Array.isArray(item.blocks)) {
+      return item.attachments[0];
+    }
+    if (item.attachment) return item.attachment;
+    if (item.attachmentName) return item.attachmentName;
+    if (Array.isArray(item.blocks)) {
       for (const b of item.blocks) {
         if (Array.isArray(b?.attachments) && b.attachments.length > 0) {
-          target = b.attachments[0];
-          break;
-        } else if (b?.attachment) {
-          target = b.attachment;
-          break;
+          return b.attachments[0];
         }
+        if (b?.attachment) return b.attachment;
       }
-    }
-
-    if (target) {
-      if (typeof target === 'string') {
-        return (target.startsWith('http') || target.startsWith('data:') || target.startsWith('blob:'))
-          ? target
-          : `/uploads/${target}`;
-      }
-      if (target.url) return target.url;
-      if (target.name) return `/uploads/${target.name}`;
     }
     return null;
   };
@@ -325,9 +311,9 @@ const ManageNotificationsTable = ({
                         <button
                           type="button"
                           onClick={() => {
-                            const attUrl = getNotificationAttachmentUrl(item);
-                            if (attUrl) {
-                              window.open(attUrl, '_blank', 'noopener,noreferrer');
+                            const att = getNotificationAttachment(item);
+                            if (att) {
+                              downloadOrViewAttachment(att);
                             } else {
                               window.open(`/notifications/view/${item.srNumber || item.id || item.mongoId}`, '_blank', 'noopener,noreferrer');
                             }

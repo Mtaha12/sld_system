@@ -13,6 +13,7 @@ import SearchableSectionSelect from '../../../components/ui/SearchableSectionSel
 import SearchableCombobox from '../../../components/ui/SearchableCombobox';
 import { notificationSchema } from '../validation/notificationSchema';
 import { notificationService } from '../services/notificationService';
+import { downloadOrViewAttachment } from '../../../utils/attachmentDownloader';
 import { settingService } from '../../../services/settingService';
 import { ALL_SECTIONS } from '../../../data/sections';
 
@@ -35,19 +36,7 @@ const CompactFileButton = ({ value, onChange }) => {
 
   const handleViewFile = (f) => {
     if (!f) return;
-    let url = '';
-    if (typeof f === 'string') {
-      url = f.startsWith('http') || f.startsWith('data:') || f.startsWith('blob:') ? f : `/uploads/${f}`;
-    } else if (f instanceof File) {
-      url = URL.createObjectURL(f);
-    } else if (f.url) {
-      url = f.url;
-    } else if (f.name) {
-      url = `/uploads/${f.name}`;
-    }
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
+    downloadOrViewAttachment(f);
   };
 
   return (
