@@ -440,17 +440,19 @@ export const sanitizeAttachments = (attachments) => {
     .map((att, idx) => {
       if (typeof att === 'string') {
         const cleanUrl = att.trim();
-        const filename = cleanUrl.split('/').pop() || `Attachment_${idx + 1}.pdf`;
+        let filename = cleanUrl.split(/[\/\\]/).pop() || `Attachment_${idx + 1}.pdf`;
+        filename = filename.replace(/[\r\n\0]/g, '').trim();
         return {
           name: filename,
           url: cleanUrl,
           size: '',
-          type: cleanUrl.endsWith('.docx') ? 'word' : (cleanUrl.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
+          type: cleanUrl.endsWith('.docx') || cleanUrl.endsWith('.doc') ? 'word' : (cleanUrl.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
         };
       }
       const rawName = (att.name && String(att.name).trim()) || (att.originalName && String(att.originalName).trim()) || (att.filename && String(att.filename).trim());
       const url = att.url || att.path || '';
-      const name = rawName || (url ? url.split('/').pop() : `Attachment_${idx + 1}.pdf`);
+      let name = rawName || (url ? url.split(/[\/\\]/).pop() : `Attachment_${idx + 1}.pdf`);
+      name = String(name).replace(/[\r\n\0]/g, '').trim();
       let size = att.size || '';
       if (typeof size === 'number') {
         size = `${(size / (1024 * 1024)).toFixed(2)} MB`;
@@ -458,7 +460,7 @@ export const sanitizeAttachments = (attachments) => {
       const ext = String(name).split('.').pop()?.toLowerCase();
       const type = att.type || (['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? 'image' : (['doc', 'docx'].includes(ext) ? 'word' : 'pdf'));
       return {
-        name: String(name).trim() || `Attachment_${idx + 1}.pdf`,
+        name: name || `Attachment_${idx + 1}.pdf`,
         url: String(url).trim(),
         size: String(size).trim(),
         type: String(type).trim()
@@ -1715,5 +1717,47 @@ export const exportMissingHeadnotes = async (req, res, next) => {
     return res.status(200).send(buffer);
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * PATCH /api/cases/:id/attachments
+ * Dedicated endpoint to update/delete attachments directly from outside edit
+ */
+export const updateCaseAttachments = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { attachments } = req.body;
+
+    const query = {
+      $or: [
+        { caseId: id },
+        { case_id: id },
+        { sldNumber: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ],
+      isDeleted: false
+    };
+
+    const c = await Case.findOne(query);
+    if (!c) {
+      return res.status(404).json({ success: false, message: 'Case law record not found.' });
+    }
+
+    const clean = sanitizeAttachments(attachments);
+    c.attachments = clean;
+    await c.save();
+
+    caseDetailCache.clear();
+    searchResultsCache.clear();
+    logger.info(`[Case Attachments Updated] Case ID ${c.caseId} (SLD #${c.sldNumber}) attachments updated to ${clean.length} files.`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Case attachments updated successfully in database.',
+      data: formatCaseForFrontend(c)
+    });
+  } catch (err) {
+    next(err);
   }
 };

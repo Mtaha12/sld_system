@@ -1,7 +1,7 @@
 import express from 'express';
 import { 
   getCases, getCaseById, getCaseBySld, createCase, 
-  updateCase, deleteCase, deleteMultiple,
+  updateCase, updateCaseAttachments, deleteCase, deleteMultiple,
   searchCases, getMaxPage, getNextSld,
   getCaseDatabaseStats,
   uploadCaseAttachment,
@@ -29,6 +29,7 @@ router.get('/:id', getCaseById);
 router.post('/upload-attachment', requireAdmin, uploadReferenceViewMiddleware, uploadCaseAttachment);
 router.post('/', requireAdmin, createCase);
 router.put('/:id', requireAdmin, updateCase);
+router.patch('/:id/attachments', requireAdmin, updateCaseAttachments);
 router.delete('/:id', requireAdmin, deleteCase);
 router.post('/delete-multiple', requireAdmin, deleteMultiple);
 

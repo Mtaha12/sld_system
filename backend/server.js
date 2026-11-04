@@ -176,11 +176,20 @@ app.use('/api/other-cases', otherCaseLawRoutes);
 app.use('/api/other-caselaws', otherCaseLawRoutes);
 
 // Static uploads serving
-// Static uploads serving (serves both cwd/uploads, parent uploads, and reference views)
-app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
-app.use('/uploads', express.static(path.resolve(process.cwd(), '../uploads')));
-app.use('/uploads/reference_views', express.static(path.resolve(process.cwd(), 'uploads/reference_views')));
-app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads/reference_views')));
+// High-speed static uploads serving with caching & security
+const staticUploadOptions = {
+  maxAge: '7d',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+};
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), staticUploadOptions));
+app.use('/uploads', express.static(path.resolve(process.cwd(), '../uploads'), staticUploadOptions));
+app.use('/uploads/reference_views', express.static(path.resolve(process.cwd(), 'uploads/reference_views'), staticUploadOptions));
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads/reference_views'), staticUploadOptions));
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

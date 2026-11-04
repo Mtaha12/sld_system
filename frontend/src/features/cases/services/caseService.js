@@ -128,6 +128,18 @@ export const caseService = {
   },
 
   /**
+   * Updates or deletes attachments for a case directly without editing the entire case
+   * @param {string} id
+   * @param {Array} attachments
+   * @returns {Promise<Object>}
+   */
+  updateCaseAttachments: async (id, attachments) => {
+    clientCaseCache.clear();
+    const response = await api.patch(`/api/cases/${id}/attachments`, { attachments });
+    return response.data;
+  },
+
+  /**
    * Soft-deletes a single case law record
    * @param {string} id 
    * @returns {Promise<Object>}

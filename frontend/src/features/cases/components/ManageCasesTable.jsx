@@ -18,7 +18,8 @@ import {
   Upload, 
   FileDown,
   FileSpreadsheet,
-  ScrollText
+  ScrollText,
+  Loader2
 } from 'lucide-react';
 import DatePicker from '../../../components/ui/DatePicker';
 
@@ -56,6 +57,7 @@ import Pagination from '../../../components/ui/Pagination';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import { caseService } from '../services/caseService';
 import { formatCitations, getCitationSortKey } from '../../../utils/citationFormatter';
+import { downloadOrViewAttachment, getAttachmentDisplayName } from '../../../utils/attachmentDownloader';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, icon: HeaderIcon, widthClassName = '', align = 'left' }) => {
   const isSorted = sortKey && sortConfig?.key === sortKey;
@@ -197,6 +199,9 @@ const ManageCasesTable = ({
     }
   };
 
+  const [isUpdatingAttachments, setIsUpdatingAttachments] = useState(false);
+  const [deletingAttName, setDeletingAttName] = useState(null);
+
   // Sync active attachments when a case is selected for attachment viewing
   useEffect(() => {
     if (attachmentModalCase) {
@@ -204,56 +209,34 @@ const ManageCasesTable = ({
         ? attachmentModalCase.attachmentsData
         : (Array.isArray(attachmentModalCase.attachments) && attachmentModalCase.attachments.length > 0
           ? attachmentModalCase.attachments
-          : null);
-      if (rawList) {
+          : (attachmentModalCase.attachments && typeof attachmentModalCase.attachments === 'object' ? [attachmentModalCase.attachments] : []));
+      if (rawList && rawList.length > 0) {
         setActiveCaseAttachments(rawList.map((f, i) => {
           if (typeof f === 'string') {
-            const fileName = f.split('/').pop() || `Attachment_${i + 1}.pdf`;
+            const fileName = f.split(/[\/\\]/).pop() || `Attachment_${i + 1}.pdf`;
             return {
               id: `att-${i}-${Date.now()}`,
               name: fileName,
               url: f,
-              size: '1.4 MB',
-              date: attachmentModalCase.dated || '2026-01-01',
-              type: f.endsWith('.docx') || f.endsWith('.doc') ? 'word' : (f.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
+              size: '',
+              date: attachmentModalCase.dated || 'Official Record',
+              type: f.endsWith('.docx') || f.endsWith('.doc') ? 'word' : (f.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf'),
+              raw: f
             };
           }
-          return f;
+          return {
+            ...f,
+            id: f.id || `att-${i}-${Date.now()}`,
+            name: f.name || f.filename || (f.url ? f.url.split(/[\/\\]/).pop() : `Attachment_${i + 1}.pdf`),
+            url: f.url || '',
+            size: f.size || '',
+            date: f.date || attachmentModalCase.dated || 'Official Record',
+            type: f.type || 'pdf',
+            raw: f
+          };
         }));
       } else {
-        const count = typeof attachmentModalCase.attachments === 'number' 
-          ? attachmentModalCase.attachments 
-          : (attachmentModalCase.attachments ? 1 : 1);
-        setActiveCaseAttachments([
-          {
-            id: 'doc-1',
-            name: `Order_Sheet_SLD_${attachmentModalCase.sldNumber}.pdf`,
-            url: `/api/cases/${attachmentModalCase.id || attachmentModalCase.sldNumber}/order.pdf`,
-            size: '1.84 MB',
-            date: attachmentModalCase.dated || '2026-05-06',
-            type: 'pdf'
-          },
-          ...(count > 1 ? [
-            {
-              id: 'doc-2',
-              name: `Certified_Judgment_Order_${attachmentModalCase.sldNumber}.docx`,
-              url: `/api/cases/${attachmentModalCase.id || attachmentModalCase.sldNumber}/judgment.docx`,
-              size: '920 KB',
-              date: attachmentModalCase.dated || '2026-05-06',
-              type: 'word'
-            }
-          ] : []),
-          ...(count > 2 ? [
-            {
-              id: 'doc-3',
-              name: `Petition_Annexure_A_${attachmentModalCase.sldNumber}.pdf`,
-              url: `/api/cases/${attachmentModalCase.id || attachmentModalCase.sldNumber}/petition.pdf`,
-              size: '480 KB',
-              date: attachmentModalCase.dated || '2026-05-06',
-              type: 'pdf'
-            }
-          ] : [])
-        ]);
+        setActiveCaseAttachments([]);
       }
     } else {
       setActiveCaseAttachments([]);
@@ -456,35 +439,144 @@ const ManageCasesTable = ({
     setTimeout(() => setToastMessage(''), 3500);
   };
 
-  const handleDownloadSingleFile = (fileName, caseItem) => {
-    const content = `SLD SYSTEM - ATTACHMENT EXPORT\nFile: ${fileName}\nCase: SLD #${caseItem.sldNumber}\nCourt: ${caseItem.court}\nDated: ${caseItem.dated}\nGenerated: ${new Date().toLocaleString()}`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setToastMessage(`Downloading "${fileName}"...`);
-    setTimeout(() => setToastMessage(''), 3500);
+  const handleDownloadSingleFile = (fileItem) => {
+    if (!fileItem) return;
+    downloadOrViewAttachment(fileItem.raw || fileItem, { download: true });
+    setToastMessage(`Downloading "${getAttachmentDisplayName(fileItem.raw || fileItem)}"...`);
+    setTimeout(() => setToastMessage(''), 3000);
   };
 
   const handleDownloadAllAttachments = (caseItem) => {
-    const fileName = `Attachments_Bundle_SLD_${caseItem.sldNumber}.txt`;
-    const content = `SLD SYSTEM - CASE ATTACHMENTS BUNDLE\nSLD #${caseItem.sldNumber}\nCourt: ${caseItem.court}\nAttachments: ${caseItem.attachments || 1}\nGenerated: ${new Date().toLocaleString()}`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (!activeCaseAttachments || activeCaseAttachments.length === 0) return;
+    activeCaseAttachments.forEach(att => {
+      downloadOrViewAttachment(att.raw || att, { download: true });
+    });
     setToastMessage(`Downloading all attachments for Case SLD #${caseItem.sldNumber}...`);
     setTimeout(() => setToastMessage(''), 3500);
+  };
+
+  const handleDeleteAttachment = async (fileToDelete) => {
+    if (!attachmentModalCase || isUpdatingAttachments) return;
+    try {
+      setDeletingAttName(fileToDelete.name || fileToDelete.id);
+      setIsUpdatingAttachments(true);
+      const caseId = attachmentModalCase.id || attachmentModalCase.mongoId || attachmentModalCase.sldNumber;
+
+      const remaining = activeCaseAttachments.filter(f => (f.id || f.name) !== (fileToDelete.id || fileToDelete.name));
+      const payloadAttachments = remaining.map(f => ({
+        name: f.name,
+        url: f.url,
+        size: f.size || '',
+        type: f.type || 'pdf'
+      }));
+
+      await caseService.updateCaseAttachments(caseId, payloadAttachments);
+
+      setActiveCaseAttachments(remaining);
+      setCases(prev => prev.map(c => 
+        (c.id === attachmentModalCase.id || c.sldNumber === attachmentModalCase.sldNumber)
+          ? {
+              ...c,
+              attachments: payloadAttachments,
+              attachmentsData: payloadAttachments,
+              attachmentsCount: payloadAttachments.length
+            }
+          : c
+      ));
+
+      setAttachmentModalCase(prev => prev ? {
+        ...prev,
+        attachments: payloadAttachments,
+        attachmentsData: payloadAttachments,
+        attachmentsCount: payloadAttachments.length
+      } : null);
+
+      setToastMessage(`Deleted attachment "${fileToDelete.name}" successfully from database.`);
+      setTimeout(() => setToastMessage(''), 3500);
+    } catch (err) {
+      console.error('Failed to delete attachment from database:', err);
+      setToastMessage(`Error deleting attachment: ${err.message || 'Server error'}`);
+      setTimeout(() => setToastMessage(''), 4000);
+    } finally {
+      setIsUpdatingAttachments(false);
+      setDeletingAttName(null);
+    }
+  };
+
+  const handleAddCaseAttachments = async (files) => {
+    if (!attachmentModalCase || isUpdatingAttachments) return;
+    const newFiles = (Array.isArray(files) ? files : [files]).filter(Boolean);
+    if (newFiles.length === 0) return;
+
+    try {
+      setIsUpdatingAttachments(true);
+      const caseId = attachmentModalCase.id || attachmentModalCase.mongoId || attachmentModalCase.sldNumber;
+
+      const readPromises = newFiles.map(file => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolve({
+              name: file.name,
+              size: `${((file.size || 1048576) / (1024 * 1024)).toFixed(2)} MB`,
+              type: file.name?.endsWith('.docx') ? 'word' : (file.type?.startsWith('image/') || file.name?.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf'),
+              url: reader.result
+            });
+          };
+          reader.onerror = () => {
+            resolve({
+              name: file.name,
+              size: `${((file.size || 1048576) / (1024 * 1024)).toFixed(2)} MB`,
+              type: 'pdf',
+              url: ''
+            });
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const processedNew = await Promise.all(readPromises);
+      const updatedAttachments = [
+        ...activeCaseAttachments.map(f => ({
+          name: f.name,
+          url: f.url,
+          size: f.size || '',
+          type: f.type || 'pdf'
+        })),
+        ...processedNew
+      ];
+
+      await caseService.updateCaseAttachments(caseId, updatedAttachments);
+
+      const newActive = updatedAttachments.map((f, i) => ({ ...f, id: `att-${i}-${Date.now()}` }));
+      setActiveCaseAttachments(newActive);
+      setCases(prev => prev.map(c => 
+        (c.id === attachmentModalCase.id || c.sldNumber === attachmentModalCase.sldNumber)
+          ? {
+              ...c,
+              attachments: updatedAttachments,
+              attachmentsData: updatedAttachments,
+              attachmentsCount: updatedAttachments.length
+            }
+          : c
+      ));
+
+      setAttachmentModalCase(prev => prev ? {
+        ...prev,
+        attachments: updatedAttachments,
+        attachmentsData: updatedAttachments,
+        attachmentsCount: updatedAttachments.length
+      } : null);
+
+      setToastMessage(`Saved ${processedNew.length} new attachment(s) to Case SLD #${attachmentModalCase.sldNumber}.`);
+      setTimeout(() => setToastMessage(''), 3500);
+    } catch (err) {
+      console.error('Failed to add attachments:', err);
+      setToastMessage(`Error adding attachment: ${err.message || 'Server error'}`);
+      setTimeout(() => setToastMessage(''), 4000);
+    } finally {
+      setIsUpdatingAttachments(false);
+    }
   };
 
   return (
@@ -1097,12 +1189,12 @@ const ManageCasesTable = ({
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Preview Option */}
+                        {/* Preview / View Option */}
                         <button
                           type="button"
-                          onClick={() => setPreviewAttachment(file)}
+                          onClick={() => downloadOrViewAttachment(file.raw || file, { download: false })}
                           className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg transition-colors cursor-pointer"
-                          title="Preview attachment"
+                          title="Open attachment in new tab"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -1110,7 +1202,7 @@ const ManageCasesTable = ({
                         {/* Download Option */}
                         <button
                           type="button"
-                          onClick={() => handleDownloadSingleFile(file.name, attachmentModalCase)}
+                          onClick={() => handleDownloadSingleFile(file)}
                           className="p-1.5 text-theme-muted hover:text-brand-orange border border-theme-border rounded-lg hover:bg-brand-orange/10 transition-colors cursor-pointer"
                           title="Download file"
                         >
@@ -1120,17 +1212,16 @@ const ManageCasesTable = ({
                         {/* Delete Option */}
                         <button
                           type="button"
-                          onClick={() => {
-                            const updated = activeCaseAttachments.filter(f => (f.id || f.name) !== (file.id || file.name));
-                            setActiveCaseAttachments(updated);
-                            setCases(prev => prev.map(c => (c.id === attachmentModalCase.id || c.sldNumber === attachmentModalCase.sldNumber) ? { ...c, attachments: updated.length } : c));
-                            setToastMessage(`Deleted attachment "${file.name}".`);
-                            setTimeout(() => setToastMessage(''), 3000);
-                          }}
-                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg transition-colors cursor-pointer"
-                          title="Delete attachment"
+                          disabled={isUpdatingAttachments}
+                          onClick={() => handleDeleteAttachment(file)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                          title="Delete attachment from database"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {deletingAttName === (file.name || file.id) ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1147,24 +1238,7 @@ const ManageCasesTable = ({
               </h4>
               <FileUpload 
                 multiple={true}
-                onFileSelect={(files) => {
-                  const newFiles = (Array.isArray(files) ? files : [files]).filter(Boolean);
-                  if (newFiles.length > 0) {
-                    const added = newFiles.map((f, i) => ({
-                      id: `uploaded-${Date.now()}-${i}`,
-                      name: f.name || `Upload_${i + 1}.pdf`,
-                      url: URL.createObjectURL(f),
-                      size: `${((f.size || 1048576) / (1024 * 1024)).toFixed(2)} MB`,
-                      date: new Date().toISOString().split('T')[0],
-                      type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') || f.name?.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
-                    }));
-                    const updated = [...activeCaseAttachments, ...added];
-                    setActiveCaseAttachments(updated);
-                    setCases(prev => prev.map(c => (c.id === attachmentModalCase.id || c.sldNumber === attachmentModalCase.sldNumber) ? { ...c, attachments: updated.length } : c));
-                    setToastMessage(`Added ${newFiles.length} new attachment(s) to Case SLD #${attachmentModalCase.sldNumber}.`);
-                    setTimeout(() => setToastMessage(''), 3500);
-                  }
-                }}
+                onFileSelect={handleAddCaseAttachments}
               />
             </div>
           </div>
@@ -1194,7 +1268,7 @@ const ManageCasesTable = ({
                 variant="primary" 
                 size="sm"
                 className="bg-brand-orange hover:bg-[#D44E35] text-white flex items-center gap-1.5"
-                onClick={() => handleDownloadSingleFile(previewAttachment.name, attachmentModalCase)}
+                onClick={() => handleDownloadSingleFile(previewAttachment)}
               >
                 <Download className="w-4 h-4" /> Download
               </Button>
@@ -1234,7 +1308,7 @@ const ManageCasesTable = ({
                   variant="primary"
                   size="sm"
                   className="bg-brand-orange hover:bg-[#D44E35] text-white flex items-center gap-2 px-5"
-                  onClick={() => handleDownloadSingleFile(previewAttachment.name, attachmentModalCase)}
+                  onClick={() => handleDownloadSingleFile(previewAttachment)}
                 >
                   <Download className="w-4 h-4" /> Download Certified Copy
                 </Button>
