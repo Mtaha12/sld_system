@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, Scale, ArrowLeft, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddOtherCaseForm from '../features/cases/components/AddOtherCaseForm';

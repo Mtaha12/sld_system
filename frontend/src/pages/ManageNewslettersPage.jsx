@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, Mail, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddNewsletterForm from '../features/newsletters/components/AddNewsletterForm';

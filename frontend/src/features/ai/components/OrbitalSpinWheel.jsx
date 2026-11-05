@@ -826,7 +826,7 @@ const OrbitalSpinWheel = ({
               </textPath>
             </text>
 
-            {/* Bottom Arc Text: 450,000+ CASES GROUNDED */}
+            {/* Bottom Arc Text: 550,000+ CASES GROUNDED */}
             <text
               fill="#475569"
               fontSize="9"
@@ -835,7 +835,7 @@ const OrbitalSpinWheel = ({
               className="select-none font-sans"
             >
               <textPath href="#gearHubTextBottom" startOffset="50%" textAnchor="middle">
-                450,000+ CASES GROUNDED
+                550,000+ CASES GROUNDED
               </textPath>
             </text>
 
