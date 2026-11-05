@@ -157,14 +157,10 @@ const LoginForm = () => {
             <p className="text-brand-orange font-bold text-xs mb-1">
               Having trouble signing in? Please contact:
             </p>
-            <div className="space-y-0.5 border-b border-slate-700/60 pb-2">
+            <div className="space-y-0.5">
               <p className="text-white font-bold">Haroon Ahmad Rafiq</p>
               <p className="leading-snug text-slate-300">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
               <p className="leading-snug text-slate-400 font-mono text-[11px]">0321-5390007-8, 051-8315912 • info@sldsystem.com</p>
-            </div>
-            <div className="space-y-0.5 pt-0.5">
-              <p className="text-white font-bold">Abdul Sami Abbasi <span className="text-[11px] font-normal text-slate-400">(Sales Manager)</span></p>
-              <p className="leading-snug text-slate-400 font-mono text-[11px]">0325-8986393 • sami@sldsystem.com</p>
             </div>
           </div>
         </div>
