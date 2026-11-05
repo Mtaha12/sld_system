@@ -68,8 +68,8 @@ const LoginForm = () => {
         <h1 className="text-2xl md:text-3xl text-white mb-2 md:mb-3 font-bold tracking-tight">
           Welcome to <span className="text-brand-orange">SLD System</span>
         </h1>
-        <p className="text-slate-300 text-sm leading-relaxed max-w-sm">
-          Please sign in to continue to your account and access the legal intelligence system.
+        <p className="text-slate-300 text-sm md:text-base font-semibold tracking-wide">
+          Super Law Data System
         </p>
       </div>
 

@@ -232,7 +232,7 @@ const InfoWidgets = () => {
           {/* Warning Alert */}
           <div className="flex items-start gap-2 text-[11px] font-semibold text-amber-950 dark:text-amber-200 bg-orange-500/10 dark:bg-orange-500/15 border border-orange-200/80 dark:border-orange-800/40 p-2.5 rounded-xl leading-snug">
             <ShieldCheck className="w-4 h-4 text-[#f15a24] shrink-0 mt-0.5" />
-            <span>Pay subscription fee <strong>only</strong> in company accounts below. Otherwise Company is not responsible.</span>
+            <span>Please deposit subscription fees only into the Company&apos;s accounts mentioned below. The Company shall not be responsible for payments made otherwise.</span>
           </div>
 
           {/* Bank Accounts Grid/List */}

@@ -60,7 +60,7 @@ export const getNextWhatsappSr = async (req, res, next) => {
 
 export const getWhatsappUpdates = async (req, res, next) => {
   try {
-    const { query, page, limit, all } = req.query;
+    const { query, page, limit, all, sort = 'dated', order = 'desc' } = req.query;
     const filter = { isDeleted: { $ne: true } };
 
     if (query) {
@@ -85,8 +85,23 @@ export const getWhatsappUpdates = async (req, res, next) => {
     const safeLimit = isAll ? 500 : Math.min(Math.max(limitNum || 25, 1), 200);
     const safePage = Math.max(pageNum || 1, 1);
 
+    const sortDirection = order === 'asc' ? 1 : -1;
+    const sortObj = {};
+    if (sort === 'srNumber') {
+      sortObj.srNumber = sortDirection;
+      sortObj.dated = -1;
+    } else if (sort === 'heading') {
+      sortObj.heading = sortDirection;
+      sortObj.dated = -1;
+    } else {
+      // Default: date-wise descending order, then srNumber descending
+      sortObj.dated = sortDirection;
+      sortObj.srNumber = -1;
+    }
+    sortObj.createdAt = -1;
+
     let dbQuery = WhatsappUpdate.find(filter)
-      .sort({ srNumber: -1, createdAt: -1 })
+      .sort(sortObj)
       .select('srNumber heading dated attachment attachmentName whatsappId isDeleted createdAt updatedAt');
 
     if (!isAll) {

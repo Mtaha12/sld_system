@@ -200,12 +200,18 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
     }
   };
 
-  // Header content logic - enforce strictly "Manage Notifications" on manage notifications pages
+  // Header content logic - enforce strictly "Manage Notifications" on manage notifications pages, and "Custom Tariffs" for client portal
   const getHeaderContent = () => {
     if (location.pathname.startsWith('/manage-notifications')) {
       return {
         title: 'Manage Notifications',
         subtitle: ''
+      };
+    }
+    if (location.pathname.startsWith('/manage-custom-tariffs')) {
+      return {
+        title: isAdmin ? 'Manage Custom Tariffs' : 'Custom Tariffs',
+        subtitle: 'Maintain custom duty rates, PCT codes and annual tariff schedules'
       };
     }
     return PAGE_HEADERS[location.pathname] || {

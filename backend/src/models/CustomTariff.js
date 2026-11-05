@@ -54,7 +54,7 @@ const customTariffSchema = new mongoose.Schema({
   },
   toYear: {
     type: String,
-    required: [true, 'To Year is required'],
+    default: '',
     trim: true,
   },
   status: {

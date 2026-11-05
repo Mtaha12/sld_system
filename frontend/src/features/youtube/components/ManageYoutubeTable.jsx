@@ -175,17 +175,18 @@ const ManageYoutubeTable = ({
               <tr className="bg-gray-50/70 dark:bg-theme-surface-hover/70 border-b border-theme-border">
                 <TableHeader title="Sr #" sortKey="srNumber" sortConfig={sortConfig} onSort={handleSort} className="w-16 text-center" />
                 <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} className="w-28" />
-                <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted w-24 text-center">Photo</th>
                 <TableHeader title="Caption" sortKey="caption" sortConfig={sortConfig} onSort={handleSort} />
-                <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted w-44">URL / Video</th>
-                <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted text-center w-28">Action</th>
+                <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted w-52">URL / Video</th>
+                {isAdmin && (
+                  <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted text-center w-28">Action</th>
+                )}
               </tr>
             </thead>
 
             <tbody className="divide-y divide-theme-border">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center">
+                  <td colSpan={isAdmin ? 5 : 4} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <SquareLoader />
                       <span className="text-[11px] text-theme-muted font-medium">Loading updates...</span>
@@ -204,13 +205,6 @@ const ManageYoutubeTable = ({
                     <td className="px-4 py-2 text-theme-main whitespace-nowrap">
                       {item.dated || item.date || 'N/A'}
                     </td>
-                    <td className="px-4 py-2 text-center">
-                      {item.photo ? (
-                        <img src={item.photo} alt="Thumb" className="w-12 h-7 object-cover rounded border border-theme-border mx-auto" />
-                      ) : (
-                        <span className="text-theme-muted text-[11px] italic">No photo</span>
-                      )}
-                    </td>
                     <td className="px-4 py-2 text-theme-main font-medium leading-snug">
                       <div className="line-clamp-1 hover:line-clamp-none transition-all">
                         {item.caption}
@@ -222,7 +216,7 @@ const ManageYoutubeTable = ({
                           href={item.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-red-600 dark:text-red-400 hover:underline inline-flex items-center gap-1 max-w-[180px] truncate"
+                          className="text-red-600 dark:text-red-400 hover:underline inline-flex items-center gap-1 max-w-[260px] truncate"
                         >
                           <Video className="w-3 h-3 shrink-0" />
                           <span className="truncate">{item.url}</span>
@@ -231,38 +225,36 @@ const ManageYoutubeTable = ({
                         <span className="text-theme-muted text-[11px]">N/A</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setViewModalItem(item)}
-                          className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
-                          title="View"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        {isAdmin && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => onEdit?.(item)}
-                              className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
-                              title="Edit"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteModalItem(item)}
-                              className="p-1 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-2 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setViewModalItem(item)}
+                            className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
+                            title="View"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEdit?.(item)}
+                            className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+                            title="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteModalItem(item)}
+                            className="p-1 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               ) : (

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, Download, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddDownloadForm from '../features/downloads/components/AddDownloadForm';
@@ -11,14 +12,37 @@ const DownloadsPage = () => {
   const { user } = useUser();
   const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
 
+  const [urlSearchParams] = useSearchParams();
+  const urlCat = urlSearchParams.get('category') || '';
+
   const [downloads, setDownloads] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(urlCat);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+
+  useEffect(() => {
+    if (urlCat) {
+      setSelectedCategory(urlCat);
+    }
+  }, [urlCat]);
+
+  const categoryTitle = useMemo(() => {
+    const c = (selectedCategory || '').toLowerCase();
+    if (c === 'tax return' || c === 'tax returns') return isAdmin ? 'Manage Tax Returns' : 'Tax Returns';
+    if (c === 'finance act') return isAdmin ? 'Manage Finance Act' : 'Finance Act';
+    return isAdmin ? 'Manage Downloads' : 'Tax Returns & Downloads';
+  }, [selectedCategory, isAdmin]);
+
+  const addBtnLabel = useMemo(() => {
+    const c = (selectedCategory || '').toLowerCase();
+    if (c === 'tax return' || c === 'tax returns') return '+ Add Tax Return';
+    if (c === 'finance act') return '+ Add Finance Act';
+    return '+ Add Download';
+  }, [selectedCategory]);
 
   const fetchDownloads = useCallback(async (query = '', cat = '') => {
     setIsLoading(true);
@@ -33,8 +57,8 @@ const DownloadsPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchDownloads();
-  }, [fetchDownloads]);
+    fetchDownloads(searchKeyword, selectedCategory);
+  }, [fetchDownloads, searchKeyword, selectedCategory]);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
@@ -84,7 +108,7 @@ const DownloadsPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <Download className="w-4 h-4 text-[#f15a24]" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Downloads' : 'Tax Returns & Downloads'}</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{categoryTitle}</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">
@@ -132,7 +156,7 @@ const DownloadsPage = () => {
                 </>
               ) : (
                 <>
-                  <Plus className="w-3.5 h-3.5" /> + Add Record
+                  <Plus className="w-3.5 h-3.5" /> {addBtnLabel}
                 </>
               )}
             </button>

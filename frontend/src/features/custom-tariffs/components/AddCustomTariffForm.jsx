@@ -57,6 +57,7 @@ const AddCustomTariffForm = ({
   const [serverError, setServerError] = useState('');
 
   useEffect(() => {
+    let mounted = true;
     if (editData) {
       setSldNumber(editData.sldNumber || '');
       setDated(editData.dated || getTodayDateString());
@@ -70,7 +71,6 @@ const AddCustomTariffForm = ({
       setItems(Array.isArray(editData.items) && editData.items.length > 0 ? editData.items : [createEmptyTariffItem()]);
     } else {
       const curYear = new Date().getFullYear();
-      setSldNumber('');
       setDated(getTodayDateString());
       setFromYear(curYear.toString());
       setToYear((curYear + 1).toString());
@@ -80,10 +80,23 @@ const AddCustomTariffForm = ({
       setAttachmentName('');
       setDetail('');
       setItems([createEmptyTariffItem()]);
+
+      // Auto-fetch next sequential SLD #
+      customTariffService.getNextSld()
+        .then(res => {
+          if (mounted && res?.nextSld) {
+            setSldNumber(String(res.nextSld));
+          }
+        })
+        .catch(err => {
+          console.warn('Could not fetch next SLD #:', err);
+          if (mounted) setSldNumber('10001');
+        });
     }
     setNewItemDraft(createEmptyTariffItem());
     setErrors({});
     setServerError('');
+    return () => { mounted = false; };
   }, [editData]);
 
   const handleFileChange = (e) => {
@@ -135,7 +148,6 @@ const AddCustomTariffForm = ({
     if (!sldNumber.trim()) newErrors.sldNumber = 'SLD # is required';
     if (!dated) newErrors.dated = 'Dated is required';
     if (!fromYear) newErrors.fromYear = 'From Year is required';
-    if (!toYear) newErrors.toYear = 'To Year is required';
     if (!status) newErrors.status = 'Status is required';
     if (!heading.trim()) newErrors.heading = 'Heading is required';
     setErrors(newErrors);
@@ -198,16 +210,27 @@ const AddCustomTariffForm = ({
             {isEdit ? 'Edit Custom Tariffs Detail' : 'Add Custom Tariffs Detail'}
           </h2>
         </div>
-        {onClose && (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onClose}
-            className="text-theme-muted hover:text-theme-main transition-colors text-xs font-medium cursor-pointer flex items-center gap-1"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-4 py-1.5 bg-[#4caf50] hover:bg-[#43a047] text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-xs disabled:opacity-60 flex items-center gap-1.5"
           >
-            <span>close</span>
-            <X className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5" />
+            <span>{isSubmitting ? 'Saving...' : (isEdit ? 'Update Record' : 'Add Record')}</span>
           </button>
-        )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-theme-muted hover:text-theme-main transition-colors text-xs font-medium cursor-pointer flex items-center gap-1 p-1 rounded"
+            >
+              <span>close</span>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Form Body */}
@@ -273,7 +296,7 @@ const AddCustomTariffForm = ({
 
           <div>
             <label className="text-[11px] font-semibold text-theme-main block mb-1">
-              To Year <span className="text-brand-orange">*</span>
+              To Year
             </label>
             <input
               type="text"

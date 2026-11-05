@@ -54,6 +54,8 @@ const ManageWhatsappTable = ({
   totalItems: propTotalItems,
   totalPages: propTotalPages,
   serverPaginated = false,
+  sortConfig: propSortConfig,
+  onSortChange: propOnSortChange,
   onEdit,
   onDeleted,
   toastMessage,
@@ -68,7 +70,9 @@ const ManageWhatsappTable = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
-  const [sortConfig, setSortConfig] = useState({ key: 'srNumber', direction: 'desc' });
+  const [internalSortConfig, setInternalSortConfig] = useState({ key: 'dated', direction: 'desc' });
+  const sortConfig = propSortConfig || internalSortConfig;
+
   const [internalCurrentPage, setInternalCurrentPage] = useState(1);
   const isServerPaginated = Boolean(serverPaginated || propTotalItems !== undefined);
   const [itemsPerPage, setItemsPerPage] = useState(100);
@@ -77,26 +81,42 @@ const ManageWhatsappTable = ({
   const setCurrentPage = propSetCurrentPage || setInternalCurrentPage;
 
   const handleSort = (key) => {
-    setSortConfig(prev => {
+    if (propOnSortChange) {
+      propOnSortChange(key);
+      return;
+    }
+    setInternalSortConfig(prev => {
       if (prev.key === key) {
         if (prev.direction === 'asc') return { key, direction: 'desc' };
         if (prev.direction === 'desc') return { key: null, direction: null };
         return { key, direction: 'asc' };
       }
-      return { key, direction: 'asc' };
+      return { key, direction: 'desc' };
     });
   };
 
   const sortedUpdates = useMemo(() => {
-    if (isServerPaginated) return updates;
     if (!updates || !updates.length) return [];
-    if (!sortConfig.key || !sortConfig.direction) return updates;
+    if (isServerPaginated && !propOnSortChange) return updates;
+
+    const activeSort = sortConfig;
+    const isAsc = activeSort?.direction === 'asc';
+    const key = activeSort?.key || 'dated';
 
     return [...updates].sort((a, b) => {
-      let valA = a[sortConfig.key];
-      let valB = b[sortConfig.key];
+      let valA = a[key] ?? a.dated ?? a.date;
+      let valB = b[key] ?? b.dated ?? b.date;
 
-      if (sortConfig.key === 'srNumber') {
+      if (key === 'dated' || key === 'date') {
+        const timeA = valA ? (new Date(valA).getTime() || 0) : 0;
+        const timeB = valB ? (new Date(valB).getTime() || 0) : 0;
+        if (timeA !== timeB) return isAsc ? (timeA - timeB) : (timeB - timeA);
+        const srA = Number(a.srNumber || 0);
+        const srB = Number(b.srNumber || 0);
+        return isAsc ? (srA - srB) : (srB - srA);
+      }
+
+      if (key === 'srNumber') {
         valA = Number(valA) || 0;
         valB = Number(valB) || 0;
       } else {
@@ -104,11 +124,11 @@ const ManageWhatsappTable = ({
         valB = (valB || '').toString().toLowerCase();
       }
 
-      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+      if (valA < valB) return isAsc ? -1 : 1;
+      if (valA > valB) return isAsc ? 1 : -1;
       return 0;
     });
-  }, [updates, sortConfig, isServerPaginated]);
+  }, [updates, sortConfig, isServerPaginated, propOnSortChange]);
 
   const totalItems = isServerPaginated ? (propTotalItems !== undefined ? propTotalItems : updates.length) : sortedUpdates.length;
   const totalPages = isServerPaginated ? (propTotalPages !== undefined ? propTotalPages : Math.ceil(totalItems / itemsPerPage) || 1) : (Math.ceil(totalItems / itemsPerPage) || 1);

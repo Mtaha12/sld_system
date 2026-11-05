@@ -85,31 +85,68 @@ export const getCustomTariffById = async (req, res, next) => {
   }
 };
 
+export const getNextCustomTariffSld = async (req, res, next) => {
+  try {
+    const latest = await CustomTariff.findOne({ isDeleted: { $ne: true } })
+      .sort({ srNumber: -1, createdAt: -1 })
+      .select('sldNumber srNumber');
+
+    let nextSld = '10001';
+    let nextSr = 1;
+    if (latest) {
+      nextSr = (Number(latest.srNumber) || 0) + 1;
+      const rawSld = String(latest.sldNumber || '').trim();
+      const numMatch = rawSld.match(/\d+/);
+      if (numMatch) {
+        const num = parseInt(numMatch[0], 10) + 1;
+        const prefix = rawSld.replace(/\d+.*$/, '');
+        nextSld = prefix ? `${prefix}${num}` : String(num);
+      } else if (latest.srNumber) {
+        nextSld = String((Number(latest.srNumber) || 0) + 1);
+      }
+    }
+    return res.status(200).json({ success: true, nextSld, nextSr });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createCustomTariff = async (req, res, next) => {
   try {
     const { sldNumber, dated, fromYear, toYear, status, heading, attachment, attachmentName, detail, items } = req.body;
 
-    if (!sldNumber?.trim()) {
-      return res.status(400).json({ success: false, message: 'SLD # is required.' });
+    let finalSld = (sldNumber || '').trim();
+    if (!finalSld) {
+      const latest = await CustomTariff.findOne({ isDeleted: { $ne: true } }).sort({ srNumber: -1, createdAt: -1 });
+      if (latest && latest.sldNumber) {
+        const numMatch = String(latest.sldNumber).match(/\d+/);
+        if (numMatch) {
+          const num = parseInt(numMatch[0], 10) + 1;
+          const prefix = String(latest.sldNumber).replace(/\d+.*$/, '');
+          finalSld = prefix ? `${prefix}${num}` : String(num);
+        } else {
+          finalSld = String((latest.srNumber || 0) + 1);
+        }
+      } else {
+        finalSld = '10001';
+      }
     }
+
     if (!dated?.trim()) {
       return res.status(400).json({ success: false, message: 'Dated is required.' });
     }
     if (!fromYear?.toString().trim()) {
       return res.status(400).json({ success: false, message: 'From Year is required.' });
     }
-    if (!toYear?.toString().trim()) {
-      return res.status(400).json({ success: false, message: 'To Year is required.' });
-    }
     if (!heading?.trim()) {
       return res.status(400).json({ success: false, message: 'Heading is required.' });
     }
 
     const customTariff = new CustomTariff({
-      sldNumber: sldNumber.trim(),
+      sldNumber: finalSld,
       dated: dated.trim(),
       fromYear: fromYear.toString().trim(),
-      toYear: toYear.toString().trim(),
+      toYear: toYear ? toYear.toString().trim() : '',
       status: status === 'Inactive' ? 'Inactive' : 'Active',
       heading: heading.trim(),
       attachment: attachment || '',

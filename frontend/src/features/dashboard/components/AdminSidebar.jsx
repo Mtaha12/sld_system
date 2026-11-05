@@ -66,20 +66,28 @@ const USER_MENU_ITEMS = [
   { label: 'Updated Laws', path: '/updates', icon: Gauge },
   { label: 'Dictionary', path: '/manage-dictionary', icon: Gauge },
   { label: 'News', path: '/news', icon: Gauge },
-  { label: 'Finance Act', path: '/manage-tax-cards', icon: Gauge },
+  { label: 'Finance Act', path: '/manage-tax-cards?category=finance-act', icon: Gauge },
   { label: 'Custom Tariff', path: '/manage-custom-tariffs', icon: Gauge },
   { label: 'Whatsapp', path: '/whatsapp-updates', icon: Gauge },
   { label: 'Youtube Channel', path: '/youtube-updates', icon: Gauge },
-  { label: 'Tax Rates', path: '/manage-tax-cards', icon: Gauge },
-  { label: 'Tax Returns', path: '/downloads', icon: Gauge },
+  { label: 'Tax Rates', path: '/manage-tax-cards?category=tax-rates', icon: Gauge },
+  { label: 'Tax Returns', path: '/downloads?category=Tax+Return', icon: Gauge },
   { label: 'Live Chat', path: '/ai-assistant', icon: Gauge },
 ];
 
 const QUICK_LINKS = [
-  { label: 'FBR', url: 'https://iris.fbr.gov.pk' },
-  { label: 'SECP', url: 'https://eservices.secp.gov.pk' },
-  { label: 'Supreme Court of Pakistan', url: 'https://www.supremecourt.gov.pk' },
-  { label: 'Islamabad High Court', url: 'https://mis.ihc.gov.pk' },
+  { label: 'FBR', url: 'https://fbr.gov.pk/' },
+  { label: 'SECP', url: 'https://www.secp.gov.pk/' },
+  { label: 'Supreme Court of Pakistan', url: 'https://www.supremecourt.gov.pk/' },
+  { label: 'Islamabad High Court', url: 'https://ihc.gov.pk/' },
+  { label: 'Lahore High Court', url: 'https://lhc.gov.pk/' },
+  { label: 'Sindh High Court', url: 'https://sindhhighcourt.gov.pk/' },
+  { label: 'Balochistan High Court', url: 'https://bhc.gov.pk/' },
+  { label: 'AJK High Court', url: 'https://ajkhighcourt.gok.pk/' },
+  { label: 'Punjab Revenue Authority', url: 'https://pra.punjab.gov.pk/' },
+  { label: 'Sindh Revenue Authority', url: 'https://www.srb.gos.pk/srb/' },
+  { label: 'KPK Revenue Authority', url: 'https://kpra.gov.pk/' },
+  { label: 'Balochistan Revenue Authority', url: 'https://bra.gob.pk/' },
 ];
 
 // Dropdown Folder Categories requested by user

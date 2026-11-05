@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getCustomTariffs,
+  getNextCustomTariffSld,
   getCustomTariffById,
   createCustomTariff,
   updateCustomTariff,
@@ -13,6 +14,7 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/', getCustomTariffs);
+router.get('/next-sld', getNextCustomTariffSld);
 router.get('/:id', getCustomTariffById);
 
 router.post('/', requireAdmin, createCustomTariff);

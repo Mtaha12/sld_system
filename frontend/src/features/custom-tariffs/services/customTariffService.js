@@ -11,6 +11,10 @@ export const customTariffService = {
     const res = await api.get(`/api/custom-tariffs/${id}`);
     return res.data?.data;
   },
+  getNextSld: async () => {
+    const res = await api.get('/api/custom-tariffs/next-sld');
+    return res.data;
+  },
   createCustomTariff: async (data) => {
     const res = await api.post('/api/custom-tariffs', data);
     return res.data?.data;

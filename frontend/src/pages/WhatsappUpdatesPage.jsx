@@ -14,6 +14,7 @@ const WhatsappUpdatesPage = () => {
   const [updates, setUpdates] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortConfig, setSortConfig] = useState({ key: 'dated', direction: 'desc' });
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,10 +24,10 @@ const WhatsappUpdatesPage = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [lastSavedDate, setLastSavedDate] = useState('');
 
-  const fetchUpdates = useCallback(async (page = 1, query = '') => {
+  const fetchUpdates = useCallback(async (page = 1, query = '', sort = 'dated', order = 'desc') => {
     setIsLoading(true);
     try {
-      const data = await whatsappService.getUpdates({ page, limit: 25, query });
+      const data = await whatsappService.getUpdates({ page, limit: 25, query, sort, order });
       setUpdates(data);
       if (Array.isArray(data) && data.length > 0 && (data[0].dated || data[0].date)) {
         setLastSavedDate(prev => prev || data[0].dated || data[0].date);
@@ -41,19 +42,30 @@ const WhatsappUpdatesPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchUpdates(currentPage, searchKeyword);
-  }, [fetchUpdates, currentPage]);
+    fetchUpdates(currentPage, searchKeyword, sortConfig.key, sortConfig.direction);
+  }, [fetchUpdates, currentPage, sortConfig]);
+
+  const handleSortChange = (key) => {
+    setSortConfig(prev => {
+      let nextDir = 'desc';
+      if (prev.key === key) {
+        nextDir = prev.direction === 'desc' ? 'asc' : 'desc';
+      }
+      return { key, direction: nextDir };
+    });
+    setCurrentPage(1);
+  };
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
     setCurrentPage(1);
-    fetchUpdates(1, searchKeyword);
+    fetchUpdates(1, searchKeyword, sortConfig.key, sortConfig.direction);
   };
 
   const handleShowAll = () => {
     setSearchKeyword('');
     setCurrentPage(1);
-    fetchUpdates(1, '');
+    fetchUpdates(1, '', sortConfig.key, sortConfig.direction);
   };
 
   const handleOpenAddForm = () => {
@@ -173,6 +185,8 @@ const WhatsappUpdatesPage = () => {
         totalItems={totalItems}
         totalPages={totalPages}
         serverPaginated={true}
+        sortConfig={sortConfig}
+        onSortChange={handleSortChange}
         onEdit={handleEditItem}
         onDeleted={handleItemDeleted}
         toastMessage={toastMessage}

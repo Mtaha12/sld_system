@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, List, CreditCard, X } from 'lucide-react';
+import { Search, Plus, List, CreditCard, X, FileText } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddTaxCardForm from '../features/tax-cards/components/AddTaxCardForm';
 import ManageTaxCardsTable from '../features/tax-cards/components/ManageTaxCardsTable';
@@ -14,6 +14,7 @@ const ManageTaxCardsPage = () => {
 
   const [urlSearchParams] = useSearchParams();
   const initialQuery = urlSearchParams.get('query') || urlSearchParams.get('text') || '';
+  const rawCat = (urlSearchParams.get('category') || '').trim().toLowerCase();
 
   const [taxCards, setTaxCards] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState(initialQuery);
@@ -22,6 +23,26 @@ const ManageTaxCardsPage = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+
+  const categoryTitle = useMemo(() => {
+    if (rawCat === 'finance-act' || rawCat === 'finance act') {
+      return isAdmin ? 'Manage Finance Act' : 'Finance Act';
+    }
+    if (rawCat === 'tax-rates' || rawCat === 'tax-rate' || rawCat === 'tax rates') {
+      return isAdmin ? 'Manage Tax Rates' : 'Tax Rates';
+    }
+    if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return' || rawCat === 'tax returns') {
+      return isAdmin ? 'Manage Tax Returns' : 'Tax Returns';
+    }
+    return isAdmin ? 'Manage Tax Cards' : 'Finance Act & Tax Rates';
+  }, [rawCat, isAdmin]);
+
+  const addBtnLabel = useMemo(() => {
+    if (rawCat === 'finance-act' || rawCat === 'finance act') return '+ Add Finance Act';
+    if (rawCat === 'tax-rates' || rawCat === 'tax-rate' || rawCat === 'tax rates') return '+ Add Tax Rate';
+    if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return') return '+ Add Tax Return';
+    return '+ Add Tax Cards';
+  }, [rawCat]);
 
   const fetchTaxCards = useCallback(async (query = '') => {
     setIsLoading(true);
@@ -38,6 +59,31 @@ const ManageTaxCardsPage = () => {
   useEffect(() => {
     fetchTaxCards(searchKeyword);
   }, [fetchTaxCards]);
+
+  const displayedCards = useMemo(() => {
+    if (!rawCat) return taxCards;
+    return taxCards.filter(item => {
+      const heading = (item.heading || '').toLowerCase();
+      const cat = (item.category || '').toLowerCase();
+
+      if (rawCat === 'finance-act' || rawCat === 'finance act') {
+        return cat === 'finance-act' || cat === 'finance act' || 
+          heading.includes('finance act') || heading.includes('finance bill') ||
+          (!heading.includes('rate') && !heading.includes('return') && !heading.includes('card') && heading.includes('act'));
+      }
+      if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return') {
+        return cat === 'tax-returns' || cat === 'tax-return' || cat === 'tax return' || heading.includes('return');
+      }
+      if (rawCat === 'tax-rates' || rawCat === 'tax-rate' || rawCat === 'tax rates') {
+        // Exclude finance acts and tax returns
+        if (heading.includes('finance act') || heading.includes('finance bill') || heading.includes('return')) {
+          return false;
+        }
+        return true;
+      }
+      return true;
+    });
+  }, [taxCards, rawCat]);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
@@ -84,7 +130,7 @@ const ManageTaxCardsPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <CreditCard className="w-4 h-4 text-brand-orange" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Tax Cards' : 'Finance Act & Tax Rates'}</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{categoryTitle}</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">
@@ -132,7 +178,7 @@ const ManageTaxCardsPage = () => {
                 </>
               ) : (
                 <>
-                  <Plus className="w-3.5 h-3.5" /> + Add Tax Cards
+                  <Plus className="w-3.5 h-3.5" /> {addBtnLabel}
                 </>
               )}
             </button>
@@ -145,6 +191,7 @@ const ManageTaxCardsPage = () => {
       {isAdmin && isFormOpen && (
         <AddTaxCardForm
           editData={editingItem}
+          defaultCategory={rawCat}
           onClose={() => {
             setIsFormOpen(false);
             setEditingItem(null);
@@ -155,7 +202,7 @@ const ManageTaxCardsPage = () => {
 
       {/* Table */}
       <ManageTaxCardsTable
-        taxCards={taxCards}
+        taxCards={displayedCards}
         onEdit={handleEditItem}
         onDeleted={handleItemDeleted}
         toastMessage={toastMessage}
