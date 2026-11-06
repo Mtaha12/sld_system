@@ -5476,9 +5476,13 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
   }
 
   // PRIORITY 9.5: Verbatim Sentence / Paragraph / Excerpt Search across Headnotes, Principles & Judgment
-  // (e.g. "statute does not incorporate provision as to the issuance of notice" -> matches 2011 SLD 87)
+  // Only executed for explicitly quoted phrases or long verbatim excerpts to avoid 4+ second timeouts on legal questions
   const isConversationalSearch = /^(?:give\s+case\s+law|case\s+law\s+on|find\s+case|search\s+for|what\s+is|please\s+find|give\s+me|show\s+me|need\s+case|tell\s+me)\b/i.test(normalizedQuery);
-  if (!targetCase && !exactCaseNumberSearched && !isConversationalSearch && normalizedQuery.length >= 8) {
+  const isQuestionQuery = /^(?:can|is|does|do|whether|how|when|who|which|where|why|what|if|are|should|must|could|would)\b/i.test(normalizedQuery) || normalizedQuery.endsWith('?');
+  const isExplicitlyQuoted = /^["'“‘].+["'”’]$/.test(normalizedQuery.trim());
+  const isLongVerbatimExcerpt = normalizedQuery.length >= 25 && !isQuestionQuery && !isConversationalSearch;
+
+  if (!targetCase && !exactCaseNumberSearched && (isExplicitlyQuoted || isLongVerbatimExcerpt) && normalizedQuery.length >= 8) {
     const rawSearchPhrase = normalizedQuery.replace(/^["'“‘]+|["'”’]+$/g, '').trim();
     const searchPhrase = normalizeLegalTypos(rawSearchPhrase);
     if (searchPhrase.length >= 8) {
@@ -5486,29 +5490,29 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
       try {
         const courtCond = requestedCourtFilter ? { court: requestedCourtFilter } : {};
 
-        // 1. Search judgment block first using findOne (< 250ms)
+        // 1. Search headNote first (lighter and indexed)
         let rawMatch = await Case.findOne({
-          judgment: phraseRegex,
+          headNote: phraseRegex,
           isDeleted: { $ne: true },
           ...courtCond
-        }).maxTimeMS(2500).lean();
+        }).maxTimeMS(800).lean();
 
-        // 2. If not found in judgment, search headNote
-        if (!rawMatch) {
-          rawMatch = await Case.findOne({
-            headNote: phraseRegex,
-            isDeleted: { $ne: true },
-            ...courtCond
-          }).maxTimeMS(2000).lean();
-        }
-
-        // 3. If not found, search principleLaw
+        // 2. Search principleLaw
         if (!rawMatch) {
           rawMatch = await Case.findOne({
             principleLaw: phraseRegex,
             isDeleted: { $ne: true },
             ...courtCond
-          }).maxTimeMS(2000).lean();
+          }).maxTimeMS(800).lean();
+        }
+
+        // 3. Search judgment block if still not found
+        if (!rawMatch) {
+          rawMatch = await Case.findOne({
+            judgment: phraseRegex,
+            isDeleted: { $ne: true },
+            ...courtCond
+          }).maxTimeMS(1000).lean();
         }
 
         if (rawMatch && !isForeignCourt(rawMatch.court) && !isForeignCase(rawMatch) && validateTextKeywords(rawMatch, searchPhrase)) {

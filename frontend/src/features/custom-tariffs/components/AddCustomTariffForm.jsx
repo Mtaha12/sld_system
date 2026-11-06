@@ -145,7 +145,10 @@ const AddCustomTariffForm = ({
 
   const validate = () => {
     const newErrors = {};
-    if (!sldNumber.trim()) newErrors.sldNumber = 'SLD # is required';
+    if (!sldNumber || !String(sldNumber).trim()) {
+      const fallbackSld = String(Date.now()).slice(-5);
+      setSldNumber(fallbackSld);
+    }
     if (!dated) newErrors.dated = 'Dated is required';
     if (!fromYear) newErrors.fromYear = 'From Year is required';
     if (!status) newErrors.status = 'Status is required';

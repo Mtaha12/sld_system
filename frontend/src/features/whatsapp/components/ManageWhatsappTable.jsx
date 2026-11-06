@@ -252,7 +252,7 @@ const ManageWhatsappTable = ({
             <thead>
               <tr className="bg-gray-50/70 dark:bg-theme-surface-hover/70 border-b border-theme-border">
                 <TableHeader title="Sr #" sortKey="srNumber" sortConfig={sortConfig} onSort={handleSort} className="w-16 text-center" />
-                <TableHeader title="Dated" sortKey="dated" sortConfig={sortConfig} onSort={handleSort} className="w-28" />
+                <TableHeader title="Dated" sortKey="dated" sortConfig={{ key: 'dated', direction: 'desc' }} onSort={null} className="w-28 text-brand-orange font-bold" />
                 <TableHeader title="Heading" sortKey="heading" sortConfig={sortConfig} onSort={handleSort} />
                 <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted w-32 text-center">Attachment</th>
                 <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted text-center w-28">Action</th>

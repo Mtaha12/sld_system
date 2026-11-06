@@ -52,20 +52,30 @@ export const parseLegalCitation = (text) => {
 
 export const buildCitationQuery = (c) => {
   const or = [];
-  const cleanMag = escapeRegex(c.mag);
+  const rawMag = String(c.mag || '').trim();
+  const cleanMag = escapeRegex(rawMag);
   const cleanPage = String(c.page || '').trim();
   const cleanVol = c.vol ? String(c.vol).trim() : null;
   const cleanYear = c.year ? String(c.year).trim() : null;
 
+  // Generate casing variants for high-speed B-tree index seek (< 3ms)
+  const magVariants = [
+    rawMag,
+    rawMag.toUpperCase(),
+    rawMag.toLowerCase(),
+    rawMag.charAt(0).toUpperCase() + rawMag.slice(1).toLowerCase()
+  ].filter(Boolean);
+  const uniqueMagVariants = [...new Set(magVariants)];
+
   if (cleanYear && cleanVol) {
     or.push({ mapYearPage: { $regex: `(?:\\(?${cleanYear}\\)?\\s+)?${cleanVol}\\s+${cleanMag}\\s+${cleanPage}(?:$|\\b)`, $options: 'i' } });
-    or.push({ publications: { $elemMatch: { mag: { $regex: `^${cleanMag}$`, $options: 'i' }, vol: cleanVol, page: cleanPage } } });
+    or.push({ publications: { $elemMatch: { mag: { $in: uniqueMagVariants }, vol: cleanVol, page: cleanPage } } });
   } else if (cleanVol) {
     or.push({ mapYearPage: { $regex: `(?:\\(\\d{4}\\)\\s+)?${cleanVol}\\s+${cleanMag}\\s+${cleanPage}(?:$|\\b)`, $options: 'i' } });
-    or.push({ publications: { $elemMatch: { mag: { $regex: `^${cleanMag}$`, $options: 'i' }, vol: cleanVol, page: cleanPage } } });
+    or.push({ publications: { $elemMatch: { mag: { $in: uniqueMagVariants }, vol: cleanVol, page: cleanPage } } });
   } else if (cleanYear) {
     or.push({ mapYearPage: { $regex: `${cleanYear}\\s+${cleanMag}\\s+${cleanPage}(?:$|\\b)`, $options: 'i' } });
-    or.push({ publications: { $elemMatch: { mag: { $regex: `^${cleanMag}$`, $options: 'i' }, year: cleanYear, page: cleanPage } } });
+    or.push({ publications: { $elemMatch: { mag: { $in: uniqueMagVariants }, year: cleanYear, page: cleanPage } } });
   }
 
   // KEY PERFORMANCE OPTIMIZATION:
@@ -1342,6 +1352,12 @@ export const searchCases = async (req, res, next) => {
       const mg = String(filters.magazine).trim();
       const pg = String(filters.page).trim();
       const citPattern = new RegExp(`(^|\\s)${escapeRegex(yv)}\\s+${escapeRegex(mg)}\\s+${escapeRegex(pg)}(\\s|$)`, 'i');
+      const magVariants = [...new Set([
+        mg,
+        mg.toUpperCase(),
+        mg.toLowerCase(),
+        mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()
+      ])].filter(Boolean);
       
       // Bind indexed publications.page to prune scan space from 165k down to ~1.5k documents in < 15ms
       andConditions.push({ 'publications.page': pg });
@@ -1351,7 +1367,7 @@ export const searchCases = async (req, res, next) => {
           {
             publications: {
               $elemMatch: {
-                mag: { $regex: `^${escapeRegex(mg)}$`, $options: 'i' },
+                mag: { $in: magVariants },
                 page: pg,
                 $or: [
                   { year: yv },
@@ -1420,7 +1436,20 @@ export const searchCases = async (req, res, next) => {
     }
 
     if (filters.caseNumber) {
-      andConditions.push({ caseNumber: { $regex: escapeRegex(filters.caseNumber), $options: 'i' } });
+      const rawCn = String(filters.caseNumber).trim();
+      const cnVariants = [...new Set([
+        rawCn,
+        rawCn.toUpperCase(),
+        rawCn.toLowerCase(),
+        rawCn.replace(/\s+/g, ' '),
+        rawCn.replace(/\s+/g, '')
+      ])].filter(Boolean);
+      andConditions.push({
+        $or: [
+          { caseNumber: { $in: cnVariants } },
+          { caseNumber: { $regex: escapeRegex(rawCn), $options: 'i' } }
+        ]
+      });
     }
 
     if (filters.date) {
@@ -1465,32 +1494,21 @@ export const searchCases = async (req, res, next) => {
     }
 
     const kw1 = filters.keywords || filters.text;
-    if (kw1) {
-      andConditions.push({
-        $or: [
-          { headNote: { $regex: escapeRegex(kw1), $options: 'i' } },
-          { judgment: { $regex: escapeRegex(kw1), $options: 'i' } }
-        ]
-      });
-    }
-
     const kw2 = filters.keywords2 || filters.text2;
-    if (kw2) {
-      andConditions.push({
-        $or: [
-          { headNote: { $regex: escapeRegex(kw2), $options: 'i' } },
-          { judgment: { $regex: escapeRegex(kw2), $options: 'i' } }
-        ]
-      });
+    const kwTokens = [];
+    if (filters.phrase && String(filters.phrase).trim()) {
+      kwTokens.push(`"${String(filters.phrase).replace(/"/g, '').trim()}"`);
+    }
+    if (kw1 && String(kw1).trim()) {
+      kwTokens.push(String(kw1).trim());
+    }
+    if (kw2 && String(kw2).trim()) {
+      kwTokens.push(String(kw2).trim());
     }
 
-    if (filters.phrase) {
-      andConditions.push({
-        $or: [
-          { headNote: { $regex: escapeRegex(filters.phrase), $options: 'i' } },
-          { judgment: { $regex: escapeRegex(filters.phrase), $options: 'i' } }
-        ]
-      });
+    if (kwTokens.length > 0) {
+      const combinedText = kwTokens.join(' ').trim();
+      andConditions.push({ $text: { $search: combinedText } });
     }
 
     if (filters.judges) {
@@ -1518,8 +1536,9 @@ export const searchCases = async (req, res, next) => {
     // High-performance execution: return up to 3000 results for full catalog views without arbitrary 100 limit
     const requestedLimit = parseInt(filters.limit, 10);
     const searchLimit = requestedLimit > 0 ? requestedLimit : 3000;
-    const hasTextSearch = Boolean(kw1 || kw2 || filters.phrase);
-    const selectFields = hasTextSearch
+    const hasTextSearch = kwTokens.length > 0;
+    const includeJudgment = filters.includeJudgment === true || req.query.includeJudgment === 'true';
+    const selectFields = includeJudgment
       ? 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim judgment createdAt'
       : 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim createdAt';
 
@@ -1529,11 +1548,7 @@ export const searchCases = async (req, res, next) => {
       .limit(searchLimit);
 
     // Apply safe index hints based on primary query filters
-    if (filters.caseNumber && !filters.court && !filters.fromYear && !filters.fromDate && !hasTextSearch) {
-      try {
-        queryExec = queryExec.hint({ isDeleted: 1, caseNumber: 1, sldNumberInt: -1 });
-      } catch (hintErr) {}
-    } else if (filters.court && !filters.yearVolume && !filters.page) {
+    if (filters.court && !filters.yearVolume && !filters.page && !hasTextSearch) {
       try {
         queryExec = queryExec.hint({ isDeleted: 1, court: 1, sldNumberInt: -1 });
       } catch (hintErr) {}

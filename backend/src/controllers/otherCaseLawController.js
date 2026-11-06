@@ -152,7 +152,7 @@ export const getOtherCaseLaws = async (req, res, next) => {
       .lean();
 
     // Use citation index hint if searching citation
-    if (filter.citation) {
+    if (filter.citation || (query && /^(?:19|20)\d{2}\s+[a-zA-Z]+/i.test(query.trim()))) {
       try {
         cursor = cursor.hint({ isDeleted: 1, citation: 1 });
       } catch {}
