@@ -252,14 +252,10 @@ const ManageNewslettersTable = ({
                         </a>
                         <a
                           href={`/manage-newsletters?edit=${item.mongoId || item.id || item.newsletterId}`}
-                          onClick={(e) => {
-                            if (!e.ctrlKey && !e.metaKey && e.button === 0) {
-                              e.preventDefault();
-                              onEdit?.(item);
-                            }
-                          }}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer inline-flex items-center justify-center"
-                          title="Edit"
+                          title="Edit in new tab"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </a>

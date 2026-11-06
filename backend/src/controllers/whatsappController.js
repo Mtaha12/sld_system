@@ -3,6 +3,7 @@ import Counter from '../models/Counter.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
+import { saveBase64ToFile } from '../utils/attachmentStorage.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -97,15 +98,14 @@ export const getWhatsappUpdates = async (req, res, next) => {
       sortObj.heading = sortDirection;
       sortObj.dated = -1;
     } else {
-      // Default: date-wise descending order, then srNumber descending
+      // Default: date-wise descending order, then srNumber descending (uses compound B-tree index)
       sortObj.dated = sortDirection;
       sortObj.srNumber = -1;
     }
-    sortObj.createdAt = -1;
 
     let dbQuery = WhatsappUpdate.find(filter)
       .sort(sortObj)
-      .select('srNumber heading dated attachment attachmentName whatsappId isDeleted createdAt updatedAt');
+      .select('srNumber heading dated attachmentName whatsappId isDeleted createdAt updatedAt');
 
     if (!isAll) {
       dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);
@@ -268,11 +268,12 @@ export const createWhatsappUpdate = async (req, res, next) => {
     }
 
     const parsedSr = srNumber && !isNaN(Number(srNumber)) ? Number(srNumber) : undefined;
+    const cleanAttachment = attachment ? saveBase64ToFile(attachment, attachmentName) : '';
 
     const item = new WhatsappUpdate({
       heading: heading.trim(),
       dated: dated.trim(),
-      attachment: attachment || '',
+      attachment: cleanAttachment,
       attachmentName: attachmentName || '',
       ...(parsedSr ? { srNumber: parsedSr } : {})
     });
@@ -313,7 +314,9 @@ export const updateWhatsappUpdate = async (req, res, next) => {
 
     if (heading !== undefined) item.heading = heading.trim();
     if (dated !== undefined) item.dated = dated.trim();
-    if (attachment !== undefined) item.attachment = attachment;
+    if (attachment !== undefined) {
+      item.attachment = attachment ? saveBase64ToFile(attachment, attachmentName || item.attachmentName) : '';
+    }
     if (attachmentName !== undefined) item.attachmentName = attachmentName;
     if (srNumber !== undefined && !isNaN(Number(srNumber))) {
       item.srNumber = Number(srNumber);
