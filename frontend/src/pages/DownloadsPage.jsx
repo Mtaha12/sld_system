@@ -24,6 +24,25 @@ const DownloadsPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
+  const editId = urlSearchParams.get('edit');
+
+  useEffect(() => {
+    if (!editId) return;
+    let mounted = true;
+    downloadService.getDownloadById(editId)
+      .then(item => {
+        if (mounted && item) {
+          setEditingItem(item);
+          setIsFormOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load download edit item:', err);
+      });
+    return () => { mounted = false; };
+  }, [editId]);
+
   useEffect(() => {
     if (urlCat) {
       setSelectedCategory(urlCat);
@@ -85,7 +104,10 @@ const DownloadsPage = () => {
   const handleFormSuccess = (savedItem, message, options = {}) => {
     setToastMessage(message || 'Success');
     fetchDownloads(searchKeyword, selectedCategory);
-    if (!options?.keepOpen) {
+    if (options?.nextItem) {
+      setEditingItem(options.nextItem);
+      setIsFormOpen(true);
+    } else if (!options?.keepOpen) {
       setIsFormOpen(false);
       setEditingItem(null);
     }

@@ -148,10 +148,45 @@ const AddDownloadForm = ({
       if (isEdit) {
         const targetId = editData.mongoId || editData.id || editData.downloadId;
         result = await downloadService.updateDownload(targetId, payload);
-        if (onSuccess) {
-          onSuccess(result, 'Download record updated.');
+        
+        const currentSrNum = Number(editData.srNumber) || 0;
+        const nextSrNum = currentSrNum + 1;
+
+        // Try to fetch next download record or advance to next SR
+        let nextRecord = null;
+        try {
+          const list = await downloadService.getDownloads();
+          if (Array.isArray(list)) {
+            nextRecord = list.find(d => Number(d.srNumber) === nextSrNum);
+          }
+        } catch (fetchErr) {
+          console.warn('Could not check next download record:', fetchErr);
         }
-        if (onClose) onClose();
+
+        if (nextRecord) {
+          setHeading(nextRecord.heading || '');
+          setDate(nextRecord.date || nextRecord.dated || getTodayDateString());
+          setLatest(nextRecord.latest || 'Finance Act');
+          setAttachment(nextRecord.attachment || '');
+          setAttachmentName(nextRecord.attachmentName || '');
+          setDetail(nextRecord.detail || '');
+          setSuccessMessage(`Download SR #${currentSrNum} updated! Advanced to edit next SR #${nextSrNum}.`);
+          if (onSuccess) {
+            onSuccess(result, `Download SR #${currentSrNum} updated.`, { keepOpen: true, nextItem: nextRecord });
+          }
+        } else {
+          setNextSr(nextSrNum);
+          setHeading('');
+          setDetail('');
+          setAttachment('');
+          setAttachmentName('');
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          setSuccessMessage(`Download SR #${currentSrNum} updated! Ready for new entry at SR #${nextSrNum}.`);
+          if (onSuccess) {
+            onSuccess(result, `Download SR #${currentSrNum} updated.`, { keepOpen: true });
+          }
+        }
+        setTimeout(() => setSuccessMessage(''), 5000);
       } else {
         result = await downloadService.createDownload(payload);
         const createdSr = result?.srNumber || nextSr;

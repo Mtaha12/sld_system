@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, Newspaper, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddNewsForm from '../features/news/components/AddNewsForm';
@@ -21,6 +22,26 @@ const NewsPage = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+
+  useEffect(() => {
+    if (!editId) return;
+    let mounted = true;
+    newsService.getNewsById(editId)
+      .then(item => {
+        if (mounted && item) {
+          setEditingItem(item);
+          setIsFormOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load news edit item:', err);
+      });
+    return () => { mounted = false; };
+  }, [editId]);
 
   const fetchNews = useCallback(async (page = 1, query = '') => {
     setIsLoading(true);

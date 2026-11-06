@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, Globe, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddUpdateForm from '../features/updates/components/AddUpdateForm';
@@ -18,6 +19,26 @@ const UpdatesPage = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+
+  useEffect(() => {
+    if (!editId) return;
+    let mounted = true;
+    updateService.getUpdateById(editId)
+      .then(item => {
+        if (mounted && item) {
+          setEditingItem(item);
+          setIsFormOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load website update edit item:', err);
+      });
+    return () => { mounted = false; };
+  }, [editId]);
 
   const fetchUpdates = useCallback(async (query = '') => {
     setIsLoading(true);

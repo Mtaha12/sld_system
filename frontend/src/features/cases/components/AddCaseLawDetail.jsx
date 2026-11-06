@@ -1323,9 +1323,9 @@ const AddCaseLawDetail = ({ onClose }) => {
               </FormSection>
             </div>
 
-            {/* Right column: Attachment — exact previous structure */}
-            <div className="flex flex-col gap-3">
-              <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3">
+            {/* Right column: Attachment — positioned at bottom of this block */}
+            <div className="flex flex-col justify-end h-full gap-3">
+              <div className="border border-theme-border/50 rounded-xl bg-theme-surface-alt/50 p-3 mt-auto">
                 <div className="flex items-center gap-2 mb-2 text-brand-orange font-semibold text-sm">
                   <Upload className="w-4 h-4" />
                   Attachment

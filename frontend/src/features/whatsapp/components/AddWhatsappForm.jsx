@@ -74,6 +74,14 @@ const AddWhatsappForm = ({
       setDated(formatDateForDateInput(editData.dated || editData.date));
       setAttachment(editData.attachment || '');
       setAttachmentName(editData.attachmentName || '');
+
+      if (editData.hasAttachment && !editData.attachment) {
+        const targetId = editData.mongoId || editData.id || editData.srNumber;
+        whatsappService.getUpdateById(targetId).then(full => {
+          if (full?.attachment) setAttachment(full.attachment);
+          if (full?.attachmentName) setAttachmentName(full.attachmentName);
+        }).catch(() => {});
+      }
     } else {
       setHeading('');
       setAttachment('');

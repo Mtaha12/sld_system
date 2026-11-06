@@ -9,12 +9,15 @@ const escapeRegex = (string) => {
   return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-const formatItem = (w) => {
+const formatItem = (w, isList = false) => {
   const docId = w.srNumber ? w.srNumber.toString() : (w.whatsappId || w._id.toString());
   const hasAttachment = Boolean(
     (w.attachmentName && w.attachmentName.trim() !== '') ||
     (w.attachment && w.attachment.trim() !== '')
   );
+
+  const rawAtt = w.attachment || '';
+  const isDataUrl = typeof rawAtt === 'string' && rawAtt.startsWith('data:');
 
   return {
     id: docId,
@@ -25,7 +28,7 @@ const formatItem = (w) => {
     dated: w.dated || '',
     date: w.dated || '',
     hasAttachment,
-    attachment: w.attachment || '',
+    attachment: (isList && isDataUrl) ? '' : rawAtt,
     attachmentName: w.attachmentName || '',
     viewUrl: `/api/whatsapp-updates/${docId}/view`,
     downloadUrl: `/api/whatsapp-updates/${docId}/download`,
@@ -115,7 +118,7 @@ export const getWhatsappUpdates = async (req, res, next) => {
     ]);
 
     const totalPages = Math.ceil(total / safeLimit) || 1;
-    const data = items.map(formatItem);
+    const data = items.map(item => formatItem(item, true));
 
     return res.status(200).json({
       success: true,

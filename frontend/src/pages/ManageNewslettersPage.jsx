@@ -16,7 +16,7 @@ const ManageNewslettersPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [searchParams] = useSearchParams();
-  const urlEditId = searchParams.get('editId') || searchParams.get('id');
+  const urlEditId = searchParams.get('edit') || searchParams.get('editId') || searchParams.get('id');
 
   useEffect(() => {
     if (urlEditId) {

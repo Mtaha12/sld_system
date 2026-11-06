@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, Layers, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddCustomTariffForm from '../features/custom-tariffs/components/AddCustomTariffForm';
@@ -18,6 +19,26 @@ const ManageCustomTariffsPage = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+
+  useEffect(() => {
+    if (!editId) return;
+    let mounted = true;
+    customTariffService.getCustomTariffById(editId)
+      .then(item => {
+        if (mounted && item) {
+          setEditingItem(item);
+          setIsFormOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load custom tariff edit item:', err);
+      });
+    return () => { mounted = false; };
+  }, [editId]);
 
   const fetchTariffs = useCallback(async (query = '') => {
     setIsLoading(true);

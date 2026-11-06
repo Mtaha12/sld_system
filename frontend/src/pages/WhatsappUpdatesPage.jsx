@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, List, MessageSquare, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import AddWhatsappForm from '../features/whatsapp/components/AddWhatsappForm';
@@ -23,6 +24,26 @@ const WhatsappUpdatesPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [lastSavedDate, setLastSavedDate] = useState('');
+
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+
+  useEffect(() => {
+    if (!editId) return;
+    let mounted = true;
+    whatsappService.getUpdateById(editId)
+      .then(item => {
+        if (mounted && item) {
+          setEditingItem(item);
+          setIsFormOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load edit item by param:', err);
+      });
+    return () => { mounted = false; };
+  }, [editId]);
 
   const fetchUpdates = useCallback(async (page = 1, query = '', sort = 'dated', order = 'desc') => {
     setIsLoading(true);

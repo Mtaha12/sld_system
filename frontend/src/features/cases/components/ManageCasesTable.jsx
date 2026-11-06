@@ -936,14 +936,15 @@ const ManageCasesTable = ({
                         >
                           <ScrollText className="w-3.5 h-3.5" />
                         </button>
-                        <button 
-                          type="button"
-                          onClick={() => handleEdit(item)}
-                          className="p-1 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors cursor-pointer shadow-2xs" 
+                        <a 
+                          href={`/manage-cases/add?editId=${item._id || item.id || ''}&sld=${item.sldNumber || ''}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors cursor-pointer shadow-2xs inline-flex items-center justify-center" 
                           title="Edit Case"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                        </a>
                         <button 
                           type="button"
                           onClick={() => setDeleteModalCase(item)}

@@ -22,13 +22,13 @@ echo ">>> Project Directory: $PROJECT_DIR"
 cd "$PROJECT_DIR"
 
 echo ""
-echo ">>> [1/6] Pulling latest code from GitHub (origin/main)..."
+echo ">>> [1/7] Pulling latest code from GitHub (origin/main)..."
 git fetch --all
 git reset --hard origin/main
 git pull origin main
 
 echo ""
-echo ">>> [2/6] Building Frontend (Compiling latest assets)..."
+echo ">>> [2/7] Building Frontend (Compiling latest assets)..."
 cd "$PROJECT_DIR/frontend"
 npm install --no-audit
 npm run build
@@ -36,12 +36,12 @@ chmod -R 755 dist 2>/dev/null || true
 echo "✓ Frontend built successfully into dist/"
 
 echo ""
-echo ">>> [3/6] Installing Backend Dependencies..."
+echo ">>> [3/7] Installing Backend Dependencies..."
 cd "$PROJECT_DIR/backend"
 npm install --no-audit
 
 echo ""
-echo ">>> [4/6] Updating Admin Credentials in VPS Database..."
+echo ">>> [4/7] Updating Admin Credentials in VPS Database..."
 if [ -f "src/utils/resetAdminPw.js" ]; then
     node src/utils/resetAdminPw.js
 else
@@ -49,7 +49,15 @@ else
 fi
 
 echo ""
-echo ">>> [5/6] Restarting Backend Services via PM2..."
+echo ">>> [5/7] Importing Laws from LIST.xlsx into VPS Database..."
+if [ -f "src/scripts/importListLaws.js" ]; then
+    node src/scripts/importListLaws.js || true
+else
+    echo "Notice: importListLaws.js not found."
+fi
+
+echo ""
+echo ">>> [6/7] Restarting Backend Services via PM2..."
 if command -v pm2 >/dev/null 2>&1; then
     pm2 restart sld-backend 2>/dev/null || pm2 restart all 2>/dev/null || pm2 reload all 2>/dev/null || pm2 start ecosystem.config.cjs
     pm2 save
@@ -62,7 +70,7 @@ else
 fi
 
 echo ""
-echo ">>> [6/6] Reloading Nginx to serve new build..."
+echo ">>> [7/7] Reloading Nginx to serve new build..."
 if command -v nginx >/dev/null 2>&1; then
     nginx -t && (systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || service nginx reload 2>/dev/null || true)
     echo "✓ Nginx reloaded successfully."

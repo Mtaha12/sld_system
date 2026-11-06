@@ -294,14 +294,15 @@ const ManageOtherCasesTable = ({
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </a>
-                          <button
-                            type="button"
-                            onClick={() => onEdit?.(item)}
-                            className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+                          <a
+                            href={`/other-cases/add?editId=${item._id || item.id || ''}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer inline-flex items-center justify-center"
                             title="Edit"
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                          </button>
+                          </a>
                           <button
                             type="button"
                             onClick={() => setDeleteModalItem(item)}

@@ -24,6 +24,25 @@ const ManageTaxCardsPage = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
+  const editId = urlSearchParams.get('edit');
+
+  useEffect(() => {
+    if (!editId) return;
+    let mounted = true;
+    taxCardService.getTaxCardById(editId)
+      .then(item => {
+        if (mounted && item) {
+          setEditingItem(item);
+          setIsFormOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load tax card edit item:', err);
+      });
+    return () => { mounted = false; };
+  }, [editId]);
+
   const categoryTitle = useMemo(() => {
     if (rawCat === 'finance-act' || rawCat === 'finance act') {
       return isAdmin ? 'Manage Finance Act' : 'Finance Act';
