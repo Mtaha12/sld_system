@@ -3,6 +3,7 @@ import UserActivity from '../models/UserActivity.js';
 import { spoofStatute } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
+import { sanitizeBlocksAttachments } from '../utils/attachmentStorage.js';
 
 /**
  * Format statute for frontend representation

@@ -447,12 +447,67 @@ const AddCaseLawDetail = ({ onClose }) => {
     handleSubmit,
     setValue,
     getValues,
+    watch,
     reset,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(caseSchema),
     defaultValues: getInitialValues(editData),
   });
+
+  const watchedAttachments = watch('attachments') || [];
+  const currentAttachments = Array.isArray(watchedAttachments) ? watchedAttachments : (watchedAttachments ? [watchedAttachments] : []);
+
+  const handleUploadFiles = async (fileList, e) => {
+    const selected = Array.from(fileList || []);
+    if (selected.length === 0) return;
+    setIsUploadingAttachment(true);
+    try {
+      const uploadPromises = selected.map(async (f) => {
+        try {
+          const res = await caseService.uploadAttachment(f);
+          if (res && res.url) {
+            return {
+              name: (res?.name && String(res.name).trim()) || (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
+              url: res.url,
+              size: res.size || `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
+              type: res.type || (f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf'))
+            };
+          }
+        } catch (uploadErr) {
+          console.warn('Direct attachment upload warning, fallback to data URL:', uploadErr);
+        }
+        const b64 = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(f);
+        });
+        return {
+          name: (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
+          url: b64,
+          size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
+          type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
+        };
+      });
+      const uploadedItems = await Promise.all(uploadPromises);
+      const existing = Array.isArray(getValues('attachments')) ? getValues('attachments') : [];
+      const combined = [
+        ...existing,
+        ...uploadedItems.filter(nf => !existing.some(ef => ef.name === nf.name))
+      ];
+      setValue('attachments', combined, { shouldDirty: true, shouldValidate: true });
+    } finally {
+      setIsUploadingAttachment(false);
+      if (e && e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = (index) => {
+    const existing = Array.isArray(getValues('attachments')) ? getValues('attachments') : [];
+    const updated = existing.filter((_, i) => i !== index);
+    setValue('attachments', updated, { shouldDirty: true, shouldValidate: true });
+  };
 
   const {
     fields: publicationFields,
@@ -856,6 +911,61 @@ const AddCaseLawDetail = ({ onClose }) => {
             {editData?.sldNumber && <span className="text-brand-orange font-semibold">SLD #{editData.sldNumber}</span>}
           </div>
           <div className="flex items-center gap-2">
+            {/* Top Attachment Option (exact same height as action buttons py-1.5 text-xs font-bold rounded-lg) */}
+            <div className="flex items-center gap-1.5">
+              <label
+                className={`px-3 py-1.5 text-xs font-bold text-brand-orange bg-theme-surface hover:bg-brand-orange/10 border border-brand-orange/40 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 ${isUploadingAttachment ? 'opacity-60 pointer-events-none' : ''}`}
+                title="Attach document (PDF, Word, Excel, Images)"
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
+                  className="hidden"
+                  disabled={isUploadingAttachment}
+                  onChange={(e) => handleUploadFiles(e.target.files, e)}
+                />
+                {isUploadingAttachment ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{currentAttachments.length > 0 ? `Attachment (${currentAttachments.length})` : 'Attachment'}</span>
+                  </>
+                )}
+              </label>
+
+              {currentAttachments.length > 0 && (
+                <div className="flex items-center gap-1 max-w-[200px] sm:max-w-[260px] overflow-x-auto scrollbar-none py-0.5">
+                  {currentAttachments.map((file, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold bg-orange-50 dark:bg-orange-950/40 border border-brand-orange/30 text-brand-orange rounded-md shadow-2xs truncate max-w-[130px]"
+                      title={file.name || `Attachment ${i + 1}`}
+                    >
+                      <FileText className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{file.name || `File ${i + 1}`}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRemoveAttachment(i);
+                        }}
+                        className="hover:text-red-500 transition-colors ml-0.5 cursor-pointer shrink-0"
+                        title="Remove attachment"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               disabled={isSubmittingManual}
@@ -1330,101 +1440,51 @@ const AddCaseLawDetail = ({ onClose }) => {
                   <Upload className="w-4 h-4" />
                   Attachment
                 </div>
-                <Controller
-                  control={control}
-                  name="attachments"
-                  render={({ field }) => {
-                    const files = Array.isArray(field.value) ? field.value : (field.value ? [field.value] : []);
-                    return (
-                      <div className="flex flex-col gap-1.5">
-                        <label className={`cursor-pointer w-fit ${isUploadingAttachment ? 'opacity-60 pointer-events-none' : ''}`}>
-                          <input
-                            type="file"
-                            multiple
-                            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
-                            className="hidden"
-                            disabled={isUploadingAttachment}
-                            onChange={async (e) => {
-                              const selected = Array.from(e.target.files || []);
-                              if (selected.length === 0) return;
-                              setIsUploadingAttachment(true);
-                              try {
-                                const uploadPromises = selected.map(async (f) => {
-                                  try {
-                                    const res = await caseService.uploadAttachment(f);
-                                    if (res && res.url) {
-                                      return {
-                                        name: (res?.name && String(res.name).trim()) || (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
-                                        url: res.url,
-                                        size: res.size || `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
-                                        type: res.type || (f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf'))
-                                      };
-                                    }
-                                  } catch (uploadErr) {
-                                    console.warn('Direct attachment upload warning, fallback to data URL:', uploadErr);
-                                  }
-                                  const b64 = await new Promise(resolve => {
-                                    const reader = new FileReader();
-                                    reader.onload = () => resolve(reader.result);
-                                    reader.onerror = () => resolve('');
-                                    reader.readAsDataURL(f);
-                                  });
-                                  return {
-                                    name: (f?.name && String(f.name).trim()) || `Attachment_${Date.now()}.pdf`,
-                                    url: b64,
-                                    size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
-                                    type: f.name?.endsWith('.docx') ? 'word' : (f.type?.startsWith('image/') ? 'image' : 'pdf')
-                                  };
-                                });
-                                const uploadedItems = await Promise.all(uploadPromises);
-                                const combined = [
-                                  ...files,
-                                  ...uploadedItems.filter(nf => !files.some(ef => ef.name === nf.name))
-                                ];
-                                field.onChange(combined);
-                              } finally {
-                                setIsUploadingAttachment(false);
-                                e.target.value = '';
-                              }
-                            }}
-                          />
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-orange/40 bg-brand-orange/5 hover:bg-brand-orange/10 text-xs font-semibold text-brand-orange transition-colors cursor-pointer select-none">
-                            {isUploadingAttachment ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                Uploading...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="w-3.5 h-3.5" />
-                                Choose File
-                              </>
-                            )}
-                          </span>
-                        </label>
-                        {files.length > 0 && (
-                          <div className="mt-1 space-y-1 max-h-28 overflow-y-auto pr-0.5">
-                            {files.map((file, i) => (
-                              <div key={i} className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg border border-theme-border bg-theme-surface text-xs text-theme-muted">
-                                <span className="truncate max-w-[110px] font-medium text-theme-main">{file.name || `File ${i + 1}`}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => field.onChange(files.filter((_, j) => j !== i))}
-                                  className="shrink-0 text-theme-disabled hover:text-red-500 transition-colors"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {files.length === 0 && (
-                          <p className="text-[11px] text-theme-disabled mt-0.5">PDF, DOC, PNG, JPG — max 5 MB</p>
-                        )}
-                      </div>
-                    );
-                  }}
-                />
+                <div className="flex flex-col gap-1.5">
+                  <label className={`cursor-pointer w-fit ${isUploadingAttachment ? 'opacity-60 pointer-events-none' : ''}`}>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv,.xlsx"
+                      className="hidden"
+                      disabled={isUploadingAttachment}
+                      onChange={(e) => handleUploadFiles(e.target.files, e)}
+                    />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-orange/40 bg-brand-orange/5 hover:bg-brand-orange/10 text-xs font-semibold text-brand-orange transition-colors cursor-pointer select-none">
+                      {isUploadingAttachment ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5" />
+                          Choose File
+                        </>
+                      )}
+                    </span>
+                  </label>
+                  {currentAttachments.length > 0 && (
+                    <div className="mt-1 space-y-1 max-h-28 overflow-y-auto pr-0.5">
+                      {currentAttachments.map((file, i) => (
+                        <div key={i} className="flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg border border-theme-border bg-theme-surface text-xs text-theme-muted">
+                          <span className="truncate max-w-[110px] font-medium text-theme-main">{file.name || `File ${i + 1}`}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAttachment(i)}
+                            className="shrink-0 text-theme-disabled hover:text-red-500 transition-colors cursor-pointer"
+                            title="Remove attachment"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {currentAttachments.length === 0 && (
+                    <p className="text-[11px] text-theme-disabled mt-0.5">PDF, DOC, PNG, JPG — max 5 MB</p>
+                  )}
+                </div>
               </div>
             </div>
 
