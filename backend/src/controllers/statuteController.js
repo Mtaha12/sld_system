@@ -3,7 +3,29 @@ import UserActivity from '../models/UserActivity.js';
 import { spoofStatute } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
-import { sanitizeBlocksAttachments } from '../utils/attachmentStorage.js';
+import { sanitizeBlocksAttachments as sanitizeBlocksAttachmentsStorage, sanitizeAttachments } from '../utils/attachmentStorage.js';
+
+/**
+ * Ensures sanitizeBlocksAttachments is safely defined in all execution environments
+ */
+const sanitizeBlocksAttachments = (blocks) => {
+  if (typeof sanitizeBlocksAttachmentsStorage === 'function') {
+    return sanitizeBlocksAttachmentsStorage(blocks);
+  }
+  if (!Array.isArray(blocks)) return [];
+  return blocks.map((b) => {
+    if (!b || typeof b !== 'object') return b;
+    const blockCopy = { ...b };
+    if (Array.isArray(blockCopy.attachments)) {
+      blockCopy.attachments = typeof sanitizeAttachments === 'function' ? sanitizeAttachments(blockCopy.attachments) : blockCopy.attachments;
+    }
+    if (blockCopy.attachment) {
+      const sanitized = typeof sanitizeAttachments === 'function' ? sanitizeAttachments([blockCopy.attachment]) : [blockCopy.attachment];
+      blockCopy.attachment = sanitized.length > 0 ? sanitized[0] : null;
+    }
+    return blockCopy;
+  });
+};
 
 /**
  * Format statute for frontend representation

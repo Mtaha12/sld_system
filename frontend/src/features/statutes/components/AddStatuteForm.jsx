@@ -205,7 +205,14 @@ const AddStatuteForm = () => {
     };
   }, [editData, urlEditId]);
 
-  const [autoNewSr, setAutoNewSr] = useState('');
+  const [autoNewSr, setAutoNewSr] = useState(() => {
+    const raw = editData?.srNumber || urlEditId;
+    if (raw) {
+      const parsed = parseInt(String(raw).replace(/\D+/g, ''), 10);
+      if (!isNaN(parsed) && parsed > 0) return String(parsed + 1);
+    }
+    return '';
+  });
   const [loadingStatute, setLoadingStatute] = useState(false);
   const [loadFeedback, setLoadFeedback] = useState(null);
   const isSaveAndNextRef = useRef(false);
@@ -295,6 +302,14 @@ const AddStatuteForm = () => {
           blocks: newBlocks
         });
 
+        const curSrNum = parseInt(String(data.srNumber || cleanSr).replace(/\D+/g, ''), 10);
+        if (!isNaN(curSrNum) && curSrNum > 0) {
+          setAutoNewSr(prev => {
+            const prevNum = parseInt(prev || '0', 10);
+            return (isNaN(prevNum) || prevNum <= curSrNum) ? String(curSrNum + 1) : prev;
+          });
+        }
+
         try {
           localStorage.setItem('sld_last_statute_meta', JSON.stringify({
             law: data.law || '',
@@ -375,13 +390,40 @@ const AddStatuteForm = () => {
         console.warn('Could not load dynamic sections for AddStatuteForm:', err);
       });
 
+    // Unconditionally fetch system's next auto-generated SR # so Auto New SR # is never stuck on 'Generating...'
+    statuteService.getNextSr()
+      .then(res => {
+        if (!isMounted) return;
+        if (res?.nextSr) {
+          const fetchedNext = String(res.nextSr);
+          setAutoNewSr(fetchedNext);
+          if (!isEdit && !editData?.srNumber && !urlEditId) {
+            if (!getValues('srNumber') || getValues('srNumber') === '1') {
+              setValue('srNumber', fetchedNext, { shouldValidate: true });
+            }
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('Could not auto-fetch next Statute SR #:', err);
+      });
+
     // Load record if opened via URL editId in a new tab
     if (urlEditId && !editData) {
       statuteService.getStatuteById(urlEditId)
         .then(rec => {
           if (isMounted && rec) {
             setCurrentRecordId(rec.mongoId || rec._id || rec.id);
-            if (rec.srNumber) setValue('srNumber', String(rec.srNumber));
+            if (rec.srNumber) {
+              setValue('srNumber', String(rec.srNumber));
+              const curSrNum = parseInt(String(rec.srNumber).replace(/\D+/g, ''), 10);
+              if (!isNaN(curSrNum) && curSrNum > 0) {
+                setAutoNewSr(prev => {
+                  const prevNum = parseInt(prev || '0', 10);
+                  return (isNaN(prevNum) || prevNum <= curSrNum) ? String(curSrNum + 1) : prev;
+                });
+              }
+            }
             if (rec.law) setValue('law', rec.law);
             if (rec.chapter) setValue('chapter', rec.chapter);
             if (rec.section) setValue('section', rec.section);
@@ -750,7 +792,11 @@ const AddStatuteForm = () => {
                   <input
                     type="text"
                     readOnly
-                    value={autoNewSr ? `SR #${autoNewSr}` : 'Generating...'}
+                    value={
+                      autoNewSr 
+                        ? `SR #${autoNewSr}` 
+                        : (watchedSr ? `SR #${(parseInt(String(watchedSr).replace(/\D+/g, ''), 10) || 0) + 1 || watchedSr}` : 'Generating...')
+                    }
                     className="w-full h-[38px] px-3 rounded-lg border border-theme-border/80 bg-theme-surface-alt/70 text-brand-orange font-mono font-bold text-xs select-all cursor-default focus:outline-none shadow-inner"
                     title="System Auto-Generated New Serial Number (Non-Editable)"
                   />
