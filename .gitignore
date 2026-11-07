@@ -5,6 +5,7 @@
 
 # Database backup files (transferred directly to VPS via SCP to avoid GitHub 100MB file limit)
 database_backup/
+data_transfer/
 *.tar
 *.archive
 
