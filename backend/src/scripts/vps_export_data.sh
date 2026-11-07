@@ -55,3 +55,4 @@ echo "   EXPORT COMPLETED SUCCESSFULLY!                         "
 echo "=========================================================="
 ls -lh "$BACKUP_DIR"/*"$TIMESTAMP"*
 echo ""
+

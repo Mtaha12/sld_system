@@ -66,3 +66,4 @@ echo "=========================================================="
 echo "Safety Backup: $SAFETY_BACKUP"
 pm2 status
 echo ""
+

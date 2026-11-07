@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -400,6 +401,9 @@ export const deleteOtherCaseLaw = async (req, res, next) => {
     item.isDeleted = true;
     item.deletedAt = new Date();
     await item.save();
+
+    await adjustSrOnDelete(OtherCaseLaw, item, { srField: 'srNumber', counterName: 'other_case_sr_seq' });
+
     oclDetailCache.clear();
     cachedTotalOclCount = 0;
     return res.status(200).json({ success: true, message: 'Record deleted.' });

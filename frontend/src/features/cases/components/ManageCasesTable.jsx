@@ -104,6 +104,7 @@ const ManageCasesTable = ({
   highlightedId,
   onExportSelection,
   isLoading = false,
+  onRefresh = null,
   serverPaginated = false,
   isMagazineSearch = false,
   searchMagazine = '',
@@ -405,32 +406,25 @@ const ManageCasesTable = ({
 
   const handleDeleteConfirm = async () => {
     if (!deleteModalCase) return;
-    
-    if (!deleteModalCase.isBulk) {
-      const requiredKey = (deleteModalCase.caseId || deleteModalCase.case_id || `CASE-${String(deleteModalCase.sldNumber).padStart(6, '0')}`).trim().toLowerCase();
-      const enteredInput = deleteConfirmationInput.trim().toLowerCase();
-
-      if (enteredInput !== requiredKey) {
-        setDeleteError('Invalid secret code. Please enter the correct secret code to confirm deletion.');
-        return;
-      }
-    }
 
     try {
       if (deleteModalCase.isBulk) {
         await caseService.deleteCases(selectedIds);
         setCases(prev => prev.filter(c => !selectedIds.includes(c.id)));
-        setToastMessage(`${deleteModalCase.count} cases deleted successfully.`);
+        setToastMessage(deleteModalCase.count + ' cases deleted successfully.');
         setSelectedIds([]);
       } else {
         await caseService.deleteCase(deleteModalCase.id);
+        const displayId = deleteModalCase.caseId || deleteModalCase.case_id || ('SLD #' + deleteModalCase.sldNumber);
+        setToastMessage('Case ' + displayId + ' deleted successfully.');
         setCases(prev => prev.filter(c => c.id !== deleteModalCase.id));
         setSelectedIds(prev => prev.filter(id => id !== deleteModalCase.id));
-        const displayId = deleteModalCase.caseId || deleteModalCase.case_id || `SLD #${deleteModalCase.sldNumber}`;
-        setToastMessage(`Case ${displayId} deleted successfully.`);
+      }
+      if (onRefresh) {
+        onRefresh();
       }
     } catch (err) {
-      setToastMessage(`Failed to delete records: ${err.message}`);
+      setToastMessage('Failed to delete records: ' + err.message);
     }
     
     setDeleteModalCase(null);

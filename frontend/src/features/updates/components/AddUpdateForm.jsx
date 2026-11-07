@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, AlertCircle, Link as LinkIcon } from 'lucide-react';
+import { X, Trash2, Globe, AlertCircle, Link as LinkIcon } from 'lucide-react';
 import Input from '../../../components/ui/Input';
 import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
@@ -28,6 +28,22 @@ const AddUpdateForm = ({
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteRecord = async () => {
+    const id = editData?.mongoId || editData?.id || editData?.updateId;
+    if (!id) return;
+    if (!window.confirm('Are you sure you want to permanently delete update SR #' + (editData?.srNumber || id) + '? Subsequent SR numbers will automatically adjust down.')) return;
+    setIsDeleting(true);
+    try {
+      await updateService.deleteUpdate(id);
+      if (onSuccess) onSuccess(null, 'Update deleted successfully. Sequential SR numbers auto-adjusted.');
+      if (onClose) onClose();
+    } catch (err) {
+      setServerError(err.message || 'Failed to delete record.');
+      setIsDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (editData) {
@@ -168,7 +184,21 @@ const AddUpdateForm = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-theme-border">
+        <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-theme-border">
+          {isEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDeleteRecord}
+              disabled={isSubmitting || isDeleting}
+              className="text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 h-[34px] px-3.5 text-xs font-medium"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1" />
+              Delete Record
+            </Button>
+          ) : <div />}
+          <div className="flex items-center gap-2">
           {onClose && (
             <Button
               type="button"
@@ -191,6 +221,7 @@ const AddUpdateForm = ({
           >
             {isSubmitting ? 'Saving...' : (isEdit ? 'Save Changes' : 'Add Record')}
           </Button>
+          </div>
         </div>
 
       </form>

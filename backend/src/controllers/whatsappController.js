@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
 import { saveBase64ToFile } from '../utils/attachmentStorage.js';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -347,7 +348,10 @@ export const deleteWhatsappUpdate = async (req, res, next) => {
     item.isDeleted = true;
     item.deletedAt = new Date();
     await item.save();
-    return res.status(200).json({ success: true, message: 'Whatsapp update deleted.' });
+
+    await adjustSrOnDelete(WhatsappUpdate, item, { srField: 'srNumber', counterName: 'whatsapp' });
+
+    return res.status(200).json({ success: true, message: 'Whatsapp update deleted and SR# auto-adjusted.' });
   } catch (error) {
     next(error);
   }

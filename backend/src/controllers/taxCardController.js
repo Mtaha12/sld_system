@@ -1,5 +1,6 @@
 import TaxCard from '../models/TaxCard.js';
 import mongoose from 'mongoose';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -156,7 +157,10 @@ export const deleteTaxCard = async (req, res, next) => {
     item.isDeleted = true;
     item.deletedAt = new Date();
     await item.save();
-    return res.status(200).json({ success: true, message: 'Tax Card record deleted.' });
+
+    await adjustSrOnDelete(TaxCard, item, { srField: 'srNumber', counterName: 'tax_card' });
+
+    return res.status(200).json({ success: true, message: 'Tax Card record deleted and SR# auto-adjusted.' });
   } catch (error) {
     next(error);
   }

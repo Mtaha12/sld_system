@@ -22,6 +22,8 @@ const ManageStatutesPage = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState(initialParamQuery);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const handleRefresh = () => setRefreshTrigger(prev => prev + 1);
 
   // Fetch statutes with server pagination
   useEffect(() => {
@@ -39,7 +41,7 @@ const ManageStatutesPage = () => {
       }
     });
     return () => { isMounted = false; };
-  }, [currentPage, searchQuery]);
+  }, [currentPage, searchQuery, refreshTrigger]);
 
   // Sync if URL query changes
   useEffect(() => {
@@ -150,6 +152,7 @@ const ManageStatutesPage = () => {
           }}
         />
         <ManageStatutesTable 
+          onRefresh={handleRefresh}
           statutes={statutes}
           setStatutes={setStatutes}
           currentPage={currentPage}

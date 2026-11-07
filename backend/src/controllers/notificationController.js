@@ -6,6 +6,7 @@ import UserActivity from '../models/UserActivity.js';
 import { spoofNotification } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 /**
  * Format notification for frontend representation
@@ -522,7 +523,8 @@ export const deleteNotification = async (req, res, next) => {
     n.deletedAt = new Date();
     await n.save();
 
-    logger.info(`[Notification Deleted] ID ${n.notificationId || n.srNumber} soft-deleted.`);
+    await adjustSrOnDelete(Notification, n, { srField: 'srNumber', intField: 'srNumberInt', isString: true, counterName: 'notification' });
+    logger.info(`[Notification Deleted] ID ${n.notificationId || n.srNumber} soft-deleted and SR# auto-adjusted.`);
 
     return res.status(200).json({
       success: true,

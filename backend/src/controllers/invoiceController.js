@@ -1,5 +1,6 @@
 import Invoice from '../models/Invoice.js';
 import mongoose from 'mongoose';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -159,6 +160,9 @@ export const deleteInvoice = async (req, res, next) => {
     invoice.isDeleted = true;
     invoice.deletedAt = new Date();
     await invoice.save();
+
+    await adjustSrOnDelete(Invoice, invoice, { srField: 'srNumber', counterName: 'invoice_sr_seq' });
+
     return res.status(200).json({ success: true, message: 'Invoice record deleted.' });
   } catch (error) {
     next(error);

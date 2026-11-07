@@ -5,9 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { 
   X, CheckCircle2, Scale, Plus, Upload, FileText,
   Search, Loader2, ChevronLeft, ChevronRight, Check,
-  ArrowLeft, Trash2, ExternalLink
+  ArrowLeft, Trash2, ExternalLink, AlertTriangle
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
+import Modal from '../../../components/ui/Modal';
 import Input from '../../../components/ui/Input';
 import DatePicker from '../../../components/ui/DatePicker';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
@@ -185,6 +186,26 @@ const AddCaseLawDetail = ({ onClose }) => {
   const [loadSldInput, setLoadSldInput] = useState('');
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
   const [loadingCase, setLoadingCase] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteRecord = async () => {
+    const targetId = currentCaseId || editData?.id || editData?._id || editData?.mongoId;
+    if (!targetId) return;
+    setIsDeleting(true);
+    try {
+      await caseService.deleteCase(targetId);
+      navigate('/manage-cases');
+    } catch (err) {
+      setLoadFeedback({
+        type: 'notFound',
+        message: err.message || 'Failed to delete case record.'
+      });
+      setShowDeleteModal(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   const [loadFeedback, setLoadFeedback] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -911,6 +932,18 @@ const AddCaseLawDetail = ({ onClose }) => {
             {editData?.sldNumber && <span className="text-brand-orange font-semibold">SLD #{editData.sldNumber}</span>}
           </div>
           <div className="flex items-center gap-2">
+            {isEdit && (
+              <button
+                type="button"
+                disabled={isSubmittingManual || isDeleting}
+                onClick={() => setShowDeleteModal(true)}
+                className="px-3 py-1.5 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900/40 border border-red-300 dark:border-red-800 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 mr-1"
+                title="Delete this case law record"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+            )}
             {/* Top Attachment Option (exact same height as action buttons py-1.5 text-xs font-bold rounded-lg) */}
             <div className="flex items-center gap-1.5">
               <label
@@ -1539,6 +1572,32 @@ const AddCaseLawDetail = ({ onClose }) => {
 
         </form>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete Case Law Record"
+        icon={AlertTriangle}
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-theme-muted">Are you sure you want to permanently delete this case record?</p>
+          <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-xl text-theme-main font-medium text-xs space-y-1">
+            <div><span className="text-theme-muted">Record:</span> <span className="font-bold text-brand-orange">SLD #{assignedSldNumber || editData?.sldNumber || currentCaseId}</span></div>
+            {editData?.court && <div><span className="text-theme-muted">Court:</span> {editData.court}</div>}
+            {editData?.caseTitle && <div><span className="text-theme-muted">Title:</span> {editData.caseTitle}</div>}
+          </div>
+          <p className="text-xs text-theme-muted">Subsequent SLD numbers will automatically adjust down so no SLD# is missing.</p>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" className="bg-red-600 hover:bg-red-700 text-white shadow-xs" disabled={isDeleting} onClick={handleDeleteRecord}>
+              <Trash2 className="w-3.5 h-3.5 mr-1" />
+              {isDeleting ? 'Deleting...' : 'Delete Case'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <FormFooter 
         formId="case-law-form"

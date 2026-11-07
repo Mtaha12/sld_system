@@ -4,6 +4,7 @@ import { spoofStatute } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 import { sanitizeBlocksAttachments as sanitizeBlocksAttachmentsStorage, sanitizeAttachments } from '../utils/attachmentStorage.js';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 /**
  * Ensures sanitizeBlocksAttachments is safely defined in all execution environments
@@ -605,11 +606,13 @@ export const deleteStatute = async (req, res, next) => {
     s.deletedAt = new Date();
     await s.save();
 
-    logger.info(`[Statute Deleted] ID ${s.statuteId || s.srNumber} soft-deleted.`);
+    await adjustSrOnDelete(Statute, s, { srField: 'srNumber', intField: 'srNumberInt', isString: true, counterName: 'statute' });
+
+    logger.info(`[Statute Deleted] ID ${s.statuteId || s.srNumber} soft-deleted and SR# auto-adjusted.`);
 
     return res.status(200).json({
       success: true,
-      message: `Statute record deleted successfully.`,
+      message: `Statute record deleted successfully and SR# auto-adjusted.`,
       id: s._id
     });
   } catch (error) {

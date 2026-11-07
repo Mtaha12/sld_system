@@ -1,6 +1,7 @@
 import News from '../models/News.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -259,11 +260,13 @@ export const deleteNews = async (req, res, next) => {
     newsItem.deletedAt = new Date();
     await newsItem.save();
 
-    logger.info(`[News] Soft-deleted news item ${newsItem.newsId}`);
+    await adjustSrOnDelete(News, newsItem, { srField: 'srNumber', counterName: 'news' });
+
+    logger.info(`[News] Soft-deleted news item ${newsItem.newsId} and auto-adjusted SR#`);
 
     return res.status(200).json({
       success: true,
-      message: 'News record deleted successfully.'
+      message: 'News record deleted successfully and SR# auto-adjusted.'
     });
   } catch (error) {
     next(error);

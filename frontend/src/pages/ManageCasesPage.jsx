@@ -475,6 +475,8 @@ const ManageCasesPage = () => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const handleRefresh = () => setRefreshTrigger(prev => prev + 1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
@@ -569,7 +571,7 @@ const ManageCasesPage = () => {
     return () => {
       abortCtrl.abort();
     };
-  }, [currentPage, debouncedFilters, sortConfig]);
+  }, [currentPage, debouncedFilters, sortConfig, refreshTrigger]);
 
   // Handle sort changes from the table
   const handleSort = useCallback((key) => {
@@ -982,6 +984,7 @@ const ManageCasesPage = () => {
 
       <div className="flex-1 w-full min-w-0 max-w-full">
         <ManageCasesTable 
+          onRefresh={handleRefresh}
           cases={cases}
           setCases={setCases}
           selectedIds={selectedIds}

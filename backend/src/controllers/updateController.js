@@ -1,5 +1,6 @@
 import WebsiteUpdate from '../models/WebsiteUpdate.js';
 import mongoose from 'mongoose';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -147,7 +148,10 @@ export const deleteUpdate = async (req, res, next) => {
     item.isDeleted = true;
     item.deletedAt = new Date();
     await item.save();
-    return res.status(200).json({ success: true, message: 'Update deleted.' });
+
+    await adjustSrOnDelete(WebsiteUpdate, item, { srField: 'srNumber', counterName: 'update' });
+
+    return res.status(200).json({ success: true, message: 'Update deleted and SR# auto-adjusted.' });
   } catch (error) {
     next(error);
   }

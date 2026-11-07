@@ -9,6 +9,8 @@ import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import FormFooter from '../../../components/ui/FormFooter';
+import Modal from '../../../components/ui/Modal';
+import Button from '../../../components/ui/Button';
 import SearchableLawSelect from './SearchableLawSelect';
 import SearchableSectionSelect from '../../../components/ui/SearchableSectionSelect';
 import { statuteSchema } from '../validation/statuteSchema';
@@ -145,6 +147,25 @@ const AddStatuteForm = () => {
   const editData = location.state?.statuteData;
   const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || urlEditId || null);
   const isEdit = Boolean(currentRecordId);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteRecord = async () => {
+    if (!currentRecordId) return;
+    setIsDeleting(true);
+    try {
+      await statuteService.deleteStatute(currentRecordId);
+      navigate('/manage-statutes');
+    } catch (err) {
+      setLoadFeedback({
+        type: 'notFound',
+        message: err.message || 'Failed to delete record.'
+      });
+      setShowDeleteModal(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [lawOptions, setLawOptions] = useState([]);
@@ -736,6 +757,18 @@ const AddStatuteForm = () => {
             {watchedSr && <span className="text-brand-orange font-semibold">SR #{watchedSr}</span>}
           </div>
           <div className="flex items-center gap-2">
+            {isEdit && (
+              <button
+                type="button"
+                disabled={isSubmitting || isDeleting}
+                onClick={() => setShowDeleteModal(true)}
+                className="px-3 py-1.5 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900/40 border border-red-300 dark:border-red-800 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 mr-1"
+                title="Delete this statute record"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+            )}
             <button
               type="button"
               disabled={isSubmitting}

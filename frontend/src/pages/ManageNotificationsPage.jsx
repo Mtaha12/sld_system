@@ -22,6 +22,8 @@ const ManageNotificationsPage = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState(initialParamQuery);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const handleRefresh = () => setRefreshTrigger(prev => prev + 1);
 
   // Fetch notifications with server pagination
   useEffect(() => {
@@ -39,7 +41,7 @@ const ManageNotificationsPage = () => {
       }
     });
     return () => { isMounted = false; };
-  }, [currentPage, searchQuery]);
+  }, [currentPage, searchQuery, refreshTrigger]);
 
   // Sync when search URL query changes
   useEffect(() => {
@@ -161,6 +163,7 @@ const ManageNotificationsPage = () => {
 
       <div className="flex-1">
         <ManageNotificationsTable 
+          onRefresh={handleRefresh}
           notifications={notifications}
           setNotifications={setNotifications}
           currentPage={currentPage}

@@ -2,13 +2,15 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
+import { X, CheckCircle2, Paperclip, ArrowLeft, AlertTriangle, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import FormSection from '../../../components/ui/FormSection';
 import FormField from '../../../components/ui/FormField';
 import FormFooter from '../../../components/ui/FormFooter';
+import Modal from '../../../components/ui/Modal';
+import Button from '../../../components/ui/Button';
 import SearchableSectionSelect from '../../../components/ui/SearchableSectionSelect';
 import SearchableCombobox from '../../../components/ui/SearchableCombobox';
 import { notificationSchema } from '../validation/notificationSchema';
@@ -211,6 +213,26 @@ const AddNotificationForm = () => {
   };
 
   const [currentRecordId, setCurrentRecordId] = useState(editData?.id || editData?._id || null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteRecord = async () => {
+    const targetId = currentRecordId || editData?.id || editData?._id || editData?.mongoId || urlEditId;
+    if (!targetId) return;
+    setIsDeleting(true);
+    try {
+      await notificationService.deleteNotification(targetId);
+      navigate('/manage-notifications');
+    } catch (err) {
+      setLoadFeedback({
+        type: 'notFound',
+        message: err.message || 'Failed to delete record.'
+      });
+      setShowDeleteModal(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   const [autoNewSr, setAutoNewSr] = useState('');
   const [loadingNotification, setLoadingNotification] = useState(false);
   const [loadFeedback, setLoadFeedback] = useState(null);
@@ -496,6 +518,18 @@ const AddNotificationForm = () => {
             {editData?.srNumber && <span className="text-brand-orange font-semibold">SR #{editData.srNumber}</span>}
           </div>
           <div className="flex items-center gap-2">
+            {(isEdit || currentRecordId) && (
+              <button
+                type="button"
+                disabled={isSubmitting || isDeleting}
+                onClick={() => setShowDeleteModal(true)}
+                className="px-3 py-1.5 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-900/40 border border-red-300 dark:border-red-800 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 mr-1"
+                title="Delete this notification record"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+            )}
             <button
               type="button"
               disabled={isSubmitting}

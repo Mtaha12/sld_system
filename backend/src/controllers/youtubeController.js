@@ -1,5 +1,6 @@
 import YoutubeUpdate from '../models/YoutubeUpdate.js';
 import mongoose from 'mongoose';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -153,7 +154,10 @@ export const deleteYoutubeUpdate = async (req, res, next) => {
     item.isDeleted = true;
     item.deletedAt = new Date();
     await item.save();
-    return res.status(200).json({ success: true, message: 'Youtube update deleted.' });
+
+    await adjustSrOnDelete(YoutubeUpdate, item, { srField: 'srNumber', counterName: 'youtube' });
+
+    return res.status(200).json({ success: true, message: 'Youtube update deleted and SR# auto-adjusted.' });
   } catch (error) {
     next(error);
   }

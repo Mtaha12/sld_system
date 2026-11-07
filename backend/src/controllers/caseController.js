@@ -6,6 +6,7 @@ import { spoofCase, spoofCaseList } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 import path from 'path';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 import { sanitizeAttachments as sanitizeAttachmentsStorage } from '../utils/attachmentStorage.js';
 
 const escapeRegex = (string) => {
@@ -1230,7 +1231,8 @@ export const deleteCase = async (req, res, next) => {
     searchResultsCache.clear();
     cachedTotalCasesCount = 0;
 
-    logger.info(`[Case Deleted] Case ID ${c.caseId || c.sldNumber} soft-deleted.`);
+    await adjustSrOnDelete(Case, c, { srField: 'sldNumber', intField: 'sldNumberInt', isString: true, counterName: 'case' });
+    logger.info(`[Case Deleted] Case ID ${c.caseId || c.sldNumber} soft-deleted and SLD# auto-adjusted.`);
 
     return res.status(200).json({
       success: true,

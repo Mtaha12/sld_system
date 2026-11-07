@@ -1,5 +1,6 @@
 import Dictionary from '../models/Dictionary.js';
 import mongoose from 'mongoose';
+import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -162,6 +163,9 @@ export const deleteDictionary = async (req, res, next) => {
     item.isDeleted = true;
     item.deletedAt = new Date();
     await item.save();
+
+    await adjustSrOnDelete(Dictionary, item, { srField: 'srNumber', counterName: 'dictionary_sr_seq' });
+
     return res.status(200).json({ success: true, message: 'Dictionary entry deleted.' });
   } catch (error) {
     next(error);

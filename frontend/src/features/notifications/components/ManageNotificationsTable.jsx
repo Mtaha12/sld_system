@@ -58,7 +58,8 @@ const ManageNotificationsTable = ({
   highlightedId,
   toastMessage: propToastMessage,
   setToastMessage: propSetToastMessage,
-  isLoading = false
+  isLoading = false,
+  onRefresh = null
 }) => {
   const navigate = useNavigate();
   const [internalNotifications, setInternalNotifications] = useState([]);
@@ -183,21 +184,17 @@ const ManageNotificationsTable = ({
   const handleDeleteConfirm = async () => {
     if (!deleteModalItem) return;
 
-    const requiredKey = (deleteModalItem.notificationId || deleteModalItem.notification_id || `NOTIF-${String(deleteModalItem.srNumber).padStart(6, '0')}`).trim().toLowerCase();
-    const enteredInput = deleteConfirmationInput.trim().toLowerCase();
-
-    if (enteredInput !== requiredKey) {
-      setDeleteError('Invalid secret code. Please enter the correct secret code to confirm deletion.');
-      return;
-    }
-
     try {
       await notificationService.deleteNotification(deleteModalItem.id);
-      setNotifications(prev => prev.filter(n => n.id !== deleteModalItem.id));
-      const displayId = deleteModalItem.notificationId || deleteModalItem.notification_id || `SR #${deleteModalItem.srNumber}`;
-      setToastMessage(`Notification ${displayId} deleted successfully.`);
+      const displayId = deleteModalItem.notificationId || deleteModalItem.notification_id || ('SR #' + deleteModalItem.srNumber);
+      setToastMessage('Notification ' + displayId + ' deleted successfully.');
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        setNotifications(prev => prev.filter(n => n.id !== deleteModalItem.id));
+      }
     } catch (err) {
-      setToastMessage(`Failed to delete record: ${err.message}`);
+      setToastMessage('Failed to delete record: ' + err.message);
     }
 
     setDeleteModalItem(null);
@@ -473,21 +470,14 @@ const ManageNotificationsTable = ({
               </div>
             )}
 
-            <div className="mb-5 space-y-2">
-              <label className="block text-xs font-semibold text-theme-main">
-                To perform this action enter secret code:
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmationInput}
-                onChange={(e) => {
-                  setDeleteConfirmationInput(e.target.value);
-                  if (deleteError) setDeleteError('');
-                }}
-                placeholder="Enter secret code"
-                className="w-full px-3 py-2 bg-theme-surface border border-theme-border rounded-xl text-sm text-theme-main placeholder:text-theme-disabled focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors font-mono"
-                autoFocus
-              />
+            <div className="mb-5 space-y-2 text-sm text-theme-muted">
+              <p>Are you sure you want to permanently delete this notification record?</p>
+              <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-xl text-theme-main font-medium text-xs space-y-1">
+                <div><span className="text-theme-muted">Record:</span> <span className="font-bold text-brand-orange">{deleteModalItem.notificationId || ('SR #' + deleteModalItem.srNumber)}</span></div>
+                {deleteModalItem.department && <div><span className="text-theme-muted">Department:</span> {deleteModalItem.department}</div>}
+                {deleteModalItem.heading && <div><span className="text-theme-muted">Heading:</span> {deleteModalItem.heading}</div>}
+              </div>
+              <p className="text-xs text-theme-muted">Subsequent SR numbers will automatically adjust down so no SR# is missing.</p>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-1">
@@ -505,8 +495,7 @@ const ManageNotificationsTable = ({
               <Button 
                 variant="primary" 
                 size="sm"
-                disabled={deleteConfirmationInput.trim().toLowerCase() !== (deleteModalItem.notificationId || deleteModalItem.notification_id || `NOTIF-${String(deleteModalItem.srNumber).padStart(6, '0')}`).toLowerCase()}
-                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                className="bg-red-600 hover:bg-red-700 text-white shadow-xs"
                 onClick={handleDeleteConfirm}
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete Record
