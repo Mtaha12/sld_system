@@ -143,5 +143,67 @@ export const uploadReferenceViewMiddleware = (req, res, next) => {
   });
 };
 
-export { UPLOAD_DIR, REFERENCE_UPLOAD_DIR };
+// ========================================================
+// Newsletter Attachments Upload Configuration
+// ========================================================
+const NEWSLETTER_BASE_UPLOAD_DIR = path.resolve(__dirname, '../../uploads/newsletters');
+if (!fs.existsSync(NEWSLETTER_BASE_UPLOAD_DIR)) {
+  fs.mkdirSync(NEWSLETTER_BASE_UPLOAD_DIR, { recursive: true });
+}
+
+const getNewsletterYearDir = () => {
+  const year = new Date().getFullYear();
+  const dir = path.join(NEWSLETTER_BASE_UPLOAD_DIR, String(year));
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+};
+
+const newsletterStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, getNewsletterYearDir());
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.pdf';
+    // Generate 8-9 digit random integer matching previous system (e.g. 149335790.pdf)
+    const randomDigits = Math.floor(10000000 + Math.random() * 900000000);
+    cb(null, `${randomDigits}${ext}`);
+  },
+});
+
+const newsletterUpload = multer({
+  storage: newsletterStorage,
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25 MB per file
+  },
+  fileFilter: (req, file, cb) => {
+    cb(null, true);
+  }
+});
+
+export const uploadNewsletterAttachmentMiddleware = (req, res, next) => {
+  const uploadFields = newsletterUpload.fields([
+    { name: 'file', maxCount: 1 },
+    { name: 'files', maxCount: 30 }
+  ]);
+
+  uploadFields(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more files exceed the maximum size limit of 25MB.',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Error occurred while uploading newsletter attachment.',
+      });
+    }
+    next();
+  });
+};
+
+export { UPLOAD_DIR, REFERENCE_UPLOAD_DIR, NEWSLETTER_BASE_UPLOAD_DIR };
 

@@ -183,32 +183,70 @@ const NewsletterViewPage = () => {
             )}
 
             {/* Document Attachment Box */}
-            {newsletter.attachment && (
-              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-stone-800">
-                <div className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-stone-700/80 bg-slate-50 dark:bg-stone-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-xl bg-brand-orange/10 text-brand-orange flex items-center justify-center border border-brand-orange/20 shrink-0 shadow-2xs">
-                      <FileText className="w-6 h-6" />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                        {newsletter.attachmentName || 'Official Document Attachment'}
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Certified file attachment • Click to view or download
-                      </p>
-                    </div>
-                  </div>
+            {((newsletter.attachments && newsletter.attachments.length > 0) || newsletter.attachment) && (
+              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-stone-800 space-y-4">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Attached Documents {newsletter.attachments?.length ? `(${newsletter.attachments.length})` : ''}
+                </h4>
+                {newsletter.attachments && newsletter.attachments.length > 0 ? (
+                  newsletter.attachments.map((att, i) => (
+                    <div key={i} className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-stone-700/80 bg-slate-50 dark:bg-stone-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-brand-orange/10 text-brand-orange flex items-center justify-center border border-brand-orange/20 shrink-0 shadow-2xs">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {att.name || att.url?.split('/').pop() || `Document ${i + 1}`}
+                          </h4>
+                          <a
+                            href={att.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all mt-0.5 block font-mono"
+                          >
+                            {att.url}
+                          </a>
+                        </div>
+                      </div>
 
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-2 whitespace-nowrap px-4 shrink-0 shadow-sm"
-                    onClick={handleDownloadAttachment}
-                  >
-                    <Download className="w-4 h-4" /> Download File
-                  </Button>
-                </div>
+                      <a
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={att.name || 'document'}
+                        className="px-4 py-2 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-lg text-xs flex items-center gap-2 font-medium transition-colors shadow-sm shrink-0 whitespace-nowrap"
+                      >
+                        <Download className="w-4 h-4" /> Download File
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-stone-700/80 bg-slate-50 dark:bg-stone-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-xl bg-brand-orange/10 text-brand-orange flex items-center justify-center border border-brand-orange/20 shrink-0 shadow-2xs">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                          {newsletter.attachmentName || 'Official Document Attachment'}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          Certified file attachment • Click to view or download
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-2 whitespace-nowrap px-4 shrink-0 shadow-sm"
+                      onClick={handleDownloadAttachment}
+                    >
+                      <Download className="w-4 h-4" /> Download File
+                    </Button>
+                  </div>
+                )}
 
                 {/* Inline PDF Preview */}
                 {isPdfAttachment && (

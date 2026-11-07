@@ -27,6 +27,22 @@ export const newsletterService = {
   deleteNewsletter: async (id) => {
     const res = await api.delete(`/api/newsletters/${id}`);
     return res.data;
+  },
+  uploadAttachment: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post('/api/newsletters/upload-attachment', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data?.data || res.data;
+  },
+  uploadAttachments: async (files) => {
+    const formData = new FormData();
+    files.forEach(f => formData.append('files', f));
+    const res = await api.post('/api/newsletters/upload-attachment', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data?.files || res.data?.data || res.data;
   }
 };
 

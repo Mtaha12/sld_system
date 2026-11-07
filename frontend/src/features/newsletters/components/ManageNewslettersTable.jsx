@@ -214,13 +214,13 @@ const ManageNewslettersTable = ({
                       </div>
                     </td>
                     <td className="px-4 py-2 text-center whitespace-nowrap">
-                      {item.attachment || item.attachmentName ? (
+                      {(item.attachments?.length > 0 || item.attachment || item.attachmentName) ? (
                         <button
                           type="button"
                           onClick={() => setViewModalItem(item)}
                           className="px-2 py-0.5 bg-[#f15a24] text-white text-[11px] font-medium rounded hover:bg-orange-600 transition-colors inline-flex items-center gap-1 cursor-pointer"
                         >
-                          <Paperclip className="w-3 h-3" /> File
+                          <Paperclip className="w-3 h-3" /> {item.attachments?.length > 1 ? `${item.attachments.length} Files` : 'File'}
                         </button>
                       ) : (
                         <span className="text-theme-muted text-[11px] italic">No file</span>
@@ -325,7 +325,30 @@ const ManageNewslettersTable = ({
             </div>
 
             {/* Optional Attachment Bar */}
-            {viewModalItem.attachmentName && (
+            {viewModalItem.attachments?.length > 0 ? (
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-theme-muted block">Attached Documents ({viewModalItem.attachments.length}):</span>
+                {viewModalItem.attachments.map((att, i) => (
+                  <div key={i} className="p-3 bg-gray-50 dark:bg-theme-surface-alt rounded-lg border border-theme-border flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Paperclip className="w-4 h-4 text-brand-orange shrink-0" />
+                      <span className="font-semibold text-xs text-theme-main truncate">{att.name || att.url}</span>
+                    </div>
+                    {att.url && (
+                      <a
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={att.name || 'document'}
+                        className="px-3 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1.5 font-medium transition-colors shadow-sm shrink-0"
+                      >
+                        <DownloadCloud className="w-3.5 h-3.5" /> View / Download
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : viewModalItem.attachmentName && (
               <div className="p-3 bg-gray-50 dark:bg-theme-surface-alt rounded-lg border border-theme-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Paperclip className="w-4 h-4 text-brand-orange" />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Trash2, Mail, AlertCircle, Paperclip, Share2, Check } from 'lucide-react';
+import { X, Trash2, Mail, AlertCircle, Paperclip, Share2, Check, Loader2, Copy } from 'lucide-react';
 import Input from '../../../components/ui/Input';
 import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
@@ -32,13 +32,14 @@ const AddNewsletterForm = ({
   const isEdit = Boolean(editData && (editData.id || editData.mongoId));
   const fileInputRef = useRef(null);
 
-  const [subject, setSubject] = useState('');
-  const [date, setDate] = useState(getTodayDateString());
-  const [category, setCategory] = useState('Updates');
-  const [message, setMessage] = useState('');
-  const [attachment, setAttachment] = useState('');
-  const [attachmentName, setAttachmentName] = useState('');
+  const [subject, setSubject] = useState(editData?.subject || 'CASE LAWS & NEWS Updates');
+  const [date, setDate] = useState(editData?.date || getTodayDateString());
+  const [category, setCategory] = useState(editData?.category || 'Updates');
+  const [message, setMessage] = useState(editData?.message || '');
+  const [attachments, setAttachments] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState(null);
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,40 +63,86 @@ const AddNewsletterForm = ({
 
   useEffect(() => {
     if (editData) {
-      setSubject(editData.subject || '');
+      setSubject(editData.subject || 'CASE LAWS & NEWS Updates');
       setDate(editData.date || getTodayDateString());
       setCategory(editData.category || 'Updates');
       setMessage(editData.message || '');
-      setAttachment(editData.attachment || '');
-      setAttachmentName(editData.attachmentName || '');
+      
+      let initialAtts = [];
+      if (Array.isArray(editData.attachments) && editData.attachments.length > 0) {
+        initialAtts = editData.attachments.map(a => typeof a === 'string' ? { url: a, name: a.split('/').pop() } : a);
+      } else if (editData.attachment) {
+        const urls = String(editData.attachment).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        initialAtts = urls.map(u => ({ url: u, name: u.split('/').pop() || 'Attachment' }));
+      }
+      setAttachments(initialAtts);
     } else {
-      setSubject('');
+      setSubject('CASE LAWS & NEWS Updates');
       setDate(getTodayDateString());
       setCategory('Updates');
       setMessage('');
-      setAttachment('');
-      setAttachmentName('');
+      setAttachments([]);
     }
     setErrors({});
     setServerError('');
   }, [editData]);
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = async (e) => {
+    const fileList = Array.from(e.target.files || []);
+    if (fileList.length === 0) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors(prev => ({ ...prev, attachment: 'File size exceeds 5MB limit.' }));
+    // Verify 5MB per file limit
+    const oversized = fileList.filter(f => f.size > 5 * 1024 * 1024);
+    if (oversized.length > 0) {
+      setErrors(prev => ({
+        ...prev,
+        attachment: `File "${oversized[0].name}" exceeds 5MB limit. Please upload files under 5MB each.`
+      }));
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    setAttachmentName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAttachment(reader.result);
-      setErrors(prev => ({ ...prev, attachment: null }));
-    };
-    reader.readAsDataURL(file);
+    setErrors(prev => ({ ...prev, attachment: null }));
+    setIsUploading(true);
+
+    try {
+      const newlyUploaded = [];
+      for (const file of fileList) {
+        const res = await newsletterService.uploadAttachment(file);
+        if (res) {
+          const item = res.data || res;
+          newlyUploaded.push({
+            url: item.url,
+            relativeUrl: item.relativeUrl,
+            name: item.name || file.name,
+            size: item.size
+          });
+        }
+      }
+
+      // CUMULATIVE: Append new files to existing attachments (never vanish previously attached files!)
+      setAttachments(prev => [...prev, ...newlyUploaded]);
+    } catch (err) {
+      console.error('Error uploading newsletter attachments:', err);
+      setErrors(prev => ({
+        ...prev,
+        attachment: err.response?.data?.message || err.message || 'Failed to upload attachments.'
+      }));
+    } finally {
+      setIsUploading(false);
+      // Reset input value so user can click Choose Files again anytime
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = (indexToRemove) => {
+    setAttachments(prev => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleCopyUrl = (url, idx) => {
+    navigator.clipboard.writeText(url);
+    setCopiedIndex(idx);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   const validate = () => {
@@ -119,8 +166,9 @@ const AddNewsletterForm = ({
         date: date.trim(),
         category: category.trim(),
         message: message || '',
-        attachment,
-        attachmentName
+        attachments,
+        attachment: attachments.map(a => a.url).join('\n'),
+        attachmentName: attachments.map(a => a.name || a.url.split('/').pop()).join(', ')
       };
 
       let result;
@@ -212,7 +260,7 @@ const AddNewsletterForm = ({
           {errors.subject && <span className="text-[11px] text-red-500">{errors.subject}</span>}
         </FormField>
 
-        {/* Row 2: Date *, Category * (NO status box) */}
+        {/* Row 2: Date *, Category * */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FormField label="Date" required>
             <Input
@@ -262,36 +310,77 @@ const AddNewsletterForm = ({
             type="file"
             ref={fileInputRef}
             onChange={handleFileChange}
+            multiple
             className="hidden"
+            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.rtf"
           />
           <div className="flex items-center gap-2">
             <button
               type="button"
+              disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 h-[34px] bg-[#00bcd4] hover:bg-[#00acc1] text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
+              className="px-3 h-[34px] bg-[#00bcd4] hover:bg-[#00acc1] text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60"
             >
-              <Paperclip className="w-3.5 h-3.5" />
-              Choose Files
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Uploading...</span>
+                </>
+              ) : (
+                <>
+                  <Paperclip className="w-3.5 h-3.5" />
+                  <span>Choose Files</span>
+                </>
+              )}
             </button>
-            <span className="text-xs text-theme-muted truncate max-w-[200px]">
-              {attachmentName || 'No file chosen'}
+            <span className="text-xs text-theme-muted">
+              {isUploading
+                ? 'Uploading attachments...'
+                : attachments.length === 0
+                ? 'No file chosen'
+                : `${attachments.length} file(s) attached`}
             </span>
-            {attachmentName && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAttachment('');
-                  setAttachmentName('');
-                  if (fileInputRef.current) fileInputRef.current.value = '';
-                }}
-                className="text-gray-400 hover:text-red-500 p-0.5"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
           </div>
-          <span className="text-[10px] text-red-500 block mt-1">Max allowed size is 5MB</span>
-          {errors.attachment && <span className="text-[11px] text-red-500">{errors.attachment}</span>}
+          <span className="text-[11px] text-red-500 block mt-1">Max allowed size is 5MB</span>
+          {errors.attachment && <span className="text-[11px] text-red-500 block mt-0.5">{errors.attachment}</span>}
+
+          {/* List of uploaded URLs displayed line-by-line as in previous system */}
+          {attachments.length > 0 && (
+            <div className="mt-2.5 p-2.5 bg-slate-50 dark:bg-theme-surface-alt/50 border border-theme-border rounded-lg space-y-1.5">
+              {attachments.map((att, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-2 group hover:bg-white dark:hover:bg-theme-surface p-1 rounded transition-colors text-xs">
+                  <a
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0275d8] hover:text-[#014c8c] hover:underline font-mono text-[12px] break-all leading-tight"
+                    title={`Click to open ${att.name || 'document'}`}
+                  >
+                    {att.url}
+                  </a>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyUrl(att.url, idx)}
+                      className="px-2 py-0.5 text-[11px] font-sans font-medium bg-white dark:bg-theme-surface border border-theme-border rounded text-slate-600 dark:text-slate-300 hover:text-brand-orange hover:border-brand-orange cursor-pointer shadow-2xs transition-colors flex items-center gap-1"
+                      title="Copy URL to clipboard for pasting in Message"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>{copiedIndex === idx ? 'Copied!' : 'Copy URL'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(idx)}
+                      className="text-gray-400 hover:text-red-500 p-1 cursor-pointer transition-colors"
+                      title="Remove attachment"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </FormField>
 
       </form>

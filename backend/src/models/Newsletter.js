@@ -50,6 +50,17 @@ const newsletterSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  attachments: {
+    type: [
+      {
+        url: { type: String, default: '' },
+        name: { type: String, default: '' },
+        size: { type: Number, default: 0 },
+        type: { type: String, default: '' }
+      }
+    ],
+    default: []
+  },
   isDeleted: {
     type: Boolean,
     default: false,
