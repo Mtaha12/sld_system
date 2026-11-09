@@ -299,6 +299,9 @@ const AddNotificationForm = () => {
       // Not found in database — keep SR and allow creating new record
       setCurrentRecordId(null);
       setValue('srNumber', cleanSr);
+      setValue('sroNumber', '');
+      setValue('subject', '');
+      setValue('number', '');
       // Reset blocks to fresh 1 block with no attachments from previous record
       setValue('blocks', [{ id: 'new-block-1', date: '', detail: '', attachments: [] }]);
       setLoadFeedback({
@@ -458,21 +461,43 @@ const AddNotificationForm = () => {
         const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
         setAutoNewSr(nextSr);
         setValue('srNumber', nextSr);
-        setCurrentRecordId(null);
-        // Clear attachments and reset to 1 fresh block
-        setValue('blocks', [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]);
-        setLoadFeedback({
-          type: 'success',
-          message: `Saved! Advanced to SR #${nextSr}. Ready for entry.`
-        });
+
+        if (targetId || isNavEdit) {
+          // IN EDIT MODE: Update + Next
+          if (urlEditId) {
+            navigate(`/manage-notifications/add?editId=${nextSr}`, { replace: true });
+          }
+          await loadNotificationBySr(nextSr);
+        } else {
+          // IN ADD NEW: Save + Next
+          // Show blank for the 3 blocks: SRO#, Subject, and Number as requested
+          setCurrentRecordId(null);
+          setValue('sroNumber', '');
+          setValue('subject', '');
+          setValue('number', '');
+          setValue('blocks', [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]);
+          setLoadFeedback({
+            type: 'success',
+            message: `Saved! Advanced to SR #${nextSr}. Ready for entry.`
+          });
+        }
       } else {
-        if (!targetId) {
+        if (!targetId && !isNavEdit) {
+          // IN ADD NEW: Save Record / Update Record
           const currentSrNum = parseInt(targetSr || '1', 10);
           const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
           setAutoNewSr(nextSr);
           setValue('srNumber', nextSr);
           setCurrentRecordId(null);
+          // Show blank for the 3 blocks: SRO#, Subject, and Number as requested
+          setValue('sroNumber', '');
+          setValue('subject', '');
+          setValue('number', '');
           setValue('blocks', [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]);
+          setLoadFeedback({
+            type: 'success',
+            message: `Saved! Advanced to SR #${nextSr}. Ready for entry.`
+          });
         }
       }
 

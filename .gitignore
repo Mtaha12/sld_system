@@ -12,6 +12,7 @@ data_transfer/
 # Large data delta files and scratch files
 backend/scratch/
 *.gz
+!backend/src/scripts/vps_judgments_delta.json.gz
 *.html
 *_files/
 logs/*.log
