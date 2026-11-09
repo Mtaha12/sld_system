@@ -1,0 +1,11 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Ensure shell scripts always use LF (so they run cleanly on Linux/VPS)
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Windows PowerShell scripts
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
