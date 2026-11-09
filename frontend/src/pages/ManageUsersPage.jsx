@@ -67,6 +67,10 @@ const ManageUsersPage = () => {
     displayNotification: 'Yes',
     displayCase: 'Yes',
     allowAllForms: 'No',
+    downloadLimitStatute: 25,
+    downloadLimitNotification: 25,
+    downloadLimitCaseLaw: 50,
+    sequentialDownloadBlockThreshold: 10,
   });
 
   // Feedback Toast
@@ -185,6 +189,10 @@ const ManageUsersPage = () => {
       displayNotification: u.displayNotification === false ? 'No' : 'Yes',
       displayCase: u.displayCase === false ? 'No' : 'Yes',
       allowAllForms: u.allowAllForms ? 'Yes' : 'No',
+      downloadLimitStatute: u.downloadLimitStatute || 25,
+      downloadLimitNotification: u.downloadLimitNotification || 25,
+      downloadLimitCaseLaw: u.downloadLimitCaseLaw || 50,
+      sequentialDownloadBlockThreshold: u.sequentialDownloadBlockThreshold || 10,
     });
     setModalError('');
     setIsModalOpen(true);
@@ -275,6 +283,10 @@ const ManageUsersPage = () => {
         displayNotification: modalForm.displayNotification === 'Yes',
         displayCase: modalForm.displayCase === 'Yes',
         allowAllForms: modalForm.allowAllForms === 'Yes',
+        downloadLimitStatute: Number(modalForm.downloadLimitStatute) || 25,
+        downloadLimitNotification: Number(modalForm.downloadLimitNotification) || 25,
+        downloadLimitCaseLaw: Number(modalForm.downloadLimitCaseLaw) || 50,
+        sequentialDownloadBlockThreshold: Number(modalForm.sequentialDownloadBlockThreshold) || 10,
       };
 
       if (editingUser) {
@@ -446,58 +458,64 @@ const ManageUsersPage = () => {
                     </td>
                   </tr>
                 ) : (
-                  users.map((u, idx) => (
-                    <tr 
-                      key={u._id || idx}
-                      className={`hover:bg-gray-50/70 dark:hover:bg-theme-surface-alt/30 transition-colors ${
-                        u.isSpammer ? 'bg-red-50/40 dark:bg-red-950/20' : ''
-                      }`}
-                    >
-                      <td className="py-2.5 px-3 text-center text-theme-muted font-medium border-r border-theme-border/60">
-                        {idx + 1}
-                      </td>
-                      <td className="py-2.5 px-3 font-bold text-theme-main border-r border-theme-border/60">
-                        {u.loginId || u.username}
-                      </td>
-                      <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
-                        <span className="font-mono text-xs font-bold text-brand-orange select-all tracking-wide">
-                          {u.plainPassword || '—'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-theme-main border-r border-theme-border/60">
-                        {u.fullName || u.name || '—'}
-                      </td>
-                      <td className="py-2.5 px-3 text-theme-muted border-r border-theme-border/60">
-                        {u.agencyName || 'Haroon'}
-                      </td>
-                      <td className="py-2.5 px-3 text-theme-muted border-r border-theme-border/60">
-                        {u.city || '—'}
-                      </td>
-                      <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                          {u.userType || 'Special'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
-                        <div className="flex flex-col items-center justify-center gap-0.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            String(u.status).toUpperCase() === 'ACTIVE'
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                              : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                          }`}>
-                            {u.status || 'Active'}
+                  users.map((u, idx) => {
+                    const isInactive = String(u.status).toUpperCase() === 'INACTIVE';
+                    return (
+                      <tr 
+                        key={u._id || idx}
+                        className={`transition-colors ${
+                          isInactive 
+                            ? 'bg-red-50/80 dark:bg-red-950/40 border-l-4 border-l-red-500 hover:bg-red-100/70 dark:hover:bg-red-900/40 text-red-900 dark:text-red-200' 
+                            : u.isSpammer 
+                            ? 'bg-red-50/40 dark:bg-red-950/20 hover:bg-gray-50/70' 
+                            : 'hover:bg-gray-50/70 dark:hover:bg-theme-surface-alt/30'
+                        }`}
+                      >
+                        <td className="py-2.5 px-3 text-center text-theme-muted font-bold border-r border-theme-border/60">
+                          {totalRecords ? (totalRecords - idx) : (users.length - idx)}
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-theme-main border-r border-theme-border/60">
+                          {u.loginId || u.username}
+                        </td>
+                        <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
+                          <span className="font-mono text-xs font-bold text-brand-orange select-all tracking-wide">
+                            {u.plainPassword || '—'}
                           </span>
-                          {u.alreadyLogin ? (
-                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5" title="User is currently logged in">
-                              ● Online
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-theme-main border-r border-theme-border/60">
+                          {u.fullName || u.name || '—'}
+                        </td>
+                        <td className="py-2.5 px-3 text-theme-muted border-r border-theme-border/60">
+                          {u.agencyName || 'Haroon'}
+                        </td>
+                        <td className="py-2.5 px-3 text-theme-muted border-r border-theme-border/60">
+                          {u.city || '—'}
+                        </td>
+                        <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                            {u.userType || 'Special'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
+                          <div className="flex flex-col items-center justify-center gap-0.5">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              isInactive
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-200 border border-red-300 dark:border-red-800'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            }`}>
+                              {u.status || 'Active'}
                             </span>
-                          ) : (
-                            <span className="text-[9px] text-gray-400 dark:text-gray-500" title="User is logged out / offline">
-                              ○ Offline
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                            {u.alreadyLogin ? (
+                              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5" title="User is currently logged in">
+                                ● Online
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-gray-400 dark:text-gray-500" title="User is logged out / offline">
+                                ○ Offline
+                              </span>
+                            )}
+                          </div>
+                        </td>
                       <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
                         <div className="flex flex-wrap items-center justify-center gap-1 text-[10px]">
                           <span 
@@ -579,7 +597,8 @@ const ManageUsersPage = () => {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -588,12 +607,12 @@ const ManageUsersPage = () => {
 
       </div>
 
-      {/* Add / Edit User Detail Modal (Matching Screenshot 3) */}
+      {/* Add / Edit User Detail Modal (Matching Screenshot 3 & 4) */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingUser ? "Edit User Detail" : "Add User Detail"}
-        maxWidth="max-w-4xl"
+        maxWidth="max-w-5xl"
       >
         <form onSubmit={handleModalSubmit} className="space-y-3.5 pt-1 text-xs">
           {modalError && (
@@ -886,6 +905,86 @@ const ManageUsersPage = () => {
                 <option value="No">No (Search & AI Only)</option>
                 <option value="Yes">Yes (Grant All Forms)</option>
               </select>
+            </div>
+          </div>
+
+          {/* Row 8: User Download Limits & Sequential Scraping Protection (Screenshot 4) */}
+          <div className="p-3.5 bg-gray-50 dark:bg-stone-900/60 border border-gray-200 dark:border-stone-700/80 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-theme-main uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-brand-orange" />
+                User Download Quota & Scraping Protection Limits
+              </span>
+              <span className="text-[10px] text-theme-muted font-medium">Daily & Sequential Rules</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-theme-main mb-1">
+                  Statute Download Limit <span className="text-brand-orange">*</span>
+                </label>
+                <select
+                  value={modalForm.downloadLimitStatute}
+                  onChange={(e) => setModalForm({ ...modalForm, downloadLimitStatute: Number(e.target.value) })}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main font-semibold focus:outline-none focus:border-brand-orange shadow-inner text-xs"
+                >
+                  <option value={25}>25 Downloads (Default)</option>
+                  <option value={50}>50 Downloads</option>
+                  <option value={100}>100 Downloads</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-theme-main mb-1">
+                  Notification Download Limit <span className="text-brand-orange">*</span>
+                </label>
+                <select
+                  value={modalForm.downloadLimitNotification}
+                  onChange={(e) => setModalForm({ ...modalForm, downloadLimitNotification: Number(e.target.value) })}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main font-semibold focus:outline-none focus:border-brand-orange shadow-inner text-xs"
+                >
+                  <option value={25}>25 Downloads (Default)</option>
+                  <option value={50}>50 Downloads</option>
+                  <option value={100}>100 Downloads</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-theme-main mb-1">
+                  Case Law Download Limit <span className="text-brand-orange">*</span>
+                </label>
+                <select
+                  value={modalForm.downloadLimitCaseLaw}
+                  onChange={(e) => setModalForm({ ...modalForm, downloadLimitCaseLaw: Number(e.target.value) })}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main font-semibold focus:outline-none focus:border-brand-orange shadow-inner text-xs"
+                >
+                  <option value={25}>25 Downloads</option>
+                  <option value={50}>50 Downloads (Default)</option>
+                  <option value={100}>100 Downloads</option>
+                  <option value={150}>150 Downloads</option>
+                  <option value={200}>200 Downloads</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Sequential Case Law Scraping Detection */}
+            <div className="pt-2 border-t border-gray-200 dark:border-stone-800">
+              <label className="block text-[11px] font-bold text-red-600 dark:text-red-400 mb-1">
+                Sequential Case Law Scraping Detection Threshold
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={2}
+                  max={50}
+                  value={modalForm.sequentialDownloadBlockThreshold}
+                  onChange={(e) => setModalForm({ ...modalForm, sequentialDownloadBlockThreshold: Number(e.target.value) })}
+                  className="w-28 px-3 py-1.5 bg-white dark:bg-theme-surface border border-theme-border rounded text-theme-main font-mono font-bold focus:outline-none focus:border-brand-orange shadow-inner text-xs"
+                />
+                <span className="text-[11px] text-theme-muted leading-tight">
+                  If user downloads case laws sequentially by serial number (e.g., <strong>2026 SLD 1, 2, 3...</strong>), automatically block user ID after <strong>{modalForm.sequentialDownloadBlockThreshold || 10}</strong> downloads by default.
+                </span>
+              </div>
             </div>
           </div>
 

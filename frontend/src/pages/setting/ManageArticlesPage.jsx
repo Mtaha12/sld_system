@@ -31,6 +31,8 @@ const ManageArticlesPage = () => {
     viewType: '',
     viewData: '',
     viewTitle: '',
+    attachments: [],
+    citations: [],
   });
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -85,6 +87,8 @@ const ManageArticlesPage = () => {
       viewType: '',
       viewData: '',
       viewTitle: '',
+      attachments: [],
+      citations: [],
     });
     setModalError('');
     setIsModalOpen(true);
@@ -99,6 +103,8 @@ const ManageArticlesPage = () => {
       viewType: item.viewType || '',
       viewData: item.viewData || '',
       viewTitle: item.viewTitle || '',
+      attachments: Array.isArray(item.attachments) ? item.attachments : (item.viewData ? [{ name: item.viewTitle || 'Attachment', url: item.viewData }] : []),
+      citations: Array.isArray(item.citations) ? item.citations : [],
     });
     setModalError('');
     setIsModalOpen(true);
@@ -350,6 +356,7 @@ const ManageArticlesPage = () => {
 
       {/* Add / Edit Article Modal */}
       <Modal
+        maxWidth="max-w-3xl"
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingArticle ? 'Edit Article' : 'Add New Article'}

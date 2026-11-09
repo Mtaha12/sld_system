@@ -16,6 +16,7 @@ const getTodayDateString = () => {
 
 const AddTaxCardForm = ({
   editData = null,
+  defaultCategory = '',
   onClose,
   onSuccess,
   className = ""
@@ -124,6 +125,7 @@ const AddTaxCardForm = ({
     try {
       const payload = {
         heading: heading.trim(),
+        category: (defaultCategory || editData?.category || '').trim(),
         date: date.trim(),
         year: parseInt(year, 10),
         attachment,

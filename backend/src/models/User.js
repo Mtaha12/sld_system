@@ -121,6 +121,42 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  downloadLimitStatute: {
+    type: Number,
+    enum: [25, 50, 100],
+    default: 25,
+  },
+  downloadLimitNotification: {
+    type: Number,
+    enum: [25, 50, 100],
+    default: 25,
+  },
+  downloadLimitCaseLaw: {
+    type: Number,
+    enum: [25, 50, 100, 150, 200],
+    default: 50,
+  },
+  sequentialDownloadBlockThreshold: {
+    type: Number,
+    default: 10,
+  },
+  sequentialDownloadCount: {
+    type: Number,
+    default: 0,
+  },
+  lastDownloadedCaseCitation: {
+    type: String,
+    default: '',
+  },
+  lastDownloadedCaseSr: { type: Number, default: 0 },
+  lastDownloadedCaseNumber: {
+    type: Number,
+    default: 0,
+  },
+  lastDownloadedCaseYear: {
+    type: Number,
+    default: 0,
+  },
   activeDate: {
     type: Date,
     default: Date.now,

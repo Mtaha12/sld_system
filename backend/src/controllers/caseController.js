@@ -2,6 +2,8 @@ import XLSX from 'xlsx';
 import Case from '../models/Case.js';
 import OtherCaseLaw from '../models/OtherCaseLaw.js';
 import UserActivity from '../models/UserActivity.js';
+import User from '../models/User.js';
+import { clearUserSessionCache } from '../middleware/authMiddleware.js';
 import { spoofCase, spoofCaseList } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
@@ -943,6 +945,54 @@ export const getCaseBySld = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+
+/**
+ * Detects sequential case law downloading by serial number (e.g. 2026 SLD 1, 2026 SLD 2, 2026 SLD 3...).
+ * Automatically blocks the user ID after the configured threshold (default 10).
+ */
+const enforceSequentialScrapingGuard = async (req, caseDoc) => {
+  if (!req?.user || req.user.role === 'Administrator') return { allowed: true };
+
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return { allowed: true };
+
+    if (String(user.status).toUpperCase() === 'INACTIVE') {
+      return { allowed: false, message: 'Account suspended. Please contact administrator.' };
+    }
+
+    const sldNum = parseInt(caseDoc?.sldNumber || caseDoc?.sldNumberInt || 0, 10);
+    if (sldNum > 0) {
+      const lastSr = user.lastDownloadedCaseSr || 0;
+      const threshold = user.sequentialDownloadBlockThreshold || 10;
+
+      if (lastSr > 0 && sldNum === lastSr + 1) {
+        user.sequentialDownloadCount = (user.sequentialDownloadCount || 1) + 1;
+        if (user.sequentialDownloadCount >= threshold) {
+          user.status = 'INACTIVE';
+          user.isSpammer = true;
+          await user.save();
+          clearUserSessionCache(user._id);
+          logger.warn(`[Anti-Scraping] Blocked user ${user.username} after ${user.sequentialDownloadCount} sequential case law downloads.`);
+          return {
+            allowed: false,
+            message: `Account blocked: Automated sequential case law downloading detected (${user.sequentialDownloadCount} consecutive downloads). Contact administration.`
+          };
+        }
+      } else {
+        user.sequentialDownloadCount = 1;
+      }
+
+      user.lastDownloadedCaseSr = sldNum;
+      await user.save();
+    }
+    return { allowed: true };
+  } catch (err) {
+    logger.error('Sequential guard check error:', err);
+    return { allowed: true };
   }
 };
 

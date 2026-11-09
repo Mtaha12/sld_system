@@ -6,6 +6,7 @@ import AddTaxCardForm from '../features/tax-cards/components/AddTaxCardForm';
 import ManageTaxCardsTable from '../features/tax-cards/components/ManageTaxCardsTable';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import { taxCardService } from '../features/tax-cards/services/taxCardService';
+import { downloadService } from '../features/downloads/services/downloadService';
 import { useUser } from '../contexts/UserContext';
 
 const ManageTaxCardsPage = () => {
@@ -53,7 +54,7 @@ const ManageTaxCardsPage = () => {
     if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return' || rawCat === 'tax returns') {
       return isAdmin ? 'Manage Tax Returns' : 'Tax Returns';
     }
-    return isAdmin ? 'Manage Tax Cards' : 'Finance Act & Tax Rates';
+    return isAdmin ? 'Manage Tax Cards' : 'Tax Cards';
   }, [rawCat, isAdmin]);
 
   const addBtnLabel = useMemo(() => {
@@ -67,13 +68,33 @@ const ManageTaxCardsPage = () => {
     setIsLoading(true);
     try {
       const data = await taxCardService.getTaxCards(query);
-      setTaxCards(data);
+      let mergedData = Array.isArray(data) ? [...data] : [];
+      if (rawCat === 'finance-act' || rawCat === 'finance act') {
+        try {
+          const downloadActs = await downloadService.getDownloads(query, 'Finance Act');
+          if (Array.isArray(downloadActs) && downloadActs.length > 0) {
+            const formatted = downloadActs.map(d => ({
+              ...d,
+              id: d.id || d.downloadId || d._id,
+              mongoId: d.mongoId || d._id,
+              taxCardId: d.downloadId || `FA-${d.srNumber}`,
+              category: 'finance-act',
+              year: d.year || (d.date ? parseInt(d.date.slice(0, 4), 10) : new Date().getFullYear())
+            }));
+            // Prepend downloads matching Finance Act
+            mergedData = [...formatted, ...mergedData];
+          }
+        } catch (e) {
+          console.warn('Could not load Finance Act downloads:', e);
+        }
+      }
+      setTaxCards(mergedData);
     } catch (err) {
       console.error('[ManageTaxCardsPage] Fetch error:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [rawCat]);
 
   useEffect(() => {
     fetchTaxCards(searchKeyword);
@@ -81,13 +102,14 @@ const ManageTaxCardsPage = () => {
 
   const displayedCards = useMemo(() => {
     if (!rawCat) return taxCards;
-    return taxCards.filter(item => {
+    const filtered = taxCards.filter(item => {
       const heading = (item.heading || '').toLowerCase();
       const cat = (item.category || '').toLowerCase();
 
       if (rawCat === 'finance-act' || rawCat === 'finance act') {
         return cat === 'finance-act' || cat === 'finance act' || 
           heading.includes('finance act') || heading.includes('finance bill') ||
+          heading.includes('finance') ||
           (!heading.includes('rate') && !heading.includes('return') && !heading.includes('card') && heading.includes('act'));
       }
       if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return') {
@@ -95,13 +117,20 @@ const ManageTaxCardsPage = () => {
       }
       if (rawCat === 'tax-rates' || rawCat === 'tax-rate' || rawCat === 'tax rates') {
         // Exclude finance acts and tax returns
-        if (heading.includes('finance act') || heading.includes('finance bill') || heading.includes('return')) {
+        if (heading.includes('finance act') || heading.includes('finance bill')) {
           return false;
         }
         return true;
       }
       return true;
     });
+
+    // If on finance-act and filtered list would be empty, fall back to taxCards so user does not see an empty 0-records page
+    if ((rawCat === 'finance-act' || rawCat === 'finance act') && filtered.length === 0 && taxCards.length > 0) {
+      return taxCards;
+    }
+
+    return filtered;
   }, [taxCards, rawCat]);
 
   const handleSearchSubmit = (e) => {

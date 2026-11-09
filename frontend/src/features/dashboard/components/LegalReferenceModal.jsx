@@ -11,11 +11,20 @@ const TAB_CONFIG = [
   { key: 'maxims', label: 'MAXIMS', count: 1124, icon: Scale },
 ];
 
+const ALPHABET = ['ALL', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+
+const cleanMaximTitle = (text) => {
+  if (!text) return '—';
+  const cleaned = text.replace(/\s*\([^)]*\)/g, '').trim();
+  return cleaned || text;
+};
+
 const PAGE_SIZE = 25;
 
 const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [search, setSearch]       = useState('');
+  const [selectedLetter, setSelectedLetter] = useState('ALL');
   const [page, setPage]           = useState(1);
   const [data, setData]           = useState([]);
   const [total, setTotal]         = useState(0);
@@ -27,10 +36,11 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
       setActiveTab(initialTab);
       setPage(1);
       setSearch('');
+      setSelectedLetter('ALL');
     }
   }, [initialTab, isOpen]);
 
-  const fetchData = useCallback(async (tabKey, pageNum, searchTerm) => {
+  const fetchData = useCallback(async (tabKey, pageNum, searchTerm, letterFilter) => {
     setLoading(true);
     setError(null);
     try {
@@ -50,7 +60,10 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
           res = await settingService.getLegalTerms(params);
           break;
         case 'maxims':
-          res = await settingService.getLegalMaxims(params);
+          res = await settingService.getLegalMaxims({
+            ...params,
+            letter: letterFilter && letterFilter !== 'ALL' ? letterFilter : undefined
+          });
           break;
         default:
           res = { data: [], total: 0 };
@@ -68,14 +81,15 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
   useEffect(() => {
     if (!isOpen) return;
     const timeout = setTimeout(() => {
-      fetchData(activeTab, page, search);
+      fetchData(activeTab, page, search, selectedLetter);
     }, 150);
     return () => clearTimeout(timeout);
-  }, [isOpen, activeTab, page, search, fetchData]);
+  }, [isOpen, activeTab, page, search, selectedLetter, fetchData]);
 
   const handleTabChange = (key) => {
     setActiveTab(key);
     setSearch('');
+    setSelectedLetter('ALL');
     setPage(1);
   };
 
@@ -189,6 +203,33 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
           </div>
         </div>
 
+        {/* ── Alphabet Index Filter Bar for Maxims ── */}
+        {activeTab === 'maxims' && (
+          <div className="px-5 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 flex flex-wrap items-center gap-1 shrink-0">
+            <span className="text-[11px] font-bold text-gray-500 uppercase mr-1">Alphabet:</span>
+            {ALPHABET.map((char) => {
+              const isSelected = selectedLetter === char;
+              return (
+                <button
+                  key={char}
+                  type="button"
+                  onClick={() => {
+                    setSelectedLetter(char);
+                    setPage(1);
+                  }}
+                  className={`px-2 py-0.5 text-xs font-bold rounded transition-colors cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#3d4a7a] text-white shadow-xs'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {char}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* ── Table Content Area ──────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
@@ -293,7 +334,9 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
                       {item.srNumber || (page - 1) * PAGE_SIZE + idx + 1}
                     </td>
                     <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100 leading-snug font-medium">
-                      {item.heading || item.name || '—'}
+                      {activeTab === 'maxims'
+                        ? cleanMaximTitle(item.heading || item.name)
+                        : (item.heading || item.name || '—')}
                     </td>
                     {activeTab === 'maxims' && (
                       <td className="px-4 py-2.5 text-gray-600 dark:text-gray-300 leading-snug">

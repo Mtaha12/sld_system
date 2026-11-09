@@ -63,7 +63,7 @@ const TOP_NAV_ITEMS = [
 
 // User Portal Navigation Items (matching screenshot with speedometer gauge icons)
 const USER_MENU_ITEMS = [
-  { label: 'Updated Laws', path: '/updates', icon: Gauge },
+  { label: 'Updates', path: '/updates', icon: Gauge },
   { label: 'Dictionary', path: '/manage-dictionary', icon: Gauge },
   { label: 'News', path: '/news', icon: Gauge },
   { label: 'Finance Act', path: '/manage-tax-cards?category=finance-act', icon: Gauge },

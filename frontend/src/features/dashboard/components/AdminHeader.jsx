@@ -201,7 +201,7 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
     }
   };
 
-  // Header content logic - enforce strictly "Manage Notifications" on manage notifications pages, and "Custom Tariffs" for client portal
+  // Header content logic - enforce clean user-facing titles (removing "Manage" for clients)
   const getHeaderContent = () => {
     if (location.pathname.startsWith('/manage-notifications')) {
       return {
@@ -213,6 +213,38 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
       return {
         title: isAdmin ? 'Manage Custom Tariffs' : 'Custom Tariffs',
         subtitle: 'Maintain custom duty rates, PCT codes and annual tariff schedules'
+      };
+    }
+    if (location.pathname.startsWith('/manage-dictionary') || location.pathname === '/dictionary') {
+      return {
+        title: isAdmin ? 'Manage Dictionary' : 'Dictionary',
+        subtitle: 'Legal glossary terms, definitions and word meanings'
+      };
+    }
+    if (location.pathname.startsWith('/manage-tax-cards') || location.pathname === '/tax-cards') {
+      const searchParams = new URLSearchParams(location.search);
+      const cat = (searchParams.get('category') || '').toLowerCase();
+      if (cat === 'finance-act' || cat === 'finance act') {
+        return {
+          title: isAdmin ? 'Manage Finance Act' : 'Finance Act',
+          subtitle: 'View and search official Finance Act records and annual schedules'
+        };
+      }
+      if (cat === 'tax-rates' || cat === 'tax rates') {
+        return {
+          title: isAdmin ? 'Manage Tax Rates' : 'Tax Rates',
+          subtitle: 'View and search official tax cards and annual schedules'
+        };
+      }
+      return {
+        title: isAdmin ? 'Manage Tax Cards' : 'Tax Cards',
+        subtitle: 'View and search official tax cards and annual schedules'
+      };
+    }
+    if (location.pathname.startsWith('/updates') || location.pathname.startsWith('/manage-updates')) {
+      return {
+        title: isAdmin ? 'Manage Updates' : 'Updates',
+        subtitle: 'Stay updated with the latest legal notifications and statute amendments'
       };
     }
     return PAGE_HEADERS[location.pathname] || {

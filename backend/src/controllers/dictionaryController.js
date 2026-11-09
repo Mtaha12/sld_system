@@ -48,7 +48,17 @@ export const getDictionary = async (req, res, next) => {
     const total = await Dictionary.countDocuments(filter);
     const totalPages = Math.ceil(total / safeLimit) || 1;
 
-    let dbQuery = Dictionary.find(filter).sort({ words: 1 });
+    let maxSrNumber = 41427;
+    try {
+      const maxDoc = await Dictionary.findOne().sort({ srNumber: -1 }).select('srNumber').lean();
+      if (maxDoc?.srNumber) {
+        maxSrNumber = Math.max(maxDoc.srNumber, 41427);
+      }
+    } catch {
+      maxSrNumber = 41427;
+    }
+
+    let dbQuery = Dictionary.find(filter).sort({ srNumber: 1, words: 1 });
 
     if (!isAll) {
       dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);
@@ -62,6 +72,8 @@ export const getDictionary = async (req, res, next) => {
       message: 'Dictionary terms retrieved successfully.',
       count: data.length,
       total,
+      maxSrNumber,
+      dashboardTotal: maxSrNumber,
       totalPages,
       currentPage: safePage,
       data

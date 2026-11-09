@@ -30,6 +30,8 @@ const ManageTopicsPage = () => {
     viewType: '',
     viewData: '',
     viewTitle: '',
+    attachments: [],
+    citations: [],
   });
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +84,8 @@ const ManageTopicsPage = () => {
       viewType: '',
       viewData: '',
       viewTitle: '',
+      attachments: [],
+      citations: [],
     });
     setModalError('');
     setIsModalOpen(true);
@@ -94,6 +98,8 @@ const ManageTopicsPage = () => {
       viewType: item.viewType || '',
       viewData: item.viewData || '',
       viewTitle: item.viewTitle || '',
+      attachments: Array.isArray(item.attachments) ? item.attachments : (item.viewData ? [{ name: item.viewTitle || 'Attachment', url: item.viewData }] : []),
+      citations: Array.isArray(item.citations) ? item.citations : [],
     });
     setModalError('');
     setIsModalOpen(true);
@@ -124,6 +130,8 @@ const ManageTopicsPage = () => {
               viewType: nextItem.viewType || '',
               viewData: nextItem.viewData || '',
               viewTitle: nextItem.viewTitle || '',
+              attachments: Array.isArray(nextItem.attachments) ? nextItem.attachments : (nextItem.viewData ? [{ name: nextItem.viewTitle || 'Attachment', url: nextItem.viewData }] : []),
+              citations: Array.isArray(nextItem.citations) ? nextItem.citations : [],
             });
             showToast('success', `Updated! Moved to next: "${nextItem.heading}"`);
           } else {
@@ -142,6 +150,8 @@ const ManageTopicsPage = () => {
             viewType: '',
             viewData: '',
             viewTitle: '',
+            attachments: [],
+            citations: [],
           });
           setEditingTopic(null);
           showToast('success', 'Topic saved! Ready for next entry.');
@@ -331,6 +341,7 @@ const ManageTopicsPage = () => {
 
       {/* Add / Edit Topic Modal */}
       <Modal
+        maxWidth="max-w-3xl"
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingTopic ? 'Edit Topic' : 'Add New Topic'}
@@ -359,11 +370,7 @@ const ManageTopicsPage = () => {
 
           {/* View / Attachment / Link / Text Section */}
           <ReferenceViewFormSection
-            value={{
-              viewType: modalForm.viewType,
-              viewData: modalForm.viewData,
-              viewTitle: modalForm.viewTitle,
-            }}
+            value={modalForm}
             onChange={(val) => setModalForm(prev => ({ ...prev, ...val }))}
           />
 

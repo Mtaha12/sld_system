@@ -43,6 +43,20 @@ const articleSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    attachments: [
+      {
+        name: { type: String, default: '' },
+        url: { type: String, default: '' },
+        size: { type: Number, default: 0 }
+      }
+    ],
+    citations: [
+      {
+        yearVol: { type: String, default: '' },
+        mag: { type: String, default: '' },
+        page: { type: String, default: '' }
+      }
+    ],
   },
   {
     timestamps: true,

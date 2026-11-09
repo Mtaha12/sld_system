@@ -199,10 +199,11 @@ const FeaturedSection = () => {
                     link: `/dictionary/view/${docId}`
                   };
                 });
+                const dictCount = dictRes.value?.dashboardTotal || dictRes.value?.maxSrNumber || 41427;
                 return {
                   ...card,
                   link: latest5[0]?.link || card.link,
-                  count: (dictRes.value?.total ?? rawDict.length).toLocaleString(),
+                  count: dictCount.toLocaleString(),
                   items: latest5
                 };
               }

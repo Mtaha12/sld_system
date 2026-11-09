@@ -788,15 +788,27 @@ export const swapLawOrdering = async (req, res, next) => {
 
 export const getLegalMaxims = async (req, res, next) => {
   try {
-    const { search = '', status = '', page, limit, all } = req.query;
+    const { search = '', status = '', letter = '', page, limit, all } = req.query;
 
     const filter = {};
+    if (letter && letter.trim() && letter.trim().toUpperCase() !== 'ALL') {
+      filter.name = new RegExp(`^${escapeRegex(letter.trim())}`, 'i');
+    }
+
     if (search.trim()) {
       const sRegex = new RegExp(escapeRegex(search.trim()), 'i');
-      filter.$or = [
-        { name: sRegex },
-        { meaning: sRegex }
-      ];
+      if (filter.name) {
+        filter.$and = [
+          { name: filter.name },
+          { $or: [{ name: sRegex }, { meaning: sRegex }] }
+        ];
+        delete filter.name;
+      } else {
+        filter.$or = [
+          { name: sRegex },
+          { meaning: sRegex }
+        ];
+      }
     }
     if (status.trim() && status !== 'All' && status !== 'all') {
       filter.status = status.trim().toLowerCase();
@@ -830,7 +842,7 @@ export const getLegalMaxims = async (req, res, next) => {
 
 export const createLegalMaxim = async (req, res, next) => {
   try {
-    const { name, meaning = '', status, viewType = '', viewData = '', viewTitle = '' } = req.body;
+    const { name, meaning = '', status, viewType = '', viewData = '', viewTitle = '', attachments = [], citations = [] } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Legal Maxim name is required.' });
@@ -848,6 +860,8 @@ export const createLegalMaxim = async (req, res, next) => {
       viewType: viewType || '',
       viewData: viewData ? String(viewData).trim() : '',
       viewTitle: viewTitle ? String(viewTitle).trim() : '',
+      attachments: Array.isArray(attachments) ? attachments : [],
+      citations: Array.isArray(citations) ? citations : [],
     });
 
     return res.status(201).json({
@@ -863,7 +877,7 @@ export const createLegalMaxim = async (req, res, next) => {
 export const updateLegalMaxim = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, meaning, status, viewType, viewData, viewTitle } = req.body;
+    const { name, meaning, status, viewType, viewData, viewTitle, attachments, citations } = req.body;
 
     const maxim = await LegalMaxim.findById(id);
     if (!maxim) {
@@ -897,6 +911,12 @@ export const updateLegalMaxim = async (req, res, next) => {
     }
     if (viewTitle !== undefined) {
       maxim.viewTitle = String(viewTitle).trim();
+    }
+    if (attachments !== undefined) {
+      maxim.attachments = Array.isArray(attachments) ? attachments : [];
+    }
+    if (citations !== undefined) {
+      maxim.citations = Array.isArray(citations) ? citations : [];
     }
 
     await maxim.save();
@@ -1192,7 +1212,7 @@ export const getArticles = async (req, res, next) => {
 
 export const createArticle = async (req, res, next) => {
   try {
-    const { title, year = '', author = '', status = 'active', viewType = '', viewData = '', viewTitle = '' } = req.body;
+    const { title, year = '', author = '', status = 'active', viewType = '', viewData = '', viewTitle = '', attachments = [], citations = [] } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, message: 'Article title is required.' });
     }
@@ -1207,6 +1227,8 @@ export const createArticle = async (req, res, next) => {
       viewType: viewType || '',
       viewData: viewData ? String(viewData).trim() : '',
       viewTitle: viewTitle ? String(viewTitle).trim() : '',
+      attachments: Array.isArray(attachments) ? attachments : [],
+      citations: Array.isArray(citations) ? citations : [],
     });
     return res.status(201).json({ success: true, message: 'Article created successfully', data: article });
   } catch (err) {
@@ -1217,7 +1239,7 @@ export const createArticle = async (req, res, next) => {
 export const updateArticle = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { title, year, author, status, viewType, viewData, viewTitle } = req.body;
+    const { title, year, author, status, viewType, viewData, viewTitle, attachments, citations } = req.body;
     const article = await Article.findById(id);
     if (!article) return res.status(404).json({ success: false, message: 'Article not found.' });
     if (title !== undefined) article.title = title.trim();
@@ -1227,6 +1249,8 @@ export const updateArticle = async (req, res, next) => {
     if (viewType !== undefined) article.viewType = viewType;
     if (viewData !== undefined) article.viewData = String(viewData).trim();
     if (viewTitle !== undefined) article.viewTitle = String(viewTitle).trim();
+    if (attachments !== undefined) article.attachments = Array.isArray(attachments) ? attachments : [];
+    if (citations !== undefined) article.citations = Array.isArray(citations) ? citations : [];
     await article.save();
     return res.status(200).json({ success: true, message: 'Article updated successfully', data: article });
   } catch (err) {
@@ -1276,7 +1300,7 @@ export const getTopics = async (req, res, next) => {
 
 export const createTopic = async (req, res, next) => {
   try {
-    const { heading, status = 'active', viewType = '', viewData = '', viewTitle = '' } = req.body;
+    const { heading, status = 'active', viewType = '', viewData = '', viewTitle = '', attachments = [], citations = [] } = req.body;
     if (!heading || !heading.trim()) {
       return res.status(400).json({ success: false, message: 'Topic heading is required.' });
     }
@@ -1289,6 +1313,8 @@ export const createTopic = async (req, res, next) => {
       viewType: viewType || '',
       viewData: viewData ? String(viewData).trim() : '',
       viewTitle: viewTitle ? String(viewTitle).trim() : '',
+      attachments: Array.isArray(attachments) ? attachments : [],
+      citations: Array.isArray(citations) ? citations : [],
     });
     return res.status(201).json({ success: true, message: 'Topic created successfully', data: topic });
   } catch (err) {
@@ -1299,7 +1325,7 @@ export const createTopic = async (req, res, next) => {
 export const updateTopic = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { heading, status, viewType, viewData, viewTitle } = req.body;
+    const { heading, status, viewType, viewData, viewTitle, attachments, citations } = req.body;
     const topic = await Topic.findById(id);
     if (!topic) return res.status(404).json({ success: false, message: 'Topic not found.' });
     if (heading !== undefined) topic.heading = heading.trim();
@@ -1307,6 +1333,8 @@ export const updateTopic = async (req, res, next) => {
     if (viewType !== undefined) topic.viewType = viewType;
     if (viewData !== undefined) topic.viewData = String(viewData).trim();
     if (viewTitle !== undefined) topic.viewTitle = String(viewTitle).trim();
+    if (attachments !== undefined) topic.attachments = Array.isArray(attachments) ? attachments : [];
+    if (citations !== undefined) topic.citations = Array.isArray(citations) ? citations : [];
     await topic.save();
     return res.status(200).json({ success: true, message: 'Topic updated successfully', data: topic });
   } catch (err) {
@@ -1356,7 +1384,7 @@ export const getWordsPhrases = async (req, res, next) => {
 
 export const createWordPhrase = async (req, res, next) => {
   try {
-    const { heading, status = 'active', viewType = '', viewData = '', viewTitle = '' } = req.body;
+    const { heading, status = 'active', viewType = '', viewData = '', viewTitle = '', attachments = [], citations = [] } = req.body;
     if (!heading || !heading.trim()) {
       return res.status(400).json({ success: false, message: 'Word/phrase heading is required.' });
     }
@@ -1369,6 +1397,8 @@ export const createWordPhrase = async (req, res, next) => {
       viewType: viewType || '',
       viewData: viewData ? String(viewData).trim() : '',
       viewTitle: viewTitle ? String(viewTitle).trim() : '',
+      attachments: Array.isArray(attachments) ? attachments : [],
+      citations: Array.isArray(citations) ? citations : [],
     });
     return res.status(201).json({ success: true, message: 'Word/phrase created successfully', data: wp });
   } catch (err) {
@@ -1379,7 +1409,7 @@ export const createWordPhrase = async (req, res, next) => {
 export const updateWordPhrase = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { heading, status, viewType, viewData, viewTitle } = req.body;
+    const { heading, status, viewType, viewData, viewTitle, attachments, citations } = req.body;
     const wp = await WordPhrase.findById(id);
     if (!wp) return res.status(404).json({ success: false, message: 'Word/phrase not found.' });
     if (heading !== undefined) wp.heading = heading.trim();
@@ -1387,6 +1417,8 @@ export const updateWordPhrase = async (req, res, next) => {
     if (viewType !== undefined) wp.viewType = viewType;
     if (viewData !== undefined) wp.viewData = String(viewData).trim();
     if (viewTitle !== undefined) wp.viewTitle = String(viewTitle).trim();
+    if (attachments !== undefined) wp.attachments = Array.isArray(attachments) ? attachments : [];
+    if (citations !== undefined) wp.citations = Array.isArray(citations) ? citations : [];
     await wp.save();
     return res.status(200).json({ success: true, message: 'Word/phrase updated successfully', data: wp });
   } catch (err) {
@@ -1436,7 +1468,7 @@ export const getLegalTerms = async (req, res, next) => {
 
 export const createLegalTerm = async (req, res, next) => {
   try {
-    const { heading, status = 'active', viewType = '', viewData = '', viewTitle = '' } = req.body;
+    const { heading, status = 'active', viewType = '', viewData = '', viewTitle = '', attachments = [], citations = [] } = req.body;
     if (!heading || !heading.trim()) {
       return res.status(400).json({ success: false, message: 'Legal term is required.' });
     }
@@ -1449,6 +1481,8 @@ export const createLegalTerm = async (req, res, next) => {
       viewType: viewType || '',
       viewData: viewData ? String(viewData).trim() : '',
       viewTitle: viewTitle ? String(viewTitle).trim() : '',
+      attachments: Array.isArray(attachments) ? attachments : [],
+      citations: Array.isArray(citations) ? citations : [],
     });
     return res.status(201).json({ success: true, message: 'Legal term created successfully', data: lt });
   } catch (err) {
@@ -1459,7 +1493,7 @@ export const createLegalTerm = async (req, res, next) => {
 export const updateLegalTerm = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { heading, status, viewType, viewData, viewTitle } = req.body;
+    const { heading, status, viewType, viewData, viewTitle, attachments, citations } = req.body;
     const lt = await LegalTerm.findById(id);
     if (!lt) return res.status(404).json({ success: false, message: 'Legal term not found.' });
     if (heading !== undefined) lt.heading = heading.trim();
@@ -1467,6 +1501,8 @@ export const updateLegalTerm = async (req, res, next) => {
     if (viewType !== undefined) lt.viewType = viewType;
     if (viewData !== undefined) lt.viewData = String(viewData).trim();
     if (viewTitle !== undefined) lt.viewTitle = String(viewTitle).trim();
+    if (attachments !== undefined) lt.attachments = Array.isArray(attachments) ? attachments : [];
+    if (citations !== undefined) lt.citations = Array.isArray(citations) ? citations : [];
     await lt.save();
     return res.status(200).json({ success: true, message: 'Legal term updated successfully', data: lt });
   } catch (err) {

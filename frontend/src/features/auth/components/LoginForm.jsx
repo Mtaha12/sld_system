@@ -17,6 +17,7 @@ const LoginForm = () => {
   const {
     register,
     handleSubmit,
+    watch,
     setError,
     clearErrors,
     formState: { errors, isSubmitting },
@@ -24,6 +25,7 @@ const LoginForm = () => {
     resolver: zodResolver(loginSchema),
   })
 
+  const identifierValue = watch('identifier') || '';
   const [statusInfo, setStatusInfo] = useState(null);
 
   const onSubmit = async (data) => {
@@ -105,7 +107,14 @@ const LoginForm = () => {
           icon={User}
           variant="dark"
           error={errors.identifier}
-          {...register('identifier')}
+          {...register('identifier', {
+            onChange: (e) => {
+              const val = e.target.value?.trim();
+              if (val) {
+                try { sessionStorage.setItem('last_login_email', val); } catch (e) {}
+              }
+            }
+          })}
         />
 
         <Input
@@ -118,7 +127,16 @@ const LoginForm = () => {
         />
 
         <div className="flex justify-end w-full">
-          <Link to="/forgot-password" className="text-xs font-semibold text-brand-orange hover:text-brand-orange-hover transition-colors">
+          <Link 
+            to="/forgot-password" 
+            state={{ email: identifierValue }}
+            onClick={() => {
+              if (identifierValue?.trim()) {
+                try { sessionStorage.setItem('last_login_email', identifierValue.trim()); } catch (e) {}
+              }
+            }}
+            className="text-xs font-semibold text-brand-orange hover:text-brand-orange-hover transition-colors"
+          >
             Forgot Password?
           </Link>
         </div>

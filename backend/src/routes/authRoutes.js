@@ -5,6 +5,7 @@ import {
   googleLogin, googleSignup, getMe, updateProfile, 
   updateAvatar, removeAvatar, refreshToken,
   changeCurrentUserPassword,
+  lookupEmail,
   logout
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
@@ -13,6 +14,8 @@ import { authLimiter } from '../middleware/rateLimiter.js';
 const router = express.Router();
 
 // Public routes (Rate limited to avoid brute-forcing)
+router.get('/lookup-email', lookupEmail);
+router.post('/lookup-email', lookupEmail);
 router.post('/signup', authLimiter, register);
 router.post('/verify-email', authLimiter, verifyEmail);
 router.post('/resend-code', authLimiter, resendVerificationCode);

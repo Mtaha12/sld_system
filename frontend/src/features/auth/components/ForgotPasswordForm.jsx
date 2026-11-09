@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link } from 'react-router-dom'
-import { Mail, Lock, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { Mail, Lock, ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react'
 import Input from '../../../components/ui/Input'
 import Button from '../../../components/ui/Button'
 import logo from '../../../assets/branding/logo/SLD_Logo.png'
@@ -10,9 +10,51 @@ import { forgotPasswordSchema, resetPasswordSchema } from '../validation/authSch
 import { authService } from '../services/authService'
 import { useCountdown } from '../../../hooks/useCountdown'
 
+export const maskEmail = (rawEmail) => {
+  if (!rawEmail || typeof rawEmail !== 'string') return '';
+  const trimmed = rawEmail.trim();
+  if (!trimmed.includes('@')) return trimmed;
+
+  const [localPart, domainPart] = trimmed.split('@');
+  if (!domainPart) return trimmed;
+
+  let maskedLocal = localPart;
+  if (localPart.length > 5) {
+    maskedLocal = `${localPart.slice(0, 3)}**${localPart.slice(-3)}`;
+  } else if (localPart.length > 2) {
+    maskedLocal = `${localPart[0]}*${localPart.slice(-1)}`;
+  } else {
+    maskedLocal = `${localPart[0]}*`;
+  }
+
+  const lastDotIndex = domainPart.lastIndexOf('.');
+  const tld = lastDotIndex !== -1 ? domainPart.slice(lastDotIndex) : '.com';
+  const maskedDomain = `*${tld}`;
+
+  return `${maskedLocal}@${maskedDomain}`;
+};
+
 const ForgotPasswordForm = () => {
+  const location = useLocation()
+
+  const getInitialIdentifier = () => {
+    try {
+      const fromState = location.state?.email || location.state?.identifier
+      if (fromState) return fromState.trim()
+      const urlParams = new URLSearchParams(location.search)
+      const fromQuery = urlParams.get('email') || urlParams.get('identifier')
+      if (fromQuery) return fromQuery.trim()
+      return (sessionStorage.getItem('last_login_email') || '').trim()
+    } catch {
+      return ''
+    }
+  }
+
+  const initialId = getInitialIdentifier()
+
   const [step, setStep] = useState('request') // 'request' | 'otp' | 'newPassword' | 'success'
   const [email, setEmail] = useState('')
+  const [maskedEmail, setMaskedEmail] = useState(() => (initialId.includes('@') ? maskEmail(initialId) : ''))
   const [verifiedToken, setVerifiedToken] = useState('')
   const [apiError, setApiError] = useState('')
   const [isVerifying, setIsVerifying] = useState(false)
@@ -28,10 +70,50 @@ const ForgotPasswordForm = () => {
   const {
     register: registerRequest,
     handleSubmit: handleSubmitRequest,
+    watch: watchRequest,
+    setValue: setValueRequest,
     formState: { errors: errorsRequest, isSubmitting: isSubmittingRequest },
   } = useForm({
     resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      identifier: initialId
+    }
   })
+
+  const currentIdentifier = watchRequest('identifier') || ''
+
+  useEffect(() => {
+    if (initialId) {
+      setValueRequest('identifier', initialId)
+    }
+  }, [initialId, setValueRequest])
+
+  // Automatically lookup / preview registered email mask as user types or on initial load
+  useEffect(() => {
+    const term = currentIdentifier.trim()
+    if (!term) {
+      setMaskedEmail('')
+      return
+    }
+
+    if (term.includes('@')) {
+      setMaskedEmail(maskEmail(term))
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await authService.lookupEmail(term)
+        if (res?.success && res?.maskedEmail) {
+          setMaskedEmail(res.maskedEmail)
+        }
+      } catch {
+        // silent
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [currentIdentifier])
 
   // Reset Password Form Hook
   const {
@@ -50,6 +132,7 @@ const ForgotPasswordForm = () => {
       if (response.success) {
         const resolvedEmail = response.email || data.identifier
         setEmail(resolvedEmail)
+        setMaskedEmail(response.maskedEmail || maskEmail(resolvedEmail))
         setOtp(['', '', '', '', '', ''])
         setOtpStatus('idle')
         setExpireTimer(299)
@@ -290,7 +373,7 @@ const ForgotPasswordForm = () => {
           </h1>
           <p className="text-gray-400 text-sm leading-relaxed">
             We&apos;ve sent a 6-digit verification code to<br />
-            <span className="text-gray-200 font-medium break-all">{email}</span>
+            <span className="text-emerald-400 font-mono font-semibold break-all tracking-wide">{maskedEmail || maskEmail(email)}</span>
           </p>
         </div>
 
@@ -406,14 +489,25 @@ const ForgotPasswordForm = () => {
           </div>
         )}
 
-        <Input
-          type="text"
-          placeholder="Email or Username *"
-          icon={Mail}
-          variant="dark"
-          error={errorsRequest.identifier}
-          {...registerRequest('identifier')}
-        />
+        <div className="space-y-1.5 text-left">
+          <Input
+            type="text"
+            placeholder="Email or Username *"
+            icon={Mail}
+            variant="dark"
+            error={errorsRequest.identifier}
+            {...registerRequest('identifier')}
+          />
+          {maskedEmail && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs text-slate-300 animate-fade-in shadow-xs">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="flex flex-col text-left">
+                <span className="text-[10px] text-slate-400 font-medium">Registered Email:</span>
+                <span className="font-mono text-emerald-300 font-semibold tracking-wide select-all">{maskedEmail}</span>
+              </div>
+            </div>
+          )}
+        </div>
 
         <Button type="submit" className="w-full" disabled={isSubmittingRequest}>
           {isSubmittingRequest ? 'Sending OTP...' : 'Send OTP'}

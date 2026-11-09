@@ -101,7 +101,7 @@ const UpdatesPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <Globe className="w-4 h-4 text-[#00bcd4]" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Updates' : 'Updated Laws'}</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Updates' : 'Updates'}</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">

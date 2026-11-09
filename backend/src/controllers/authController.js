@@ -373,6 +373,53 @@ export const login = async (req, res, next) => {
   }
 };
 
+export const maskEmail = (email) => {
+  if (!email || typeof email !== 'string') return '';
+  const trimmed = email.trim();
+  if (!trimmed.includes('@')) return trimmed;
+  const [localPart, domainPart] = trimmed.split('@');
+  let maskedLocal = localPart;
+  if (localPart.length > 5) {
+    maskedLocal = `${localPart.slice(0, 3)}**${localPart.slice(-3)}`;
+  } else if (localPart.length > 2) {
+    maskedLocal = `${localPart[0]}*${localPart.slice(-1)}`;
+  } else {
+    maskedLocal = `${localPart[0]}*`;
+  }
+  const lastDot = domainPart.lastIndexOf('.');
+  const tld = lastDot !== -1 ? domainPart.slice(lastDot) : '.com';
+  return `${maskedLocal}@*${tld}`;
+};
+
+export const lookupEmail = async (req, res, next) => {
+  try {
+    const identifier = (req.query.identifier || req.body.identifier || '').trim();
+    if (!identifier) {
+      return res.status(400).json({ success: false, message: 'Identifier is required.' });
+    }
+    const user = await User.findOne({
+      $or: [
+        { email: identifier.toLowerCase() },
+        { username: identifier },
+        { loginId: identifier }
+      ]
+    }).select('email username fullName');
+
+    if (!user) {
+      return res.status(200).json({ success: false, message: 'User not found' });
+    }
+
+    const masked = maskEmail(user.email);
+    return res.status(200).json({
+      success: true,
+      maskedEmail: masked,
+      email: masked
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const forgotPassword = async (req, res, next) => {
   try {
     const { identifier } = req.body;
@@ -424,6 +471,7 @@ export const forgotPassword = async (req, res, next) => {
       success: true,
       message: 'If the account is registered, a password reset OTP has been sent.',
       email: user.email,
+      maskedEmail: maskEmail(user.email),
     });
   } catch (error) {
     next(error);

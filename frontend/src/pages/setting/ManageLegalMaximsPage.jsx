@@ -34,6 +34,8 @@ const ManageLegalMaximsPage = () => {
     viewType: '',
     viewData: '',
     viewTitle: '',
+    attachments: [],
+    citations: [],
   });
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -86,6 +88,8 @@ const ManageLegalMaximsPage = () => {
       viewType: '',
       viewData: '',
       viewTitle: '',
+      attachments: [],
+      citations: [],
     });
     setModalError('');
     setIsModalOpen(true);
@@ -99,6 +103,8 @@ const ManageLegalMaximsPage = () => {
       viewType: item.viewType || '',
       viewData: item.viewData || '',
       viewTitle: item.viewTitle || '',
+      attachments: Array.isArray(item.attachments) ? item.attachments : (item.viewData ? [{ name: item.viewTitle || 'Attachment', url: item.viewData }] : []),
+      citations: Array.isArray(item.citations) ? item.citations : [],
     });
     setModalError('');
     setIsModalOpen(true);
@@ -130,6 +136,8 @@ const ManageLegalMaximsPage = () => {
               viewType: nextItem.viewType || '',
               viewData: nextItem.viewData || '',
               viewTitle: nextItem.viewTitle || '',
+              attachments: Array.isArray(nextItem.attachments) ? nextItem.attachments : (nextItem.viewData ? [{ name: nextItem.viewTitle || 'Attachment', url: nextItem.viewData }] : []),
+              citations: Array.isArray(nextItem.citations) ? nextItem.citations : [],
             });
             showToast('success', `Updated! Moved to next: "${nextItem.name}"`);
           } else {
@@ -149,6 +157,8 @@ const ManageLegalMaximsPage = () => {
             viewType: '',
             viewData: '',
             viewTitle: '',
+            attachments: [],
+            citations: [],
           });
           setEditingMaxim(null);
           showToast('success', 'Legal Maxim saved! Ready for next entry.');
@@ -341,6 +351,7 @@ const ManageLegalMaximsPage = () => {
 
       {/* Add / Edit Legal Maxim Modal */}
       <Modal
+        maxWidth="max-w-3xl"
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingMaxim ? "Edit Legal Maxim" : "Add Legal Maxim"}
@@ -386,11 +397,7 @@ const ManageLegalMaximsPage = () => {
 
           {/* View / Attachment / Link / Text Section */}
           <ReferenceViewFormSection
-            value={{
-              viewType: modalForm.viewType,
-              viewData: modalForm.viewData,
-              viewTitle: modalForm.viewTitle,
-            }}
+            value={modalForm}
             onChange={(val) => setModalForm(prev => ({ ...prev, ...val }))}
           />
 

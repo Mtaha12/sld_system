@@ -12,6 +12,14 @@ const CATEGORIES = [
   { key: 'maxims', label: 'MAXIMS', count: '1,124', icon: Scale },
 ];
 
+export const cleanMaximTitle = (text) => {
+  if (!text) return '—';
+  const cleaned = text.replace(/\s*\([^)]*\)/g, '').trim();
+  return cleaned || text;
+};
+
+const ALPHABET = ['ALL', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+
 const PAGE_SIZE = 50;
 
 const ReferenceDirectoryPage = () => {
@@ -24,13 +32,14 @@ const ReferenceDirectoryPage = () => {
   }, [category]);
 
   const [search, setSearch]   = useState('');
+  const [selectedLetter, setSelectedLetter] = useState('ALL');
   const [page, setPage]       = useState(1);
   const [data, setData]       = useState([]);
   const [total, setTotal]     = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
 
-  const fetchData = useCallback(async (catKey, pageNum, searchTerm) => {
+  const fetchData = useCallback(async (catKey, pageNum, searchTerm, letterFilter) => {
     setLoading(true);
     setError(null);
     try {
@@ -50,7 +59,10 @@ const ReferenceDirectoryPage = () => {
           res = await settingService.getLegalTerms(params);
           break;
         case 'maxims':
-          res = await settingService.getLegalMaxims(params);
+          res = await settingService.getLegalMaxims({
+            ...params,
+            letter: letterFilter && letterFilter !== 'ALL' ? letterFilter : undefined
+          });
           break;
         default:
           res = { data: [], total: 0 };
@@ -68,14 +80,15 @@ const ReferenceDirectoryPage = () => {
   useEffect(() => {
     setPage(1);
     setSearch('');
+    setSelectedLetter('ALL');
   }, [activeCategory]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      fetchData(activeCategory, page, search);
+      fetchData(activeCategory, page, search, selectedLetter);
     }, 150);
     return () => clearTimeout(timeout);
-  }, [activeCategory, page, search, fetchData]);
+  }, [activeCategory, page, search, selectedLetter, fetchData]);
 
   const handleSelectTab = (key) => {
     navigate(`/reference/${key}`);
@@ -188,6 +201,33 @@ const ReferenceDirectoryPage = () => {
           </div>
         </div>
 
+        {/* Alphabet Index Filter Bar for Maxims */}
+        {activeCategory === 'maxims' && (
+          <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/50 flex flex-wrap items-center gap-1">
+            <span className="text-[11px] font-bold text-gray-500 uppercase mr-1">Alphabet:</span>
+            {ALPHABET.map((char) => {
+              const isSelected = selectedLetter === char;
+              return (
+                <button
+                  key={char}
+                  type="button"
+                  onClick={() => {
+                    setSelectedLetter(char);
+                    setPage(1);
+                  }}
+                  className={`px-2 py-0.5 text-xs font-bold rounded transition-colors cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#3d4a7a] text-white shadow-xs'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {char}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Table Content */}
         <div className="overflow-x-auto min-h-[460px]">
           {loading ? (
@@ -292,7 +332,9 @@ const ReferenceDirectoryPage = () => {
                       {item.srNumber || (page - 1) * PAGE_SIZE + idx + 1}
                     </td>
                     <td className="px-4 py-3 text-gray-900 dark:text-gray-100 leading-relaxed font-semibold">
-                      {item.heading || item.name || '—'}
+                      {activeCategory === 'maxims'
+                        ? cleanMaximTitle(item.heading || item.name)
+                        : (item.heading || item.name || '—')}
                     </td>
                     {activeCategory === 'maxims' && (
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-300 leading-relaxed">

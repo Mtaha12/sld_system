@@ -179,6 +179,10 @@ export const createUser = async (req, res, next) => {
       displayNotification: parseBoolean(displayNotification, true),
       displayCase: parseBoolean(displayCase, true),
       allowAllForms: parseBoolean(allowAllForms, false),
+      downloadLimitStatute: Number(req.body.downloadLimitStatute) || 25,
+      downloadLimitNotification: Number(req.body.downloadLimitNotification) || 25,
+      downloadLimitCaseLaw: Number(req.body.downloadLimitCaseLaw) || 50,
+      sequentialDownloadBlockThreshold: Number(req.body.sequentialDownloadBlockThreshold) || 10,
       role: assignedRole,
       isVerified: true,
     });
@@ -302,6 +306,10 @@ export const updateUser = async (req, res, next) => {
     if (displayNotification !== undefined) user.displayNotification = parseBoolean(displayNotification, user.displayNotification);
     if (displayCase !== undefined) user.displayCase = parseBoolean(displayCase, user.displayCase);
     if (allowAllForms !== undefined) user.allowAllForms = parseBoolean(allowAllForms, user.allowAllForms);
+    if (req.body.downloadLimitStatute !== undefined) user.downloadLimitStatute = Number(req.body.downloadLimitStatute) || 25;
+    if (req.body.downloadLimitNotification !== undefined) user.downloadLimitNotification = Number(req.body.downloadLimitNotification) || 25;
+    if (req.body.downloadLimitCaseLaw !== undefined) user.downloadLimitCaseLaw = Number(req.body.downloadLimitCaseLaw) || 50;
+    if (req.body.sequentialDownloadBlockThreshold !== undefined) user.sequentialDownloadBlockThreshold = Number(req.body.sequentialDownloadBlockThreshold) || 10;
 
     await user.save();
     clearUserSessionCache(user._id);

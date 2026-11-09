@@ -30,6 +30,8 @@ const ManageWordsPhrasesPage = () => {
     viewType: '',
     viewData: '',
     viewTitle: '',
+    attachments: [],
+    citations: [],
   });
   const [modalError, setModalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +84,8 @@ const ManageWordsPhrasesPage = () => {
       viewType: '',
       viewData: '',
       viewTitle: '',
+      attachments: [],
+      citations: [],
     });
     setModalError('');
     setIsModalOpen(true);
@@ -94,6 +98,8 @@ const ManageWordsPhrasesPage = () => {
       viewType: item.viewType || '',
       viewData: item.viewData || '',
       viewTitle: item.viewTitle || '',
+      attachments: Array.isArray(item.attachments) ? item.attachments : (item.viewData ? [{ name: item.viewTitle || 'Attachment', url: item.viewData }] : []),
+      citations: Array.isArray(item.citations) ? item.citations : [],
     });
     setModalError('');
     setIsModalOpen(true);
@@ -332,6 +338,7 @@ const ManageWordsPhrasesPage = () => {
 
       {/* Add / Edit Word & Phrase Modal */}
       <Modal
+        maxWidth="max-w-3xl"
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingItem ? 'Edit Word & Phrase' : 'Add New Word & Phrase'}
@@ -360,11 +367,7 @@ const ManageWordsPhrasesPage = () => {
 
           {/* View / Attachment / Link / Text Section */}
           <ReferenceViewFormSection
-            value={{
-              viewType: modalForm.viewType,
-              viewData: modalForm.viewData,
-              viewTitle: modalForm.viewTitle,
-            }}
+            value={modalForm}
             onChange={(val) => setModalForm(prev => ({ ...prev, ...val }))}
           />
 

@@ -13,6 +13,7 @@ const formatItem = (d) => ({
   taxCardId: d.taxCardId || d.tax_card_id || '',
   srNumber: d.srNumber || 1,
   heading: d.heading || '',
+  category: d.category || '',
   date: d.date || '',
   year: d.year || '',
   attachment: d.attachment || '',
@@ -80,7 +81,7 @@ export const getTaxCardById = async (req, res, next) => {
 
 export const createTaxCard = async (req, res, next) => {
   try {
-    const { heading, date, year, attachment, attachmentName, detail } = req.body;
+    const { heading, category, date, year, attachment, attachmentName, detail } = req.body;
 
     if (!heading?.trim()) {
       return res.status(400).json({ success: false, message: 'Heading is required.' });
@@ -94,6 +95,7 @@ export const createTaxCard = async (req, res, next) => {
 
     const item = new TaxCard({
       heading: heading.trim(),
+      category: (category || '').trim(),
       date: date.trim(),
       year: parseInt(year, 10),
       attachment: attachment || '',
@@ -111,7 +113,7 @@ export const createTaxCard = async (req, res, next) => {
 export const updateTaxCard = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { heading, date, year, attachment, attachmentName, detail } = req.body;
+    const { heading, category, date, year, attachment, attachmentName, detail } = req.body;
 
     const query = {
       $or: [{ taxCardId: id }, { tax_card_id: id }],
@@ -126,6 +128,7 @@ export const updateTaxCard = async (req, res, next) => {
     }
 
     if (heading !== undefined) item.heading = heading.trim();
+    if (category !== undefined) item.category = category.trim();
     if (date !== undefined) item.date = date.trim();
     if (year !== undefined && !isNaN(Number(year))) item.year = parseInt(year, 10);
     if (attachment !== undefined) item.attachment = attachment;

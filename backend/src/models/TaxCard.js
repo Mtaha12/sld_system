@@ -26,6 +26,12 @@ const taxCardSchema = new mongoose.Schema({
     required: [true, 'Heading is required'],
     trim: true,
   },
+  category: {
+    type: String,
+    trim: true,
+    default: '',
+    index: true,
+  },
   date: {
     type: String,
     required: [true, 'Date is required'],

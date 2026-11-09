@@ -68,6 +68,20 @@ export const authService = {
   },
 
   /**
+   * Looks up a registered email and returns its masked hint
+   * @param {string} identifier Username or email
+   * @returns {Promise<Object>}
+   */
+  lookupEmail: async (identifier) => {
+    try {
+      const response = await api.get('/api/auth/lookup-email', { params: { identifier } });
+      return response.data;
+    } catch {
+      return { success: false };
+    }
+  },
+
+  /**
    * Starts password reset flow (requests OTP)
    * @param {Object} data { identifier }
    * @returns {Promise<Object>}
