@@ -39,7 +39,13 @@ git fetch --all --prune
 git reset --hard origin/main
 git pull origin main
 
-# 3. Update backend packages & restart API
+# 3. Purge Manage Downloads & Tax Cards, and sync database indexes
+echo -e "\n${YELLOW}>>> Running Manage Downloads & TaxCard database purge...${NC}"
+if [ -f "backend/src/scripts/vps_delete_downloads.js" ]; then
+    node backend/src/scripts/vps_delete_downloads.js || true
+fi
+
+# 4. Update backend packages & restart API
 echo -e "\n${YELLOW}>>> Updating backend dependencies & restarting PM2...${NC}"
 if [ -d "backend" ]; then
     cd backend
