@@ -301,7 +301,19 @@ const ManageLegalMaximsPage = () => {
                       {idx + 1}
                     </td>
                     <td className="py-2.5 px-4 font-bold text-theme-main border-r border-theme-border italic">
-                      {item.name}
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{item.name}</span>
+                        <a
+                          href={`/search-case-law?phrase=${encodeURIComponent(item.name)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold rounded bg-[#0d9488] hover:bg-[#0f766e] text-white shadow-2xs transition-all hover:scale-105 shrink-0 not-italic cursor-pointer"
+                          title={`Find Case Laws citing "${item.name}"`}
+                        >
+                          <Scale className="w-3 h-3" />
+                          <span>Case Law</span>
+                        </a>
+                      </div>
                     </td>
                     <td className="py-2.5 px-4 text-theme-muted border-r border-theme-border">
                       {item.meaning || '—'}

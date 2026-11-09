@@ -298,12 +298,18 @@ const AddNotificationForm = () => {
       console.warn(`[Notification Load] SR #${cleanSr} lookup notice:`, err?.response?.data?.message || err.message);
       // Not found in database — keep SR and allow creating new record
       setCurrentRecordId(null);
-      setValue('srNumber', cleanSr);
-      setValue('sroNumber', '');
-      setValue('subject', '');
-      setValue('number', '');
-      // Reset blocks to fresh 1 block with no attachments from previous record
-      setValue('blocks', [{ id: 'new-block-1', date: '', detail: '', attachments: [] }]);
+      reset({
+        ...defaultValues,
+        srNumber: cleanSr,
+        department: 'notification',
+        subDepartment: 'federal',
+        year: '2026',
+        number: '',
+        sroNumber: '',
+        subject: '',
+        laws: [{ lawStatute: '', section: '' }],
+        blocks: [{ id: `new-block-${Date.now()}`, date: '', detail: '', attachments: [] }]
+      });
       setLoadFeedback({
         type: 'notFound',
         message: `SR #${cleanSr} not found in database. Ready to create new notification.`
@@ -464,18 +470,24 @@ const AddNotificationForm = () => {
 
         if (targetId || isNavEdit) {
           // IN EDIT MODE: Update + Next
-          if (urlEditId) {
-            navigate(`/manage-notifications/add?editId=${nextSr}`, { replace: true });
-          }
+          navigate(`/manage-notifications/add?editId=${nextSr}`, { replace: true });
           await loadNotificationBySr(nextSr);
         } else {
           // IN ADD NEW: Save + Next
           // Show blank for the 3 blocks: SRO#, Subject, and Number as requested
           setCurrentRecordId(null);
-          setValue('sroNumber', '');
-          setValue('subject', '');
-          setValue('number', '');
-          setValue('blocks', [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]);
+          reset({
+            ...defaultValues,
+            srNumber: nextSr,
+            department: data.department || 'notification',
+            subDepartment: data.subDepartment || 'federal',
+            year: data.year || '2026',
+            number: '',
+            sroNumber: '',
+            subject: '',
+            laws: [{ lawStatute: data.lawStatute || '', section: data.section || '' }],
+            blocks: [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]
+          });
           setLoadFeedback({
             type: 'success',
             message: `Saved! Advanced to SR #${nextSr}. Ready for entry.`
@@ -487,13 +499,20 @@ const AddNotificationForm = () => {
           const currentSrNum = parseInt(targetSr || '1', 10);
           const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
           setAutoNewSr(nextSr);
-          setValue('srNumber', nextSr);
           setCurrentRecordId(null);
           // Show blank for the 3 blocks: SRO#, Subject, and Number as requested
-          setValue('sroNumber', '');
-          setValue('subject', '');
-          setValue('number', '');
-          setValue('blocks', [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]);
+          reset({
+            ...defaultValues,
+            srNumber: nextSr,
+            department: data.department || 'notification',
+            subDepartment: data.subDepartment || 'federal',
+            year: data.year || '2026',
+            number: '',
+            sroNumber: '',
+            subject: '',
+            laws: [{ lawStatute: data.lawStatute || '', section: data.section || '' }],
+            blocks: [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]
+          });
           setLoadFeedback({
             type: 'success',
             message: `Saved! Advanced to SR #${nextSr}. Ready for entry.`
@@ -912,7 +931,8 @@ const AddNotificationForm = () => {
                         name={`blocks.${index}.detail`}
                         render={({ field }) => (
                           <RichTextEditor
-                            name={`notification_block_${index}`}
+                            key={`notif-editor-${field.id}`}
+                            name={`notification_block_${field.id}`}
                             value={field.value}
                             onChange={field.onChange}
                             minHeight={220}

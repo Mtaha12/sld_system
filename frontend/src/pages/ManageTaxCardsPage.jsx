@@ -261,6 +261,7 @@ const ManageTaxCardsPage = () => {
       {/* Table */}
       <ManageTaxCardsTable
         taxCards={displayedCards}
+        categoryTitle={categoryTitle}
         onEdit={handleEditItem}
         onDeleted={handleItemDeleted}
         toastMessage={toastMessage}

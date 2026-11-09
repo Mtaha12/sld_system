@@ -68,8 +68,8 @@ const PAGE_HEADERS = {
     subtitle: 'View, search and manage official tax cards and annual schedules'
   },
   '/manage-dictionary': {
-    title: 'Manage Dictionary',
-    subtitle: 'Manage legal glossary terms, definitions and word meanings'
+    title: 'Dictionary',
+    subtitle: 'Legal glossary terms, definitions and word meanings'
   },
   '/manage-newsletters': {
     title: 'Manage Emails',

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Eye, RotateCcw, Search as SearchIcon, History, Trash2, Calendar, FileText, Gavel, Scale, Clock } from 'lucide-react';
 import { caseService } from '../features/cases/services/caseService';
 import { settingService } from '../services/settingService';
@@ -580,6 +581,17 @@ const SearchCaseLawPage = () => {
       }
     }
   };
+
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const qPhrase = searchParams.get('phrase') || searchParams.get('searchPhrase') || searchParams.get('text') || searchParams.get('q');
+    if (qPhrase && String(qPhrase).trim()) {
+      const clean = String(qPhrase).trim();
+      const newF = { ...EMPTY, phrase: clean };
+      setF(newF);
+      handleSearch(newF);
+    }
+  }, [searchParams]);
 
   const handleReset = () => {
     setF(EMPTY);

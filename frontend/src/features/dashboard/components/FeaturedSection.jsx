@@ -16,7 +16,7 @@ const fallbackCards = [
   {
     id: 'case_laws',
     title: 'Citations',
-    count: '0',
+    count: '165,123',
     icon: Scale,
     image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=400',
     link: '/other-caselaws',
@@ -25,7 +25,7 @@ const fallbackCards = [
   {
     id: 'statutes',
     title: 'Statutes / Laws',
-    count: '0',
+    count: '9,372',
     icon: Scale,
     image: oldLawBook,
     link: '/statutes/view/6a90093e137c8854f5d4d367',
@@ -40,7 +40,7 @@ const fallbackCards = [
   {
     id: 'notifications',
     title: 'Notifications',
-    count: '0',
+    count: '11,618',
     icon: Bell,
     image: fbrSecp,
     link: '/notifications/view/6abcf2bdc1463bec312e1527',
@@ -55,7 +55,7 @@ const fallbackCards = [
   {
     id: 'dictionary',
     title: 'Dictionary',
-    count: '0',
+    count: '41,427',
     icon: Book,
     image: judgeHammer,
     link: '/dictionary/view/6abcf2b2c1463bec312d8e16',
@@ -70,7 +70,7 @@ const fallbackCards = [
   {
     id: 'finance_act',
     title: 'Finance Act',
-    count: '0',
+    count: '58',
     icon: Landmark,
     image: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=400',
     link: '/tax-cards/view/6abcf3cd6db78969163e4ae7',
@@ -91,7 +91,7 @@ const FeaturedSection = () => {
       let defaultCount = '0';
       if (card.id === 'dictionary') defaultCount = '41,427';
       else if (card.id === 'statutes') defaultCount = sessionStorage.getItem('dashboard_statutes_count') || '9,372';
-      else if (card.id === 'notifications') defaultCount = sessionStorage.getItem('dashboard_notifs_count') || '11,400';
+      else if (card.id === 'notifications') defaultCount = sessionStorage.getItem('dashboard_notifs_count') || '11,618';
       else if (card.id === 'case_laws') defaultCount = sessionStorage.getItem('dashboard_cases_count') || '100,000+';
       else if (card.id === 'finance_act') defaultCount = sessionStorage.getItem('dashboard_finance_count') || '58';
 
@@ -142,7 +142,7 @@ const FeaturedSection = () => {
     notificationService.getNotifications({ limit: 5 }).then(res => {
       if (!isMounted) return;
       const rawNotifs = Array.isArray(res) ? res : (res?.data || []);
-      const totalCount = (res?.total || rawNotifs.length || 11400).toLocaleString();
+      const totalCount = (res?.total || rawNotifs.length || 11618).toLocaleString();
       sessionStorage.setItem('dashboard_notifs_count', totalCount);
       if (rawNotifs.length > 0) {
         const latest5 = rawNotifs.slice(0, 5).map(n => ({

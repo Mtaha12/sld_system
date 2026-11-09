@@ -132,23 +132,26 @@ async function run() {
 
   // STEP 4: UPDATE CASES IN BATCHES
   console.log('>>> Step 4: Updating judgments in MongoDB...');
-  const BATCH_SIZE = 100;
+  const BATCH_SIZE = 500;
   let totalUpdated = 0;
   let totalMatched = 0;
 
   for (let i = 0; i < judgments.length; i += BATCH_SIZE) {
     const batch = judgments.slice(i, i + BATCH_SIZE);
-    const ops = batch.map(it => ({
-      updateOne: {
-        filter: { sldNumber: it.sldNumber },
-        update: {
-          $set: {
-            judgment: it.judgment,
-            updatedAt: new Date()
+    const ops = batch.map(it => {
+      const parsedInt = it.sldNumberInt || parseInt(it.sldNumber, 10);
+      return {
+        updateOne: {
+          filter: parsedInt ? { sldNumberInt: parsedInt } : { sldNumber: String(it.sldNumber) },
+          update: {
+            $set: {
+              judgment: it.judgment,
+              updatedAt: new Date()
+            }
           }
         }
-      }
-    }));
+      };
+    });
 
     const res = await Case.bulkWrite(ops, { ordered: false });
     totalMatched += (res.matchedCount || 0);

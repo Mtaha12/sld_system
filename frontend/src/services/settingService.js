@@ -1,5 +1,22 @@
 import api from './api';
 
+const settingCache = new Map();
+const getCachedSetting = async (key, fetcher, ttlMs = 10 * 60 * 1000) => {
+  const cached = settingCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+  const data = await fetcher();
+  settingCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+  return data;
+};
+
+const invalidateSettingCache = (prefix) => {
+  for (const k of settingCache.keys()) {
+    if (k.startsWith(prefix)) settingCache.delete(k);
+  }
+};
+
 export const settingService = {
   // ============================
   // CITIES
@@ -74,26 +91,33 @@ export const settingService = {
   // LAWS / STATUTES
   // ============================
   getLaws: async (params = {}) => {
-    const response = await api.get('/api/settings/laws', { params });
-    return response.data;
+    const key = `laws_${JSON.stringify(params)}`;
+    return getCachedSetting(key, async () => {
+      const response = await api.get('/api/settings/laws', { params });
+      return response.data;
+    });
   },
 
   createLaw: async (data) => {
+    invalidateSettingCache('laws_');
     const response = await api.post('/api/settings/laws', data);
     return response.data;
   },
 
   updateLaw: async (id, data) => {
+    invalidateSettingCache('laws_');
     const response = await api.put(`/api/settings/laws/${id}`, data);
     return response.data;
   },
 
   deleteLaw: async (id) => {
+    invalidateSettingCache('laws_');
     const response = await api.delete(`/api/settings/laws/${id}`);
     return response.data;
   },
 
   swapLaws: async (lawId1, lawId2) => {
+    invalidateSettingCache('laws_');
     const response = await api.post('/api/settings/laws/swap', { lawId1, lawId2 });
     return response.data;
   },
@@ -102,26 +126,33 @@ export const settingService = {
   // SECTIONS
   // ============================
   getSections: async (params = {}) => {
-    const response = await api.get('/api/settings/sections', { params });
-    return response.data;
+    const key = `sections_${JSON.stringify(params)}`;
+    return getCachedSetting(key, async () => {
+      const response = await api.get('/api/settings/sections', { params });
+      return response.data;
+    });
   },
 
   createSection: async (data) => {
+    invalidateSettingCache('sections_');
     const response = await api.post('/api/settings/sections', data);
     return response.data;
   },
 
   updateSection: async (id, data) => {
+    invalidateSettingCache('sections_');
     const response = await api.put(`/api/settings/sections/${id}`, data);
     return response.data;
   },
 
   deleteSection: async (id) => {
+    invalidateSettingCache('sections_');
     const response = await api.delete(`/api/settings/sections/${id}`);
     return response.data;
   },
 
   swapSections: async (sectionId1, sectionId2) => {
+    invalidateSettingCache('sections_');
     const response = await api.post('/api/settings/sections/swap', { sectionId1, sectionId2 });
     return response.data;
   },

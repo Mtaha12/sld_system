@@ -73,6 +73,7 @@ dictionarySchema.index({
   meaning: 'text',
 });
 dictionarySchema.index({ isDeleted: 1, words: 1 });
+dictionarySchema.index({ isDeleted: 1, srNumber: 1 });
 dictionarySchema.index({ isDeleted: 1, srNumber: -1 });
 
 dictionarySchema.pre(/^find/, function () {

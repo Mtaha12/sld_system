@@ -186,6 +186,7 @@ caseSchema.index(
     } 
   }
 );
+caseSchema.index({ isDeleted: 1, status: 1 });
 caseSchema.index({ isDeleted: 1, sldNumberInt: -1 });
 caseSchema.index({ isDeleted: 1, sldNumberInt: 1 });
 caseSchema.index({ isDeleted: 1, sldNumberInt: -1, sldNumber: -1 });

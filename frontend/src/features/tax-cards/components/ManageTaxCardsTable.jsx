@@ -51,6 +51,7 @@ const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => 
 
 const ManageTaxCardsTable = ({
   taxCards = [],
+  categoryTitle = 'Tax Cards',
   onEdit,
   onDeleted,
   toastMessage,
@@ -170,7 +171,7 @@ const ManageTaxCardsTable = ({
         <div className="px-4 py-2.5 border-b border-theme-border flex items-center justify-between bg-gray-50/60 dark:bg-theme-surface-alt/30 text-xs">
           <div className="flex items-center gap-1.5 text-theme-main font-semibold">
             <CreditCard className="w-3.5 h-3.5 text-brand-orange" />
-            <span>Tax Card Records ({totalItems})</span>
+            <span>{categoryTitle} Records ({totalItems})</span>
           </div>
 
           <div className="flex items-center gap-1.5">

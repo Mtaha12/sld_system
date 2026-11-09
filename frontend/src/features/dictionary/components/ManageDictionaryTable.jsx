@@ -10,7 +10,8 @@ import {
   CheckCircle2, 
   Search, 
   BookA,
-  X
+  X,
+  Scale
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
@@ -226,6 +227,16 @@ const ManageDictionaryTable = ({
                           title="View dictionary entry in new tab"
                         >
                           View
+                        </a>
+                        <a
+                          href={`/search-case-law?phrase=${encodeURIComponent(item.words)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 text-xs font-semibold rounded bg-[#0d9488] hover:bg-[#0f766e] text-white transition-colors inline-flex items-center justify-center gap-1 cursor-pointer shadow-2xs hover:scale-105"
+                          title={`Find Case Laws citing "${item.words}"`}
+                        >
+                          <Scale className="w-3 h-3" />
+                          <span>Case Law</span>
                         </a>
                         {isAdmin && (
                           <>

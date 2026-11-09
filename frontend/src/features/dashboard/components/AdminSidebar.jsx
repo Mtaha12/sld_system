@@ -52,6 +52,46 @@ import {
 import logo from '../../../assets/branding/logo/SLD_Logo.png';
 import { useUser } from '../../../contexts/UserContext';
 
+// Intelligent Route Preloaders: dynamically preload page chunks on mouse enter / focus
+const PRELOAD_MAP = {
+  '/dashboard': () => import('../../../pages/DashboardPage'),
+  '/search-case-law': () => import('../../../pages/SearchCaseLawPage'),
+  '/ai-assistant': () => import('../../../pages/AIAssistantPage'),
+  '/statute-search': () => import('../../../pages/StatuteSearchPage'),
+  '/notification-search': () => import('../../../pages/NotificationSearchPage'),
+  '/manage-cases': () => import('../../../pages/ManageCasesPage'),
+  '/manage-cases/add': () => import('../../../pages/AddCaseLawPage'),
+  '/manage-notifications': () => import('../../../pages/ManageNotificationsPage'),
+  '/manage-notifications/add': () => import('../../../pages/AddNotificationPage'),
+  '/manage-statutes': () => import('../../../pages/ManageStatutesPage'),
+  '/manage-statutes/add': () => import('../../../pages/AddStatutePage'),
+  '/updates': () => import('../../../pages/UpdatesPage'),
+  '/manage-dictionary': () => import('../../../pages/ManageDictionaryPage'),
+  '/news': () => import('../../../pages/NewsPage'),
+  '/manage-tax-cards': () => import('../../../pages/ManageTaxCardsPage'),
+  '/manage-custom-tariffs': () => import('../../../pages/ManageCustomTariffsPage'),
+  '/whatsapp-updates': () => import('../../../pages/WhatsappUpdatesPage'),
+  '/youtube-updates': () => import('../../../pages/YoutubeUpdatesPage'),
+  '/downloads': () => import('../../../pages/DownloadsPage'),
+  '/manage-invoices': () => import('../../../pages/ManageInvoicesPage'),
+  '/manage-newsletters': () => import('../../../pages/ManageNewslettersPage'),
+  '/other-caselaws': () => import('../../../pages/OtherCaseLawsPage'),
+  '/settings': () => import('../../../pages/SettingsPage'),
+  '/manage-users': () => import('../../../pages/ManageUsersPage'),
+  '/manage-admins': () => import('../../../pages/ManageAdminsPage'),
+};
+
+const preloadRoute = (path) => {
+  if (!path) return;
+  const cleanPath = path.split('?')[0];
+  const loader = PRELOAD_MAP[cleanPath];
+  if (loader) {
+    try {
+      loader();
+    } catch (_) {}
+  }
+};
+
 // Standalone top navigation items
 const TOP_NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -139,7 +179,7 @@ const FOLDER_GROUPS = [
       { label: 'Manage News', path: '/news', icon: Newspaper },
       { label: 'Manage Downloads', path: '/manage-downloads', icon: Download },
       { label: 'Manage Tax Cards', path: '/manage-tax-cards', icon: CreditCard },
-      { label: 'Manage Dictionary', path: '/manage-dictionary', icon: BookA },
+      { label: 'Dictionary', path: '/manage-dictionary', icon: BookA },
       { label: 'Manage Emails', path: '/manage-emails', icon: Mail },
       { label: 'Manage Custom Tariffs', path: '/manage-custom-tariffs', icon: Layers },
       { label: 'Manage Invoices', path: '/manage-invoices', icon: Receipt },
@@ -256,6 +296,8 @@ const AdminSidebar = ({
               to={item.path}
               title={item.label}
               onClick={onItemClick}
+              onMouseEnter={() => preloadRoute(item.path)}
+              onFocus={() => preloadRoute(item.path)}
               className={`flex items-center px-3 py-2.5 rounded-xl transition-all relative ${
                 isActive
                   ? 'bg-brand-orange text-white shadow-sm'
@@ -328,6 +370,8 @@ const AdminSidebar = ({
                             to={subItem.path}
                             title={subItem.label}
                             onClick={onItemClick}
+                            onMouseEnter={() => preloadRoute(subItem.path)}
+                            onFocus={() => preloadRoute(subItem.path)}
                             className={`flex items-center px-2.5 py-2 rounded-lg transition-all ${
                               isSubActive
                                 ? 'bg-brand-orange text-white font-semibold shadow-sm'
@@ -365,6 +409,8 @@ const AdminSidebar = ({
                   to={item.path}
                   title={item.label}
                   onClick={onItemClick}
+                  onMouseEnter={() => preloadRoute(item.path)}
+                  onFocus={() => preloadRoute(item.path)}
                   className={`flex items-center px-3 py-2 rounded-xl transition-all relative ${
                     isActive
                       ? 'bg-brand-orange text-white shadow-sm font-semibold'
