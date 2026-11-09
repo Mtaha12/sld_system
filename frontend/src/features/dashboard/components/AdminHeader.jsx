@@ -237,8 +237,8 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
         };
       }
       return {
-        title: 'Tax Cards',
-        subtitle: 'View and search official tax cards and annual schedules'
+        title: 'Finance Act',
+        subtitle: 'View and search official Finance Act records and annual schedules'
       };
     }
     if (location.pathname.startsWith('/updates') || location.pathname.startsWith('/manage-updates')) {

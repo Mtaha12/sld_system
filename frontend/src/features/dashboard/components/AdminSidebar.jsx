@@ -110,7 +110,6 @@ const USER_MENU_ITEMS = [
   { label: 'Custom Tariff', path: '/manage-custom-tariffs', icon: Gauge },
   { label: 'Whatsapp', path: '/whatsapp-updates', icon: Gauge },
   { label: 'Youtube Channel', path: '/youtube-updates', icon: Gauge },
-  { label: 'Tax Rates', path: '/manage-tax-cards?category=tax-rates', icon: Gauge },
   { label: 'Tax Returns', path: '/downloads?category=Tax+Return', icon: Gauge },
   { label: 'Live Chat', path: '/ai-assistant', icon: Gauge },
 ];
@@ -178,7 +177,7 @@ const FOLDER_GROUPS = [
     items: [
       { label: 'Manage News', path: '/news', icon: Newspaper },
       { label: 'Manage Downloads', path: '/manage-downloads', icon: Download },
-      { label: 'Manage Tax Cards', path: '/manage-tax-cards', icon: CreditCard },
+      { label: 'Manage Finance Act', path: '/manage-tax-cards?category=finance-act', icon: CreditCard },
       { label: 'Dictionary', path: '/manage-dictionary', icon: BookA },
       { label: 'Manage Emails', path: '/manage-emails', icon: Mail },
       { label: 'Manage Custom Tariffs', path: '/manage-custom-tariffs', icon: Layers },

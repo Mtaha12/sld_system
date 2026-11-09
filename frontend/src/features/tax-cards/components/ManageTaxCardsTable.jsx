@@ -51,7 +51,7 @@ const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => 
 
 const ManageTaxCardsTable = ({
   taxCards = [],
-  categoryTitle = 'Tax Cards',
+  categoryTitle = 'Finance Act',
   onEdit,
   onDeleted,
   toastMessage,

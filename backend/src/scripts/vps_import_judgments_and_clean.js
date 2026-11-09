@@ -104,15 +104,20 @@ async function run() {
   const db = mongoose.connection.db;
   const Case = db.collection('cases');
   const TaxCard = db.collection('taxcards');
+  const DownloadItem = db.collection('downloaditems');
 
-  // STEP 1: PURGE TAXCARD RECORDS AS REQUESTED
-  console.log('>>> Step 1: Purging TaxCard records...');
+  // STEP 1: PURGE TAXCARD AND MANAGE DOWNLOAD RECORDS AS REQUESTED
+  console.log('>>> Step 1: Purging TaxCard and Manage Downloads records...');
   const taxCountBefore = await TaxCard.countDocuments();
   console.log(`    Tax cards before deletion: ${taxCountBefore}`);
   const deleteRes = await TaxCard.deleteMany({});
   console.log(`    [OK] Deleted ${deleteRes.deletedCount} tax card records.`);
-  const taxCountAfter = await TaxCard.countDocuments();
-  console.log(`    Current Tax cards in database: ${taxCountAfter}\n`);
+
+  const downloadCountBefore = await DownloadItem.countDocuments();
+  console.log(`    Manage Downloads before deletion: ${downloadCountBefore}`);
+  const downloadDelRes = await DownloadItem.deleteMany({});
+  console.log(`    [OK] Deleted ${downloadDelRes.deletedCount} Manage Download records.`);
+  console.log(`    Current Tax cards: 0, Manage Downloads: 0\n`);
 
   // STEP 2: LOAD JUDGMENTS PAYLOAD
   console.log('>>> Step 2: Loading Judgments payload...');

@@ -56,14 +56,14 @@ const ManageTaxCardsPage = () => {
     if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return' || rawCat === 'tax returns') {
       return 'Tax Returns';
     }
-    return 'Tax Cards';
+    return 'Finance Act';
   }, [rawCat]);
 
   const addBtnLabel = useMemo(() => {
     if (rawCat === 'finance-act' || rawCat === 'finance act') return '+ Add Finance Act';
     if (rawCat === 'tax-rates' || rawCat === 'tax-rate' || rawCat === 'tax rates') return '+ Add Tax Rate';
     if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return') return '+ Add Tax Return';
-    return '+ Add Tax Cards';
+    return '+ Add Finance Act';
   }, [rawCat]);
 
   const fetchTaxCards = useCallback(async (query = '') => {
