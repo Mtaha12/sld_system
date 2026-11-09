@@ -7,20 +7,26 @@ const escapeRegex = (string) => {
   return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-const formatItem = (d) => ({
-  id: d.srNumber ? d.srNumber.toString() : (d.dictionaryId || d._id.toString()),
-  mongoId: d._id.toString(),
-  dictionaryId: d.dictionaryId || d.dictionary_id || '',
-  srNumber: d.srNumber || 1,
-  words: d.words || '',
-  meaning: d.meaning || '',
-  createdAt: d.createdAt,
-  updatedAt: d.updatedAt
-});
+const formatItem = (d) => {
+  const numSr = typeof d.srNumber === 'number' && !isNaN(d.srNumber)
+    ? d.srNumber 
+    : (parseInt(d.srNumber, 10) || (d.id && !isNaN(parseInt(d.id, 10)) ? parseInt(d.id, 10) : 1));
+
+  return {
+    id: numSr ? numSr.toString() : (d.dictionaryId || d._id.toString()),
+    mongoId: d._id.toString(),
+    dictionaryId: d.dictionaryId || d.dictionary_id || '',
+    srNumber: numSr,
+    words: d.words || '',
+    meaning: d.meaning || '',
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt
+  };
+};
 
 export const getDictionary = async (req, res, next) => {
   try {
-    const { query, page, limit, all } = req.query;
+    const { query, page, limit, all, sortField, sortOrder } = req.query;
     const filter = { isDeleted: { $ne: true } };
 
     if (query) {
@@ -58,7 +64,15 @@ export const getDictionary = async (req, res, next) => {
       maxSrNumber = 41427;
     }
 
-    let dbQuery = Dictionary.find(filter).sort({ srNumber: 1, words: 1 });
+    const order = sortOrder === 'desc' ? -1 : 1;
+    let sortObj = { srNumber: order, words: 1 };
+    if (sortField === 'words') {
+      sortObj = { words: order, srNumber: order };
+    } else if (sortField === 'srNumber' || !sortField) {
+      sortObj = { srNumber: order, _id: order };
+    }
+
+    let dbQuery = Dictionary.find(filter).sort(sortObj);
 
     if (!isAll) {
       dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);

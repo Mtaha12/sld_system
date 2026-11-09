@@ -217,7 +217,7 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
     }
     if (location.pathname.startsWith('/manage-dictionary') || location.pathname === '/dictionary') {
       return {
-        title: isAdmin ? 'Manage Dictionary' : 'Dictionary',
+        title: 'Dictionary',
         subtitle: 'Legal glossary terms, definitions and word meanings'
       };
     }
@@ -226,18 +226,18 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
       const cat = (searchParams.get('category') || '').toLowerCase();
       if (cat === 'finance-act' || cat === 'finance act') {
         return {
-          title: isAdmin ? 'Manage Finance Act' : 'Finance Act',
+          title: 'Finance Act',
           subtitle: 'View and search official Finance Act records and annual schedules'
         };
       }
       if (cat === 'tax-rates' || cat === 'tax rates') {
         return {
-          title: isAdmin ? 'Manage Tax Rates' : 'Tax Rates',
+          title: 'Tax Rates',
           subtitle: 'View and search official tax cards and annual schedules'
         };
       }
       return {
-        title: isAdmin ? 'Manage Tax Cards' : 'Tax Cards',
+        title: 'Tax Cards',
         subtitle: 'View and search official tax cards and annual schedules'
       };
     }

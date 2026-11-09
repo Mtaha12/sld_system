@@ -25,8 +25,11 @@ const formatItem = (d) => ({
 
 export const getTaxCards = async (req, res, next) => {
   try {
-    const { query } = req.query;
+    const { query, category } = req.query;
     const filter = { isDeleted: { $ne: true } };
+    if (category) {
+      filter.category = category;
+    }
 
     if (query) {
       const q = query.trim();

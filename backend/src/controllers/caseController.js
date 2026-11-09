@@ -178,12 +178,38 @@ let cachedDatabaseStatsExpiresAt = 0;
 export const getCaseDatabaseStats = async (req, res, next) => {
   try {
     const now = Date.now();
+    // Return cached stats instantly if available and fresh
     if (cachedDatabaseStats && now < cachedDatabaseStatsExpiresAt) {
       return res.status(200).json({ success: true, ...cachedDatabaseStats });
     }
 
-    const [caseStats, totalOtherCases] = await Promise.all([
-      Case.aggregate([
+    // Fast indexed counts (completes in < 20ms)
+    const [totalCases, totalOtherCases] = await Promise.all([
+      Case.countDocuments({ isDeleted: false }),
+      OtherCaseLaw.countDocuments({ isDeleted: false })
+    ]);
+
+    // If we have previous stats, use them immediately with updated case counts
+    if (cachedDatabaseStats) {
+      const estimatedCitations = cachedDatabaseStats.totalCitations || totalCases;
+      const totalCitationsWithOtherLaws = estimatedCitations + totalOtherCases;
+      cachedDatabaseStats = {
+        ...cachedDatabaseStats,
+        totalCases,
+        totalOtherCases,
+        totalCitationsWithOtherLaws,
+        totalCombinedCases: totalCases + totalOtherCases,
+        count: totalCitationsWithOtherLaws,
+        displayCount: totalCitationsWithOtherLaws.toLocaleString()
+      };
+      cachedDatabaseStatsExpiresAt = now + 7200_000; // 2 hour cache
+      return res.status(200).json({ success: true, ...cachedDatabaseStats });
+    }
+
+    // First time compute: attempt fast citation aggregation with a 2-second timeout
+    let totalCitations = totalCases;
+    try {
+      const aggPromise = Case.aggregate([
         { $match: { isDeleted: false } },
         {
           $project: {
@@ -196,13 +222,22 @@ export const getCaseDatabaseStats = async (req, res, next) => {
             }
           }
         },
-        { $group: { _id: null, totalCitations: { $sum: '$citationCount' }, totalCases: { $sum: 1 } } }
-      ]),
-      OtherCaseLaw.countDocuments({ isDeleted: false })
-    ]);
+        { $group: { _id: null, totalCitations: { $sum: '$citationCount' } } }
+      ]);
 
-    const totalCases = caseStats[0]?.totalCases || 0;
-    const totalCitations = caseStats[0]?.totalCitations || 0;
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Aggregation timeout')), 2000)
+      );
+
+      const caseStats = await Promise.race([aggPromise, timeoutPromise]);
+      if (Array.isArray(caseStats) && caseStats[0]?.totalCitations) {
+        totalCitations = caseStats[0].totalCitations;
+      }
+    } catch {
+      // If aggregation times out, fall back safely to totalCases so user never waits 2-3 minutes
+      totalCitations = totalCases;
+    }
+
     const totalCitationsWithOtherLaws = totalCitations + totalOtherCases;
     const totalCombinedCases = totalCases + totalOtherCases;
 
@@ -215,7 +250,7 @@ export const getCaseDatabaseStats = async (req, res, next) => {
       count: totalCitationsWithOtherLaws,
       displayCount: totalCitationsWithOtherLaws.toLocaleString()
     };
-    cachedDatabaseStatsExpiresAt = now + 60_000;
+    cachedDatabaseStatsExpiresAt = now + 7200_000; // 2 hour cache
 
     return res.status(200).json({ success: true, ...cachedDatabaseStats });
   } catch (error) {
@@ -1628,7 +1663,29 @@ export const searchCases = async (req, res, next) => {
       } catch (hintErr) {}
     }
 
-    const cases = await queryExec.lean();
+    let cases = await queryExec.lean();
+
+    if (cases.length === 0 && filters.phrase && String(filters.phrase).trim()) {
+      const cleanPhrase = String(filters.phrase).replace(/["'“”]/g, '').trim();
+      if (cleanPhrase.length >= 2) {
+        const phraseRegex = new RegExp(escapeRegex(cleanPhrase), 'i');
+        const fallbackCases = await Case.find({
+          isDeleted: false,
+          $or: [
+            { legalMaxim: phraseRegex },
+            { headNote: phraseRegex },
+            { principleLaw: phraseRegex }
+          ]
+        })
+          .select(selectFields)
+          .sort({ sldNumberInt: -1 })
+          .limit(searchLimit)
+          .lean();
+        if (fallbackCases && fallbackCases.length > 0) {
+          cases = fallbackCases;
+        }
+      }
+    }
 
     const searchTerms = [kw1, kw2, filters.phrase].filter(Boolean);
     let formattedCases = cases.map(c => {

@@ -29,9 +29,9 @@ const ManageDictionaryPage = () => {
   const fetchDictionary = useCallback(async (page = 1, query = '') => {
     setIsLoading(true);
     try {
-      const data = await dictionaryService.getDictionary({ page, limit: 100, query });
+      const data = await dictionaryService.getDictionary({ page, limit: 100, query, sortField: 'srNumber', sortOrder: 'asc' });
       setDictionaryList(data);
-      setTotalItems(data.total || data.length || 0);
+      setTotalItems(data.dashboardTotal || data.maxSrNumber || 41427);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error('[ManageDictionaryPage] Fetch error:', err);
@@ -87,7 +87,7 @@ const ManageDictionaryPage = () => {
           
           <div className="flex items-center gap-2 mr-2">
             <BookA className="w-4 h-4 text-brand-orange" />
-            <span className="text-sm font-bold text-theme-main whitespace-nowrap">{isAdmin ? 'Manage Dictionary' : 'Dictionary'}</span>
+            <span className="text-sm font-bold text-theme-main whitespace-nowrap">Dictionary</span>
           </div>
 
           <div className="flex-1 min-w-[200px]">

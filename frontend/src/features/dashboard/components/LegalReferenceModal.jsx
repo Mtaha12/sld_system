@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, Search, RotateCcw, BookOpen, Layers, Type, Bookmark, Scale, ArrowUpDown, ChevronLeft, ChevronRight, Eye, Calculator } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { X, Search, RotateCcw, BookOpen, Layers, Type, Bookmark, Scale, ArrowUpDown, ChevronLeft, ChevronRight, Eye, Calculator, ExternalLink, Loader2 } from 'lucide-react';
 import settingService from '../../../services/settingService';
+import { caseService } from '../../cases/services/caseService';
+import { formatCitations } from '../../../utils/citationFormatter';
 import { openReferenceView } from '../../../utils/referenceViewUtil';
 
 const TAB_CONFIG = [
@@ -30,6 +32,103 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
   const [total, setTotal]         = useState(0);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
+
+  const [caseLawResults, setCaseLawResults] = useState({});
+  const [expandedCaseLawIds, setExpandedCaseLawIds] = useState({});
+  const caseLawCacheRef = useRef(new Map());
+
+  const cleanSearchPhrase = (text) => {
+    if (!text) return '';
+    return String(text)
+      .replace(/^["'“‘]+|["'”’]+$/g, '')
+      .replace(/\s*\([^)]*\)/g, '')
+      .trim();
+  };
+
+  const handleToggleCaseLaw = useCallback(async (item) => {
+    const itemId = item._id || item.id;
+    if (!itemId) return;
+
+    if (expandedCaseLawIds[itemId]) {
+      setExpandedCaseLawIds(prev => ({ ...prev, [itemId]: false }));
+      return;
+    }
+
+    setExpandedCaseLawIds(prev => ({ ...prev, [itemId]: true }));
+
+    const rawTerm = activeTab === 'maxims'
+      ? cleanMaximTitle(item.heading || item.name)
+      : (item.heading || item.name || '').trim();
+    const phrase = cleanSearchPhrase(rawTerm);
+    if (!phrase) return;
+
+    const cacheKey = phrase.toLowerCase();
+    if (caseLawCacheRef.current.has(cacheKey)) {
+      setCaseLawResults(prev => ({
+        ...prev,
+        [itemId]: { loading: false, citations: caseLawCacheRef.current.get(cacheKey), phrase }
+      }));
+      return;
+    }
+
+    setCaseLawResults(prev => ({
+      ...prev,
+      [itemId]: { loading: true, citations: [], phrase }
+    }));
+
+    try {
+      const results = await caseService.searchCases({ phrase, limit: 50 });
+      const seen = new Set();
+      const extracted = [];
+
+      // 1. Existing citations stored on the term
+      if (Array.isArray(item.citations) && item.citations.length > 0) {
+        item.citations.forEach((cit) => {
+          const citStr = [cit.yearVol, cit.mag, cit.page].filter(Boolean).join(' ').trim();
+          if (citStr && !seen.has(citStr.toLowerCase())) {
+            seen.add(citStr.toLowerCase());
+            extracted.push({ citation: citStr, caseId: cit.caseId || null });
+          }
+        });
+      }
+
+      // 2. Extracted citations from returned cases
+      (results || []).forEach((c) => {
+        const cits = formatCitations(c.mapYearPage, c.publications);
+        const targetId = c.id || c._id || c.sldNumber;
+        if (Array.isArray(cits) && cits.length > 0) {
+          cits.forEach((citStr) => {
+            if (citStr && !seen.has(citStr.toLowerCase())) {
+              seen.add(citStr.toLowerCase());
+              extracted.push({ citation: citStr, caseId: targetId });
+            }
+          });
+        } else if (c.sldNumber) {
+          const fallbackCit = `SLD #${c.sldNumber}`;
+          if (!seen.has(fallbackCit.toLowerCase())) {
+            seen.add(fallbackCit.toLowerCase());
+            extracted.push({ citation: fallbackCit, caseId: targetId });
+          }
+        }
+      });
+
+      caseLawCacheRef.current.set(cacheKey, extracted);
+      setCaseLawResults(prev => ({
+        ...prev,
+        [itemId]: { loading: false, citations: extracted, phrase }
+      }));
+    } catch (err) {
+      console.warn('Failed to search case law for term:', err);
+      setCaseLawResults(prev => ({
+        ...prev,
+        [itemId]: { loading: false, citations: [], error: 'Search failed', phrase }
+      }));
+    }
+  }, [activeTab, expandedCaseLawIds]);
+
+  const handleCloseCaseLaw = useCallback((itemId) => {
+    setExpandedCaseLawIds(prev => ({ ...prev, [itemId]: false }));
+  }, []);
 
   useEffect(() => {
     if (initialTab) {
@@ -324,39 +423,112 @@ const LegalReferenceModal = ({ isOpen, onClose, initialTab = 'articles' }) => {
                   {activeTab === 'maxims' && (
                     <th className="px-4 py-2.5 font-semibold">Meaning</th>
                   )}
-                  <th className="px-3 py-2.5 font-semibold w-20 text-center">View</th>
+                  <th className="px-4 py-2.5 font-semibold w-44 text-center">View</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
                 {data.map((item, idx) => (
                   <tr key={item._id || item.id || idx} className="hover:bg-blue-50/40 dark:hover:bg-gray-700/40 transition-colors">
-                    <td className="px-4 py-2.5 text-center font-bold text-gray-500 dark:text-gray-400 font-mono">
+                    <td className="px-4 py-2.5 text-center font-bold text-gray-500 dark:text-gray-400 font-mono align-top">
                       {item.srNumber || (page - 1) * PAGE_SIZE + idx + 1}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100 leading-snug font-medium">
+                    <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100 leading-snug font-medium align-top">
                       {activeTab === 'maxims'
                         ? cleanMaximTitle(item.heading || item.name)
                         : (item.heading || item.name || '—')}
                     </td>
                     {activeTab === 'maxims' && (
-                      <td className="px-4 py-2.5 text-gray-600 dark:text-gray-300 leading-snug">
+                      <td className="px-4 py-2.5 text-gray-600 dark:text-gray-300 leading-snug align-top">
                         {item.meaning || '—'}
                       </td>
                     )}
-                    <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                      {item.viewData ? (
-                        <button
-                          type="button"
-                          onClick={() => openReferenceView(item)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                          title="Click to open attachment / link / text in new tab"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                          <span>View</span>
-                        </button>
-                      ) : (
-                        <span className="text-gray-300 dark:text-gray-600 font-mono">—</span>
-                      )}
+                    <td className="px-4 py-2.5 text-center whitespace-nowrap align-top">
+                      {(() => {
+                        const itemId = item._id || item.id;
+                        const isExpanded = Boolean(expandedCaseLawIds[itemId]);
+                        const itemState = caseLawResults[itemId];
+                        const phrase = itemState?.phrase || cleanSearchPhrase(activeTab === 'maxims' ? cleanMaximTitle(item.heading || item.name) : (item.heading || item.name));
+
+                        if (!isExpanded) {
+                          return (
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCaseLaw(item)}
+                                className="text-[#DC2626] hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 font-serif font-bold text-sm tracking-wide hover:underline cursor-pointer transition-colors whitespace-nowrap"
+                                title={`Search case law citations for "${phrase}"`}
+                              >
+                                Case Law
+                              </button>
+                              {item.viewData && (
+                                <button
+                                  type="button"
+                                  onClick={() => openReferenceView(item)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition-all cursor-pointer"
+                                  title="View document attachment"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        if (itemState?.loading) {
+                          return (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-red-600 dark:text-red-400 font-semibold">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Searching...</span>
+                            </div>
+                          );
+                        }
+
+                        if (itemState?.citations && itemState.citations.length > 0) {
+                          return (
+                            <div className="flex flex-col gap-1 py-1 text-left min-w-[140px]">
+                              <div className="flex items-center justify-between pb-0.5 border-b border-red-200 dark:border-red-900/40 text-[10px] font-bold text-red-600 dark:text-red-400">
+                                <span>{itemState.citations.length} Citation{itemState.citations.length > 1 ? 's' : ''}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCloseCaseLaw(itemId)}
+                                  className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xs px-1 cursor-pointer"
+                                  title="Close citations"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div className="flex flex-col gap-1 max-h-32 overflow-y-auto pr-0.5 scrollbar-thin">
+                                {itemState.citations.map((c, i) => (
+                                  <a
+                                    key={i}
+                                    href={c.caseId ? `/cases/view/${c.caseId}` : `/search-case-law?phrase=${encodeURIComponent(phrase)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-between gap-1.5 px-2 py-0.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/60 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 rounded text-xs font-mono font-bold border border-red-200 dark:border-red-800 transition-colors shadow-2xs group cursor-pointer"
+                                    title="Open print view in new tab"
+                                  >
+                                    <span>{c.citation}</span>
+                                    <ExternalLink className="w-3 h-3 text-red-500 opacity-60 group-hover:opacity-100 transition-opacity shrink-0" />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 py-1">
+                            <span className="italic text-[11px]">No case laws</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCloseCaseLaw(itemId)}
+                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs px-1 cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}

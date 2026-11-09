@@ -9,6 +9,8 @@ import { taxCardService } from '../features/tax-cards/services/taxCardService';
 import { downloadService } from '../features/downloads/services/downloadService';
 import { useUser } from '../contexts/UserContext';
 
+const fastTaxCardsCache = new Map();
+
 const ManageTaxCardsPage = () => {
   const { user } = useUser();
   const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
@@ -46,16 +48,16 @@ const ManageTaxCardsPage = () => {
 
   const categoryTitle = useMemo(() => {
     if (rawCat === 'finance-act' || rawCat === 'finance act') {
-      return isAdmin ? 'Manage Finance Act' : 'Finance Act';
+      return 'Finance Act';
     }
     if (rawCat === 'tax-rates' || rawCat === 'tax-rate' || rawCat === 'tax rates') {
-      return isAdmin ? 'Manage Tax Rates' : 'Tax Rates';
+      return 'Tax Rates';
     }
     if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return' || rawCat === 'tax returns') {
-      return isAdmin ? 'Manage Tax Returns' : 'Tax Returns';
+      return 'Tax Returns';
     }
-    return isAdmin ? 'Manage Tax Cards' : 'Tax Cards';
-  }, [rawCat, isAdmin]);
+    return 'Tax Cards';
+  }, [rawCat]);
 
   const addBtnLabel = useMemo(() => {
     if (rawCat === 'finance-act' || rawCat === 'finance act') return '+ Add Finance Act';
@@ -65,29 +67,37 @@ const ManageTaxCardsPage = () => {
   }, [rawCat]);
 
   const fetchTaxCards = useCallback(async (query = '') => {
-    setIsLoading(true);
+    const cacheKey = `${rawCat}_${query}`;
+    if (fastTaxCardsCache.has(cacheKey)) {
+      setTaxCards(fastTaxCardsCache.get(cacheKey));
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
-      const data = await taxCardService.getTaxCards(query);
-      let mergedData = Array.isArray(data) ? [...data] : [];
+      // Parallel fast fetching for Finance Act & Tax Cards
+      const promises = [taxCardService.getTaxCards(query)];
       if (rawCat === 'finance-act' || rawCat === 'finance act') {
-        try {
-          const downloadActs = await downloadService.getDownloads(query, 'Finance Act');
-          if (Array.isArray(downloadActs) && downloadActs.length > 0) {
-            const formatted = downloadActs.map(d => ({
-              ...d,
-              id: d.id || d.downloadId || d._id,
-              mongoId: d.mongoId || d._id,
-              taxCardId: d.downloadId || `FA-${d.srNumber}`,
-              category: 'finance-act',
-              year: d.year || (d.date ? parseInt(d.date.slice(0, 4), 10) : new Date().getFullYear())
-            }));
-            // Prepend downloads matching Finance Act
-            mergedData = [...formatted, ...mergedData];
-          }
-        } catch (e) {
-          console.warn('Could not load Finance Act downloads:', e);
-        }
+        promises.push(downloadService.getDownloads(query, 'Finance Act').catch(() => []));
       }
+
+      const [data, downloadActs] = await Promise.all(promises);
+      let mergedData = Array.isArray(data) ? [...data] : [];
+
+      if (Array.isArray(downloadActs) && downloadActs.length > 0) {
+        const formatted = downloadActs.map(d => ({
+          ...d,
+          id: d.id || d.downloadId || d._id,
+          mongoId: d.mongoId || d._id,
+          taxCardId: d.downloadId || `FA-${d.srNumber}`,
+          category: 'finance-act',
+          year: d.year || (d.date ? parseInt(d.date.slice(0, 4), 10) : new Date().getFullYear())
+        }));
+        mergedData = [...formatted, ...mergedData];
+      }
+
+      fastTaxCardsCache.set(cacheKey, mergedData);
       setTaxCards(mergedData);
     } catch (err) {
       console.error('[ManageTaxCardsPage] Fetch error:', err);

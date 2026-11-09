@@ -56,7 +56,7 @@ import { useUser } from '../../../contexts/UserContext';
 const TOP_NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { label: 'Search Case Law', path: '/search-case-law', icon: Search },
-  { label: 'Search with AI', path: '/ai-assistant', icon: Sparkles, isHighlight: true },
+  { label: 'Search with AI', badge: '(Free)', path: '/ai-assistant', icon: Sparkles, isHighlight: true },
   { label: 'Statute Search', path: '/statute-search', icon: FileText },
   { label: 'Notification Search', path: '/notification-search', icon: Bell },
 ];
@@ -263,8 +263,13 @@ const AdminSidebar = ({
               }`}
             >
               <item.icon className={`w-5 h-5 shrink-0 transition-colors ${isActive ? 'text-white' : item.isHighlight ? 'text-brand-orange' : 'text-gray-400'}`} />
-              <span className="text-xs font-semibold whitespace-nowrap overflow-hidden ml-3.5 max-w-[180px] opacity-100">
-                {item.label}
+              <span className="text-xs font-semibold whitespace-nowrap overflow-hidden ml-3.5 max-w-[200px] opacity-100 inline-flex items-center">
+                <span>{item.label}</span>
+                {item.badge && (
+                  <span className="ml-1.5 font-serif italic text-gray-200 dark:text-gray-200 text-xs font-normal tracking-wide">
+                    {item.badge}
+                  </span>
+                )}
               </span>
             </Link>
           );

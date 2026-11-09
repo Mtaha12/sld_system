@@ -85,27 +85,23 @@ const ManageDictionaryTable = ({
   };
 
   const sortedList = useMemo(() => {
-    if (isServerPaginated) return dictionaryList;
     if (!dictionaryList || !dictionaryList.length) return [];
-    if (!sortConfig.key || !sortConfig.direction) return dictionaryList;
+    const key = sortConfig.key || 'srNumber';
+    const direction = sortConfig.direction || 'asc';
 
     return [...dictionaryList].sort((a, b) => {
-      let valA = a[sortConfig.key];
-      let valB = b[sortConfig.key];
-
-      if (sortConfig.key === 'srNumber') {
-        valA = Number(valA) || 0;
-        valB = Number(valB) || 0;
-      } else {
-        valA = (valA || '').toString().toLowerCase();
-        valB = (valB || '').toString().toLowerCase();
+      if (key === 'srNumber') {
+        const valA = Number(a.srNumber) || 0;
+        const valB = Number(b.srNumber) || 0;
+        return direction === 'asc' ? valA - valB : valB - valA;
       }
-
-      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+      const valA = (a[key] || '').toString().toLowerCase();
+      const valB = (b[key] || '').toString().toLowerCase();
+      if (valA < valB) return direction === 'asc' ? -1 : 1;
+      if (valA > valB) return direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [dictionaryList, sortConfig, isServerPaginated]);
+  }, [dictionaryList, sortConfig]);
 
   const totalItems = isServerPaginated ? (propTotalItems !== undefined ? propTotalItems : dictionaryList.length) : sortedList.length;
   const totalPages = isServerPaginated ? (propTotalPages !== undefined ? propTotalPages : Math.ceil(totalItems / itemsPerPage) || 1) : (Math.ceil(totalItems / itemsPerPage) || 1);
