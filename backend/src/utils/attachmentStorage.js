@@ -16,42 +16,131 @@ const REPO_ROOT = path.resolve(BACKEND_ROOT, '..');
  */
 export const getCandidateUploadRoots = () => {
   const dirs = [
+    process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : null,
     path.resolve(BACKEND_ROOT, 'uploads'),
     path.resolve(REPO_ROOT, 'uploads'),
     path.resolve(process.cwd(), 'uploads'),
     path.resolve(process.cwd(), 'backend', 'uploads'),
-    path.resolve(process.cwd(), '../uploads')
-  ];
+    path.resolve(process.cwd(), '../uploads'),
+    ...(path.sep === '/'
+      ? [
+          '/var/www/sld_system/backend/uploads',
+          '/var/www/sld_system/uploads',
+          '/var/www/sldsystem/sld_system/backend/uploads',
+          '/var/www/sldsystem/uploads',
+          '/var/www/uploads'
+        ]
+      : [])
+  ].filter(Boolean);
   return [...new Set(dirs)];
 };
 
+const isExistingRegularFile = (rootDir, candidatePath) => {
+  try {
+    const safePrefix = rootDir.endsWith(path.sep) ? rootDir : `${rootDir}${path.sep}`;
+    if (!candidatePath.startsWith(safePrefix)) return false;
+    return fs.existsSync(candidatePath) && fs.statSync(candidatePath).isFile();
+  } catch {
+    return false;
+  }
+};
+
 /**
- * Resolves a stored attachment path (e.g. '/uploads/reference_views/abc.pdf')
- * to an actual existing file path on disk, checking all upload roots & subdirs.
+ * Normalizes and validates an incoming /uploads relative path or URL,
+ * decoding safe path segments while blocking traversal or null-byte injection.
  */
-export const resolveUploadFilePath = (urlOrPath) => {
-  if (!urlOrPath || typeof urlOrPath !== 'string') return null;
-  const cleanRel = urlOrPath
-    .trim()
+export const sanitizeUploadRelPath = (urlOrPath) => {
+  if (!urlOrPath || typeof urlOrPath !== 'string') return '';
+  let raw = urlOrPath.trim();
+  if (!raw) return '';
+
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      raw = new URL(raw).pathname || '';
+    } catch {
+      return '';
+    }
+  }
+
+  raw = raw
     .split('?')[0]
     .split('#')[0]
+    .replace(/\\/g, '/')
     .replace(/^\/+/, '')
     .replace(/^uploads\/+/i, '');
 
-  if (!cleanRel || cleanRel.includes('..')) return null;
+  if (!raw || raw.includes('\0')) return '';
+
+  const decodedSegments = [];
+  for (const seg of raw.split('/')) {
+    if (!seg || seg === '.') continue;
+    let decoded = seg;
+    try {
+      decoded = decodeURIComponent(seg);
+    } catch {
+      decoded = seg;
+    }
+    if (
+      !decoded ||
+      decoded === '.' ||
+      decoded === '..' ||
+      decoded.includes('\0') ||
+      decoded.includes('/') ||
+      decoded.includes('\\')
+    ) {
+      return '';
+    }
+    decodedSegments.push(decoded);
+  }
+
+  return decodedSegments.join('/');
+};
+
+const findFileInSubfolders = (root, folderName, baseName) => {
+  const folderPath = path.resolve(root, folderName);
+  const directNested = path.resolve(folderPath, baseName);
+  if (isExistingRegularFile(root, directNested)) {
+    return directNested;
+  }
+  try {
+    if (!fs.existsSync(folderPath)) return null;
+    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const nestedCandidate = path.resolve(folderPath, entry.name, baseName);
+      if (isExistingRegularFile(root, nestedCandidate)) {
+        return nestedCandidate;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+/**
+ * Resolves a stored attachment path (e.g. '/uploads/reference_views/abc.pdf'
+ * or '/uploads/newsletters/2026/123.pdf') to an actual existing file on disk,
+ * checking all candidate upload roots, category folders, and year subdirectories.
+ */
+export const resolveUploadFilePath = (urlOrPath) => {
+  const cleanRel = sanitizeUploadRelPath(urlOrPath);
+  if (!cleanRel) return null;
+
+  const baseName = path.basename(cleanRel);
+  const knownFolders = ['reference_views', 'newsletters', 'payment_proofs', 'court_cache'];
 
   for (const root of getCandidateUploadRoots()) {
-    const safePrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+    if (!fs.existsSync(root)) continue;
+
     const direct = path.resolve(root, cleanRel);
-    if (direct.startsWith(safePrefix) && fs.existsSync(direct) && fs.statSync(direct).isFile()) {
+    if (isExistingRegularFile(root, direct)) {
       return direct;
     }
-    const baseName = path.basename(cleanRel);
-    for (const sub of ['reference_views', 'newsletters', 'payment_proofs', 'court_cache']) {
-      const nested = path.resolve(root, sub, baseName);
-      if (nested.startsWith(safePrefix) && fs.existsSync(nested) && fs.statSync(nested).isFile()) {
-        return nested;
-      }
+
+    for (const sub of knownFolders) {
+      const match = findFileInSubfolders(root, sub, baseName);
+      if (match) return match;
     }
   }
   return null;

@@ -440,6 +440,13 @@ export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction =
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       targetUrl = getResolvedBackendUrl(targetUrl);
     }
+    if (
+      typeof window !== 'undefined' &&
+      window.location?.protocol === 'https:' &&
+      /^http:\/\/(api\.sldsystempk\.com|portal\.sldsystem\.com)\//i.test(targetUrl)
+    ) {
+      targetUrl = targetUrl.replace(/^http:\/\//i, 'https://');
+    }
 
     if (download) {
       const link = document.createElement('a');
@@ -456,6 +463,22 @@ export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction =
       return;
     }
 
+    const showViewerHttpError = (status, message) => {
+      const safeTitle = escapeHtml(title || name || 'Document');
+      const safeMsg = escapeHtml(message || `Document could not be loaded (HTTP ${status}).`);
+      const safeUrl = escapeHtml(targetUrl);
+      renderHtmlIntoViewerTab(
+        viewerWin,
+        title || name,
+        '',
+        name,
+        `<h2>Document Not Found (HTTP ${escapeHtml(String(status || 404))})</h2>
+         <p style="margin:8px 0 12px;color:#334155;">${safeMsg}</p>
+         <p class="muted" style="word-break:break-all;">Document: ${safeTitle}<br/>URL: ${safeUrl}</p>
+         <p class="muted" style="margin-top:8px;">If this attachment is newly added or imported, verify that the PDF file has been uploaded in Admin Panel &rarr; Manage Emails.</p>`
+      );
+    };
+
     // View mode: Pre-open viewer tab synchronously so popup blockers never trigger,
     // then fetch bytes & render inline (never auto-downloading PDFs, Excel, Word, or octet-stream).
     const viewerWin = createPreOpenedViewerTab(title);
@@ -471,15 +494,39 @@ export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction =
             contentType: res.headers?.['content-type'] || ''
           })
         )
-        .catch(() => {
+        .catch((err) => {
+          const status = err?.response?.status;
+          if (status) {
+            let apiMsg = err?.response?.data?.message || '';
+            if (!apiMsg && err?.response?.data instanceof ArrayBuffer) {
+              try {
+                apiMsg = JSON.parse(new TextDecoder().decode(err.response.data))?.message || '';
+              } catch (_) {}
+            }
+            showViewerHttpError(status, apiMsg || `Unable to open document (HTTP ${status}).`);
+            return;
+          }
           if (viewerWin && !viewerWin.closed) viewerWin.location.replace(targetUrl);
         });
       return;
     }
 
     fetch(targetUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      .then(async (res) => {
+        if (!res.ok) {
+          let serverMessage = '';
+          try {
+            const ct = res.headers.get('content-type') || '';
+            if (ct.includes('application/json')) {
+              const errJson = await res.json();
+              serverMessage = errJson?.message || '';
+            }
+          } catch (_) {}
+          const httpErr = new Error(serverMessage || `HTTP ${res.status}`);
+          httpErr.isHttpError = true;
+          httpErr.status = res.status;
+          throw httpErr;
+        }
         const contentType = res.headers.get('content-type') || '';
         return res.arrayBuffer().then((buf) => ({ buf, contentType }));
       })
@@ -491,7 +538,11 @@ export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction =
           serverPath: rawString || targetUrl
         })
       )
-      .catch(() => {
+      .catch((err) => {
+        if (err?.isHttpError) {
+          showViewerHttpError(err.status, err.message);
+          return;
+        }
         // Cross-origin external URLs without CORS fall back directly
         if (viewerWin && !viewerWin.closed) {
           viewerWin.location.replace(targetUrl);

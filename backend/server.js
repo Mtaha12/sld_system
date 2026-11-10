@@ -8,7 +8,7 @@ import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { detectContentTypeForFile, getCandidateUploadRoots, resolveUploadFilePath } from './src/utils/attachmentStorage.js';
+import { detectContentTypeForFile, getCandidateUploadRoots, resolveUploadFilePath, sanitizeUploadRelPath } from './src/utils/attachmentStorage.js';
 import { buildAttachmentPreview } from './src/utils/attachmentPreview.js';
 import { protect } from './src/middleware/authMiddleware.js';
 
@@ -218,13 +218,111 @@ for (const uploadRoot of getCandidateUploadRoots()) {
 }
 app.use('/uploads/reference_views', express.static(path.resolve(__serverDir, 'uploads/reference_views'), staticUploadOptions));
 
+const LEGACY_PORTAL_UPLOAD_BASE = 'https://portal.sldsystem.com/uploads/';
+const MAX_LEGACY_PROXY_BYTES = 30 * 1024 * 1024;
+
+const escapeHtmlSafe = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const tryLegacyPortalUploadFallback = async (cleanRel) => {
+  if (
+    !cleanRel ||
+    cleanRel.includes('..') ||
+    !/^(?:newsletters|reference_views)\/[a-zA-Z0-9._\-\/ ()+,@&']+$/.test(cleanRel)
+  ) {
+    return null;
+  }
+  const encodedRel = cleanRel.split('/').map(seg => encodeURIComponent(seg)).join('/');
+  const remoteUrl = `${LEGACY_PORTAL_UPLOAD_BASE}${encodedRel}`;
+  try {
+    const upstream = await fetch(remoteUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!upstream.ok) return null;
+
+    const declaredLen = Number(upstream.headers.get('content-length') || 0);
+    if (declaredLen > MAX_LEGACY_PROXY_BYTES) return null;
+
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    if (buf.length === 0 || buf.length > MAX_LEGACY_PROXY_BYTES) return null;
+
+    const upstreamType = (upstream.headers.get('content-type') || '').toLowerCase();
+    if (upstreamType.includes('text/html') && /\.(pdf|docx?|xlsx?|csv|png|jpe?g|webp|gif)$/i.test(cleanRel)) {
+      return null;
+    }
+
+    const detectedType = detectContentTypeForFile(cleanRel, buf);
+    const contentType = detectedType !== 'application/octet-stream'
+      ? detectedType
+      : (upstreamType || 'application/octet-stream');
+
+    return { buf, contentType };
+  } catch {
+    return null;
+  }
+};
+
 // Resilient fallback for any nested /uploads/* attachment path regardless of PM2 CWD
-app.get(/^\/uploads\/(.+)$/, (req, res) => {
+app.get(/^\/uploads\/(.+)$/, async (req, res) => {
   const matchedPath = resolveUploadFilePath(req.params[0]);
   if (matchedPath) {
     setInlineUploadHeaders(res, matchedPath);
     return res.sendFile(matchedPath);
   }
+
+  const cleanRel = sanitizeUploadRelPath(req.params[0]);
+  const legacyAsset = await tryLegacyPortalUploadFallback(cleanRel);
+  if (legacyAsset) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Content-Type', legacyAsset.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    return res.status(200).send(legacyAsset.buf);
+  }
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const acceptHeader = String(req.headers.accept || '').toLowerCase();
+  const prefersHtml = acceptHeader.includes('text/html') && !acceptHeader.startsWith('application/json');
+  if (prefersHtml) {
+    const safeName = escapeHtmlSafe(path.basename(cleanRel || req.params[0] || 'document'));
+    const safeRel = escapeHtmlSafe(cleanRel || req.params[0] || '');
+    return res.status(404).type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Document Not Found - ${safeName}</title>
+  <style>
+    body { margin: 0; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #0f172a; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { max-width: 520px; width: 100%; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 28px; box-shadow: 0 10px 25px rgba(15,23,42,0.06); }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #fef2f2; color: #b91c1c; font-size: 12px; font-weight: 700; margin-bottom: 12px; border: 1px solid #fecaca; }
+    h1 { font-size: 18px; margin: 0 0 8px; color: #1e293b; }
+    p { font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 12px; }
+    .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #f1f5f9; padding: 8px 10px; border-radius: 8px; color: #334155; word-break: break-all; margin-bottom: 16px; }
+    button { background: #3d4a7a; color: #fff; border: none; padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #2c375e; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">HTTP 404 · Attachment Not Found</div>
+    <h1>Unable to open "${safeName}"</h1>
+    <p>This attachment file is not currently stored on the server disk. If the link came from an archive import or draft row, please re-upload the PDF via Admin Panel &rarr; Manage Emails.</p>
+    <div class="path">/uploads/${safeRel}</div>
+    <button onclick="window.close()">Close Tab</button>
+  </div>
+</body>
+</html>`);
+  }
+
   return res.status(404).json({ success: false, message: 'Uploaded attachment file not found.' });
 });
 

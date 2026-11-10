@@ -1,3 +1,4 @@
+import path from 'path';
 import Newsletter from '../models/Newsletter.js';
 import mongoose from 'mongoose';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
@@ -394,15 +395,17 @@ export const uploadNewsletterAttachment = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
 
-    const year = new Date().getFullYear();
-    const host = req.get('host') || '';
-    const isLocalHost = host.startsWith('localhost') || host.startsWith('127.');
-    const protocol = (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' || !isLocalHost) ? 'https' : 'http';
-    const origin = `${protocol}://${host}`;
+    const defaultYear = String(new Date().getFullYear());
+    const rawHost = String(req.get('x-forwarded-host') || req.get('host') || '').split(',')[0].trim();
+    const isLocalHost = rawHost.startsWith('localhost') || rawHost.startsWith('127.');
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+    const protocol = (forwardedProto === 'https' || req.protocol === 'https' || !isLocalHost) ? 'https' : 'http';
+    const origin = rawHost ? `${protocol}://${rawHost}` : '';
 
     const results = uploadedFiles.map(f => {
-      const relativeUrl = `/uploads/newsletters/${year}/${f.filename}`;
-      const fullUrl = `${origin}${relativeUrl}`;
+      const folderYear = f.destination ? path.basename(f.destination) : defaultYear;
+      const relativeUrl = `/uploads/newsletters/${folderYear}/${f.filename}`;
+      const fullUrl = origin ? `${origin}${relativeUrl}` : relativeUrl;
       return {
         url: fullUrl,
         relativeUrl: relativeUrl,
