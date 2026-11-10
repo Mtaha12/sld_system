@@ -29,3 +29,4 @@ export const extractFirstTwoWords = (text) => {
 
   return tokens.slice(0, 2).join(' ');
 };
+
