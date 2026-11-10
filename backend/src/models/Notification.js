@@ -58,7 +58,8 @@ const notificationSchema = new mongoose.Schema({
   },
   subject: {
     type: String,
-    required: [true, 'Notification Subject is required'],
+    required: false,
+    default: '',
     trim: true,
   },
   lawStatute: {

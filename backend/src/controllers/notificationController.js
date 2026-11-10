@@ -54,6 +54,7 @@ const formatNotificationForFrontend = (n) => {
     lawDate,
     lawStatute: n.lawStatute || '',
     section: n.section || '',
+    laws: Array.isArray(n.laws) ? n.laws : [],
     status: n.status || 'Active',
     attachments: safeRootAttachments,
     attachment: n.attachment || '',
@@ -362,7 +363,7 @@ export const createNotification = async (req, res, next) => {
     let finalSr = srNumber && typeof srNumber === 'string' ? srNumber.trim() : '';
 
     if (finalSr) {
-      const exist = await Notification.findOne({ srNumber: finalSr });
+      const exist = await Notification.findOne({ srNumber: finalSr, isDeleted: { $ne: true } });
       if (exist) {
         return res.status(400).json({
           success: false,
@@ -396,7 +397,8 @@ export const createNotification = async (req, res, next) => {
       year: year ? parseInt(year, 10) : new Date().getFullYear(),
       number: number || '',
       sroNumber: sroNumber || '',
-      subject: subject || '',
+      subject: typeof subject === 'string' ? subject.trim() : '',
+      laws: Array.isArray(req.body.laws) ? req.body.laws : [],
       lawStatute: lawStatute || '',
       section: section || '',
       blocks: sanitizeBlocksAttachments(blocks || [])
@@ -483,10 +485,11 @@ export const updateNotification = async (req, res, next) => {
     if (year !== undefined) n.year = year ? parseInt(year, 10) : n.year;
     if (number !== undefined) n.number = number;
     if (sroNumber !== undefined) n.sroNumber = sroNumber;
-    if (subject !== undefined) n.subject = subject;
+    if (subject !== undefined) n.subject = typeof subject === 'string' ? subject.trim() : '';
     if (status !== undefined) n.status = status;
     if (lawStatute !== undefined) n.lawStatute = lawStatute;
     if (section !== undefined) n.section = section;
+    if (Array.isArray(req.body.laws)) n.laws = req.body.laws;
     if (blocks !== undefined) n.blocks = sanitizeBlocksAttachments(blocks);
 
     await n.save();

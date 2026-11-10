@@ -167,6 +167,7 @@ const AddNotificationForm = () => {
   const editData = location.state?.notificationData;
 
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [lawOptions, setLawOptions] = useState([]);
   const [sectionOptions, setSectionOptions] = useState(ALL_SECTIONS || []);
 
@@ -407,9 +408,18 @@ const AddNotificationForm = () => {
     name: 'laws'
   });
 
+  const onInvalid = (validationErrors) => {
+    isSaveAndNextRef.current = false;
+    const firstKey = Object.keys(validationErrors || {})[0];
+    const firstMsg = validationErrors?.[firstKey]?.message || 'Please check required fields before saving.';
+    setSubmitError(firstMsg);
+    setShowSuccess(false);
+  };
+
   const onSubmit = async (data) => {
     const isNext = isSaveAndNextRef.current;
     isSaveAndNextRef.current = false;
+    setSubmitError('');
 
     // Filter out completely empty blocks before saving
     data.blocks = (data.blocks || []).filter(b => {
@@ -449,32 +459,38 @@ const AddNotificationForm = () => {
 
       const payload = {
         ...data,
+        subject: typeof data.subject === 'string' ? data.subject.trim() : '',
         srNumber: targetSr || data.srNumber
       };
 
+      let savedSr = targetSr || autoNewSr || '1';
       if (targetId || isNavEdit) {
         await notificationService.updateNotification(targetId || targetSr, payload);
         setValue('srNumber', targetSr, { shouldDirty: false });
       } else {
-        await notificationService.createNotification(payload);
+        const createRes = await notificationService.createNotification(payload);
+        savedSr = String(createRes?.data?.srNumber || createRes?.srNumber || targetSr || autoNewSr || '1').trim();
       }
 
       setShowSuccess(true);
 
+      const computeNextSr = (baseSr) => {
+        const num = parseInt(String(baseSr || '').replace(/\D+/g, ''), 10);
+        return String(isNaN(num) ? 1 : num + 1);
+      };
+
       if (isNext) {
         // Advance to next sequential SR#
-        const currentSrNum = parseInt(targetSr || '1', 10);
-        const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+        const nextSr = computeNextSr(savedSr);
         setAutoNewSr(nextSr);
-        setValue('srNumber', nextSr);
 
         if (targetId || isNavEdit) {
           // IN EDIT MODE: Update + Next
+          setValue('srNumber', nextSr);
           navigate(`/manage-notifications/add?editId=${nextSr}`, { replace: true });
           await loadNotificationBySr(nextSr);
         } else {
-          // IN ADD NEW: Save + Next
-          // Show blank for the 3 blocks: SRO#, Subject, and Number as requested
+          // IN ADD NEW: Save + Next — show blank for SRO#, Subject, and Number
           setCurrentRecordId(null);
           reset({
             ...defaultValues,
@@ -488,6 +504,7 @@ const AddNotificationForm = () => {
             laws: [{ lawStatute: data.lawStatute || '', section: data.section || '' }],
             blocks: [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]
           });
+          setValue('srNumber', nextSr, { shouldDirty: false });
           setLoadFeedback({
             type: 'success',
             message: `Saved! Advanced to SR #${nextSr}. Ready for entry.`
@@ -495,12 +512,10 @@ const AddNotificationForm = () => {
         }
       } else {
         if (!targetId && !isNavEdit) {
-          // IN ADD NEW: Save Record / Update Record
-          const currentSrNum = parseInt(targetSr || '1', 10);
-          const nextSr = String(isNaN(currentSrNum) ? 1 : currentSrNum + 1);
+          // IN ADD NEW: Save Record — advance SR# to next sequential entry with blank SRO#, Subject, and Number
+          const nextSr = computeNextSr(savedSr);
           setAutoNewSr(nextSr);
           setCurrentRecordId(null);
-          // Show blank for the 3 blocks: SRO#, Subject, and Number as requested
           reset({
             ...defaultValues,
             srNumber: nextSr,
@@ -513,6 +528,7 @@ const AddNotificationForm = () => {
             laws: [{ lawStatute: data.lawStatute || '', section: data.section || '' }],
             blocks: [{ id: `block-${Date.now()}`, date: '', detail: '', attachments: [] }]
           });
+          setValue('srNumber', nextSr, { shouldDirty: false });
           setLoadFeedback({
             type: 'success',
             message: `Saved! Advanced to SR #${nextSr}. Ready for entry.`
@@ -525,6 +541,9 @@ const AddNotificationForm = () => {
       }, 3500);
     } catch (error) {
       console.error('Submission error:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Failed to save notification record.';
+      setSubmitError(errMsg);
+      setShowSuccess(false);
     }
   };
 
@@ -543,6 +562,18 @@ const AddNotificationForm = () => {
             </div>
             <button type="button" onClick={() => setShowSuccess(false)}>
               <X className="w-4 h-4 hover:text-green-900 dark:hover:text-green-200" />
+            </button>
+          </div>
+        )}
+
+        {submitError && (
+          <div className="mb-4 p-3.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl flex items-center justify-between text-red-700 dark:text-red-400 text-xs animate-fade-in">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span className="font-medium">{submitError}</span>
+            </div>
+            <button type="button" onClick={() => setSubmitError('')} className="cursor-pointer">
+              <X className="w-4 h-4 hover:text-red-900 dark:hover:text-red-200" />
             </button>
           </div>
         )}
@@ -604,7 +635,7 @@ const AddNotificationForm = () => {
 
         <form 
           id="notification-form" 
-          onSubmit={handleSubmit(onSubmit)} 
+          onSubmit={handleSubmit(onSubmit, onInvalid)} 
           onKeyDown={(e) => {
             if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
               e.preventDefault();

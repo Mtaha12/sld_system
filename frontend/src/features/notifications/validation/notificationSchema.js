@@ -7,16 +7,13 @@ export const notificationBlockSchema = z.object({
   attachments: z.array(z.any()).optional().default([]),
 });
 
-const validDepartments = ['circular', 'corporate', 'general order', 'judge order', 'letter', 'notification', 'notifications', 'other'];
-const validSubDepartments = ['federal', 'provincial'];
-
 export const notificationSchema = z.object({
   srNumber: z.string().optional().default(''),
-  department: z.enum(validDepartments).default('notification'),
-  subDepartment: z.enum(validSubDepartments).default('federal'),
-  year: z.string().min(1, 'Year is required'),
-  number: z.string().min(1, 'Number is required'),
-  sroNumber: z.string().min(1, 'SRO # is required'),
+  department: z.string().trim().min(1, 'Department is required').default('notification'),
+  subDepartment: z.string().trim().min(1, 'Sub Department is required').default('federal'),
+  year: z.coerce.string().trim().min(1, 'Year is required'),
+  number: z.coerce.string().trim().min(1, 'Number is required'),
+  sroNumber: z.string().trim().min(1, 'SRO # is required'),
   subject: z.string().optional().default(''),
   lawStatute: z.string().optional().default(''),
   section: z.string().optional().default(''),
