@@ -81,6 +81,39 @@ if (!fs.existsSync(targetDir)) {
 }
 
 /**
+ * Detects MIME type and extension from file extension and/or buffer magic bytes.
+ * Used across upload storage, static serving, and attachment preview/viewers.
+ */
+export const MIME_BY_EXT = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.doc': 'application/msword'
+};
+
+export const detectContentTypeForFile = (filePath = '', buffer = null) => {
+  const ext = path.extname(String(filePath || '').split('?')[0]).toLowerCase();
+  if (buffer && Buffer.isBuffer(buffer) && buffer.length >= 5) {
+    const headLatin1 = buffer.subarray(0, 5).toString('latin1');
+    if (headLatin1 === '%PDF-') return 'application/pdf';
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+    if (buffer.subarray(0, 4).toString('latin1') === 'RIFF' && buffer.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+    if (buffer.subarray(0, 3).toString('latin1') === 'GIF') return 'image/gif';
+  }
+  return MIME_BY_EXT[ext] || 'application/octet-stream';
+};
+
+/**
  * Automatically offloads base64 Data URLs to disk and returns a lightweight static URL.
  * Prevents multi-megabyte payloads from bloating MongoDB and degrading save performance.
  */
@@ -103,19 +136,27 @@ export const saveBase64ToFile = (dataUrlOrPath, fallbackName = '') => {
     const base64Data = matches[2];
     const buffer = Buffer.from(base64Data, 'base64');
 
-    let ext = '.pdf';
+    let ext = '';
     if (fallbackName) {
       const pExt = path.extname(fallbackName).toLowerCase();
-      if (['.pdf', '.doc', '.docx', '.png', '.jpg', '.jpeg', '.webp', '.txt'].includes(pExt)) {
+      if (['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.txt'].includes(pExt)) {
         ext = pExt;
       }
     }
-    if (ext === '.pdf') {
-      if (mime.includes('image/png')) ext = '.png';
-      else if (mime.includes('image/jpeg')) ext = '.jpg';
+    if (!ext) {
+      if (buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-') {
+        ext = '.pdf';
+      } else if (mime.includes('image/png')) ext = '.png';
+      else if (mime.includes('image/jpeg') || mime.includes('image/jpg')) ext = '.jpg';
       else if (mime.includes('image/webp')) ext = '.webp';
-      else if (mime.includes('word') || mime.includes('officedocument')) ext = '.docx';
+      else if (mime.includes('image/gif')) ext = '.gif';
+      else if (mime.includes('spreadsheetml') || mime.includes('excel')) ext = mime.includes('ms-excel') ? '.xls' : '.xlsx';
+      else if (mime.includes('text/csv') || mime.includes('application/csv')) ext = '.csv';
+      else if (mime.includes('wordprocessingml')) ext = '.docx';
+      else if (mime.includes('msword') || mime.includes('word')) ext = '.doc';
+      else if (mime.includes('officedocument')) ext = '.docx';
       else if (mime.includes('text/plain')) ext = '.txt';
+      else ext = '.pdf';
     }
 
     const filename = `${crypto.randomUUID()}${ext}`;
@@ -135,6 +176,13 @@ export const saveBase64ToFile = (dataUrlOrPath, fallbackName = '') => {
 export const sanitizeAttachments = (attachments) => {
   if (!attachments) return [];
   const list = Array.isArray(attachments) ? attachments : [attachments];
+  const detectTypeFromExt = (val) => {
+    const ext = String(val || '').split('?')[0].split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return 'image';
+    if (['doc', 'docx'].includes(ext)) return 'word';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return 'excel';
+    return 'pdf';
+  };
   return list
     .filter(Boolean)
     .map((att, idx) => {
@@ -147,7 +195,7 @@ export const sanitizeAttachments = (attachments) => {
           name: filename,
           url: cleanUrl,
           size: '',
-          type: cleanUrl.endsWith('.docx') || cleanUrl.endsWith('.doc') ? 'word' : (cleanUrl.match(/\.(png|jpg|jpeg|webp)$/i) ? 'image' : 'pdf')
+          type: detectTypeFromExt(cleanUrl)
         };
       }
       const rawName = (att.name && String(att.name).trim()) || (att.originalName && String(att.originalName).trim()) || (att.filename && String(att.filename).trim());
@@ -159,8 +207,7 @@ export const sanitizeAttachments = (attachments) => {
       if (typeof size === 'number') {
         size = `${(size / (1024 * 1024)).toFixed(2)} MB`;
       }
-      const ext = String(name).split('.').pop()?.toLowerCase();
-      const type = att.type || (['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? 'image' : (['doc', 'docx'].includes(ext) ? 'word' : 'pdf'));
+      const type = att.type || detectTypeFromExt(name || cleanUrl);
       return {
         name: name || `Attachment_${idx + 1}.pdf`,
         url: String(cleanUrl).trim(),

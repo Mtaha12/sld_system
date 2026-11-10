@@ -21,6 +21,11 @@ import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { whatsappService } from '../services/whatsappService';
 import { useUser } from '../../../contexts/UserContext';
+import {
+  downloadOrViewAttachment,
+  openProtectedEndpointInViewer,
+  downloadProtectedEndpoint
+} from '../../../utils/attachmentDownloader';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = sortConfig?.key === sortKey;
@@ -160,48 +165,33 @@ const ManageWhatsappTable = ({
   const handleViewDocument = (item) => {
     if (!item) return;
     if (item.attachment && item.attachment.startsWith('data:')) {
-      try {
-        const parts = item.attachment.split(',');
-        const mime = parts[0].split(':')[1].split(';')[0];
-        const byteCharacters = atob(parts[1]);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: mime });
-        const blobUrl = URL.createObjectURL(blob);
-        window.open(blobUrl, '_blank', 'noopener,noreferrer');
-        return;
-      } catch (e) {
-        console.warn('Could not open data URL blob:', e);
-      }
+      downloadOrViewAttachment(item.attachment, {
+        name: item.attachmentName || 'document.pdf',
+        title: item.heading || item.attachmentName,
+        download: false
+      });
+      return;
     }
 
     const targetId = item.srNumber || item.mongoId || item.id || item.whatsappId;
-    const viewUrl = whatsappService.getViewUrl(targetId);
-    window.open(viewUrl, '_blank', 'noopener,noreferrer');
+    openProtectedEndpointInViewer(`/api/whatsapp-updates/${targetId}/view`, {
+      filename: item.attachmentName || 'document.pdf',
+      title: item.heading || item.attachmentName || `WhatsApp Update #${targetId}`
+    });
   };
 
   const handleDownloadDocument = (item) => {
     if (!item) return;
     if (item.attachment && item.attachment.startsWith('data:')) {
-      const a = document.createElement('a');
-      a.href = item.attachment;
-      a.download = item.attachmentName || 'document.pdf';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      downloadOrViewAttachment(item.attachment, {
+        name: item.attachmentName || 'document.pdf',
+        title: item.heading || item.attachmentName,
+        download: true
+      });
       return;
     }
     const targetId = item.srNumber || item.mongoId || item.id || item.whatsappId;
-    const downloadUrl = whatsappService.getDownloadUrl(targetId);
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = item.attachmentName || 'document.pdf';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadProtectedEndpoint(`/api/whatsapp-updates/${targetId}/download`, item.attachmentName || 'document.pdf');
   };
 
   return (

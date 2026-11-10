@@ -2,6 +2,9 @@ import api from '../../../services/api.js';
 
 const clientCaseCache = new Map();
 const MAX_CLIENT_CACHE = 150;
+const clientSearchCache = new Map();
+const MAX_CLIENT_SEARCH_CACHE = 60;
+const SEARCH_CACHE_TTL_MS = 3 * 60 * 1000;
 
 const setClientCache = (key, data) => {
   if (clientCaseCache.size >= MAX_CLIENT_CACHE) {
@@ -9,6 +12,11 @@ const setClientCache = (key, data) => {
     clientCaseCache.delete(oldest);
   }
   clientCaseCache.set(key, data);
+};
+
+const clearAllClientCaches = () => {
+  clientCaseCache.clear();
+  clientSearchCache.clear();
 };
 
 export const caseService = {
@@ -100,8 +108,29 @@ export const caseService = {
    * @returns {Promise<Array>}
    */
   searchCases: async (filters = {}, options = {}) => {
+    const key = JSON.stringify(filters || {});
+    const cached = clientSearchCache.get(key);
+    if (cached && Date.now() - cached.ts < SEARCH_CACHE_TTL_MS) {
+      if (options?.signal?.aborted) {
+        const err = new Error('canceled');
+        err.name = 'CanceledError';
+        throw err;
+      }
+      clientSearchCache.delete(key);
+      clientSearchCache.set(key, cached);
+      return cached.data;
+    }
+
     const response = await api.post('/api/cases/search', filters, options);
-    return response.data.data;
+    const data = response.data.data;
+    if (Array.isArray(data)) {
+      if (clientSearchCache.size >= MAX_CLIENT_SEARCH_CACHE) {
+        const oldest = clientSearchCache.keys().next().value;
+        clientSearchCache.delete(oldest);
+      }
+      clientSearchCache.set(key, { ts: Date.now(), data });
+    }
+    return data;
   },
 
   /**
@@ -110,7 +139,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   createCase: async (newCase) => {
-    clientCaseCache.clear();
+    clearAllClientCaches();
     const response = await api.post('/api/cases', newCase);
     return response.data;
   },
@@ -122,7 +151,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   updateCase: async (id, updatedFields) => {
-    clientCaseCache.clear();
+    clearAllClientCaches();
     const response = await api.put(`/api/cases/${id}`, updatedFields);
     return response.data;
   },
@@ -134,7 +163,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   updateCaseAttachments: async (id, attachments) => {
-    clientCaseCache.clear();
+    clearAllClientCaches();
     const cleanId = String(id || '').trim();
     try {
       const response = await api.patch(`/api/cases/${encodeURIComponent(cleanId)}/attachments`, { attachments });
@@ -152,7 +181,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   deleteCase: async (id) => {
-    clientCaseCache.clear();
+    clearAllClientCaches();
     const response = await api.delete(`/api/cases/${id}`);
     return response.data;
   },
@@ -163,7 +192,7 @@ export const caseService = {
    * @returns {Promise<Object>}
    */
   deleteCases: async (ids) => {
-    clientCaseCache.clear();
+    clearAllClientCaches();
     const response = await api.post('/api/cases/delete-multiple', { ids });
     return response.data;
   },

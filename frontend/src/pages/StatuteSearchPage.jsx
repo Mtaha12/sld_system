@@ -5,6 +5,7 @@ import { statuteService } from '../features/statutes/services/statuteService';
 import { settingService } from '../services/settingService';
 import SearchableLawSelect from '../features/statutes/components/SearchableLawSelect';
 import Modal from '../components/ui/Modal';
+import Pagination from '../components/ui/Pagination';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { compareSections } from '../utils/sectionComparator';
 import { downloadOrViewAttachment, getAttachmentDisplayName, getAttachmentUrl as resolveBackendAttachmentUrl } from '../utils/attachmentDownloader';
@@ -79,6 +80,8 @@ const StatuteSearchPage = () => {
   const [loading, setLoading]               = useState(false);
   const [error, setError]                   = useState(null);
   const [viewStatute, setViewStatute]       = useState(null);
+  const [currentPage, setCurrentPage]       = useState(1);
+  const [itemsPerPage, setItemsPerPage]     = useState(100);
 
   // Search History from localStorage
   const [history, setHistory] = useState(() => {
@@ -242,6 +245,7 @@ const StatuteSearchPage = () => {
 
     setLoading(true);
     setStatuteResults(null);
+    setCurrentPage(1);
 
     try {
       const searchParams = { limit: 1000 };
@@ -275,6 +279,7 @@ const StatuteSearchPage = () => {
     setText2('');
     setActiveLetter(null);
     setStatuteResults(null);
+    setCurrentPage(1);
     setError(null);
   };
 
@@ -398,6 +403,15 @@ const StatuteSearchPage = () => {
       return b.sortTime - a.sortTime;
     });
   }, [statuteResults, text, text2]);
+
+  const totalBlockRows = flattenedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalBlockRows / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * itemsPerPage;
+  const paginatedRows = useMemo(
+    () => flattenedRows.slice(startIndex, startIndex + itemsPerPage),
+    [flattenedRows, startIndex, itemsPerPage]
+  );
 
   const hasTextSearch = Boolean(text.trim() || text2.trim());
 
@@ -658,9 +672,26 @@ const StatuteSearchPage = () => {
               </span>
             </div>
 
-            <span className="px-2.5 py-1 bg-[#a8cfe0] text-[#1e3a5a] text-xs font-bold rounded-full">
-              {flattenedRows.length} Legal Block Result{flattenedRows.length !== 1 ? 's' : ''} Found
-            </span>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <span>Show:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-xs font-medium text-gray-700 dark:text-gray-200 focus:outline-none"
+                >
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={250}>250</option>
+                </select>
+              </div>
+              <span className="px-2.5 py-1 bg-[#a8cfe0] text-[#1e3a5a] text-xs font-bold rounded-full">
+                {flattenedRows.length} Legal Block Result{flattenedRows.length !== 1 ? 's' : ''} Found
+              </span>
+            </div>
           </div>
 
           {flattenedRows.length === 0 ? (
@@ -673,55 +704,55 @@ const StatuteSearchPage = () => {
               </button>
             </div>
           ) : (
-            /* ── UNIFIED INDIVIDUAL BLOCK RESULTS TABLE (Requirements 4.A, 4.B, 4.C) ── */
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+            <>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full table-fixed text-[13px] text-left">
                 <thead>
                   <tr className="bg-[#3d4a7a] text-white">
-                    <th className="px-3 py-2.5 font-semibold w-12 text-center">#</th>
-                    <th className="px-3 py-2.5 font-semibold min-w-[170px] max-w-[240px]">Law Name</th>
-                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap min-w-[110px]">Chapter</th>
-                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap min-w-[90px]">Section / Article</th>
-                    <th className="px-3 py-2.5 font-semibold min-w-[320px]">Relevant Block Content</th>
-                    <th className="px-3 py-2.5 font-semibold whitespace-nowrap min-w-[110px]">Latest Date</th>
-                    <th className="px-3 py-2.5 font-semibold text-center w-24 whitespace-nowrap">View Action</th>
+                    <th className="px-2 py-2.5 font-semibold w-[4%] text-center">#</th>
+                    <th className="px-2.5 py-2.5 font-semibold w-[16%]">Law Name</th>
+                    <th className="px-2.5 py-2.5 font-semibold w-[13%]">Chapter</th>
+                    <th className="px-2.5 py-2.5 font-semibold w-[10%]">Section / Article</th>
+                    <th className="px-2.5 py-2.5 font-semibold w-[38%]">Relevant Block Content</th>
+                    <th className="px-2 py-2.5 font-semibold w-[10%] whitespace-nowrap">Latest Date</th>
+                    <th className="px-2 py-2.5 font-semibold text-center w-[9%] whitespace-nowrap">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {flattenedRows.map((row, idx) => (
+                  {paginatedRows.map((row, idx) => (
                     <tr key={row.rowKey || idx} className="hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-3 py-3 text-gray-400 text-center align-top font-mono">{idx + 1}</td>
+                      <td className="px-2 py-3 text-gray-500 text-center align-top font-mono">{startIndex + idx + 1}</td>
                       
                       {/* Law Name */}
-                      <td className="px-3 py-3 text-gray-800 dark:text-gray-100 font-bold align-top min-w-[170px] max-w-[240px] leading-snug">
+                      <td className="px-2.5 py-3 text-gray-800 dark:text-gray-100 font-bold align-top break-words leading-snug">
                         <div>
                           <span>{row.law}</span>
-                          <span className="block text-[10px] text-gray-400 font-normal mt-0.5 font-mono">
+                          <span className="block text-[11px] text-gray-400 font-normal mt-0.5 font-mono">
                             SR #{row.srNumber} {row.totalBlocks > 1 ? `(Block ${row.blockIndex + 1} of ${row.totalBlocks})` : ''}
                           </span>
                         </div>
                       </td>
 
                       {/* Chapter */}
-                      <td className="px-3 py-3 text-gray-600 dark:text-gray-300 align-top whitespace-nowrap">
+                      <td className="px-2.5 py-3 text-gray-600 dark:text-gray-300 align-top break-words">
                         {row.chapter || '—'}
                       </td>
 
                       {/* Section / Article */}
-                      <td className="px-3 py-3 font-black text-brand-orange align-top whitespace-nowrap">
+                      <td className="px-2.5 py-3 font-black text-brand-orange align-top break-words">
                         {String(row.section || '—').replace(/^section\s+/i, '')}
                       </td>
 
                       {/* Relevant Block Content */}
-                      <td className="px-3 py-3 text-gray-700 dark:text-gray-200 align-top">
+                      <td className="px-2.5 py-3 text-gray-700 dark:text-gray-200 align-top break-words">
                         <div className="space-y-1.5">
                           {row.sectionHeading && (
-                            <p className="font-bold text-xs text-gray-900 dark:text-white leading-snug">
+                            <p className="font-bold text-[13px] text-gray-900 dark:text-white leading-snug">
                               <Highlight text={row.sectionHeading} terms={[text, text2]} />
                             </p>
                           )}
                           {row.detail ? (
-                            <div className="text-xs leading-relaxed line-clamp-3 bg-yellow-50/40 dark:bg-yellow-950/20 p-2 rounded border border-yellow-200/60 dark:border-yellow-900/40">
+                            <div className="text-[13px] leading-relaxed line-clamp-3 bg-yellow-50/40 dark:bg-yellow-950/20 p-2 rounded border border-yellow-200/60 dark:border-yellow-900/40">
                               <Highlight text={row.detail.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()} terms={[text, text2]} />
                             </div>
                           ) : (
@@ -731,20 +762,20 @@ const StatuteSearchPage = () => {
                       </td>
 
                       {/* Latest Applicable Date */}
-                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300 font-semibold whitespace-nowrap align-top">
+                      <td className="px-2.5 py-3 text-gray-700 dark:text-gray-300 font-semibold whitespace-nowrap align-top">
                         {formatDisplayDate(row.fromDate)}
                       </td>
 
                       {/* View Action: Opens ONLY this selected legal block */}
-                      <td className="px-3 py-3 text-center whitespace-nowrap align-top">
+                      <td className="px-2 py-3 text-center align-top">
                         <button
                           type="button"
                           onClick={() => handleRowViewAction(row)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer shadow-xs"
+                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-xs font-semibold rounded transition-colors cursor-pointer shadow-xs"
                           title="View this legal block provision in new tab"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View Block</span>
+                          <Eye className="w-3.5 h-3.5 shrink-0" />
+                          <span>View</span>
                         </button>
                       </td>
                     </tr>
@@ -752,6 +783,16 @@ const StatuteSearchPage = () => {
                 </tbody>
               </table>
             </div>
+            {totalBlockRows > itemsPerPage && (
+              <Pagination
+                currentPage={safePage}
+                totalPages={totalPages}
+                totalItems={totalBlockRows}
+                itemsPerPage={itemsPerPage}
+                onPageChange={(p) => setCurrentPage(Math.max(1, Math.min(totalPages, p)))}
+              />
+            )}
+          </>
           )}
 
         </div>

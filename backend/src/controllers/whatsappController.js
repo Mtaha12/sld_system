@@ -3,7 +3,7 @@ import Counter from '../models/Counter.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
-import { saveBase64ToFile, resolveUploadFilePath } from '../utils/attachmentStorage.js';
+import { detectContentTypeForFile, saveBase64ToFile, resolveUploadFilePath } from '../utils/attachmentStorage.js';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
@@ -173,14 +173,15 @@ export const viewWhatsappAttachment = async (req, res, next) => {
       return res.status(404).send('No attachment file found for this record.');
     }
 
-    const filename = item.attachmentName || 'document.pdf';
+    const filename = (item.attachmentName || 'document.pdf').replace(/[\r\n"]/g, '_');
 
     // Handle Data URL (base64)
     if (item.attachment.startsWith('data:')) {
       const matches = item.attachment.match(/^data:([^;]+);base64,(.+)$/);
       if (matches) {
-        const mimeType = matches[1];
         const buffer = Buffer.from(matches[2], 'base64');
+        const detected = detectContentTypeForFile(filename, buffer);
+        const mimeType = detected !== 'application/octet-stream' ? detected : matches[1];
         res.setHeader('Content-Type', mimeType);
         res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
         res.setHeader('Content-Length', buffer.length);
@@ -188,10 +189,33 @@ export const viewWhatsappAttachment = async (req, res, next) => {
       }
     }
 
-    // Handle local file in uploads/
-    if (item.attachment.startsWith('/uploads') || item.attachment.startsWith('uploads/')) {
-      const filePath = resolveUploadFilePath(item.attachment);
+    // Resolve local file in uploads/ (also supports stored absolute http(s)://.../uploads/... URLs)
+    let localCandidate = item.attachment.trim();
+    if (localCandidate.startsWith('http://') || localCandidate.startsWith('https://')) {
+      try {
+        const parsed = new URL(localCandidate);
+        if (parsed.pathname.includes('/uploads')) {
+          localCandidate = parsed.pathname;
+        }
+      } catch (_) {}
+    }
+
+    if (localCandidate.startsWith('/uploads') || localCandidate.startsWith('uploads/') || localCandidate.includes('reference_views/')) {
+      const filePath = resolveUploadFilePath(localCandidate);
       if (filePath) {
+        let headBuf = null;
+        try {
+          const fd = fs.openSync(filePath, 'r');
+          headBuf = Buffer.alloc(16);
+          fs.readSync(fd, headBuf, 0, 16, 0);
+          fs.closeSync(fd);
+        } catch (_) {
+          headBuf = null;
+        }
+        const detected = detectContentTypeForFile(filePath, headBuf);
+        if (detected !== 'application/octet-stream') {
+          res.setHeader('Content-Type', detected);
+        }
         res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
         return res.sendFile(filePath);
       }

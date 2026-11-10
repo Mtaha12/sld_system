@@ -1,24 +1,61 @@
 import api from '../../../services/api.js';
 
+const STATUTE_CACHE_TTL_MS = 3 * 60 * 1000;
+const STATUTE_CACHE_MAX = 100;
+const statuteQueryCache = new Map();
+let cachedDistinctLaws = null;
+let cachedDistinctLawsTs = 0;
+
+const attachMeta = (rows, meta) => {
+  const arr = Array.isArray(rows) ? [...rows] : [];
+  arr.total = meta.total;
+  arr.dashboardTotal = meta.dashboardTotal;
+  arr.totalPages = meta.totalPages;
+  arr.currentPage = meta.currentPage;
+  arr.pagination = {
+    total: meta.total,
+    totalPages: meta.totalPages,
+    currentPage: meta.currentPage
+  };
+  return arr;
+};
+
+const clearStatuteClientCache = () => {
+  statuteQueryCache.clear();
+  cachedDistinctLaws = null;
+  cachedDistinctLawsTs = 0;
+};
+
 export const statuteService = {
   /**
-   * Fetches all statutes from backend
+   * Fetches all statutes from backend with fast client-side LRU caching
    * @returns {Promise<Array>}
    */
   getStatutes: async (params = {}) => {
     const queryParams = typeof params === 'string' ? (params ? { query: params } : {}) : (params || {});
+    const cacheKey = JSON.stringify(queryParams);
+    const cached = statuteQueryCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < STATUTE_CACHE_TTL_MS) {
+      statuteQueryCache.delete(cacheKey);
+      statuteQueryCache.set(cacheKey, cached);
+      return attachMeta(cached.rows, cached.meta);
+    }
+
     const response = await api.get('/api/statutes', { params: queryParams });
-    const data = response.data?.data || [];
-    data.total = response.data?.total ?? data.length;
-    data.dashboardTotal = response.data?.dashboardTotal;
-    data.totalPages = response.data?.totalPages ?? 1;
-    data.currentPage = response.data?.currentPage ?? 1;
-    data.pagination = {
-      total: data.total,
-      totalPages: data.totalPages,
-      currentPage: data.currentPage
+    const rows = response.data?.data || [];
+    const meta = {
+      total: response.data?.total ?? rows.length,
+      dashboardTotal: response.data?.dashboardTotal,
+      totalPages: response.data?.totalPages ?? 1,
+      currentPage: response.data?.currentPage ?? 1
     };
-    return data;
+
+    if (statuteQueryCache.size >= STATUTE_CACHE_MAX) {
+      const oldest = statuteQueryCache.keys().next().value;
+      statuteQueryCache.delete(oldest);
+    }
+    statuteQueryCache.set(cacheKey, { ts: Date.now(), rows, meta });
+    return attachMeta(rows, meta);
   },
 
   /**
@@ -74,6 +111,7 @@ export const statuteService = {
    */
   createStatute: async (newStatute) => {
     const response = await api.post('/api/statutes', newStatute);
+    clearStatuteClientCache();
     return response.data;
   },
 
@@ -85,6 +123,7 @@ export const statuteService = {
    */
   updateStatute: async (id, updatedFields) => {
     const response = await api.put(`/api/statutes/${id}`, updatedFields);
+    clearStatuteClientCache();
     return response.data;
   },
 
@@ -95,6 +134,7 @@ export const statuteService = {
    */
   deleteStatute: async (id) => {
     const response = await api.delete(`/api/statutes/${id}`);
+    clearStatuteClientCache();
     return response.data;
   },
 
@@ -106,6 +146,7 @@ export const statuteService = {
    */
   updateLawDate: async (law, date) => {
     const response = await api.post('/api/statutes/update-law-date', { law, date });
+    clearStatuteClientCache();
     return response.data;
   },
 
@@ -114,9 +155,15 @@ export const statuteService = {
    * @returns {Promise<Array<string>>}
    */
   getDistinctLaws: async () => {
+    if (cachedDistinctLaws && Date.now() - cachedDistinctLawsTs < 10 * 60 * 1000) {
+      return cachedDistinctLaws;
+    }
     const response = await api.get('/api/statutes/laws');
     const res = response.data;
-    return Array.isArray(res) ? res : (res?.data || []);
+    const list = Array.isArray(res) ? res : (res?.data || []);
+    cachedDistinctLaws = list;
+    cachedDistinctLawsTs = Date.now();
+    return list;
   },
 
   /**

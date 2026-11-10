@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { 
-  Eye, 
+  ExternalLink,
   Pencil, 
   Trash2, 
   ArrowUpDown, 
@@ -238,10 +238,10 @@ const ManageNewsTable = ({
                           href={`/news/view/${item.srNumber || item.mongoId || item.id || item.newsId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs"
+                          className="px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-medium rounded transition-colors inline-flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
                           title="View news report in new tab"
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          <ExternalLink className="w-3 h-3" /> View
                         </a>
                         {isAdmin && (
                           <>

@@ -74,6 +74,35 @@ const escapeRegex = (str) => {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
+let cachedDistinctLaws = null;
+let cachedDistinctLawsExpiresAt = 0;
+
+const STATUTE_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const STATUTE_SEARCH_CACHE_MAX = 250;
+const statuteSearchCache = new Map();
+
+const getCachedDistinctLawList = async () => {
+  const now = Date.now();
+  if (cachedDistinctLaws && now < cachedDistinctLawsExpiresAt) {
+    return cachedDistinctLaws;
+  }
+  const laws = await Statute.distinct('law', { isDeleted: { $ne: true } });
+  const cleanLaws = Array.from(
+    new Set(laws.filter(Boolean).map(l => String(l).trim()).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b));
+
+  cachedDistinctLaws = cleanLaws;
+  cachedDistinctLawsExpiresAt = now + 10 * 60 * 1000;
+  return cleanLaws;
+};
+
+const invalidateStatuteCaches = () => {
+  cachedDistinctLaws = null;
+  cachedDistinctLawsExpiresAt = 0;
+  statuteSearchCache.clear();
+  invalidateBoardCountsCache();
+};
+
 /**
  * Statute APIs Controllers
  */
@@ -84,13 +113,33 @@ export const getStatutes = async (req, res, next) => {
       law, section, chapter, text, text2, heading, department, exact
     } = req.query;
 
+    const isSpammer = req.user?.isSpammer === true;
+    const cacheKey = isSpammer ? null : JSON.stringify(req.query);
+    if (cacheKey) {
+      const hit = statuteSearchCache.get(cacheKey);
+      if (hit && Date.now() - hit.ts < STATUTE_SEARCH_CACHE_TTL_MS) {
+        statuteSearchCache.delete(cacheKey);
+        statuteSearchCache.set(cacheKey, hit);
+        return res.status(200).json(hit.payload);
+      }
+    }
+
     const filter = { isDeleted: { $ne: true } };
 
-
-    // Explicit law filter (e.g. from dropdown or exact law search)
+    // Explicit law filter — resolve against cached exact law strings for B-tree index lookup
     const targetLaw = (law || '').trim();
     if (targetLaw) {
-      if (exact === 'true') {
+      const distinctLaws = await getCachedDistinctLawList();
+      const targetLower = targetLaw.toLowerCase();
+      const matched = exact === 'true'
+        ? distinctLaws.filter((l) => l.toLowerCase() === targetLower)
+        : distinctLaws.filter((l) => l.toLowerCase().includes(targetLower));
+
+      if (matched.length === 1) {
+        filter.law = matched[0];
+      } else if (matched.length > 1 && matched.length <= 200) {
+        filter.law = { $in: matched };
+      } else if (exact === 'true') {
         filter.law = new RegExp(`^${escapeRegex(targetLaw)}$`, 'i');
       } else {
         filter.law = new RegExp(escapeRegex(targetLaw), 'i');
@@ -171,9 +220,6 @@ export const getStatutes = async (req, res, next) => {
     const safeLimit = isAll ? 1000 : Math.min(Math.max(limitNum || 100, 1), 1000);
     const safePage = Math.max(pageNum || 1, 1);
 
-    const total = await Statute.countDocuments(filter);
-    const totalPages = Math.ceil(total / safeLimit) || 1;
-
     const order = sortOrder === 'desc' ? -1 : 1;
     let sortObj = { srNumberInt: -1 };
     let useCollation = false;
@@ -204,13 +250,20 @@ export const getStatutes = async (req, res, next) => {
       dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);
     }
 
-    const statutes = await dbQuery.lean();
-    const isSpammer = req.user?.isSpammer === true;
+    const needCount = !isAll;
+    const [statutes, rawTotal] = await Promise.all([
+      dbQuery.lean(),
+      needCount ? Statute.countDocuments(filter) : Promise.resolve(null)
+    ]);
+
+    const total = rawTotal !== null ? rawTotal : statutes.length;
+    const totalPages = isAll ? 1 : (Math.ceil(total / safeLimit) || 1);
+
     const data = (isSpammer ? statutes.map(spoofStatute) : statutes).map(formatStatuteForFrontend);
     const isUnfiltered = Object.keys(filter).length === 1;
     const boardCounts = await getBoardStatuteAndNotificationCounts({ liveStatutes: isUnfiltered ? total : null });
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       message: 'Statutes retrieved successfully.',
       count: data.length,
@@ -219,7 +272,17 @@ export const getStatutes = async (req, res, next) => {
       totalPages,
       currentPage: safePage,
       data
-    });
+    };
+
+    if (cacheKey) {
+      if (statuteSearchCache.size >= STATUTE_SEARCH_CACHE_MAX) {
+        const oldest = statuteSearchCache.keys().next().value;
+        statuteSearchCache.delete(oldest);
+      }
+      statuteSearchCache.set(cacheKey, { ts: Date.now(), payload });
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     next(error);
   }
@@ -506,7 +569,7 @@ export const createStatute = async (req, res, next) => {
       await newStatute.save();
     }
 
-    invalidateBoardCountsCache();
+    invalidateStatuteCaches();
     logger.info(`[Statute Created] Statute ID ${newStatute.statuteId} (SR #${newStatute.srNumber}) added.`);
 
     return res.status(201).json({
@@ -573,6 +636,7 @@ export const updateStatute = async (req, res, next) => {
     if (blocks !== undefined) s.blocks = sanitizeBlocksAttachments(blocks);
 
     await s.save();
+    invalidateStatuteCaches();
     logger.info(`[Statute Updated] SR #${s.srNumber} updated.`);
 
     return res.status(200).json({
@@ -613,7 +677,7 @@ export const deleteStatute = async (req, res, next) => {
 
     await adjustSrOnDelete(Statute, s, { srField: 'srNumber', intField: 'srNumberInt', isString: true, counterName: 'statute' });
 
-    invalidateBoardCountsCache();
+    invalidateStatuteCaches();
     logger.info(`[Statute Deleted] ID ${s.statuteId || s.srNumber} soft-deleted and SR# auto-adjusted.`);
 
     return res.status(200).json({
@@ -626,27 +690,9 @@ export const deleteStatute = async (req, res, next) => {
   }
 };
 
-let cachedDistinctLaws = null;
-let cachedDistinctLawsExpiresAt = 0;
-
 export const getDistinctLaws = async (req, res, next) => {
   try {
-    const now = Date.now();
-    if (cachedDistinctLaws && now < cachedDistinctLawsExpiresAt) {
-      return res.status(200).json({
-        success: true,
-        data: cachedDistinctLaws
-      });
-    }
-
-    const laws = await Statute.distinct('law', { isDeleted: { $ne: true } });
-    const cleanLaws = Array.from(
-      new Set(laws.filter(Boolean).map(l => String(l).trim()).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-
-    cachedDistinctLaws = cleanLaws;
-    cachedDistinctLawsExpiresAt = now + 10 * 60 * 1000; // 10 minutes cache
-
+    const cleanLaws = await getCachedDistinctLawList();
     return res.status(200).json({
       success: true,
       data: cleanLaws
@@ -699,6 +745,7 @@ export const updateLawDate = async (req, res, next) => {
       { $set: { blocks: [{ fromDate: formattedDate, sectionHeading: '', detail: '', attachments: [] }] } }
     );
 
+    invalidateStatuteCaches();
     logger.info(`[Statute Law Date Updated] Law "${trimmedLaw}" updated with fromDate "${formattedDate}" across ${totalCount} records.`);
 
     return res.status(200).json({

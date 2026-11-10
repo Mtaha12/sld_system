@@ -6,8 +6,11 @@ import dns from 'dns';
 import morgan from 'morgan';
 import compression from 'compression';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { getCandidateUploadRoots, resolveUploadFilePath } from './src/utils/attachmentStorage.js';
+import { detectContentTypeForFile, getCandidateUploadRoots, resolveUploadFilePath } from './src/utils/attachmentStorage.js';
+import { buildAttachmentPreview } from './src/utils/attachmentPreview.js';
+import { protect } from './src/middleware/authMiddleware.js';
 
 // Configure public DNS servers to resolve MongoDB Atlas SRV/TXT records securely
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -114,7 +117,8 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Disposition', 'Content-Type']
 }));
 
 // Request parsers
@@ -177,6 +181,27 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/other-cases', otherCaseLawRoutes);
 app.use('/api/other-caselaws', otherCaseLawRoutes);
 
+const setInlineUploadHeaders = (res, filePath) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Disposition', 'inline');
+  if (filePath) {
+    let headBuf = null;
+    try {
+      const fd = fs.openSync(filePath, 'r');
+      headBuf = Buffer.alloc(16);
+      fs.readSync(fd, headBuf, 0, 16, 0);
+      fs.closeSync(fd);
+    } catch (_) {
+      headBuf = null;
+    }
+    const contentType = detectContentTypeForFile(filePath, headBuf);
+    if (contentType && contentType !== 'application/octet-stream') {
+      res.setHeader('Content-Type', contentType);
+    }
+  }
+};
+
 // Static uploads serving
 // High-speed static uploads serving across __dirname (backend/uploads) and process.cwd()
 const __serverDir = path.dirname(fileURLToPath(import.meta.url));
@@ -184,14 +209,7 @@ const staticUploadOptions = {
   maxAge: '7d',
   etag: true,
   lastModified: true,
-  setHeaders: (res, filePath) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Disposition', 'inline');
-    if (filePath && filePath.toLowerCase().endsWith('.pdf')) {
-      res.setHeader('Content-Type', 'application/pdf');
-    }
-  }
+  setHeaders: (res, filePath) => setInlineUploadHeaders(res, filePath)
 };
 for (const uploadRoot of getCandidateUploadRoots()) {
   app.use('/uploads', express.static(uploadRoot, staticUploadOptions));
@@ -204,16 +222,55 @@ app.use('/uploads/reference_views', express.static(path.resolve(__serverDir, 'up
 app.get(/^\/uploads\/(.+)$/, (req, res) => {
   const matchedPath = resolveUploadFilePath(req.params[0]);
   if (matchedPath) {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Disposition', 'inline');
-    if (matchedPath.toLowerCase().endsWith('.pdf')) {
-      res.setHeader('Content-Type', 'application/pdf');
-    }
+    setInlineUploadHeaders(res, matchedPath);
     return res.sendFile(matchedPath);
   }
   return res.status(404).json({ success: false, message: 'Uploaded attachment file not found.' });
 });
+
+// Protected inline document preview endpoint for spreadsheets (.xlsx/.xls/.csv) and Word (.docx/.doc)
+const handleAttachmentPreview = async (req, res, next) => {
+  try {
+    const rawPath = (req.body?.path || req.query?.path || '').toString().trim();
+    const rawBase64 = (req.body?.base64 || '').toString().trim();
+    const filename = (req.body?.filename || req.query?.filename || 'Document').toString().trim();
+    const mimeHint = (req.body?.mimeType || req.query?.mimeType || '').toString().trim();
+
+    let buffer = null;
+    let resolvedName = filename;
+
+    if (rawPath) {
+      let cleanPath = rawPath;
+      if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+        try {
+          cleanPath = new URL(cleanPath).pathname;
+        } catch (_) {
+          return res.status(400).json({ success: false, message: 'Invalid attachment path.' });
+        }
+      }
+      const matched = resolveUploadFilePath(cleanPath);
+      if (!matched) {
+        return res.status(404).json({ success: false, message: 'Attachment file not found.' });
+      }
+      buffer = await fs.promises.readFile(matched);
+      if (!resolvedName || resolvedName === 'Document') {
+        resolvedName = path.basename(matched);
+      }
+    } else if (rawBase64) {
+      const b64Payload = rawBase64.includes(',') ? rawBase64.split(',').slice(1).join(',') : rawBase64;
+      buffer = Buffer.from(b64Payload, 'base64');
+    } else {
+      return res.status(400).json({ success: false, message: 'Attachment path or base64 content is required.' });
+    }
+
+    const preview = buildAttachmentPreview(buffer, resolvedName, mimeHint);
+    return res.status(200).json({ success: true, data: preview });
+  } catch (err) {
+    next(err);
+  }
+};
+app.get('/api/attachment-preview', protect, handleAttachmentPreview);
+app.post('/api/attachment-preview', protect, handleAttachmentPreview);
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

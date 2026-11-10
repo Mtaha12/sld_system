@@ -1,4 +1,12 @@
-import api from '../../../services/api';
+import api, { API_URL } from '../../../services/api';
+
+const resolveBackendEndpoint = (path) => {
+  const rawBase = (API_URL || '').trim().replace(/\/+$/, '');
+  if (rawBase && typeof window !== 'undefined' && !rawBase.includes(window.location.host)) {
+    return `${rawBase}${path}`;
+  }
+  return path;
+};
 
 export const whatsappService = {
   getUpdates: async (params = {}) => {
@@ -36,12 +44,12 @@ export const whatsappService = {
     return res.data;
   },
   getViewUrl: (id) => {
-    const token = localStorage.getItem('token');
-    return `/api/whatsapp-updates/${id}/view${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const token = localStorage.getItem('sld_access_token');
+    return resolveBackendEndpoint(`/api/whatsapp-updates/${id}/view${token ? `?token=${encodeURIComponent(token)}` : ''}`);
   },
   getDownloadUrl: (id) => {
-    const token = localStorage.getItem('token');
-    return `/api/whatsapp-updates/${id}/download${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const token = localStorage.getItem('sld_access_token');
+    return resolveBackendEndpoint(`/api/whatsapp-updates/${id}/download${token ? `?token=${encodeURIComponent(token)}` : ''}`);
   }
 };
 

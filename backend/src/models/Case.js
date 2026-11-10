@@ -214,6 +214,14 @@ caseSchema.index({ 'publications.mag': 1, 'publications.page': 1, 'publications.
 caseSchema.index({ 'publications.page': 1, 'publications.year': 1 });
 caseSchema.index({ 'laws.lawStatute': 1 });
 caseSchema.index({ principleLaw: 1 });
+caseSchema.index({ isDeleted: 1, 'laws.lawStatute': 1, 'laws.section': 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, 'laws.lawStatute': 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, 'laws.section': 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, principleLaw: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, dated: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, judges: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, lawyers: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, petitioners: 1, sldNumberInt: -1 });
 
 
 // Soft delete query filter middleware

@@ -125,8 +125,8 @@ const setCachedCase = (key, data) => {
  * High-speed In-Memory Cache for Search Queries (< 1ms)
  */
 const searchResultsCache = new Map();
-const SEARCH_CACHE_MAX = 300;
-const SEARCH_CACHE_TTL = 3 * 60 * 1000; // 3 minutes
+const SEARCH_CACHE_MAX = 500;
+const SEARCH_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const getCachedSearch = (key) => {
   const item = searchResultsCache.get(key);
@@ -135,6 +135,8 @@ const getCachedSearch = (key) => {
     searchResultsCache.delete(key);
     return null;
   }
+  searchResultsCache.delete(key);
+  searchResultsCache.set(key, item);
   return item.data;
 };
 
@@ -144,6 +146,74 @@ const setCachedSearch = (key, data) => {
     searchResultsCache.delete(oldest);
   }
   searchResultsCache.set(key, { data, expiresAt: Date.now() + SEARCH_CACHE_TTL });
+};
+
+/**
+ * Distinct Value Lookup Cache for B-Tree Indexed Case Law Filtering (15 min TTL)
+ * Converts unindexed infix regex searches on Law, Section, Principle Law, and Court
+ * into exact indexed $in queries without sacrificing case-insensitive partial matching.
+ */
+const CASE_LOOKUP_TTL_MS = 15 * 60 * 1000;
+let caseLookupCache = null;
+let caseLookupExpiresAt = 0;
+let caseLookupPromise = null;
+
+const normalizeDistinctStrings = (arr) =>
+  Array.from(new Set((arr || []).filter(Boolean).map((v) => String(v).trim()).filter(Boolean)))
+    .map((raw) => ({ raw, lower: raw.toLowerCase() }));
+
+const getCaseLookupCache = async () => {
+  const now = Date.now();
+  if (caseLookupCache && now < caseLookupExpiresAt) {
+    return caseLookupCache;
+  }
+  if (caseLookupPromise) return caseLookupPromise;
+
+  caseLookupPromise = (async () => {
+    try {
+      const [lawStatutes, principleLaws, sections, courts] = await Promise.all([
+        Case.distinct('laws.lawStatute', { isDeleted: false }),
+        Case.distinct('principleLaw', { isDeleted: false }),
+        Case.distinct('laws.section', { isDeleted: false }),
+        Case.distinct('court', { isDeleted: false })
+      ]);
+      caseLookupCache = {
+        lawStatutes: normalizeDistinctStrings(lawStatutes),
+        principleLaws: normalizeDistinctStrings(principleLaws),
+        sections: normalizeDistinctStrings(sections),
+        courts: normalizeDistinctStrings(courts)
+      };
+      caseLookupExpiresAt = Date.now() + CASE_LOOKUP_TTL_MS;
+      return caseLookupCache;
+    } finally {
+      caseLookupPromise = null;
+    }
+  })();
+
+  return caseLookupPromise;
+};
+
+const matchLookupEntries = (entries, needle, { exactOnly = false } = {}) => {
+  const targetLower = String(needle || '').trim().toLowerCase();
+  if (!targetLower || !Array.isArray(entries)) return [];
+  const hits = [];
+  for (let i = 0; i < entries.length; i++) {
+    const item = entries[i];
+    const matched = exactOnly ? item.lower === targetLower : item.lower.includes(targetLower);
+    if (matched) {
+      hits.push(item.raw);
+      if (hits.length > 400) return null; // Too broad -> fallback cleanly to regex
+    }
+  }
+  return hits;
+};
+
+const invalidateAllCaseCaches = () => {
+  caseDetailCache.clear();
+  searchResultsCache.clear();
+  cachedTotalCasesCount = 0;
+  caseLookupCache = null;
+  caseLookupExpiresAt = 0;
 };
 
 /**
@@ -538,7 +608,7 @@ const sanitizeCaseTextIfNoisy = (raw) => {
   return raw;
 };
 
-const formatCaseForFrontend = (c) => {
+const formatCaseForFrontend = (c, { skipAttachments = false } = {}) => {
   const mappedCitations = Array.isArray(c.mapYearPage) ? c.mapYearPage.filter(Boolean) : [];
   const publicationCitations = buildMapYearPage(c.publications || []);
   const seenCitations = new Set();
@@ -549,8 +619,11 @@ const formatCaseForFrontend = (c) => {
     return true;
   });
 
-  const rawAtts = Array.isArray(c.attachments) ? c.attachments : (c.attachments && typeof c.attachments === 'object' ? [c.attachments] : []);
-  const cleanAtts = sanitizeAttachments(rawAtts);
+  let cleanAtts = [];
+  if (!skipAttachments) {
+    const rawAtts = Array.isArray(c.attachments) ? c.attachments : (c.attachments && typeof c.attachments === 'object' ? [c.attachments] : []);
+    cleanAtts = sanitizeAttachments(rawAtts);
+  }
 
   return {
     id: c._id.toString(),
@@ -571,9 +644,11 @@ const formatCaseForFrontend = (c) => {
     judgment: sanitizeCaseTextIfNoisy(c.judgment || ''),
     publications: c.publications || [],
     laws: c.laws || [],
-    attachments: cleanAtts,
-    attachmentsCount: cleanAtts.length,
-    attachmentsData: cleanAtts,
+    ...(skipAttachments ? {} : {
+      attachments: cleanAtts,
+      attachmentsCount: cleanAtts.length,
+      attachmentsData: cleanAtts
+    }),
     mapYearPage
   };
 };
@@ -1237,9 +1312,7 @@ export const createCase = async (req, res, next) => {
       await newCase.save();
     }
 
-    caseDetailCache.clear();
-    searchResultsCache.clear();
-    cachedTotalCasesCount = 0;
+    invalidateAllCaseCaches();
     logger.info(`[Case Created] Case ID ${newCase.caseId} (SLD #${newCase.sldNumber}) added.`);
 
     return res.status(201).json({
@@ -1325,9 +1398,7 @@ export const updateCase = async (req, res, next) => {
     if (attachments !== undefined) c.attachments = sanitizeAttachments(attachments);
 
     await c.save();
-    caseDetailCache.clear();
-    searchResultsCache.clear();
-    cachedTotalCasesCount = 0;
+    invalidateAllCaseCaches();
     logger.info(`[Case Updated] Case ID ${c.caseId} (SLD #${c.sldNumber}) updated.`);
 
     return res.status(200).json({
@@ -1365,9 +1436,7 @@ export const deleteCase = async (req, res, next) => {
     c.isDeleted = true;
     c.deletedAt = new Date();
     await c.save();
-    caseDetailCache.clear();
-    searchResultsCache.clear();
-    cachedTotalCasesCount = 0;
+    invalidateAllCaseCaches();
 
     await adjustSrOnDelete(Case, c, { srField: 'sldNumber', intField: 'sldNumberInt', isString: true, counterName: 'case' });
     logger.info(`[Case Deleted] Case ID ${c.caseId || c.sldNumber} soft-deleted and SLD# auto-adjusted.`);
@@ -1411,9 +1480,7 @@ export const deleteMultiple = async (req, res, next) => {
       }
     );
 
-    caseDetailCache.clear();
-    searchResultsCache.clear();
-    cachedTotalCasesCount = 0;
+    invalidateAllCaseCaches();
     logger.info(`[Bulk Case Deleted] ${ids.length} cases soft-deleted.`);
 
     return res.status(200).json({
@@ -1427,8 +1494,8 @@ export const deleteMultiple = async (req, res, next) => {
 };
 export const searchCases = async (req, res, next) => {
   try {
-    const filters = req.body;
-    
+    const filters = req.body || {};
+
     const hasFilter = Object.values(filters).some(val => val && val.toString().trim() !== '');
     if (!hasFilter) {
       return res.status(400).json({ success: false, message: 'Please provide at least one search criteria.' });
@@ -1446,7 +1513,54 @@ export const searchCases = async (req, res, next) => {
       });
     }
 
+    const lawQuery = filters.selectLaw || filters.law;
+    const needLookupCache = Boolean(
+      lawQuery ||
+      filters.principleLaw ||
+      filters.section ||
+      filters.section2 ||
+      filters.court
+    );
+    const lookup = needLookupCache ? await getCaseLookupCache() : null;
+
     let andConditions = [{ isDeleted: false }];
+    let shortCircuitEmpty = false;
+    let resolvedLawFieldOnly = false;
+    let resolvedSectionFieldOnly = false;
+
+    const applyDualFieldLookup = (needle, fieldA, entriesA, fieldB, entriesB) => {
+      const cleanNeedle = String(needle || '').trim();
+      if (!cleanNeedle) return { applied: false };
+
+      const hitsA = lookup ? matchLookupEntries(entriesA, cleanNeedle) : null;
+      const hitsB = lookup ? matchLookupEntries(entriesB, cleanNeedle) : null;
+
+      if (hitsA !== null && hitsB !== null) {
+        if (hitsA.length === 0 && hitsB.length === 0) {
+          return { empty: true };
+        }
+        const branches = [];
+        if (hitsA.length > 0) {
+          branches.push({ [fieldA]: hitsA.length === 1 ? hitsA[0] : { $in: hitsA } });
+        }
+        if (hitsB.length > 0) {
+          branches.push({ [fieldB]: hitsB.length === 1 ? hitsB[0] : { $in: hitsB } });
+        }
+        return {
+          condition: branches.length === 1 ? branches[0] : { $or: branches },
+          primaryOnly: hitsA.length === 0 && hitsB.length > 0
+        };
+      }
+
+      const rx = { $regex: escapeRegex(cleanNeedle), $options: 'i' };
+      const branchA = hitsA === null ? { [fieldA]: rx } : (hitsA.length > 0 ? { [fieldA]: hitsA.length === 1 ? hitsA[0] : { $in: hitsA } } : null);
+      const branchB = hitsB === null ? { [fieldB]: rx } : (hitsB.length > 0 ? { [fieldB]: hitsB.length === 1 ? hitsB[0] : { $in: hitsB } } : null);
+      const branches = [branchA, branchB].filter(Boolean);
+      return {
+        condition: branches.length === 1 ? branches[0] : { $or: branches },
+        primaryOnly: !branchA && Boolean(branchB) && hitsB !== null
+      };
+    };
 
     if (filters.subject) {
       const subject = String(filters.subject).trim();
@@ -1469,7 +1583,6 @@ export const searchCases = async (req, res, next) => {
     }
 
     // First 3 blocks validation: Year/Vol, Magazine, and Page
-    // Single field search is NOT allowed in the first three blocks
     const hasAnyBlock123 = Boolean(
       (filters.yearVolume && String(filters.yearVolume).trim()) ||
       (filters.magazine && String(filters.magazine).trim()) ||
@@ -1487,7 +1600,6 @@ export const searchCases = async (req, res, next) => {
         });
       }
 
-      // Exact citation matching via indexed mapYearPage and publications
       const yv = String(filters.yearVolume).trim();
       const mg = String(filters.magazine).trim();
       const pg = String(filters.page).trim();
@@ -1498,8 +1610,7 @@ export const searchCases = async (req, res, next) => {
         mg.toLowerCase(),
         mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()
       ])].filter(Boolean);
-      
-      // Bind indexed publications.page to prune scan space from 165k down to ~1.5k documents in < 15ms
+
       andConditions.push({ 'publications.page': pg });
       andConditions.push({
         $or: [
@@ -1520,14 +1631,17 @@ export const searchCases = async (req, res, next) => {
       });
     }
 
-    const lawQuery = filters.selectLaw || filters.law;
     if (lawQuery) {
-      andConditions.push({
-        $or: [
-          { principleLaw: { $regex: escapeRegex(lawQuery), $options: 'i' } },
-          { 'laws.lawStatute': { $regex: escapeRegex(lawQuery), $options: 'i' } }
-        ]
-      });
+      const resLaw = applyDualFieldLookup(
+        lawQuery,
+        'principleLaw', lookup?.principleLaws,
+        'laws.lawStatute', lookup?.lawStatutes
+      );
+      if (resLaw.empty) shortCircuitEmpty = true;
+      else if (resLaw.condition) {
+        andConditions.push(resLaw.condition);
+        resolvedLawFieldOnly = Boolean(resLaw.primaryOnly);
+      }
     }
 
     if (filters.number) {
@@ -1543,36 +1657,63 @@ export const searchCases = async (req, res, next) => {
     }
 
     if (filters.year) {
-      andConditions.push({
-        $or: [
-          { 'publications.year': { $regex: escapeRegex(filters.year), $options: 'i' } },
-          { dated: { $regex: escapeRegex(filters.year), $options: 'i' } },
-          { caseNumber: { $regex: escapeRegex(filters.year), $options: 'i' } },
-          { mapYearPage: { $regex: escapeRegex(filters.year), $options: 'i' } }
-        ]
-      });
+      const yr = String(filters.year).trim();
+      if (/^\d{4}$/.test(yr)) {
+        const yrRx = escapeRegex(yr);
+        andConditions.push({
+          $or: [
+            { 'publications.year': yr },
+            { dated: { $gte: `${yr}-01-01`, $lte: `${yr}-12-31` } },
+            { caseNumber: { $regex: yrRx, $options: 'i' } },
+            { mapYearPage: { $regex: yrRx, $options: 'i' } }
+          ]
+        });
+      } else {
+        andConditions.push({
+          $or: [
+            { 'publications.year': { $regex: escapeRegex(yr), $options: 'i' } },
+            { dated: { $regex: escapeRegex(yr), $options: 'i' } },
+            { caseNumber: { $regex: escapeRegex(yr), $options: 'i' } },
+            { mapYearPage: { $regex: escapeRegex(yr), $options: 'i' } }
+          ]
+        });
+      }
     }
 
-    if (filters.section) {
-      andConditions.push({
-        $or: [
-          { principleLaw: { $regex: escapeRegex(filters.section), $options: 'i' } },
-          { 'laws.section': { $regex: escapeRegex(filters.section), $options: 'i' } }
-        ]
-      });
+    if (filters.section && !shortCircuitEmpty) {
+      const resSec = applyDualFieldLookup(
+        filters.section,
+        'principleLaw', lookup?.principleLaws,
+        'laws.section', lookup?.sections
+      );
+      if (resSec.empty) shortCircuitEmpty = true;
+      else if (resSec.condition) {
+        andConditions.push(resSec.condition);
+        resolvedSectionFieldOnly = Boolean(resSec.primaryOnly);
+      }
     }
 
-    if (filters.section2) {
-      andConditions.push({
-        $or: [
-          { principleLaw: { $regex: escapeRegex(filters.section2), $options: 'i' } },
-          { 'laws.section': { $regex: escapeRegex(filters.section2), $options: 'i' } }
-        ]
-      });
+    if (filters.section2 && !shortCircuitEmpty) {
+      const resSec2 = applyDualFieldLookup(
+        filters.section2,
+        'principleLaw', lookup?.principleLaws,
+        'laws.section', lookup?.sections
+      );
+      if (resSec2.empty) shortCircuitEmpty = true;
+      else if (resSec2.condition) {
+        andConditions.push(resSec2.condition);
+      }
     }
 
-    if (filters.court) {
-      andConditions.push({ court: { $regex: `^${escapeRegex(filters.court)}$`, $options: 'i' } });
+    if (filters.court && !shortCircuitEmpty) {
+      const matchedCourts = lookup ? matchLookupEntries(lookup.courts, filters.court, { exactOnly: true }) : null;
+      if (matchedCourts !== null && matchedCourts.length > 0) {
+        andConditions.push({
+          court: matchedCourts.length === 1 ? matchedCourts[0] : { $in: matchedCourts }
+        });
+      } else {
+        andConditions.push({ court: { $regex: `^${escapeRegex(filters.court)}$`, $options: 'i' } });
+      }
     }
 
     if (filters.caseNumber) {
@@ -1663,60 +1804,85 @@ export const searchCases = async (req, res, next) => {
       andConditions.push({ petitioners: { $regex: escapeRegex(filters.petitioner), $options: 'i' } });
     }
 
-    if (filters.principleLaw) {
-      andConditions.push({
-        $or: [
-          { principleLaw: { $regex: escapeRegex(filters.principleLaw), $options: 'i' } },
-          { 'laws.lawStatute': { $regex: escapeRegex(filters.principleLaw), $options: 'i' } }
-        ]
-      });
+    if (filters.principleLaw && !shortCircuitEmpty) {
+      const resPl = applyDualFieldLookup(
+        filters.principleLaw,
+        'principleLaw', lookup?.principleLaws,
+        'laws.lawStatute', lookup?.lawStatutes
+      );
+      if (resPl.empty) shortCircuitEmpty = true;
+      else if (resPl.condition) {
+        andConditions.push(resPl.condition);
+      }
     }
+
+    if (shortCircuitEmpty) {
+      setCachedSearch(cacheKey, []);
+      return res.status(200).json({ success: true, count: 0, data: [] });
+    }
+
     const query = { $and: andConditions };
-    
-    // High-performance execution: return up to 3000 results for full catalog views without arbitrary 100 limit
+
     const requestedLimit = parseInt(filters.limit, 10);
     const searchLimit = requestedLimit > 0 ? requestedLimit : 3000;
     const hasTextSearch = kwTokens.length > 0;
     const includeJudgment = filters.includeJudgment === true || req.query.includeJudgment === 'true';
-    const selectFields = includeJudgment
-      ? 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim judgment createdAt'
-      : 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw legalMaxim createdAt';
+    const includeAttachments = filters.includeAttachments === true || req.query.includeAttachments === 'true';
+    const baseFields = 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws department headNote principleLaw legalMaxim createdAt';
+    const selectFields = [
+      baseFields,
+      includeJudgment ? 'judgment' : '',
+      includeAttachments ? 'attachments' : ''
+    ].filter(Boolean).join(' ');
 
-    let queryExec = Case.find(query)
-      .select(selectFields)
-      .sort({ sldNumberInt: -1 })
-      .limit(searchLimit);
+    const runQueryWithHint = async (hintSpec) => {
+      let q = Case.find(query)
+        .select(selectFields)
+        .sort({ sldNumberInt: -1 })
+        .limit(searchLimit);
+      if (hintSpec) q = q.hint(hintSpec);
+      return q.lean();
+    };
 
-    // Apply safe index hints based on primary query filters
+    let selectedHint = null;
     if (filters.court && !filters.yearVolume && !filters.page && !hasTextSearch) {
-      try {
-        queryExec = queryExec.hint({ isDeleted: 1, court: 1, sldNumberInt: -1 });
-      } catch (hintErr) {}
+      selectedHint = { isDeleted: 1, court: 1, sldNumberInt: -1 };
     } else if (filters.subject && parseLegalCitation(filters.subject)) {
-      try {
-        queryExec = queryExec.hint({
-          isDeleted: 1,
-          'publications.mag': 1,
-          'publications.page': 1,
-          'publications.year': 1
-        });
-      } catch (hintErr) {}
+      selectedHint = {
+        isDeleted: 1,
+        'publications.mag': 1,
+        'publications.page': 1,
+        'publications.year': 1
+      };
     } else if (filters.yearVolume && filters.magazine && filters.page) {
-      try {
-        queryExec = queryExec.hint({
-          isDeleted: 1,
-          'publications.mag': 1,
-          'publications.page': 1,
-          'publications.year': 1
-        });
-      } catch (hintErr) {}
+      selectedHint = {
+        isDeleted: 1,
+        'publications.mag': 1,
+        'publications.page': 1,
+        'publications.year': 1
+      };
+    } else if (resolvedLawFieldOnly && resolvedSectionFieldOnly && !filters.section2 && !hasTextSearch && !filters.fromYear && !filters.toYear) {
+      selectedHint = { isDeleted: 1, 'laws.lawStatute': 1, 'laws.section': 1, sldNumberInt: -1 };
+    } else if (resolvedLawFieldOnly && !filters.section && !filters.section2 && !hasTextSearch && !filters.fromYear && !filters.toYear) {
+      selectedHint = { isDeleted: 1, 'laws.lawStatute': 1, sldNumberInt: -1 };
+    } else if (filters.judges && !lawQuery && !filters.section && !filters.section2 && !hasTextSearch && !filters.court && !filters.fromYear && !filters.toYear) {
+      selectedHint = { isDeleted: 1, judges: 1, sldNumberInt: -1 };
+    } else if (filters.lawyers && !lawQuery && !filters.section && !filters.section2 && !hasTextSearch && !filters.court && !filters.judges && !filters.fromYear && !filters.toYear) {
+      selectedHint = { isDeleted: 1, lawyers: 1, sldNumberInt: -1 };
     } else if ((filters.fromYear || filters.toYear) && !filters.court) {
-      try {
-        queryExec = queryExec.hint({ isDeleted: 1, 'publications.year': 1, sldNumberInt: -1 });
-      } catch (hintErr) {}
+      selectedHint = { isDeleted: 1, 'publications.year': 1, sldNumberInt: -1 };
     }
 
-    let cases = await queryExec.lean();
+    let cases;
+    if (selectedHint) {
+      try {
+        cases = await runQueryWithHint(selectedHint);
+      } catch (hintErr) {
+        cases = await runQueryWithHint(null);
+      }
+    } else {
+      cases = await runQueryWithHint(null);
+    }
 
     if (cases.length === 0 && filters.phrase && String(filters.phrase).trim()) {
       const cleanPhrase = String(filters.phrase).replace(/["'“”]/g, '').trim();
@@ -1742,11 +1908,13 @@ export const searchCases = async (req, res, next) => {
 
     const searchTerms = [kw1, kw2, filters.phrase].filter(Boolean);
     let formattedCases = cases.map(c => {
-      const formatted = formatCaseForFrontend(c);
+      const formatted = formatCaseForFrontend(c, { skipAttachments: !includeAttachments });
       if (hasTextSearch) {
-        formatted.relevantParagraph = extractRelevantParagraph(c.judgment, c.headNote, searchTerms);
-        if (req.query.includeJudgment !== 'true') {
-          delete formatted.judgment; // Omit massive 50MB judgment string from JSON serialization
+        formatted.relevantParagraph = includeJudgment
+          ? extractRelevantParagraph(c.judgment, c.headNote, searchTerms)
+          : (formatted.headNote ? (formatted.headNote.length > 600 ? formatted.headNote.slice(0, 600) + '...' : formatted.headNote) : null);
+        if (!includeJudgment) {
+          delete formatted.judgment;
         }
       }
       return formatted;
@@ -1766,7 +1934,6 @@ export const searchCases = async (req, res, next) => {
   } catch (error) {
     logger.error('Error in searchCases:', error);
     next(error);
-
   }
 };
 
@@ -1926,8 +2093,7 @@ export const updateCaseAttachments = async (req, res, next) => {
     // Direct atomic write to guarantee MongoDB persistence
     await Case.updateOne({ _id: c._id }, { $set: { attachments: clean } });
 
-    caseDetailCache.clear();
-    searchResultsCache.clear();
+    invalidateAllCaseCaches();
     logger.info(`[Case Attachments Updated] Case ID ${c.caseId} (SLD #${c.sldNumber}) attachments updated to ${clean.length} files.`);
 
     return res.status(200).json({
