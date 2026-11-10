@@ -153,6 +153,15 @@ const ManageTaxCardsPage = () => {
     fetchTaxCards('');
   };
 
+  const lastEntry = useMemo(() => {
+    const list = displayedCards.length > 0 ? displayedCards : taxCards;
+    if (!list || list.length === 0) return null;
+    return list.reduce(
+      (best, cur) => ((Number(cur.srNumber) || 0) >= (Number(best?.srNumber) || 0) ? cur : best),
+      list[0]
+    );
+  }, [displayedCards, taxCards]);
+
   const handleOpenAddForm = () => {
     setEditingItem(null);
     setIsFormOpen(true);
@@ -164,14 +173,23 @@ const ManageTaxCardsPage = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleFormSuccess = (savedItem, message) => {
+  const handleFormSuccess = (savedItem, message, options = {}) => {
+    fastTaxCardsCache.clear();
     setToastMessage(message || 'Success');
-    setIsFormOpen(false);
-    setEditingItem(null);
-    fetchTaxCards(searchKeyword);
+    if (options?.keepOpen) {
+      if (options.nextItem !== undefined) {
+        setEditingItem(options.nextItem);
+      }
+      fetchTaxCards(searchKeyword);
+    } else {
+      setIsFormOpen(false);
+      setEditingItem(null);
+      fetchTaxCards(searchKeyword);
+    }
   };
 
   const handleItemDeleted = (deletedId) => {
+    fastTaxCardsCache.clear();
     setTaxCards(prev => prev.filter(item => 
       item.id !== deletedId && 
       item.mongoId !== deletedId && 
@@ -250,6 +268,8 @@ const ManageTaxCardsPage = () => {
         <AddTaxCardForm
           editData={editingItem}
           defaultCategory={rawCat}
+          categoryTitle={categoryTitle}
+          lastEntry={lastEntry}
           onClose={() => {
             setIsFormOpen(false);
             setEditingItem(null);
@@ -258,16 +278,19 @@ const ManageTaxCardsPage = () => {
         />
       )}
 
-      {/* Table */}
-      <ManageTaxCardsTable
-        taxCards={displayedCards}
-        categoryTitle={categoryTitle}
-        onEdit={handleEditItem}
-        onDeleted={handleItemDeleted}
-        toastMessage={toastMessage}
-        setToastMessage={setToastMessage}
-        isLoading={isLoading}
-      />
+      {/* Table: hidden while Add / Edit form is open */}
+      {!(isAdmin && isFormOpen) && (
+        <ManageTaxCardsTable
+          taxCards={displayedCards}
+          categoryTitle={categoryTitle}
+          activeCategory={rawCat}
+          onEdit={handleEditItem}
+          onDeleted={handleItemDeleted}
+          toastMessage={toastMessage}
+          setToastMessage={setToastMessage}
+          isLoading={isLoading}
+        />
+      )}
 
       <AdminFooter />
     </div>

@@ -52,6 +52,7 @@ const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => 
 const ManageTaxCardsTable = ({
   taxCards = [],
   categoryTitle = 'Finance Act',
+  activeCategory = '',
   onEdit,
   onDeleted,
   toastMessage,
@@ -273,7 +274,7 @@ const ManageTaxCardsTable = ({
                       <td className="px-4 py-2 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <a
-                            href={`/manage-tax-cards?edit=${item.mongoId || item.id || item.taxCardId}`}
+                            href={`/manage-tax-cards?edit=${item.mongoId || item.id || item.taxCardId}${(activeCategory || item.category) ? `&category=${encodeURIComponent(activeCategory || item.category)}` : ''}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer inline-flex items-center justify-center"

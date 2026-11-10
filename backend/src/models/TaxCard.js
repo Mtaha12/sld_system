@@ -76,16 +76,32 @@ taxCardSchema.plugin(autoUniqueIdPlugin, {
 
 taxCardSchema.pre('save', async function () {
   if (this.isNew && !this.srNumber) {
+    const latest = await mongoose.model('TaxCard')
+      .findOne({ isDeleted: { $ne: true } })
+      .sort({ srNumber: -1 })
+      .select('srNumber')
+      .lean();
+    const expectedNext = (Number(latest?.srNumber) || 0) + 1;
+
     try {
-      const counter = await Counter.findByIdAndUpdate(
-        'tax_card_sr_seq',
-        { $inc: { seq: 1 } },
-        { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
-      );
+      const existingCounter = await Counter.findById('tax_card_sr_seq').lean();
+      let counter;
+      if (!existingCounter || existingCounter.seq !== expectedNext - 1) {
+        counter = await Counter.findByIdAndUpdate(
+          'tax_card_sr_seq',
+          { $set: { seq: expectedNext } },
+          { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
+        );
+      } else {
+        counter = await Counter.findByIdAndUpdate(
+          'tax_card_sr_seq',
+          { $inc: { seq: 1 } },
+          { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
+        );
+      }
       this.srNumber = counter.seq;
     } catch {
-      const count = await mongoose.model('TaxCard').countDocuments();
-      this.srNumber = count + 1;
+      this.srNumber = expectedNext;
     }
   }
 });

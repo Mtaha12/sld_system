@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Trash2, CreditCard, AlertCircle, Paperclip } from 'lucide-react';
+import { X, Trash2, CreditCard, AlertCircle, Paperclip, CheckCircle2 } from 'lucide-react';
 import Input from '../../../components/ui/Input';
 import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
@@ -14,36 +14,55 @@ const getTodayDateString = () => {
   return `${y}-${m}-${d}`;
 };
 
+const normalizeDateInput = (rawDate) => {
+  if (!rawDate) return getTodayDateString();
+  const s = String(rawDate).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return s;
+};
+
 const AddTaxCardForm = ({
   editData = null,
   defaultCategory = '',
+  categoryTitle = 'Finance Act',
+  lastEntry = null,
   onClose,
   onSuccess,
   className = ""
 }) => {
   const isEdit = Boolean(editData && (editData.id || editData.mongoId));
   const fileInputRef = useRef(null);
+  const preserveDraftDefaultsRef = useRef(null);
 
   const [heading, setHeading] = useState('');
-  const [date, setDate] = useState(getTodayDateString());
-  const [year, setYear] = useState(new Date().getFullYear().toString());
+  const [date, setDate] = useState(() => normalizeDateInput(lastEntry?.date));
+  const [year, setYear] = useState(() => {
+    if (lastEntry?.year) return String(lastEntry.year);
+    if (lastEntry?.date) return String(lastEntry.date).slice(0, 4);
+    return new Date().getFullYear().toString();
+  });
   const [attachment, setAttachment] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
   const [detail, setDetail] = useState('');
+  const [nextSr, setNextSr] = useState(() => {
+    const sr = Number(lastEntry?.srNumber);
+    return !isNaN(sr) && sr > 0 ? sr + 1 : 1;
+  });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDeleteRecord = async () => {
     const id = editData?.mongoId || editData?.id || editData?.taxCardId;
     if (!id) return;
-    if (!window.confirm('Are you sure you want to permanently delete tax card SR #' + (editData?.srNumber || id) + '? Subsequent SR numbers will automatically adjust down.')) return;
+    if (!window.confirm('Are you sure you want to permanently delete record SR #' + (editData?.srNumber || id) + '? Subsequent SR numbers will automatically adjust down.')) return;
     setIsDeleting(true);
     try {
       await taxCardService.deleteTaxCard(id);
-      if (onSuccess) onSuccess(null, 'Tax card deleted successfully. Sequential SR numbers auto-adjusted.');
+      if (onSuccess) onSuccess(null, 'Record deleted successfully. Sequential SR numbers auto-adjusted.');
       if (onClose) onClose();
     } catch (err) {
       setServerError(err.message || 'Failed to delete record.');
@@ -51,10 +70,45 @@ const AddTaxCardForm = ({
     }
   };
 
+  // Keep Next SR#, Date, and Year synchronized from the latest existing entry in Add mode
+  useEffect(() => {
+    let mounted = true;
+    if (!isEdit && !preserveDraftDefaultsRef.current) {
+      if (lastEntry) {
+        const srNum = Number(lastEntry.srNumber) || 0;
+        setNextSr(srNum + 1);
+        if (lastEntry.date) setDate(normalizeDateInput(lastEntry.date));
+        if (lastEntry.year) setYear(String(lastEntry.year));
+        else if (lastEntry.date) setYear(String(lastEntry.date).slice(0, 4));
+      } else {
+        taxCardService.getTaxCards()
+          .then(list => {
+            if (!mounted || !Array.isArray(list)) return;
+            if (list.length > 0) {
+              const latest = list.reduce((best, cur) =>
+                (Number(cur.srNumber) || 0) >= (Number(best?.srNumber) || 0) ? cur : best,
+                list[0]
+              );
+              const maxSr = Number(latest?.srNumber) || list.length;
+              setNextSr(maxSr + 1);
+              if (latest?.date) setDate(normalizeDateInput(latest.date));
+              if (latest?.year) setYear(String(latest.year));
+              else if (latest?.date) setYear(String(latest.date).slice(0, 4));
+            } else {
+              setNextSr(1);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+    return () => { mounted = false; };
+  }, [isEdit, lastEntry]);
+
   useEffect(() => {
     if (editData) {
+      preserveDraftDefaultsRef.current = null;
       setHeading(editData.heading || '');
-      const rawDate = editData.date || getTodayDateString();
+      const rawDate = normalizeDateInput(editData.date);
       setDate(rawDate);
       if (editData.year) {
         setYear(editData.year.toString());
@@ -65,13 +119,32 @@ const AddTaxCardForm = ({
       setAttachmentName(editData.attachmentName || '');
       setDetail(editData.detail || '');
     } else {
-      const todayStr = getTodayDateString();
+      const preserved = preserveDraftDefaultsRef.current;
+      preserveDraftDefaultsRef.current = null;
+
       setHeading('');
-      setDate(todayStr);
-      setYear(todayStr.slice(0, 4));
       setAttachment('');
       setAttachmentName('');
       setDetail('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
+      if (preserved) {
+        setDate(preserved.date);
+        setYear(preserved.year);
+        if (preserved.nextSr) setNextSr(preserved.nextSr);
+      } else if (lastEntry) {
+        setDate(normalizeDateInput(lastEntry.date));
+        setYear(
+          lastEntry.year
+            ? String(lastEntry.year)
+            : (lastEntry.date ? String(lastEntry.date).slice(0, 4) : new Date().getFullYear().toString())
+        );
+        setNextSr((Number(lastEntry.srNumber) || 0) + 1);
+      } else {
+        const todayStr = getTodayDateString();
+        setDate(todayStr);
+        setYear(todayStr.slice(0, 4));
+      }
     }
     setErrors({});
     setServerError('');
@@ -119,14 +192,17 @@ const AddTaxCardForm = ({
   const handleSubmit = async (e) => {
     e?.preventDefault();
     setServerError('');
+    setSuccessMessage('');
     if (!validate()) return;
 
     setIsSubmitting(true);
     try {
+      const savedDate = date.trim();
+      const savedYear = String(parseInt(year, 10));
       const payload = {
         heading: heading.trim(),
         category: (defaultCategory || editData?.category || '').trim(),
-        date: date.trim(),
+        date: savedDate,
         year: parseInt(year, 10),
         attachment,
         attachmentName,
@@ -136,17 +212,62 @@ const AddTaxCardForm = ({
       let result;
       if (isEdit) {
         const targetId = editData.mongoId || editData.id || editData.taxCardId;
+        const currentSr = Number(editData.srNumber) || 0;
+        const nextSrNum = currentSr + 1;
         result = await taxCardService.updateTaxCard(targetId, payload);
+
+        let nextRecord = null;
+        try {
+          const freshList = await taxCardService.getTaxCards();
+          if (Array.isArray(freshList)) {
+            nextRecord = freshList.find(r => Number(r.srNumber) === nextSrNum) || null;
+          }
+        } catch (fetchErr) {
+          console.warn('Could not fetch next record after edit:', fetchErr);
+        }
+
+        if (nextRecord) {
+          setSuccessMessage(`${categoryTitle} SR #${currentSr} updated! Loaded next SR #${nextSrNum}.`);
+          if (onSuccess) {
+            onSuccess(result, `${categoryTitle} SR #${currentSr} updated.`, { keepOpen: true, nextItem: nextRecord });
+          }
+        } else {
+          preserveDraftDefaultsRef.current = { date: savedDate, year: savedYear, nextSr: nextSrNum };
+          setNextSr(nextSrNum);
+          setHeading('');
+          setAttachment('');
+          setAttachmentName('');
+          setDetail('');
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          setSuccessMessage(`${categoryTitle} SR #${currentSr} updated! Ready for new entry SR #${nextSrNum} (previous Date & Year kept).`);
+          if (onSuccess) {
+            onSuccess(result, `${categoryTitle} SR #${currentSr} updated.`, { keepOpen: true, nextItem: null });
+          }
+        }
+        setTimeout(() => setSuccessMessage(''), 5000);
       } else {
         result = await taxCardService.createTaxCard(payload);
-      }
+        const createdSr = Number(result?.srNumber) || Number(nextSr) || 1;
+        const upcomingSr = createdSr + 1;
 
-      if (onSuccess) {
-        onSuccess(result, isEdit ? 'Tax Card updated successfully.' : 'Tax Card record added successfully.');
+        preserveDraftDefaultsRef.current = { date: savedDate, year: savedYear, nextSr: upcomingSr };
+        setNextSr(upcomingSr);
+        setDate(savedDate);
+        setYear(savedYear);
+        setHeading('');
+        setAttachment('');
+        setAttachmentName('');
+        setDetail('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+
+        setSuccessMessage(`${categoryTitle} SR #${createdSr} saved! Advanced to SR #${upcomingSr} (previous Date & Year kept).`);
+        if (onSuccess) {
+          onSuccess(result, `${categoryTitle} SR #${createdSr} added.`, { keepOpen: true });
+        }
+        setTimeout(() => setSuccessMessage(''), 5000);
       }
-      if (onClose) onClose();
     } catch (err) {
-      setServerError(err.response?.data?.message || err.message || 'Failed to save Tax Card record.');
+      setServerError(err.response?.data?.message || err.message || `Failed to save ${categoryTitle} record.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -160,7 +281,9 @@ const AddTaxCardForm = ({
         <div className="flex items-center gap-2">
           <CreditCard className="w-4 h-4 text-brand-orange" />
           <h2 className="text-sm font-semibold text-theme-main">
-            {isEdit ? 'Edit Tax Card Detail' : 'Add Tax Card Detail'}
+            {isEdit
+              ? `Edit ${categoryTitle} Detail (SR #${editData?.srNumber || editData?.id || ''})`
+              : `Add ${categoryTitle} Detail${nextSr ? ` (Auto New SR #${nextSr})` : ''}`}
           </h2>
         </div>
         {onClose && (
@@ -184,6 +307,13 @@ const AddTaxCardForm = ({
           </div>
         )}
 
+        {successMessage && (
+          <div className="p-2.5 bg-green-50 dark:bg-green-950/30 border border-green-200 text-green-700 dark:text-green-300 rounded-lg text-xs flex items-center gap-2 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         {/* Heading * */}
         <FormField label="Heading" required>
           <Input
@@ -193,7 +323,7 @@ const AddTaxCardForm = ({
               setHeading(e.target.value);
               if (errors.heading) setErrors(prev => ({ ...prev, heading: null }));
             }}
-            placeholder="Enter tax card heading..."
+            placeholder={`Enter ${categoryTitle.toLowerCase()} heading...`}
             error={Boolean(errors.heading)}
             autoFocus
           />
@@ -271,9 +401,11 @@ const AddTaxCardForm = ({
         <FormField label="Detail">
           <div className="border border-theme-border rounded-lg overflow-hidden shadow-sm">
             <RichTextEditor
+              key={`tc-detail-${editData?.mongoId || editData?.id || editData?.srNumber || `new-${nextSr || 1}`}`}
+              name={`tc_detail_${editData?.mongoId || editData?.id || nextSr || 'new'}`}
               value={detail}
               onChange={(val) => setDetail(val)}
-              placeholder="Enter tax card details..."
+              placeholder={`Enter ${categoryTitle.toLowerCase()} details...`}
               minHeight={180}
             />
           </div>
