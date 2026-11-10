@@ -103,13 +103,14 @@ const TOP_NAV_ITEMS = [
 
 // User Portal Navigation Items (matching screenshot with speedometer gauge icons)
 const USER_MENU_ITEMS = [
-  { label: 'Updates', path: '/updates', icon: Gauge },
+  { label: 'Updated Laws', path: '/updates', icon: Gauge },
   { label: 'Dictionary', path: '/manage-dictionary', icon: Gauge },
   { label: 'News', path: '/news', icon: Gauge },
   { label: 'Finance Act', path: '/manage-tax-cards?category=finance-act', icon: Gauge },
   { label: 'Custom Tariff', path: '/manage-custom-tariffs', icon: Gauge },
   { label: 'Whatsapp', path: '/whatsapp-updates', icon: Gauge },
   { label: 'Youtube Channel', path: '/youtube-updates', icon: Gauge },
+  { label: 'Tax Rates', path: '/manage-tax-cards?category=tax-rates', icon: Gauge },
   { label: 'Tax Returns', path: '/downloads?category=Tax+Return', icon: Gauge },
   { label: 'Live Chat', path: '/ai-assistant', icon: Gauge },
 ];
@@ -401,7 +402,10 @@ const AdminSidebar = ({
 
             {/* User Navigation Links */}
             {USER_MENU_ITEMS.map((item) => {
-              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+              const currentFull = `${location.pathname}${location.search}`;
+              const isActive = item.path.includes('?')
+                ? currentFull === item.path
+                : (location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
               return (
                 <Link
                   key={item.label}

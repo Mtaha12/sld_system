@@ -41,26 +41,38 @@ export const getUsers = async (req, res, next) => {
       ];
     }
 
-    if (status && status !== 'all') {
-      query.status = status.toUpperCase();
-    }
-
     if (isSpammer !== undefined && isSpammer !== 'all') {
       query.isSpammer = parseBoolean(isSpammer, false);
+    }
+
+    const baseQuery = { ...query };
+
+    if (status && String(status).toLowerCase() !== 'all') {
+      const normalizedStatus = String(status).trim().toLowerCase();
+      if (normalizedStatus === 'active') {
+        query.status = { $in: ['ACTIVE', 'active', 'Active'] };
+      } else if (normalizedStatus === 'inactive') {
+        query.status = { $in: ['INACTIVE', 'inactive', 'Inactive'] };
+      } else {
+        query.status = { $regex: new RegExp(`^${escapeRegex(status.trim())}$`, 'i') };
+      }
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
 
-    const [total, rawUsers] = await Promise.all([
+    const [total, rawUsers, allCount, activeCount, inactiveCount] = await Promise.all([
       User.countDocuments(query),
       User.find(query)
         .select('-verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
-        .lean()
+        .lean(),
+      User.countDocuments(baseQuery),
+      User.countDocuments({ ...baseQuery, status: { $in: ['ACTIVE', 'active', 'Active'] } }),
+      User.countDocuments({ ...baseQuery, status: { $in: ['INACTIVE', 'inactive', 'Inactive'] } })
     ]);
 
     const users = rawUsers.map(u => ({
@@ -74,6 +86,11 @@ export const getUsers = async (req, res, next) => {
       success: true,
       message: 'Users retrieved successfully',
       data: users,
+      counts: {
+        all: allCount,
+        active: activeCount,
+        inactive: inactiveCount
+      },
       pagination: {
         page: pageNum,
         limit: limitNum,

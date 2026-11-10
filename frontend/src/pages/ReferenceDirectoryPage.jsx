@@ -5,6 +5,9 @@ import { settingService } from '../services/settingService';
 import { caseService } from '../features/cases/services/caseService';
 import { formatCitations } from '../utils/citationFormatter';
 import { openReferenceView } from '../utils/referenceViewUtil';
+import { cleanMaximTitle, extractFirstTwoWords } from '../utils/referenceSearchUtil';
+
+export { cleanMaximTitle };
 
 const CATEGORIES = [
   { key: 'articles', label: 'ARTICLES', count: '1,544', icon: BookOpen },
@@ -13,12 +16,6 @@ const CATEGORIES = [
   { key: 'legal-terms', label: 'LEGAL TERMS', count: '96', icon: Bookmark },
   { key: 'maxims', label: 'MAXIMS', count: '1,124', icon: Scale },
 ];
-
-export const cleanMaximTitle = (text) => {
-  if (!text) return '—';
-  const cleaned = text.replace(/\s*\([^)]*\)/g, '').trim();
-  return cleaned || text;
-};
 
 const ALPHABET = ['ALL', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
@@ -45,14 +42,6 @@ const ReferenceDirectoryPage = () => {
   const [expandedCaseLawIds, setExpandedCaseLawIds] = useState({});
   const caseLawCacheRef = useRef(new Map());
 
-  const cleanSearchPhrase = (text) => {
-    if (!text) return '';
-    return String(text)
-      .replace(/^["'“‘]+|["'”’]+$/g, '')
-      .replace(/\s*\([^)]*\)/g, '')
-      .trim();
-  };
-
   const handleToggleCaseLaw = useCallback(async (item) => {
     const itemId = item._id || item.id;
     if (!itemId) return;
@@ -67,7 +56,7 @@ const ReferenceDirectoryPage = () => {
     const rawTerm = activeCategory === 'maxims'
       ? cleanMaximTitle(item.heading || item.name)
       : (item.heading || item.name || '').trim();
-    const phrase = cleanSearchPhrase(rawTerm);
+    const phrase = extractFirstTwoWords(rawTerm);
     if (!phrase) return;
 
     const cacheKey = phrase.toLowerCase();
@@ -445,7 +434,7 @@ const ReferenceDirectoryPage = () => {
                         const itemId = item._id || item.id;
                         const isExpanded = Boolean(expandedCaseLawIds[itemId]);
                         const itemState = caseLawResults[itemId];
-                        const phrase = itemState?.phrase || cleanSearchPhrase(activeCategory === 'maxims' ? cleanMaximTitle(item.heading || item.name) : (item.heading || item.name));
+                        const phrase = itemState?.phrase || extractFirstTwoWords(activeCategory === 'maxims' ? cleanMaximTitle(item.heading || item.name) : (item.heading || item.name));
 
                         if (!isExpanded) {
                           return (

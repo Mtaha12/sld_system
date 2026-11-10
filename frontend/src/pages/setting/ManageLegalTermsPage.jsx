@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Bookmark, Plus, Search, Edit2, Trash2, X, 
-  Check, AlertCircle, ChevronUp, ChevronDown, Eye, CheckCircle2 
+  Check, AlertCircle, ChevronUp, ChevronDown, Eye, CheckCircle2, Scale 
 } from 'lucide-react';
 import { settingService } from '../../services/settingService';
 import Modal from '../../components/ui/Modal';
 import { useUser } from '../../contexts/UserContext';
 import { openReferenceView } from '../../utils/referenceViewUtil';
+import { extractFirstTwoWords } from '../../utils/referenceSearchUtil';
 import ReferenceViewFormSection from '../../components/common/ReferenceViewFormSection';
 
 const ManageLegalTermsPage = () => {
@@ -290,7 +291,19 @@ const ManageLegalTermsPage = () => {
                       {item.srNumber || idx + 1}
                     </td>
                     <td className="py-2 px-4 text-theme-main font-semibold leading-relaxed">
-                      {item.heading}
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{item.heading}</span>
+                        <a
+                          href={`/search-case-law?phrase=${encodeURIComponent(extractFirstTwoWords(item.heading))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold rounded bg-[#0d9488] hover:bg-[#0f766e] text-white shadow-2xs transition-all hover:scale-105 shrink-0 cursor-pointer"
+                          title={`Find Case Laws citing "${extractFirstTwoWords(item.heading)}"`}
+                        >
+                          <Scale className="w-3 h-3" />
+                          <span>Case Law</span>
+                        </a>
+                      </div>
                     </td>
                     <td className="py-2 px-4 text-center whitespace-nowrap">
                       {item.viewData ? (

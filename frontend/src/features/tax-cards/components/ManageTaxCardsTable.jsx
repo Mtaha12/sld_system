@@ -214,7 +214,7 @@ const ManageTaxCardsTable = ({
                   <td colSpan={isAdmin ? 6 : 5} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <SquareLoader />
-                      <span className="text-[11px] text-theme-muted font-medium">Loading tax cards...</span>
+                      <span className="text-[11px] text-theme-muted font-medium">Loading {categoryTitle.toLowerCase()}...</span>
                     </div>
                   </td>
                 </tr>
@@ -299,7 +299,7 @@ const ManageTaxCardsTable = ({
                   <td colSpan={6} className="py-10 text-center text-theme-muted">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Search className="w-5 h-5 text-theme-muted" />
-                      <p className="text-xs font-medium text-theme-main">No tax cards found</p>
+                      <p className="text-xs font-medium text-theme-main">No {categoryTitle.toLowerCase()} records found</p>
                     </div>
                   </td>
                 </tr>
@@ -324,7 +324,7 @@ const ManageTaxCardsTable = ({
       <Modal
         isOpen={Boolean(viewModalItem)}
         onClose={() => setViewModalItem(null)}
-        title="Tax Card Details"
+        title={`${categoryTitle} Details`}
         subtitle={`SR #${viewModalItem?.srNumber || viewModalItem?.id} • Year: ${viewModalItem?.year} • Date: ${viewModalItem?.date}`}
         icon={CreditCard}
         maxWidth="max-w-xl"

@@ -7,6 +7,7 @@ import { userService } from '../services/userService';
 import { settingService } from '../services/settingService';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import Modal from '../components/ui/Modal';
+import Pagination from '../components/ui/Pagination';
 import DatePicker from '../components/ui/DatePicker';
 import SearchableCombobox from '../components/ui/SearchableCombobox';
 import { useUser } from '../contexts/UserContext';
@@ -19,11 +20,16 @@ const ManageUsersPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [statusCounts, setStatusCounts] = useState({ all: 0, active: 0, inactive: 0 });
   const [cities, setCities] = useState([]);
+  const PAGE_LIMIT = 100;
 
   // Search & Filter
   const [searchName, setSearchName] = useState('');
   const [filterSpammer, setFilterSpammer] = useState('all'); // 'all', 'yes', 'no'
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'active', 'inactive'
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -95,14 +101,23 @@ const ManageUsersPage = () => {
   const fetchUsers = useCallback(async (params = {}) => {
     setLoading(true);
     try {
+      const effectiveStatus = params.status !== undefined ? params.status : filterStatus;
+      const effectivePage = params.page !== undefined ? params.page : currentPage;
       const queryParams = {
         search: params.search !== undefined ? params.search : searchName,
-        isSpammer: params.isSpammer !== undefined ? params.isSpammer : (filterSpammer === 'all' ? undefined : filterSpammer)
+        isSpammer: params.isSpammer !== undefined ? params.isSpammer : (filterSpammer === 'all' ? undefined : filterSpammer),
+        status: effectiveStatus && effectiveStatus !== 'all' ? effectiveStatus : undefined,
+        page: effectivePage,
+        limit: PAGE_LIMIT
       };
       const res = await userService.getUsers(queryParams);
       if (res && res.data) {
         setUsers(res.data);
         setTotalRecords(res.pagination?.totalItems ?? res.data.length);
+        setTotalPages(Math.max(1, res.pagination?.totalPages || 1));
+        if (res.counts) {
+          setStatusCounts(res.counts);
+        }
       }
     } catch (err) {
       console.error('Failed to load users:', err);
@@ -110,28 +125,44 @@ const ManageUsersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchName, filterSpammer]);
+  }, [searchName, filterSpammer, filterStatus, currentPage]);
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers({ page: 1 });
     fetchCities();
   }, []);
 
   const handleSearch = (e) => {
     e?.preventDefault();
-    fetchUsers({ search: searchName });
+    setCurrentPage(1);
+    fetchUsers({ search: searchName, page: 1 });
   };
 
   const handleResetAll = () => {
     setSearchName('');
     setFilterSpammer('all');
-    fetchUsers({ search: '', isSpammer: undefined });
+    setFilterStatus('all');
+    setCurrentPage(1);
+    fetchUsers({ search: '', isSpammer: undefined, status: 'all', page: 1 });
   };
 
   const handleToggleSpammerFilter = () => {
     const next = filterSpammer === 'all' ? 'yes' : filterSpammer === 'yes' ? 'no' : 'all';
     setFilterSpammer(next);
-    fetchUsers({ isSpammer: next === 'all' ? undefined : next });
+    setCurrentPage(1);
+    fetchUsers({ isSpammer: next === 'all' ? undefined : next, page: 1 });
+  };
+
+  const handleStatusTabChange = (nextStatus) => {
+    if (nextStatus === filterStatus) return;
+    setFilterStatus(nextStatus);
+    setCurrentPage(1);
+    fetchUsers({ status: nextStatus, page: 1 });
+  };
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    fetchUsers({ page: newPage });
   };
 
   const handleOpenAddModal = () => {
@@ -416,12 +447,61 @@ const ManageUsersPage = () => {
           </button>
         </form>
 
-        {/* Total Records Right Banner */}
-        <div className="px-2 flex justify-between items-center text-xs font-bold text-[#1E3A8A] dark:text-cyan-400">
+        {/* Active / Inactive Tabs & Total Records Banner */}
+        <div className="px-2 flex flex-wrap justify-between items-center gap-3 text-xs font-bold text-[#1E3A8A] dark:text-cyan-400">
           <span className="text-gray-500 font-normal">
             Users marked as <strong className="text-red-600">Spammer</strong> are shadow-banned and automatically served dummy/incorrect legal data.
           </span>
-          <span>Total Records: ({totalRecords})</span>
+
+          <div className="flex flex-wrap items-center gap-3 ml-auto">
+            <div className="inline-flex items-center bg-white dark:bg-theme-surface border border-theme-border rounded-lg p-0.5 shadow-xs">
+              <button
+                type="button"
+                onClick={() => handleStatusTabChange('all')}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  filterStatus === 'all'
+                    ? 'bg-[#1E3A8A] text-white shadow-xs'
+                    : 'text-theme-muted hover:text-theme-main hover:bg-gray-100 dark:hover:bg-theme-surface-alt'
+                }`}
+              >
+                All ({statusCounts.all || totalRecords})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStatusTabChange('active')}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  filterStatus === 'active'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                }`}
+              >
+                <span>Active</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  filterStatus === 'active' ? 'bg-white/20 text-white' : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200'
+                }`}>
+                  {statusCounts.active}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStatusTabChange('inactive')}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  filterStatus === 'inactive'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
+                }`}
+              >
+                <span>Inactive</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  filterStatus === 'inactive' ? 'bg-white/20 text-white' : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200'
+                }`}>
+                  {statusCounts.inactive}
+                </span>
+              </button>
+            </div>
+
+            <span>Total Records: ({totalRecords})</span>
+          </div>
         </div>
 
         {/* Users Table */}
@@ -472,7 +552,7 @@ const ManageUsersPage = () => {
                         }`}
                       >
                         <td className="py-2.5 px-3 text-center text-theme-muted font-bold border-r border-theme-border/60">
-                          {totalRecords ? (totalRecords - idx) : (users.length - idx)}
+                          {totalRecords ? Math.max(1, totalRecords - ((currentPage - 1) * PAGE_LIMIT) - idx) : (users.length - idx)}
                         </td>
                         <td className="py-2.5 px-3 font-bold text-theme-main border-r border-theme-border/60">
                           {u.loginId || u.username}
@@ -603,6 +683,15 @@ const ManageUsersPage = () => {
               </tbody>
             </table>
           </div>
+          {totalRecords > PAGE_LIMIT && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalRecords}
+              itemsPerPage={PAGE_LIMIT}
+              onPageChange={handlePageChange}
+            />
+          )}
         </div>
 
       </div>

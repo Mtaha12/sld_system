@@ -64,8 +64,8 @@ const PAGE_HEADERS = {
     subtitle: 'Search case laws, circulars, SROs and notifications across departments.'
   },
   '/manage-tax-cards': {
-    title: 'Manage Tax Cards',
-    subtitle: 'View, search and manage official tax cards and annual schedules'
+    title: 'Finance Act',
+    subtitle: 'View and search official Finance Act records and annual schedules'
   },
   '/manage-dictionary': {
     title: 'Dictionary',
@@ -233,7 +233,7 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
       if (cat === 'tax-rates' || cat === 'tax rates') {
         return {
           title: 'Tax Rates',
-          subtitle: 'View and search official tax cards and annual schedules'
+          subtitle: 'View and search official Tax Rates and annual schedules'
         };
       }
       return {
@@ -243,7 +243,7 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
     }
     if (location.pathname.startsWith('/updates') || location.pathname.startsWith('/manage-updates')) {
       return {
-        title: isAdmin ? 'Manage Updates' : 'Updates',
+        title: isAdmin ? 'Manage Updates' : 'Updated Laws',
         subtitle: 'Stay updated with the latest legal notifications and statute amendments'
       };
     }

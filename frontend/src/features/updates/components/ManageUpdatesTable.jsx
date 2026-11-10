@@ -146,7 +146,7 @@ const ManageUpdatesTable = ({
         <div className="px-4 py-2.5 border-b border-theme-border flex items-center justify-between bg-gray-50/60 dark:bg-theme-surface-alt/30 text-xs">
           <div className="flex items-center gap-1.5 text-theme-main font-semibold">
             <Globe className="w-3.5 h-3.5 text-[#00bcd4]" />
-            <span>Updates ({totalItems})</span>
+            <span>{isAdmin ? `Updates (${totalItems})` : `Updated Laws (${totalItems})`}</span>
           </div>
 
           <div className="flex items-center gap-1.5">

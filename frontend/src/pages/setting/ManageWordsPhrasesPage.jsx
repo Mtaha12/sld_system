@@ -7,6 +7,7 @@ import { settingService } from '../../services/settingService';
 import Modal from '../../components/ui/Modal';
 import { useUser } from '../../contexts/UserContext';
 import { openReferenceView } from '../../utils/referenceViewUtil';
+import { extractFirstTwoWords } from '../../utils/referenceSearchUtil';
 import ReferenceViewFormSection from '../../components/common/ReferenceViewFormSection';
 
 const ManageWordsPhrasesPage = () => {
@@ -293,11 +294,11 @@ const ManageWordsPhrasesPage = () => {
                       <div className="flex items-center justify-between gap-2">
                         <span>{item.heading}</span>
                         <a
-                          href={`/search-case-law?phrase=${encodeURIComponent(item.heading)}`}
+                          href={`/search-case-law?phrase=${encodeURIComponent(extractFirstTwoWords(item.heading))}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold rounded bg-[#0d9488] hover:bg-[#0f766e] text-white shadow-2xs transition-all hover:scale-105 shrink-0 cursor-pointer"
-                          title={`Find Case Laws citing "${item.heading}"`}
+                          title={`Find Case Laws citing "${extractFirstTwoWords(item.heading)}"`}
                         >
                           <Scale className="w-3 h-3" />
                           <span>Case Law</span>

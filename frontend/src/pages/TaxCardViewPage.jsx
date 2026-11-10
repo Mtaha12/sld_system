@@ -33,13 +33,13 @@ const TaxCardViewPage = () => {
         setLoading(true);
         const data = await taxCardService.getTaxCardById(id);
         if (!data) {
-          setError('No tax card or finance act record found matching this identifier in the SLD database.');
+          setError('No Finance Act or Tax Rates record found matching this identifier in the SLD database.');
         } else {
           setTaxCard(data);
         }
       } catch (err) {
-        console.error('Failed to load tax card:', err);
-        setError('Failed to load Finance Act / Tax Card record.');
+        console.error('Failed to load Finance Act record:', err);
+        setError('Failed to load Finance Act / Tax Schedule record.');
       } finally {
         setLoading(false);
       }
@@ -63,7 +63,7 @@ const TaxCardViewPage = () => {
       <div className="min-h-screen bg-stone-100 dark:bg-stone-950 flex flex-col items-center justify-center p-6">
         <Spinner size="lg" />
         <p className="mt-4 text-sm font-semibold text-stone-600 dark:text-stone-400 animate-pulse">
-          Retrieving Finance Act / Tax Card provision from SLD database...
+          Retrieving Finance Act / Tax Schedule provision from SLD database...
         </p>
       </div>
     );
@@ -75,7 +75,7 @@ const TaxCardViewPage = () => {
         <div className="max-w-md w-full bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-8 text-center shadow-xl">
           <Landmark className="w-12 h-12 text-[#f15a24] mx-auto mb-4" />
           <h2 className="text-xl font-bold text-stone-900 dark:text-stone-100 mb-2">Record Not Found</h2>
-          <p className="text-sm text-stone-600 dark:text-stone-400 mb-6">{error || 'Tax Card could not be retrieved.'}</p>
+          <p className="text-sm text-stone-600 dark:text-stone-400 mb-6">{error || 'Record could not be retrieved.'}</p>
           <button
             onClick={() => window.close()}
             className="px-5 py-2.5 bg-[#f15a24] text-white rounded-xl text-sm font-bold hover:bg-[#d94817] transition-all cursor-pointer"
@@ -109,7 +109,7 @@ const TaxCardViewPage = () => {
               </span>
               <div>
                 <span className="text-xs font-bold text-stone-500 dark:text-stone-400 tracking-wider uppercase block">
-                  Finance Act & Tax Card Viewer
+                  Finance Act & Tax Schedule Viewer
                 </span>
                 <span className="text-sm font-extrabold text-stone-900 dark:text-white truncate block max-w-xs sm:max-w-md">
                   {heading}
@@ -141,7 +141,7 @@ const TaxCardViewPage = () => {
             <button
               onClick={handleCopy}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 hover:border-[#f15a24] text-xs font-bold text-stone-700 dark:text-stone-300 hover:text-[#f15a24] transition-all cursor-pointer bg-white dark:bg-stone-800 shadow-2xs"
-              title="Copy Tax Card Details"
+              title="Copy Details"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
               <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
@@ -151,7 +151,7 @@ const TaxCardViewPage = () => {
             <button
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f15a24] hover:bg-[#d94817] text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-              title="Print Tax Card"
+              title="Print Document"
             >
               <Printer className="w-4 h-4" />
               <span className="hidden sm:inline">Print</span>
