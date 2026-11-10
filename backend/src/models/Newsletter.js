@@ -61,6 +61,22 @@ const newsletterSchema = new mongoose.Schema({
     ],
     default: []
   },
+  linkItems: {
+    type: [
+      {
+        heading: { type: String, trim: true, default: '' },
+        link: { type: String, trim: true, default: '' },
+        attachmentName: { type: String, trim: true, default: '' },
+        size: { type: Number, default: 0 },
+        type: { type: String, default: '' }
+      }
+    ],
+    default: []
+  },
+  linkItemsInitialized: {
+    type: Boolean,
+    default: false
+  },
   isDeleted: {
     type: Boolean,
     default: false,

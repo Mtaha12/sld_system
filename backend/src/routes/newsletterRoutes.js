@@ -4,6 +4,7 @@ import {
   getNewsletterById,
   createNewsletter,
   updateNewsletter,
+  updateNewsletterLinks,
   deleteNewsletter,
   uploadNewsletterAttachment
 } from '../controllers/newsletterController.js';
@@ -24,6 +25,8 @@ router.get('/:id', getNewsletterById);
 router.post('/upload-attachment', requireAdmin, uploadNewsletterAttachmentMiddleware, uploadNewsletterAttachment);
 router.post('/', requireAdmin, createNewsletter);
 router.put('/:id', requireAdmin, updateNewsletter);
+router.patch('/:id/links', requireAdmin, updateNewsletterLinks);
+router.put('/:id/links', requireAdmin, updateNewsletterLinks);
 router.delete('/:id', requireAdmin, deleteNewsletter);
 
 export default router;

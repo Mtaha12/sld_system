@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { DownloadCloud, ExternalLink, Copy, Check, Printer, FileText } from 'lucide-react';
 import { cleanWordPasteHtml } from '../../../utils/wordFormatter';
 import { getAttachmentUrl } from '../../../utils/attachmentDownloader';
+import { openNewsletterLink } from '../utils/newsletterLinks';
 
 /**
  * NewsletterMessageViewer
@@ -135,7 +136,14 @@ const NewsletterMessageViewer = ({ message, subject, date, srNumber, category })
       </div>
 
       {/* Main Text Content Container */}
-      <div 
+      <div
+        onClick={(e) => {
+          const anchor = e.target?.closest?.('a');
+          if (anchor && anchor.href) {
+            e.preventDefault();
+            openNewsletterLink(anchor.href, anchor.textContent?.trim() || '', { download: false });
+          }
+        }}
         className="p-5 sm:p-6 rounded-xl bg-white dark:bg-theme-surface border border-theme-border shadow-inner text-theme-main font-sans text-[13.5px] leading-relaxed max-h-[62vh] overflow-y-auto whitespace-pre-line selection:bg-brand-orange selection:text-white"
         dangerouslySetInnerHTML={{ __html: formattedHtml }}
       />

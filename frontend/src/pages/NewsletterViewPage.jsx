@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { getAttachmentUrl, downloadOrViewAttachment } from '../utils/attachmentDownloader';
+import { getNewsletterLinkRows, openNewsletterLink } from '../features/newsletters/utils/newsletterLinks';
 
 const NewsletterViewPage = () => {
   const { id } = useParams();
@@ -182,79 +183,68 @@ const NewsletterViewPage = () => {
               <div className="text-sm text-slate-400 italic">No document text description provided.</div>
             )}
 
-            {/* Document Attachment Box */}
-            {((newsletter.attachments && newsletter.attachments.length > 0) || newsletter.attachment) && (
-              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-stone-800 space-y-4">
+            {/* Document Attachment / Link Rows Box */}
+            {getNewsletterLinkRows(newsletter).length > 0 && (
+              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-stone-800 space-y-3">
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Attached Documents {newsletter.attachments?.length ? `(${newsletter.attachments.length})` : ''}
+                  Attached Documents & Email Links ({getNewsletterLinkRows(newsletter).length})
                 </h4>
-                {newsletter.attachments && newsletter.attachments.length > 0 ? (
-                  newsletter.attachments.map((att, i) => (
-                    <div key={i} className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-stone-700/80 bg-slate-50 dark:bg-stone-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-12 h-12 rounded-xl bg-brand-orange/10 text-brand-orange flex items-center justify-center border border-brand-orange/20 shrink-0 shadow-2xs">
-                          <FileText className="w-6 h-6" />
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                            {att.name || att.url?.split('/').pop() || `Document ${i + 1}`}
-                          </h4>
+                {getNewsletterLinkRows(newsletter).map((row, i) => (
+                  <div key={i} className="p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-stone-700/80 bg-slate-50 dark:bg-stone-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-brand-orange/10 text-brand-orange flex items-center justify-center border border-brand-orange/20 shrink-0 shadow-2xs">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                          {row.heading || `Document ${i + 1}`}
+                        </h4>
+                        {row.link && (
                           <a
-                            href={getAttachmentUrl(att.url)}
+                            href={row.link}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => {
                               e.preventDefault();
-                              downloadOrViewAttachment(att.url, att.name, 'view');
+                              openNewsletterLink(row.link, row.heading, { download: false });
                             }}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all mt-0.5 block font-mono"
                           >
-                            {att.url}
+                            {row.link}
                           </a>
-                        </div>
-                      </div>
-
-                      <a
-                        href={getAttachmentUrl(att.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download={att.name || 'document'}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          downloadOrViewAttachment(att.url, att.name || 'document', 'download');
-                        }}
-                        className="px-4 py-2 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-lg text-xs flex items-center gap-2 font-medium transition-colors shadow-sm shrink-0 whitespace-nowrap"
-                      >
-                        <Download className="w-4 h-4" /> Download File
-                      </a>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-stone-700/80 bg-slate-50 dark:bg-stone-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-12 h-12 rounded-xl bg-brand-orange/10 text-brand-orange flex items-center justify-center border border-brand-orange/20 shrink-0 shadow-2xs">
-                        <FileText className="w-6 h-6" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {newsletter.attachmentName || 'Official Document Attachment'}
-                        </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          Certified file attachment • Click to view or download
-                        </p>
+                        )}
                       </div>
                     </div>
 
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="bg-brand-orange hover:bg-brand-orange-hover text-white flex items-center gap-2 whitespace-nowrap px-4 shrink-0 shadow-sm"
-                      onClick={handleDownloadAttachment}
-                    >
-                      <Download className="w-4 h-4" /> Download File
-                    </Button>
+                    {row.link && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <a
+                          href={row.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openNewsletterLink(row.link, row.heading, { download: false });
+                          }}
+                          className="px-3.5 py-2 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white rounded-lg text-xs flex items-center gap-1.5 font-semibold transition-colors shadow-sm whitespace-nowrap cursor-pointer"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Open Document
+                        </a>
+                        <a
+                          href={getAttachmentUrl(row.link)}
+                          download={row.attachmentName || row.heading || 'document'}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openNewsletterLink(row.link, row.attachmentName || row.heading, { download: true });
+                          }}
+                          className="px-3 py-2 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-lg text-xs flex items-center gap-1.5 font-medium transition-colors shadow-sm whitespace-nowrap cursor-pointer"
+                        >
+                          <Download className="w-4 h-4" /> Download
+                        </a>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
 
                 {/* Inline PDF Preview */}
                 {isPdfAttachment && (
@@ -264,7 +254,7 @@ const NewsletterViewPage = () => {
                       <span className="text-[11px] text-slate-400">PDF Document</span>
                     </div>
                     <iframe
-                      src={`${getAttachmentUrl(newsletter.attachment)}#toolbar=0`}
+                      src={`${getAttachmentUrl(String(newsletter.attachment || '').split(/\r?\n/)[0].trim())}#toolbar=0`}
                       title="Attached PDF Preview"
                       className="w-full h-[600px] bg-white"
                     />

@@ -79,6 +79,14 @@ const PAGE_HEADERS = {
     title: 'Manage Emails',
     subtitle: 'Create, broadcast and archive email newsletters and circular updates'
   },
+  '/emails': {
+    title: 'Email Updates & Digests',
+    subtitle: 'Daily legal email circulars, case law updates & direct PDF archive'
+  },
+  '/newsletters': {
+    title: 'Email Updates & Digests',
+    subtitle: 'Daily legal email circulars, case law updates & direct PDF archive'
+  },
   '/setting/legal-maxims': {
     title: 'Manage Legal Maxim',
     subtitle: 'Manage legal maxims, Latin legal principles and interpretations'

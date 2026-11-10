@@ -613,17 +613,26 @@ const InfoWidgets = () => {
         icon={Mail}
         maxWidth="max-w-4xl"
         footer={
-          <div className="flex items-center justify-between w-full">
+          <div className="flex flex-wrap items-center justify-between gap-2 w-full">
             <span className="text-xs text-theme-muted font-medium">
               Official Email & WhatsApp Service Announcement
             </span>
-            <a
-              href={sldEmailWhatsappBanner}
-              download="SLD_Email_WhatsApp_Service.jpg"
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#f15a24] hover:bg-[#d44e35] text-white rounded-lg transition-colors font-bold text-xs shadow-sm"
-            >
-              <Download className="w-3.5 h-3.5" /> Download Announcement
-            </a>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/emails"
+                onClick={() => setIsContactModalOpen(false)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white rounded-lg transition-colors font-bold text-xs shadow-sm"
+              >
+                <Mail className="w-3.5 h-3.5" /> Browse Email Digests
+              </Link>
+              <a
+                href={sldEmailWhatsappBanner}
+                download="SLD_Email_WhatsApp_Service.jpg"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#f15a24] hover:bg-[#d44e35] text-white rounded-lg transition-colors font-bold text-xs shadow-sm"
+              >
+                <Download className="w-3.5 h-3.5" /> Download Announcement
+              </a>
+            </div>
           </div>
         }
       >

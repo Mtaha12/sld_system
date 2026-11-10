@@ -82,6 +82,21 @@ const ManageNewslettersPage = () => {
     ));
   };
 
+  const handleItemUpdated = (updatedItem) => {
+    if (!updatedItem) return;
+    setNewsletters(prev => prev.map(item =>
+      (item.mongoId && updatedItem.mongoId && item.mongoId === updatedItem.mongoId) ||
+      (item.id && updatedItem.id && item.id === updatedItem.id)
+        ? updatedItem
+        : item
+    ));
+  };
+
+  const handleItemCreated = (createdItem) => {
+    if (!createdItem) return;
+    setNewsletters(prev => [createdItem, ...prev]);
+  };
+
   return (
     <div className="flex flex-col w-full animate-fade-in gap-3 pb-8">
       
@@ -163,6 +178,8 @@ const ManageNewslettersPage = () => {
         newsletters={newsletters}
         onEdit={handleEditItem}
         onDeleted={handleItemDeleted}
+        onNewsletterUpdated={handleItemUpdated}
+        onNewsletterCreated={handleItemCreated}
         toastMessage={toastMessage}
         setToastMessage={setToastMessage}
         isLoading={isLoading}

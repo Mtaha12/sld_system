@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Trash2, Mail, AlertCircle, Paperclip, Share2, Check, Loader2, Copy } from 'lucide-react';
+import { X, Trash2, Mail, AlertCircle, Paperclip, Share2, Check, Loader2, Copy, Plus, ExternalLink } from 'lucide-react';
 import Input from '../../../components/ui/Input';
 import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
 import FormFooter from '../../../components/ui/FormFooter';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import { newsletterService } from '../services/newsletterService';
+import { getNewsletterLinkRows, openNewsletterLink } from '../utils/newsletterLinks';
 
 const getTodayDateString = () => {
   const today = new Date();
@@ -37,6 +38,7 @@ const AddNewsletterForm = ({
   const [category, setCategory] = useState(editData?.category || 'Updates');
   const [message, setMessage] = useState(editData?.message || '');
   const [attachments, setAttachments] = useState([]);
+  const [linkItems, setLinkItems] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
@@ -76,12 +78,14 @@ const AddNewsletterForm = ({
         initialAtts = urls.map(u => ({ url: u, name: u.split('/').pop() || 'Attachment' }));
       }
       setAttachments(initialAtts);
+      setLinkItems(getNewsletterLinkRows(editData));
     } else {
       setSubject('CASE LAWS & NEWS Updates');
       setDate(getTodayDateString());
       setCategory('Updates');
       setMessage('');
       setAttachments([]);
+      setLinkItems([]);
     }
     setErrors({});
     setServerError('');
@@ -91,12 +95,12 @@ const AddNewsletterForm = ({
     const fileList = Array.from(e.target.files || []);
     if (fileList.length === 0) return;
 
-    // Verify 5MB per file limit
-    const oversized = fileList.filter(f => f.size > 5 * 1024 * 1024);
+    // Verify 25MB per file limit matching backend multer
+    const oversized = fileList.filter(f => f.size > 25 * 1024 * 1024);
     if (oversized.length > 0) {
       setErrors(prev => ({
         ...prev,
-        attachment: `File "${oversized[0].name}" exceeds 5MB limit. Please upload files under 5MB each.`
+        attachment: `File "${oversized[0].name}" exceeds 25MB limit. Please upload files under 25MB each.`
       }));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
@@ -107,21 +111,32 @@ const AddNewsletterForm = ({
 
     try {
       const newlyUploaded = [];
+      const newLinkRows = [];
       for (const file of fileList) {
         const res = await newsletterService.uploadAttachment(file);
         if (res) {
           const item = res.data || res;
-          newlyUploaded.push({
+          const fileObj = {
             url: item.url,
             relativeUrl: item.relativeUrl,
             name: item.name || file.name,
-            size: item.size
+            size: item.size,
+            type: item.type || file.type || ''
+          };
+          newlyUploaded.push(fileObj);
+          newLinkRows.push({
+            heading: (item.name || file.name).replace(/\.[^.]+$/, ''),
+            link: item.url,
+            attachmentName: item.name || file.name,
+            size: item.size || 0,
+            type: item.type || file.type || ''
           });
         }
       }
 
-      // CUMULATIVE: Append new files to existing attachments (never vanish previously attached files!)
+      // CUMULATIVE: Append new files to both attachments and structured link list rows automatically
       setAttachments(prev => [...prev, ...newlyUploaded]);
+      setLinkItems(prev => [...prev, ...newLinkRows]);
     } catch (err) {
       console.error('Error uploading newsletter attachments:', err);
       setErrors(prev => ({
@@ -136,7 +151,65 @@ const AddNewsletterForm = ({
   };
 
   const handleRemoveAttachment = (indexToRemove) => {
+    const target = attachments[indexToRemove];
     setAttachments(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    if (target?.url) {
+      setLinkItems(prev => prev.filter(li => li.link !== target.url));
+    }
+  };
+
+  const handleLinkRowChange = (idx, field, value) => {
+    setLinkItems(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+  };
+
+  const handleAddBlankLinkRow = () => {
+    setLinkItems(prev => [...prev, { heading: '', link: '', attachmentName: '', size: 0, type: '' }]);
+  };
+
+  const handleRemoveLinkRow = (idx) => {
+    setLinkItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleRowFileUpload = async (idx, file) => {
+    if (!file) return;
+    setIsUploading(true);
+    setErrors(prev => ({ ...prev, attachment: null }));
+    try {
+      const res = await newsletterService.uploadAttachment(file);
+      const uploaded = res?.data || res;
+      if (uploaded?.url) {
+        const cleanHeading = (uploaded.name || file.name).replace(/\.[^.]+$/, '');
+        setLinkItems(prev => {
+          const next = prev.map((r, i) =>
+            i === idx
+              ? {
+                  ...r,
+                  heading: r.heading?.trim() ? r.heading : cleanHeading,
+                  link: uploaded.url,
+                  attachmentName: uploaded.name || file.name,
+                  size: uploaded.size || 0,
+                  type: uploaded.type || ''
+                }
+              : r
+          );
+          if (idx === prev.length - 1) {
+            next.push({ heading: '', link: '', attachmentName: '', size: 0, type: '' });
+          }
+          return next;
+        });
+        setAttachments(prev => {
+          if (prev.some(a => a.url === uploaded.url)) return prev;
+          return [...prev, { url: uploaded.url, relativeUrl: uploaded.relativeUrl, name: uploaded.name || file.name, size: uploaded.size }];
+        });
+      }
+    } catch (err) {
+      setErrors(prev => ({
+        ...prev,
+        attachment: err.response?.data?.message || err.message || 'Failed to upload attachment.'
+      }));
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleCopyUrl = (url, idx) => {
@@ -161,6 +234,16 @@ const AddNewsletterForm = ({
 
     setIsSubmitting(true);
     try {
+      const validLinkItems = linkItems
+        .map(r => ({
+          heading: String(r.heading || '').trim(),
+          link: String(r.link || '').trim(),
+          attachmentName: String(r.attachmentName || '').trim(),
+          size: Number(r.size) || 0,
+          type: String(r.type || '').trim()
+        }))
+        .filter(r => r.heading || r.link);
+
       const payload = {
         subject: subject.trim(),
         date: date.trim(),
@@ -168,7 +251,8 @@ const AddNewsletterForm = ({
         message: message || '',
         attachments,
         attachment: attachments.map(a => a.url).join('\n'),
-        attachmentName: attachments.map(a => a.name || a.url.split('/').pop()).join(', ')
+        attachmentName: attachments.map(a => a.name || a.url.split('/').pop()).join(', '),
+        linkItems: validLinkItems
       };
 
       let result;
@@ -341,46 +425,109 @@ const AddNewsletterForm = ({
                 : `${attachments.length} file(s) attached`}
             </span>
           </div>
-          <span className="text-[11px] text-red-500 block mt-1">Max allowed size is 5MB</span>
+          <span className="text-[11px] text-slate-500 block mt-1">Max allowed size is 25MB per file — uploading adds rows to the Email Links List automatically.</span>
           {errors.attachment && <span className="text-[11px] text-red-500 block mt-0.5">{errors.attachment}</span>}
 
-          {/* List of uploaded URLs displayed line-by-line as in previous system */}
-          {attachments.length > 0 && (
-            <div className="mt-2.5 p-2.5 bg-slate-50 dark:bg-theme-surface-alt/50 border border-theme-border rounded-lg space-y-1.5">
-              {attachments.map((att, idx) => (
-                <div key={idx} className="flex items-center justify-between gap-2 group hover:bg-white dark:hover:bg-theme-surface p-1 rounded transition-colors text-xs">
-                  <a
-                    href={att.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#0275d8] hover:text-[#014c8c] hover:underline font-mono text-[12px] break-all leading-tight"
-                    title={`Click to open ${att.name || 'document'}`}
-                  >
-                    {att.url}
-                  </a>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleCopyUrl(att.url, idx)}
-                      className="px-2 py-0.5 text-[11px] font-sans font-medium bg-white dark:bg-theme-surface border border-theme-border rounded text-slate-600 dark:text-slate-300 hover:text-brand-orange hover:border-brand-orange cursor-pointer shadow-2xs transition-colors flex items-center gap-1"
-                      title="Copy URL to clipboard for pasting in Message"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>{copiedIndex === idx ? 'Copied!' : 'Copy URL'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAttachment(idx)}
-                      className="text-gray-400 hover:text-red-500 p-1 cursor-pointer transition-colors"
-                      title="Remove attachment"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+          {/* Structured Heading + Link + Attachment Rows inside Form */}
+          <div className="mt-3 border border-theme-border rounded-lg overflow-hidden bg-white dark:bg-theme-surface">
+            <div className="px-3 py-2 bg-gray-50 dark:bg-theme-surface-alt/50 border-b border-theme-border flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-theme-main">
+                Structured Email Links ({linkItems.filter(r => r.link || r.heading).length})
+              </span>
+              <button
+                type="button"
+                onClick={handleAddBlankLinkRow}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white text-[11px] font-semibold rounded transition-colors cursor-pointer"
+              >
+                <Plus className="w-3 h-3" /> Add Link Row
+              </button>
             </div>
-          )}
+
+            {linkItems.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100/80 dark:bg-theme-surface-hover/50 border-b border-theme-border text-[11px] font-bold uppercase text-theme-muted">
+                      <th className="px-2.5 py-2 w-[38%]">Heading</th>
+                      <th className="px-2.5 py-2 w-[40%]">Link URL</th>
+                      <th className="px-2.5 py-2 text-center w-[22%]">Attachment</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-theme-border">
+                    {linkItems.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/70 dark:hover:bg-theme-surface-hover/30">
+                        <td className="p-1.5 align-middle">
+                          <input
+                            type="text"
+                            value={row.heading}
+                            onChange={(e) => handleLinkRowChange(idx, 'heading', e.target.value)}
+                            placeholder="e.g. INCOME TAX CASE LAW EMAIL NO. 424 dated 11-11-2026"
+                            className="w-full px-2 py-1.5 bg-theme-surface border border-theme-border rounded text-xs text-theme-main focus:outline-none focus:border-brand-orange"
+                          />
+                        </td>
+                        <td className="p-1.5 align-middle">
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={row.link}
+                              onChange={(e) => handleLinkRowChange(idx, 'link', e.target.value)}
+                              placeholder="https://api.sldsystempk.com/uploads/newsletters/..."
+                              className="w-full px-2 py-1.5 bg-theme-surface border border-theme-border rounded text-[11px] font-mono text-blue-600 dark:text-blue-400 focus:outline-none focus:border-brand-orange"
+                            />
+                            {row.link && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openNewsletterLink(row.link, row.heading)}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded cursor-pointer shrink-0"
+                                  title="Open link in new tab"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyUrl(row.link, idx)}
+                                  className="p-1.5 text-slate-600 hover:text-brand-orange rounded cursor-pointer shrink-0"
+                                  title={copiedIndex === idx ? 'Copied!' : 'Copy URL'}
+                                >
+                                  {copiedIndex === idx ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-1.5 align-middle text-center whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
+                            <label className="px-2.5 py-1 bg-[#00bcd4] hover:bg-[#00acc1] text-white text-[11px] font-medium rounded inline-flex items-center gap-1 cursor-pointer shadow-2xs">
+                              <Paperclip className="w-3 h-3" />
+                              <span>Choose File</span>
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRowFileUpload(idx, f);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLinkRow(idx)}
+                              className="text-gray-400 hover:text-red-500 p-1 cursor-pointer"
+                              title="Remove row"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </FormField>
 
       </form>

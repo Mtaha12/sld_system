@@ -64,6 +64,7 @@ const ManageDictionaryPage = lazy(() => import('./pages/ManageDictionaryPage'))
 import ErrorBoundary from './components/common/ErrorBoundary'
 
 const ManageNewslettersPage = lazy(() => import('./pages/ManageNewslettersPage'))
+const ClientEmailsPage = lazy(() => import('./pages/ClientEmailsPage'))
 const NewsletterViewPage = lazy(() => import('./pages/NewsletterViewPage'))
 const ManageCustomTariffsPage = lazy(() => import('./pages/ManageCustomTariffsPage'))
 const ManageInvoicesPage = lazy(() => import('./pages/ManageInvoicesPage'))
@@ -200,9 +201,9 @@ function App() {
                 <Route path="/manage-dictionary" element={<ManageDictionaryPage />} />
                 <Route path="/dictionary" element={<Navigate to="/manage-dictionary" replace />} />
                 <Route path="/manage-newsletters" element={<ManageNewslettersPage />} />
-                <Route path="/newsletters" element={<Navigate to="/manage-newsletters" replace />} />
+                <Route path="/newsletters" element={<ClientEmailsPage />} />
                 <Route path="/manage-emails" element={<ManageNewslettersPage />} />
-                <Route path="/emails" element={<Navigate to="/manage-emails" replace />} />
+                <Route path="/emails" element={<ClientEmailsPage />} />
                 <Route path="/manage-custom-tariffs" element={<ManageCustomTariffsPage />} />
                 <Route path="/manage-custom-tariff" element={<Navigate to="/manage-custom-tariffs" replace />} />
                 <Route path="/custom-tariffs" element={<Navigate to="/manage-custom-tariffs" replace />} />
