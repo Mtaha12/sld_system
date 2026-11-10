@@ -2,6 +2,8 @@
  * Utility to safely open Reference "View" data (Hyperlinks, File Attachments, or Text Notes)
  * in a brand new browser tab without affecting the current application state.
  */
+import { downloadOrViewAttachment } from './attachmentDownloader';
+import { formatWordDocumentDisplay } from './wordFormatter';
 
 const escapeHtml = (unsafe) => {
   return String(unsafe || '')
@@ -43,10 +45,7 @@ export const openReferenceView = (item) => {
   // 2. File Attachment: If specified as file or path starts with /uploads/
   const isFilePath = rawData.startsWith('/uploads/') || /\.(pdf|docx?|txt|rtf|png|jpe?g|webp)$/i.test(rawData);
   if (viewType === 'file' || (!viewType && isFilePath)) {
-    const fullUrl = rawData.startsWith('http')
-      ? rawData
-      : `${window.location.origin}${rawData.startsWith('/') ? '' : '/'}${rawData}`;
-    window.open(fullUrl, '_blank', 'noopener,noreferrer');
+    downloadOrViewAttachment(rawData, title, 'view');
     return;
   }
 
@@ -105,11 +104,14 @@ export const openReferenceView = (item) => {
       border-radius: 12px;
       padding: 24px;
       font-size: 15px;
+      line-height: 1.65;
       color: #cbd5e1;
-      white-space: pre-wrap;
+      white-space: normal;
       word-break: break-word;
       font-family: inherit;
     }
+    .content-box p { margin: 0 0 10px 0; }
+    .content-box p:last-child { margin-bottom: 0; }
     .footer {
       margin-top: 24px;
       padding-top: 14px;
@@ -146,7 +148,7 @@ export const openReferenceView = (item) => {
   <div class="wrapper">
     <div class="badge">SLD System Reference View</div>
     <h1>${escapeHtml(title)}</h1>
-    <div class="content-box">${escapeHtml(rawData)}</div>
+    <div class="content-box">${formatWordDocumentDisplay(rawData)}</div>
     <div class="footer">
       <span>Official SLD Legal Reference Record</span>
       <button class="print-btn" onclick="window.print()">Print Document</button>

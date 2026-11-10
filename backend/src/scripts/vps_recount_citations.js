@@ -15,7 +15,6 @@ import path from 'path';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import { computeAndPersistCitationStats } from '../controllers/caseController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,6 +38,7 @@ async function run() {
   console.log('[OK] Connected. Computing exact citation totals across database...');
 
   const t0 = Date.now();
+  const { computeAndPersistCitationStats } = await import('../controllers/caseController.js');
   const stats = await computeAndPersistCitationStats();
   const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
 

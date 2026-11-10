@@ -11,6 +11,7 @@ import mongoose from 'mongoose';
 import path from 'path';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 import { sanitizeAttachments as sanitizeAttachmentsStorage } from '../utils/attachmentStorage.js';
+import { cleanLegalPlainText } from '../utils/textSanitizer.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -529,6 +530,14 @@ export const sanitizeAttachments = (attachments) => {
   return sanitizeAttachmentsStorage(attachments);
 };
 
+const sanitizeCaseTextIfNoisy = (raw) => {
+  if (!raw || typeof raw !== 'string') return '';
+  if (/<(?:div|hr|script|style|noscript|iframe|table|tbody|tr|td|html|head|body|meta|link|font)\b|<\/?(?:https?|mailto|ftp):|clear:both|margin:\s*50px|!important"|<!--|\b(?:width|height|text-align):""|â€|Â[\s\u00a0]/i.test(raw)) {
+    return cleanLegalPlainText(raw);
+  }
+  return raw;
+};
+
 const formatCaseForFrontend = (c) => {
   const mappedCitations = Array.isArray(c.mapYearPage) ? c.mapYearPage.filter(Boolean) : [];
   const publicationCitations = buildMapYearPage(c.publications || []);
@@ -555,11 +564,11 @@ const formatCaseForFrontend = (c) => {
     judges: c.judges || [],
     petitioners: c.petitioners || [],
     lawyers: c.lawyers || [],
-    headNote: c.headNote || '',
+    headNote: sanitizeCaseTextIfNoisy(c.headNote || ''),
     references: c.references || '',
     principleLaw: c.principleLaw || '',
     legalMaxim: c.legalMaxim || '',
-    judgment: c.judgment || '',
+    judgment: sanitizeCaseTextIfNoisy(c.judgment || ''),
     publications: c.publications || [],
     laws: c.laws || [],
     attachments: cleanAtts,

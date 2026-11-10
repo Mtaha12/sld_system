@@ -1,6 +1,7 @@
 import Case from '../models/Case.js';
 import Statute from '../models/Statute.js';
 import Notification from '../models/Notification.js';
+import { getBoardStatuteAndNotificationCounts } from '../utils/dashboardBoardStats.js';
 
 /**
  * Humanizes timestamps relative to current time
@@ -45,12 +46,18 @@ const calculateMetricsData = async () => {
   ]);
 
   const totalAttachments = attachmentsAggregation.length > 0 ? attachmentsAggregation[0].total : 0;
+  const boardCounts = await getBoardStatuteAndNotificationCounts({
+    liveStatutes: totalStatutes,
+    liveNotifications: totalNotifications
+  });
 
   return {
     totalCases: totalCases.toLocaleString(),
     activeCases: activeCases.toLocaleString(),
-    totalStatutes: totalStatutes.toLocaleString(),
-    totalNotifications: totalNotifications.toLocaleString(),
+    totalStatutes: boardCounts.boardStatutes.toLocaleString(),
+    totalNotifications: boardCounts.boardNotifications.toLocaleString(),
+    rawStatutes: totalStatutes,
+    rawNotifications: totalNotifications,
     totalAttachments: totalAttachments.toLocaleString()
   };
 };
@@ -80,10 +87,18 @@ export const getMetrics = async (req, res, next) => {
       if (Date.now() >= metricsCacheExpiresAt) {
         refreshMetricsInBackground();
       }
+      const freshBoardCounts = await getBoardStatuteAndNotificationCounts();
+      const freshData = {
+        ...metricsCache,
+        totalStatutes: freshBoardCounts.boardStatutes.toLocaleString(),
+        totalNotifications: freshBoardCounts.boardNotifications.toLocaleString(),
+        rawStatutes: freshBoardCounts.liveStatutes,
+        rawNotifications: freshBoardCounts.liveNotifications
+      };
       return res.status(200).json({
         success: true,
         message: 'Dashboard metrics calculated.',
-        data: metricsCache
+        data: freshData
       });
     }
 

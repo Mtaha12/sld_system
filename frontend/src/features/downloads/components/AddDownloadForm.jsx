@@ -6,6 +6,7 @@ import FormField from '../../../components/ui/FormField';
 import Button from '../../../components/ui/Button';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
 import { downloadService } from '../services/downloadService';
+import { downloadOrViewAttachment } from '../../../utils/attachmentDownloader';
 
 const getTodayDateString = () => {
   const today = new Date();
@@ -130,10 +131,7 @@ const AddDownloadForm = ({
   const handleViewAttachment = () => {
     const target = attachment || editData?.attachment;
     if (!target) return;
-    const url = (typeof target === 'string' && (target.startsWith('http') || target.startsWith('data:') || target.startsWith('blob:')))
-      ? target
-      : `/uploads/${target}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    downloadOrViewAttachment(target, attachmentName || editData?.attachmentName, 'view');
   };
 
   const validate = () => {

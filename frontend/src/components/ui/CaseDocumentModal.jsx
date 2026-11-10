@@ -305,7 +305,10 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
                   ) : caseData.headNote ? (
                     <div className="p-4 rounded-xl bg-stone-100/70 border border-stone-200 text-stone-700 space-y-1">
                       <p className="font-sans font-bold text-xs uppercase text-amber-800">Digest Summary</p>
-                      <p className="text-xs">{caseData.headNote}</p>
+                      <div
+                        className="word-document-content text-xs"
+                        dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(caseData.headNote) }}
+                      />
                     </div>
                   ) : (
                     <p className="italic text-stone-500 py-4 text-center">

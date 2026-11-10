@@ -12,6 +12,7 @@ import zlib from 'zlib';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { cleanLegalPlainText } from '../utils/textSanitizer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,25 +31,7 @@ for (const ep of envPaths) {
 }
 
 function cleanHtmlToJudgment(rawHtml) {
-  let text = rawHtml;
-  text = text.replace(/^[\s\S]*?SLD\s*#:\s*\d+/i, '');
-  text = text.replace(/<\/div>\s*<\/body>\s*<\/html>[\s\S]*$/i, '');
-  text = text.replace(/<\/div>\s*$/i, '');
-  text = text.replace(/<br\s*\/?>/gi, '\n');
-  text = text.replace(/&nbsp;/gi, ' ');
-  text = text.replace(/&amp;/gi, '&');
-  text = text.replace(/&quot;/gi, '"');
-  text = text.replace(/&#39;/gi, "'");
-  text = text.replace(/&rsquo;/gi, "'");
-  text = text.replace(/&lsquo;/gi, "'");
-  text = text.replace(/&rdquo;/gi, '"');
-  text = text.replace(/&ldquo;/gi, '"');
-  text = text.replace(/&lt;/gi, '<');
-  text = text.replace(/&gt;/gi, '>');
-  text = text.replace(/[ \t]+/g, ' ');
-  text = text.replace(/\n[ \t]+/g, '\n');
-  text = text.replace(/\n{3,}/g, '\n\n');
-  return text.trim();
+  return cleanLegalPlainText(rawHtml);
 }
 
 function loadJudgments() {

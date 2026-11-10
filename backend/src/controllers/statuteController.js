@@ -5,6 +5,7 @@ import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 import { sanitizeBlocksAttachments as sanitizeBlocksAttachmentsStorage, sanitizeAttachments } from '../utils/attachmentStorage.js';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
+import { getBoardStatuteAndNotificationCounts, invalidateBoardCountsCache } from '../utils/dashboardBoardStats.js';
 
 /**
  * Ensures sanitizeBlocksAttachments is safely defined in all execution environments
@@ -206,12 +207,15 @@ export const getStatutes = async (req, res, next) => {
     const statutes = await dbQuery.lean();
     const isSpammer = req.user?.isSpammer === true;
     const data = (isSpammer ? statutes.map(spoofStatute) : statutes).map(formatStatuteForFrontend);
+    const isUnfiltered = Object.keys(filter).length === 1;
+    const boardCounts = await getBoardStatuteAndNotificationCounts({ liveStatutes: isUnfiltered ? total : null });
 
     return res.status(200).json({
       success: true,
       message: 'Statutes retrieved successfully.',
       count: data.length,
       total,
+      dashboardTotal: boardCounts.boardStatutes,
       totalPages,
       currentPage: safePage,
       data
@@ -502,6 +506,7 @@ export const createStatute = async (req, res, next) => {
       await newStatute.save();
     }
 
+    invalidateBoardCountsCache();
     logger.info(`[Statute Created] Statute ID ${newStatute.statuteId} (SR #${newStatute.srNumber}) added.`);
 
     return res.status(201).json({
@@ -608,6 +613,7 @@ export const deleteStatute = async (req, res, next) => {
 
     await adjustSrOnDelete(Statute, s, { srField: 'srNumber', intField: 'srNumberInt', isString: true, counterName: 'statute' });
 
+    invalidateBoardCountsCache();
     logger.info(`[Statute Deleted] ID ${s.statuteId || s.srNumber} soft-deleted and SR# auto-adjusted.`);
 
     return res.status(200).json({

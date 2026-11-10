@@ -18,6 +18,7 @@ import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { newsService } from '../services/newsService';
 import { useUser } from '../../../contexts/UserContext';
+import { formatWordDocumentDisplay } from '../../../utils/wordFormatter';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = sortConfig?.key === sortKey;
@@ -309,8 +310,8 @@ const ManageNewsTable = ({
               {viewModalItem.heading}
             </h3>
             <div 
-              className="p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-72 overflow-y-auto"
-              dangerouslySetInnerHTML={{ __html: viewModalItem.detail || '<p class="text-theme-muted">No detail provided.</p>' }}
+              className="word-document-content p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-72 overflow-y-auto"
+              dangerouslySetInnerHTML={{ __html: viewModalItem.detail ? formatWordDocumentDisplay(viewModalItem.detail) : '<p class="text-theme-muted">No detail provided.</p>' }}
             />
           </div>
         )}

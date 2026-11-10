@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { DownloadCloud, ExternalLink, Copy, Check, Printer, FileText } from 'lucide-react';
+import { cleanWordPasteHtml } from '../../../utils/wordFormatter';
+import { getAttachmentUrl } from '../../../utils/attachmentDownloader';
 
 /**
  * NewsletterMessageViewer
@@ -17,7 +19,7 @@ const NewsletterMessageViewer = ({ message, subject, date, srNumber, category })
     if (!message) return;
     // Strip HTML tags for clean clipboard copying
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = message;
+    tempDiv.innerHTML = cleanWordPasteHtml(message);
     const plainText = tempDiv.textContent || tempDiv.innerText || '';
     navigator.clipboard.writeText(plainText);
     setCopied(true);
@@ -44,7 +46,7 @@ const NewsletterMessageViewer = ({ message, subject, date, srNumber, category })
         <body>
           <h1>${subject || 'Newsletter Update'}</h1>
           <div class="meta">SR #${srNumber || '—'} • Date: ${date || '—'} • Category: ${category || '—'}</div>
-          <div class="content">${message}</div>
+          <div class="content">${cleanWordPasteHtml(message)}</div>
         </body>
       </html>
     `);
@@ -62,7 +64,7 @@ const NewsletterMessageViewer = ({ message, subject, date, srNumber, category })
   const formattedHtml = useMemo(() => {
     if (!message) return '';
 
-    let html = message;
+    let html = cleanWordPasteHtml(message);
 
     // Normalize Windows CRLF to standard LF
     html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -71,11 +73,14 @@ const NewsletterMessageViewer = ({ message, subject, date, srNumber, category })
     html = html.replace(/[=]{6,}/g, '<div class="my-4 border-t-2 border-dashed border-gray-300 dark:border-gray-700"></div>');
     html = html.replace(/[-]{6,}/g, '<div class="my-3 border-t border-dashed border-gray-200 dark:border-gray-800"></div>');
 
-    // Style any <a> links with attractive document download pill classes
+    // Style any <a> links with attractive document download pill classes and resolve backend /uploads URLs
     html = html.replace(
       /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1([^>]*)>(.*?)<\/a>/gi,
       (match, q, href, rest, text) => {
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 my-1.5 rounded-lg font-bold text-xs bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-800/60 hover:bg-orange-600 hover:text-white transition-all shadow-sm" ${rest}><svg class="w-3.5 h-3.5 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> <span>${text}</span> <svg class="w-3 h-3 inline opacity-70 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a>`;
+        const resolvedHref = href.startsWith('/uploads/') || (!href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto:'))
+          ? getAttachmentUrl(href)
+          : href;
+        return `<a href="${resolvedHref}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 my-1.5 rounded-lg font-bold text-xs bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-800/60 hover:bg-orange-600 hover:text-white transition-all shadow-sm" ${rest}><svg class="w-3.5 h-3.5 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> <span>${text}</span> <svg class="w-3 h-3 inline opacity-70 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a>`;
       }
     );
 

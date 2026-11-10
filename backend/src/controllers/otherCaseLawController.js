@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
+import { getCandidateUploadRoots } from '../utils/attachmentStorage.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -466,7 +467,7 @@ export const viewOtherCaseDocument = async (req, res, next) => {
     }
 
     // Check disk cache first for instant response without court latency
-    const cacheDir = path.join(process.cwd(), 'uploads', 'court_cache');
+    const cacheDir = path.join(getCandidateUploadRoots()[0], 'court_cache');
     if (!fs.existsSync(cacheDir)) {
       try { fs.mkdirSync(cacheDir, { recursive: true }); } catch (e) {}
     }

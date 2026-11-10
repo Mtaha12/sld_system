@@ -13,13 +13,15 @@ const FallbackRichEditor = ({ value, onChange, placeholder, minHeight, isDark })
   const editorRef = useRef(null);
   const [htmlMode, setHtmlMode] = useState(false);
   const isFocusedRef = useRef(false);
-  const lastEmittedRef = useRef(value || '');
+  const lastEmittedRef = useRef(null);
 
   useEffect(() => {
     if (editorRef.current && !htmlMode && !isFocusedRef.current) {
       const incoming = value || '';
-      if (incoming !== lastEmittedRef.current && editorRef.current.innerHTML !== incoming) {
-        editorRef.current.innerHTML = incoming;
+      if (incoming === lastEmittedRef.current) return;
+      const formatted = formatWordDocumentDisplay(incoming);
+      if (editorRef.current.innerHTML !== formatted) {
+        editorRef.current.innerHTML = formatted;
         lastEmittedRef.current = incoming;
       }
     }
@@ -187,6 +189,8 @@ const RichTextEditor = ({
   const isFocusedRef = useRef(false);
   const lastEmittedValueRef = useRef(value || '');
   const editorValue = formatWordDocumentDisplay(value || '');
+  const latestFormattedValueRef = useRef(editorValue);
+  latestFormattedValueRef.current = editorValue;
 
   // Dynamically load CKEditor to prevent SSR / React 19 crashes
   useEffect(() => {
@@ -289,9 +293,10 @@ const RichTextEditor = ({
       try {
         const incoming = value || '';
         if (incoming === lastEmittedValueRef.current) return;
+        const formatted = formatWordDocumentDisplay(incoming);
         const currentData = editorInstanceRef.current.getData() || '';
-        if (incoming !== currentData) {
-          editorInstanceRef.current.setData(incoming);
+        if (formatted !== currentData) {
+          editorInstanceRef.current.setData(formatted);
           lastEmittedValueRef.current = incoming;
         }
       } catch (err) {
@@ -322,6 +327,16 @@ const RichTextEditor = ({
         editorUrl="https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js"
         onInstanceReady={(evt) => {
           editorInstanceRef.current = evt.editor;
+          const pendingFormatted = latestFormattedValueRef.current || '';
+          const currentData = evt.editor.getData() || '';
+          if (pendingFormatted !== currentData && !isFocusedRef.current) {
+            try {
+              evt.editor.setData(pendingFormatted);
+              lastEmittedValueRef.current = pendingFormatted;
+            } catch (err) {
+              // ignore init race
+            }
+          }
           evt.editor.on('focus', () => {
             isFocusedRef.current = true;
           });

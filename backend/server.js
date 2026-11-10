@@ -6,6 +6,8 @@ import dns from 'dns';
 import morgan from 'morgan';
 import compression from 'compression';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { getCandidateUploadRoots, resolveUploadFilePath } from './src/utils/attachmentStorage.js';
 
 // Configure public DNS servers to resolve MongoDB Atlas SRV/TXT records securely
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -176,7 +178,8 @@ app.use('/api/other-cases', otherCaseLawRoutes);
 app.use('/api/other-caselaws', otherCaseLawRoutes);
 
 // Static uploads serving
-// High-speed static uploads serving with caching & security
+// High-speed static uploads serving across __dirname (backend/uploads) and process.cwd()
+const __serverDir = path.dirname(fileURLToPath(import.meta.url));
 const staticUploadOptions = {
   maxAge: '7d',
   etag: true,
@@ -190,10 +193,27 @@ const staticUploadOptions = {
     }
   }
 };
-app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), staticUploadOptions));
-app.use('/uploads', express.static(path.resolve(process.cwd(), '../uploads'), staticUploadOptions));
-app.use('/uploads/reference_views', express.static(path.resolve(process.cwd(), 'uploads/reference_views'), staticUploadOptions));
-app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads/reference_views'), staticUploadOptions));
+for (const uploadRoot of getCandidateUploadRoots()) {
+  app.use('/uploads', express.static(uploadRoot, staticUploadOptions));
+  app.use('/uploads', express.static(path.join(uploadRoot, 'reference_views'), staticUploadOptions));
+  app.use('/uploads/reference_views', express.static(path.join(uploadRoot, 'reference_views'), staticUploadOptions));
+}
+app.use('/uploads/reference_views', express.static(path.resolve(__serverDir, 'uploads/reference_views'), staticUploadOptions));
+
+// Resilient fallback for any nested /uploads/* attachment path regardless of PM2 CWD
+app.get(/^\/uploads\/(.+)$/, (req, res) => {
+  const matchedPath = resolveUploadFilePath(req.params[0]);
+  if (matchedPath) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Disposition', 'inline');
+    if (matchedPath.toLowerCase().endsWith('.pdf')) {
+      res.setHeader('Content-Type', 'application/pdf');
+    }
+    return res.sendFile(matchedPath);
+  }
+  return res.status(404).json({ success: false, message: 'Uploaded attachment file not found.' });
+});
 
 // Contact Us / Support Email Dispatch Endpoint
 app.post('/api/contact', async (req, res, next) => {

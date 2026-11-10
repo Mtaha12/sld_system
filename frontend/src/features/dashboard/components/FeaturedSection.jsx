@@ -25,7 +25,7 @@ const fallbackCards = [
   {
     id: 'statutes',
     title: 'Statutes / Laws',
-    count: '9,372',
+    count: '3,000',
     icon: Scale,
     image: oldLawBook,
     link: '/statutes/view/6a90093e137c8854f5d4d367',
@@ -40,7 +40,7 @@ const fallbackCards = [
   {
     id: 'notifications',
     title: 'Notifications',
-    count: '11,618',
+    count: '30,000',
     icon: Bell,
     image: fbrSecp,
     link: '/notifications/view/6abcf2bdc1463bec312e1527',
@@ -90,8 +90,8 @@ const FeaturedSection = () => {
     return fallbackCards.map(card => {
       let defaultCount = '0';
       if (card.id === 'dictionary') defaultCount = '41,427';
-      else if (card.id === 'statutes') defaultCount = sessionStorage.getItem('dashboard_statutes_count') || '9,372';
-      else if (card.id === 'notifications') defaultCount = sessionStorage.getItem('dashboard_notifs_count') || '11,618';
+      else if (card.id === 'statutes') defaultCount = sessionStorage.getItem('dashboard_statutes_count_v2') || '3,000';
+      else if (card.id === 'notifications') defaultCount = sessionStorage.getItem('dashboard_notifs_count_v2') || '30,000';
       else if (card.id === 'case_laws') defaultCount = sessionStorage.getItem('dashboard_citations_count_v2') || '550,000+';
       else if (card.id === 'finance_act') defaultCount = sessionStorage.getItem('dashboard_finance_count') || '58';
 
@@ -116,12 +116,12 @@ const FeaturedSection = () => {
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Statutes (Fast independent fetch)
+    // 1. Statutes (Fixed baseline 3,000 + newly added records)
     statuteService.getStatutes({ limit: 5 }).then(res => {
       if (!isMounted) return;
       const rawStatutes = Array.isArray(res) ? res : (res?.data || []);
-      const totalCount = (res?.total || 9372).toLocaleString();
-      sessionStorage.setItem('dashboard_statutes_count', totalCount);
+      const totalCount = (res?.dashboardTotal ?? 3000).toLocaleString();
+      sessionStorage.setItem('dashboard_statutes_count_v2', totalCount);
       if (rawStatutes.length > 0) {
         const latest5 = rawStatutes.slice(0, 5).map(s => ({
           text: s.law ? `${s.law}${s.section ? ` - Sec. ${s.section}` : ''}` : (s.heading || `Statute Section #${s.srNumber}`),
@@ -138,12 +138,12 @@ const FeaturedSection = () => {
       }
     }).catch(err => console.warn('[FeaturedSection] Statutes error:', err));
 
-    // 2. Notifications (Fast independent fetch)
+    // 2. Notifications (Fixed baseline 30,000 + newly added records)
     notificationService.getNotifications({ limit: 5 }).then(res => {
       if (!isMounted) return;
       const rawNotifs = Array.isArray(res) ? res : (res?.data || []);
-      const totalCount = (res?.total || rawNotifs.length || 11618).toLocaleString();
-      sessionStorage.setItem('dashboard_notifs_count', totalCount);
+      const totalCount = (res?.dashboardTotal ?? 30000).toLocaleString();
+      sessionStorage.setItem('dashboard_notifs_count_v2', totalCount);
       if (rawNotifs.length > 0) {
         const latest5 = rawNotifs.slice(0, 5).map(n => ({
           text: n.subject || (n.number ? `Notification No. ${n.number} (${n.year || ''})` : `Notification #${n.srNumber}`),

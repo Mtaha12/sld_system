@@ -8,6 +8,7 @@ import {
   Calendar, FileText, Download, ShieldCheck, ExternalLink
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
+import { getAttachmentUrl, downloadOrViewAttachment } from '../utils/attachmentDownloader';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -219,13 +220,17 @@ const TaxCardViewPage = () => {
             {taxCard.attachment && (
               <div className="mt-8 pt-6 border-t border-stone-200 dark:border-stone-800">
                 <a
-                  href={taxCard.attachment}
+                  href={getAttachmentUrl(taxCard.attachment)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    downloadOrViewAttachment(taxCard.attachment, taxCard.attachmentName, 'view');
+                  }}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-[#f15a24] hover:text-white rounded-xl text-xs font-bold text-stone-800 dark:text-stone-200 transition-all shadow-xs"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Download Attached Official Schedule ({taxCard.attachmentName || 'Document'})</span>
+                  <span>View / Download Attached Official Schedule ({taxCard.attachmentName || 'Document'})</span>
                 </a>
               </div>
             )}

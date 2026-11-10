@@ -21,6 +21,7 @@ import Pagination from '../../../components/ui/Pagination';
 import { dictionaryService } from '../services/dictionaryService';
 import { useUser } from '../../../contexts/UserContext';
 import { extractFirstTwoWords, fetchCaseCitationsForTerm } from '../../../utils/referenceSearchUtil';
+import { formatWordDocumentDisplay } from '../../../utils/wordFormatter';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = Boolean(sortKey && sortConfig?.key === sortKey);
@@ -433,8 +434,8 @@ const ManageDictionaryTable = ({
             </h3>
             {viewModalItem.meaning ? (
               <div 
-                className="p-3.5 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-80 overflow-y-auto"
-                dangerouslySetInnerHTML={{ __html: viewModalItem.meaning }}
+                className="word-document-content p-3.5 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-80 overflow-y-auto"
+                dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(viewModalItem.meaning) }}
               />
             ) : (
               <p className="text-theme-muted italic">No meaning entered.</p>

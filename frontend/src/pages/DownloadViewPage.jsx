@@ -8,6 +8,7 @@ import {
   Calendar, ShieldCheck, Download, FileText, Tag
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
+import { getAttachmentUrl, downloadOrViewAttachment } from '../utils/attachmentDownloader';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -221,13 +222,17 @@ const DownloadViewPage = () => {
             {downloadItem.attachment && (
               <div className="mt-8 pt-6 border-t border-stone-200 dark:border-stone-800 print:hidden">
                 <a
-                  href={downloadItem.attachment}
+                  href={getAttachmentUrl(downloadItem.attachment)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    downloadOrViewAttachment(downloadItem.attachment, downloadItem.attachmentName, 'view');
+                  }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#f15a24] hover:bg-[#d94817] text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Download Resource Document ({downloadItem.attachmentName || 'Attachment'})</span>
+                  <span>View / Download Resource Document ({downloadItem.attachmentName || 'Attachment'})</span>
                 </a>
               </div>
             )}

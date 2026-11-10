@@ -6,11 +6,62 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Candidate upload directories for reference views
+// Backend root directory (<repo>/backend)
+const BACKEND_ROOT = path.resolve(__dirname, '../..');
+const REPO_ROOT = path.resolve(BACKEND_ROOT, '..');
+
+/**
+ * Returns all possible root `uploads` directories in priority order,
+ * ensuring files stored via __dirname OR process.cwd() always resolve cleanly.
+ */
+export const getCandidateUploadRoots = () => {
+  const dirs = [
+    path.resolve(BACKEND_ROOT, 'uploads'),
+    path.resolve(REPO_ROOT, 'uploads'),
+    path.resolve(process.cwd(), 'uploads'),
+    path.resolve(process.cwd(), 'backend', 'uploads'),
+    path.resolve(process.cwd(), '../uploads')
+  ];
+  return [...new Set(dirs)];
+};
+
+/**
+ * Resolves a stored attachment path (e.g. '/uploads/reference_views/abc.pdf')
+ * to an actual existing file path on disk, checking all upload roots & subdirs.
+ */
+export const resolveUploadFilePath = (urlOrPath) => {
+  if (!urlOrPath || typeof urlOrPath !== 'string') return null;
+  const cleanRel = urlOrPath
+    .trim()
+    .split('?')[0]
+    .split('#')[0]
+    .replace(/^\/+/, '')
+    .replace(/^uploads\/+/i, '');
+
+  if (!cleanRel || cleanRel.includes('..')) return null;
+
+  for (const root of getCandidateUploadRoots()) {
+    const safePrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+    const direct = path.resolve(root, cleanRel);
+    if (direct.startsWith(safePrefix) && fs.existsSync(direct) && fs.statSync(direct).isFile()) {
+      return direct;
+    }
+    const baseName = path.basename(cleanRel);
+    for (const sub of ['reference_views', 'newsletters', 'payment_proofs', 'court_cache']) {
+      const nested = path.resolve(root, sub, baseName);
+      if (nested.startsWith(safePrefix) && fs.existsSync(nested) && fs.statSync(nested).isFile()) {
+        return nested;
+      }
+    }
+  }
+  return null;
+};
+
+// Candidate upload directories for reference views (always prefers backend/uploads/reference_views)
 const candidateDirs = [
-  path.resolve(__dirname, '../../uploads/reference_views'),
+  path.resolve(BACKEND_ROOT, 'uploads/reference_views'),
   path.resolve(process.cwd(), 'uploads/reference_views'),
-  path.resolve(process.cwd(), '../uploads/reference_views')
+  path.resolve(REPO_ROOT, 'uploads/reference_views')
 ];
 
 let targetDir = candidateDirs[0];

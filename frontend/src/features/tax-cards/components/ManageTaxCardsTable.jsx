@@ -23,6 +23,7 @@ import Pagination from '../../../components/ui/Pagination';
 import { taxCardService } from '../services/taxCardService';
 import { useUser } from '../../../contexts/UserContext';
 import { downloadOrViewAttachment, getAttachmentDisplayName } from '../../../utils/attachmentDownloader';
+import { formatWordDocumentDisplay } from '../../../utils/wordFormatter';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = Boolean(sortKey && sortConfig?.key === sortKey);
@@ -343,20 +344,20 @@ const ManageTaxCardsTable = ({
                   <span className="font-medium text-theme-main">{viewModalItem.attachmentName}</span>
                 </div>
                 {viewModalItem.attachment && (
-                  <a
-                    href={viewModalItem.attachment}
-                    download={viewModalItem.attachmentName}
-                    className="px-2.5 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={() => downloadOrViewAttachment(viewModalItem.attachment, viewModalItem.attachmentName, 'download')}
+                    className="px-2.5 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1 cursor-pointer"
                   >
                     <DownloadCloud className="w-3 h-3" /> Download
-                  </a>
+                  </button>
                 )}
               </div>
             )}
             {viewModalItem.detail ? (
               <div 
-                className="p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-72 overflow-y-auto"
-                dangerouslySetInnerHTML={{ __html: viewModalItem.detail }}
+                className="word-document-content p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-72 overflow-y-auto"
+                dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(viewModalItem.detail) }}
               />
             ) : (
               <p className="text-theme-muted italic">No detail entered.</p>

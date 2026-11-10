@@ -3,7 +3,7 @@ import Counter from '../models/Counter.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
-import { saveBase64ToFile } from '../utils/attachmentStorage.js';
+import { saveBase64ToFile, resolveUploadFilePath } from '../utils/attachmentStorage.js';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 
 const escapeRegex = (string) => {
@@ -190,8 +190,8 @@ export const viewWhatsappAttachment = async (req, res, next) => {
 
     // Handle local file in uploads/
     if (item.attachment.startsWith('/uploads') || item.attachment.startsWith('uploads/')) {
-      const filePath = path.resolve(process.cwd(), item.attachment.replace(/^\/+/, ''));
-      if (fs.existsSync(filePath)) {
+      const filePath = resolveUploadFilePath(item.attachment);
+      if (filePath) {
         res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
         return res.sendFile(filePath);
       }
@@ -240,8 +240,8 @@ export const downloadWhatsappAttachment = async (req, res, next) => {
 
     // Handle local file in uploads/
     if (item.attachment.startsWith('/uploads') || item.attachment.startsWith('uploads/')) {
-      const filePath = path.resolve(process.cwd(), item.attachment.replace(/^\/+/, ''));
-      if (fs.existsSync(filePath)) {
+      const filePath = resolveUploadFilePath(item.attachment);
+      if (filePath) {
         return res.download(filePath, filename);
       }
     }

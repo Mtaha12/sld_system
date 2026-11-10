@@ -10,6 +10,7 @@ export const statuteService = {
     const response = await api.get('/api/statutes', { params: queryParams });
     const data = response.data?.data || [];
     data.total = response.data?.total ?? data.length;
+    data.dashboardTotal = response.data?.dashboardTotal;
     data.totalPages = response.data?.totalPages ?? 1;
     data.currentPage = response.data?.currentPage ?? 1;
     data.pagination = {

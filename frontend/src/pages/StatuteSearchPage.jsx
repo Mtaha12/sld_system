@@ -7,7 +7,7 @@ import SearchableLawSelect from '../features/statutes/components/SearchableLawSe
 import Modal from '../components/ui/Modal';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { compareSections } from '../utils/sectionComparator';
-import { downloadOrViewAttachment, getAttachmentDisplayName } from '../utils/attachmentDownloader';
+import { downloadOrViewAttachment, getAttachmentDisplayName, getAttachmentUrl as resolveBackendAttachmentUrl } from '../utils/attachmentDownloader';
 
 /* ── Shared form field styles ────────────────────────────────────────── */
 const inp =
@@ -294,13 +294,10 @@ const StatuteSearchPage = () => {
 
   const getAttachmentUrl = (f) => {
     if (!f) return null;
-    if (typeof f === 'string') {
-      if (f.startsWith('http://') || f.startsWith('https://') || f.startsWith('data:') || f.startsWith('blob:')) return f;
-      return f.startsWith('/') ? f : `/uploads/${f}`;
-    }
-    if (f.url) return f.url;
-    if (f.path) return f.path.startsWith('/') ? f.path : `/${f.path}`;
-    if (f.name) return `/uploads/${f.name}`;
+    if (typeof f === 'string') return resolveBackendAttachmentUrl(f);
+    if (f.url) return resolveBackendAttachmentUrl(f.url);
+    if (f.path) return resolveBackendAttachmentUrl(f.path);
+    if (f.name) return resolveBackendAttachmentUrl(f.name);
     return null;
   };
 

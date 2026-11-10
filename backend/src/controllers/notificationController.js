@@ -1,12 +1,13 @@
 import fs from 'fs';
 import path from 'path';
-import { sanitizeBlocksAttachments } from '../utils/attachmentStorage.js';
+import { sanitizeBlocksAttachments, resolveUploadFilePath } from '../utils/attachmentStorage.js';
 import Notification from '../models/Notification.js';
 import UserActivity from '../models/UserActivity.js';
 import { spoofNotification } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
+import { getBoardStatuteAndNotificationCounts, invalidateBoardCountsCache } from '../utils/dashboardBoardStats.js';
 
 /**
  * Format notification for frontend representation
@@ -240,12 +241,15 @@ export const getNotifications = async (req, res, next) => {
     const notifications = await dbQuery.lean();
     const isSpammer = req.user?.isSpammer === true;
     const data = (isSpammer ? notifications.map(spoofNotification) : notifications).map(formatNotificationForFrontend);
+    const isUnfiltered = Object.keys(filter).length === 1;
+    const boardCounts = await getBoardStatuteAndNotificationCounts({ liveNotifications: isUnfiltered ? total : null });
 
     return res.status(200).json({
       success: true,
       message: 'Notifications retrieved successfully.',
       count: data.length,
       total,
+      dashboardTotal: boardCounts.boardNotifications,
       totalPages,
       currentPage: safePage,
       data
@@ -406,6 +410,7 @@ export const createNotification = async (req, res, next) => {
       await newNotif.save();
     }
 
+    invalidateBoardCountsCache();
     logger.info(`[Notification Created] Notification ID ${newNotif.notificationId} (SR #${newNotif.srNumber}) added.`);
 
     return res.status(201).json({
@@ -524,6 +529,7 @@ export const deleteNotification = async (req, res, next) => {
     await n.save();
 
     await adjustSrOnDelete(Notification, n, { srField: 'srNumber', intField: 'srNumberInt', isString: true, counterName: 'notification' });
+    invalidateBoardCountsCache();
     logger.info(`[Notification Deleted] ID ${n.notificationId || n.srNumber} soft-deleted and SR# auto-adjusted.`);
 
     return res.status(200).json({
@@ -594,34 +600,25 @@ export const getNotificationAttachmentStream = async (req, res, next) => {
       }
     }
 
-    // 2. Local File in uploads
-    const cleanRel = url.replace(/^\/+/, '').replace(/^uploads\/+/, '');
-    const searchDirs = [
-      path.resolve(process.cwd(), 'uploads', cleanRel),
-      path.resolve(process.cwd(), 'uploads/reference_views', cleanRel),
-      path.resolve(process.cwd(), '../uploads', cleanRel),
-      path.resolve(process.cwd(), cleanRel)
-    ];
-
-    for (const p of searchDirs) {
-      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
-        const ext = path.extname(p).toLowerCase();
-        const mimeMap = {
-          '.pdf': 'application/pdf',
-          '.png': 'image/png',
-          '.jpg': 'image/jpeg',
-          '.jpeg': 'image/jpeg',
-          '.webp': 'image/webp',
-          '.doc': 'application/msword',
-          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          '.txt': 'text/plain'
-        };
-        if (mimeMap[ext]) {
-          res.setHeader('Content-Type', mimeMap[ext]);
-        }
-        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-        return res.sendFile(p);
+    // 2. Local File in uploads (checks both backend/uploads and process.cwd()/uploads)
+    const resolvedFile = resolveUploadFilePath(url);
+    if (resolvedFile) {
+      const ext = path.extname(resolvedFile).toLowerCase();
+      const mimeMap = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.txt': 'text/plain'
+      };
+      if (mimeMap[ext]) {
+        res.setHeader('Content-Type', mimeMap[ext]);
       }
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      return res.sendFile(resolvedFile);
     }
 
     // 3. Remote URL

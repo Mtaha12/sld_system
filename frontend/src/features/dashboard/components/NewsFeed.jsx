@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 import { updateService } from '../../updates/services/updateService';
 import { newsService } from '../../news/services/newsService';
 import Modal from '../../../components/ui/Modal';
+import { formatWordDocumentDisplay } from '../../../utils/wordFormatter';
 
 const fallbackNews = [
   { title: 'President rejects FBR presentation against FTO order', date: 'Aug 31, 2026', source: 'FBR' },
@@ -343,11 +344,9 @@ const NewsFeed = () => {
                 </div>
               ) : selectedUpdate.detail ? (
                 <div 
-                  className="p-4 sm:p-5 rounded-xl bg-gray-50/90 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed text-sm max-h-[50vh] overflow-y-auto custom-scrollbar prose prose-sm dark:prose-invert max-w-none whitespace-pre-line"
+                  className="word-document-content p-4 sm:p-5 rounded-xl bg-gray-50/90 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed text-sm max-h-[50vh] overflow-y-auto custom-scrollbar max-w-none"
                   dangerouslySetInnerHTML={{ 
-                    __html: /<[a-z][\s\S]*>/i.test(selectedUpdate.detail) 
-                      ? selectedUpdate.detail 
-                      : `<p>${selectedUpdate.detail.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br />')}</p>` 
+                    __html: formatWordDocumentDisplay(selectedUpdate.detail)
                   }}
                 />
               ) : (

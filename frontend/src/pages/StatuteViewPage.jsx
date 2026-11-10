@@ -9,7 +9,7 @@ import {
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
 import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
-import { downloadOrViewAttachment, getAttachmentDisplayName } from '../utils/attachmentDownloader';
+import { downloadOrViewAttachment, getAttachmentDisplayName, getAttachmentUrl as resolveBackendAttachmentUrl } from '../utils/attachmentDownloader';
 
 const fontSizes = [
   { label: 'Standard', fontSize: '15px', lineHeight: '1.75' },
@@ -20,13 +20,10 @@ const fontSizes = [
 
 const resolveFileUrl = (f) => {
   if (!f) return '';
-  if (typeof f === 'string') {
-    if (f.startsWith('http://') || f.startsWith('https://') || f.startsWith('data:') || f.startsWith('blob:')) return f;
-    return f.startsWith('/') ? f : `/uploads/${f}`;
-  }
-  if (f.url) return f.url;
-  if (f.path) return f.path.startsWith('/') ? f.path : `/${f.path}`;
-  if (f.name) return `/uploads/${f.name}`;
+  if (typeof f === 'string') return resolveBackendAttachmentUrl(f);
+  if (f.url) return resolveBackendAttachmentUrl(f.url);
+  if (f.path) return resolveBackendAttachmentUrl(f.path);
+  if (f.name) return resolveBackendAttachmentUrl(f.name);
   return '';
 };
 

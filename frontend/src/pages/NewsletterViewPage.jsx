@@ -9,6 +9,7 @@ import {
   Printer, ArrowLeft, ShieldCheck, ExternalLink, FileText, Share2 
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
+import { getAttachmentUrl, downloadOrViewAttachment } from '../utils/attachmentDownloader';
 
 const NewsletterViewPage = () => {
   const { id } = useParams();
@@ -58,12 +59,11 @@ const NewsletterViewPage = () => {
 
   const handleDownloadAttachment = () => {
     if (!newsletter?.attachment) return;
-    const a = document.createElement('a');
-    a.href = newsletter.attachment;
-    a.download = newsletter.attachmentName || `Document_${newsletter.srNumber || 'attachment'}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadOrViewAttachment(
+      newsletter.attachment,
+      newsletter.attachmentName || `Document_${newsletter.srNumber || 'attachment'}.pdf`,
+      'download'
+    );
   };
 
   if (loading) {
@@ -200,9 +200,13 @@ const NewsletterViewPage = () => {
                             {att.name || att.url?.split('/').pop() || `Document ${i + 1}`}
                           </h4>
                           <a
-                            href={att.url}
+                            href={getAttachmentUrl(att.url)}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              downloadOrViewAttachment(att.url, att.name, 'view');
+                            }}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all mt-0.5 block font-mono"
                           >
                             {att.url}
@@ -211,10 +215,14 @@ const NewsletterViewPage = () => {
                       </div>
 
                       <a
-                        href={att.url}
+                        href={getAttachmentUrl(att.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         download={att.name || 'document'}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          downloadOrViewAttachment(att.url, att.name || 'document', 'download');
+                        }}
                         className="px-4 py-2 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-lg text-xs flex items-center gap-2 font-medium transition-colors shadow-sm shrink-0 whitespace-nowrap"
                       >
                         <Download className="w-4 h-4" /> Download File
@@ -256,7 +264,7 @@ const NewsletterViewPage = () => {
                       <span className="text-[11px] text-slate-400">PDF Document</span>
                     </div>
                     <iframe
-                      src={`${newsletter.attachment}#toolbar=0`}
+                      src={`${getAttachmentUrl(newsletter.attachment)}#toolbar=0`}
                       title="Attached PDF Preview"
                       className="w-full h-[600px] bg-white"
                     />
@@ -267,7 +275,7 @@ const NewsletterViewPage = () => {
                 {isImageAttachment && (
                   <div className="mt-4 rounded-xl border border-slate-200 dark:border-stone-700 overflow-hidden p-2 bg-slate-50 dark:bg-stone-800 flex justify-center">
                     <img 
-                      src={newsletter.attachment} 
+                      src={getAttachmentUrl(newsletter.attachment)} 
                       alt={newsletter.attachmentName || 'Attachment'} 
                       className="max-h-[500px] object-contain rounded-lg"
                     />

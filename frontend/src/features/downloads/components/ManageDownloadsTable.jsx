@@ -22,6 +22,7 @@ import Pagination from '../../../components/ui/Pagination';
 import { downloadService } from '../services/downloadService';
 import { useUser } from '../../../contexts/UserContext';
 import { downloadOrViewAttachment, getAttachmentDisplayName } from '../../../utils/attachmentDownloader';
+import { formatWordDocumentDisplay } from '../../../utils/wordFormatter';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = sortConfig?.key === sortKey;
@@ -362,13 +363,7 @@ const ManageDownloadsTable = ({
                 {viewModalItem.attachment && (
                   <button
                     type="button"
-                    onClick={() => {
-                      const target = viewModalItem.attachment;
-                      const url = (typeof target === 'string' && (target.startsWith('http') || target.startsWith('data:') || target.startsWith('blob:')))
-                        ? target
-                        : `/uploads/${target}`;
-                      window.open(url, '_blank', 'noopener,noreferrer');
-                    }}
+                    onClick={() => downloadOrViewAttachment(viewModalItem.attachment, viewModalItem.attachmentName, 'view')}
                     className="px-2.5 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1 cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5" /> View in New Window
@@ -378,8 +373,8 @@ const ManageDownloadsTable = ({
             )}
             {viewModalItem.detail && (
               <div 
-                className="p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-72 overflow-y-auto"
-                dangerouslySetInnerHTML={{ __html: viewModalItem.detail }}
+                className="word-document-content p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-72 overflow-y-auto"
+                dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(viewModalItem.detail) }}
               />
             )}
           </div>

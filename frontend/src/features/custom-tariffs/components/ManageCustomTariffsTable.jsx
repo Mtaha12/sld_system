@@ -23,6 +23,7 @@ import Pagination from '../../../components/ui/Pagination';
 import { customTariffService } from '../services/customTariffService';
 import { useUser } from '../../../contexts/UserContext';
 import { downloadOrViewAttachment, getAttachmentDisplayName } from '../../../utils/attachmentDownloader';
+import { formatWordDocumentDisplay } from '../../../utils/wordFormatter';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = Boolean(sortKey && sortConfig?.key === sortKey);
@@ -363,13 +364,13 @@ const ManageCustomTariffsTable = ({
                   <span className="font-medium text-theme-main">{viewModalItem.attachmentName}</span>
                 </div>
                 {viewModalItem.attachment && (
-                  <a
-                    href={viewModalItem.attachment}
-                    download={viewModalItem.attachmentName}
-                    className="px-2.5 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={() => downloadOrViewAttachment(viewModalItem.attachment, viewModalItem.attachmentName, 'download')}
+                    className="px-2.5 py-1 bg-brand-orange hover:bg-orange-600 text-white rounded text-xs flex items-center gap-1 cursor-pointer"
                   >
                     <DownloadCloud className="w-3 h-3" /> Download
-                  </a>
+                  </button>
                 )}
               </div>
             )}
@@ -378,8 +379,8 @@ const ManageCustomTariffsTable = ({
               <div>
                 <label className="font-semibold text-theme-muted uppercase tracking-wider text-[10px] block mb-1">General Detail</label>
                 <div 
-                  className="p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-48 overflow-y-auto"
-                  dangerouslySetInnerHTML={{ __html: viewModalItem.detail }}
+                  className="word-document-content p-3 rounded-lg bg-gray-50 dark:bg-theme-surface-alt border border-theme-border text-theme-main leading-relaxed max-h-48 overflow-y-auto"
+                  dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(viewModalItem.detail) }}
                 />
               </div>
             )}

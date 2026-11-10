@@ -165,22 +165,24 @@ const CaseViewPage = () => {
     setTimeout(() => setCopiedCitation(false), 2400);
   };
 
+  const cleanedJudgmentText = useMemo(() => {
+    if (!caseData?.judgment || typeof caseData.judgment !== 'string') return '';
+    return caseData.judgment
+      .replace(/--- JUDICIAL ORDER & REPORTED LEGAL HEADNOTE ---/gi, '')
+      .replace(/--- RECORD SUMMARY & JUDICIAL DETERMINATION ---/gi, '')
+      .trim();
+  }, [caseData]);
+
   const hasValidJudgment = useMemo(() => {
-    if (!caseData?.judgment || typeof caseData.judgment !== 'string') return false;
-    const trimmed = caseData.judgment.trim();
-    if (trimmed.length === 0) return false;
-    if (trimmed.includes('--- JUDICIAL ORDER & REPORTED LEGAL HEADNOTE ---') || 
-        trimmed.includes('--- RECORD SUMMARY & JUDICIAL DETERMINATION ---')) {
-      return false;
-    }
-    if (caseData.headNote && trimmed === caseData.headNote.trim()) {
+    if (!cleanedJudgmentText) return false;
+    if (caseData?.headNote && cleanedJudgmentText === caseData.headNote.trim()) {
       return false;
     }
     return true;
-  }, [caseData]);
+  }, [cleanedJudgmentText, caseData]);
 
   const handleCopyJudgment = async () => {
-    const textToCopy = hasValidJudgment ? caseData.judgment : (caseData?.headNote || '');
+    const textToCopy = hasValidJudgment ? cleanedJudgmentText : (caseData?.headNote || '');
     if (!textToCopy) return;
     try {
       await copyCleanDocument({
@@ -605,13 +607,23 @@ const CaseViewPage = () => {
                 style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
               >
                 <div 
-                  dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(caseData.judgment) }}
+                  dangerouslySetInnerHTML={{ __html: formatWordDocumentDisplay(cleanedJudgmentText) }}
                   className="word-document-content font-serif"
                   style={{ fontSize: activeFont.fontSize, lineHeight: activeFont.lineHeight }}
                 />
               </div>
             </section>
-          ) : null}
+          ) : (
+            <section className="mt-6 pt-4">
+              <div className="p-4 sm:p-5 rounded-xl bg-stone-50 dark:bg-stone-900/50 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 text-xs sm:text-sm italic text-center">
+                {caseAttachments.length > 0
+                  ? 'The full judgment / order for this citation is available in the Official Attached Documents & Annexures section below.'
+                  : caseData.headNote
+                    ? 'The operative legal determination is summarized in the Reported Legal Headnote above; no separate verbatim judgment transcript is recorded.'
+                    : 'No separate verbatim judgment transcript or attachment is available for this record.'}
+              </div>
+            </section>
+          )}
 
           {/* 7. OFFICIAL CASE ATTACHMENTS & ANNEXURES (Screen and Print) */}
           {caseAttachments.length > 0 && (
