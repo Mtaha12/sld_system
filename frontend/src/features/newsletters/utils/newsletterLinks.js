@@ -100,3 +100,4 @@ export const openNewsletterLink = (url, heading = '', { download = false } = {})
     download
   });
 };
+
