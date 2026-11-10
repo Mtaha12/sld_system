@@ -241,6 +241,26 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
         subtitle: 'View and search official Finance Act records and annual schedules'
       };
     }
+    if (location.pathname.startsWith('/downloads') || location.pathname.startsWith('/manage-downloads')) {
+      const searchParams = new URLSearchParams(location.search);
+      const cat = (searchParams.get('category') || '').toLowerCase();
+      if (cat === 'updated law' || cat === 'updated laws' || cat === 'updated-law') {
+        return {
+          title: isAdmin ? 'Manage Updated Laws' : 'Updated Laws',
+          subtitle: 'View and download official updated laws, amendments and enactments'
+        };
+      }
+      if (cat === 'tax return' || cat === 'tax returns' || cat === 'tax-return') {
+        return {
+          title: isAdmin ? 'Manage Tax Returns' : 'Tax Returns',
+          subtitle: 'View and download official tax return forms and filing schedules'
+        };
+      }
+      return {
+        title: isAdmin ? 'Manage Downloads' : 'Tax Returns & Downloads',
+        subtitle: 'Access official Finance Act, Tax Return and Updated Law documents'
+      };
+    }
     if (location.pathname.startsWith('/updates') || location.pathname.startsWith('/manage-updates')) {
       return {
         title: isAdmin ? 'Manage Updates' : 'Updated Laws',

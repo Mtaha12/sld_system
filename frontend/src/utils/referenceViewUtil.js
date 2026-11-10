@@ -132,11 +132,12 @@ export const openReferenceView = (item) => {
     }
     .print-btn:hover { background: #475569; }
     @media print {
-      @page { margin: 0.5in; }
-      body { background: #fff; color: #000; padding: 0; font-size: 15px; line-height: 1.75; }
-      .wrapper { border: none; box-shadow: none; padding: 0; background: #fff; }
+      @page { margin: 15mm; }
+      html, body { background: #fff; color: #000; padding: 0; margin: 0; font-size: 11.5pt !important; line-height: 1.55 !important; width: 100%; max-width: 100%; }
+      .wrapper, .wrapper * { font-size: 11.5pt !important; line-height: 1.55 !important; }
+      .wrapper { border: none; box-shadow: none; padding: 0; margin: 0; background: #fff; max-width: 100%; }
       .content-box { background: #fff; border: 1px solid #ddd; color: #000; }
-      h1 { font-size: 18px; }
+      h1 { font-size: 14pt !important; }
       .print-btn { display: none; }
     }
   </style>

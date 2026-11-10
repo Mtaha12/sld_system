@@ -44,15 +44,14 @@ const DownloadsPage = () => {
   }, [editId]);
 
   useEffect(() => {
-    if (urlCat) {
-      setSelectedCategory(urlCat);
-    }
+    setSelectedCategory(urlCat || '');
   }, [urlCat]);
 
   const categoryTitle = useMemo(() => {
     const c = (selectedCategory || '').toLowerCase();
     if (c === 'tax return' || c === 'tax returns') return isAdmin ? 'Manage Tax Returns' : 'Tax Returns';
     if (c === 'finance act') return isAdmin ? 'Manage Finance Act' : 'Finance Act';
+    if (c === 'updated law' || c === 'updated laws') return isAdmin ? 'Manage Updated Laws' : 'Updated Laws';
     return isAdmin ? 'Manage Downloads' : 'Tax Returns & Downloads';
   }, [selectedCategory, isAdmin]);
 
@@ -60,6 +59,7 @@ const DownloadsPage = () => {
     const c = (selectedCategory || '').toLowerCase();
     if (c === 'tax return' || c === 'tax returns') return '+ Add Tax Return';
     if (c === 'finance act') return '+ Add Finance Act';
+    if (c === 'updated law' || c === 'updated laws') return '+ Add Updated Law';
     return '+ Add Download';
   }, [selectedCategory]);
 
@@ -86,8 +86,9 @@ const DownloadsPage = () => {
 
   const handleShowAll = () => {
     setSearchKeyword('');
-    setSelectedCategory('');
-    fetchDownloads('', '');
+    const targetCategory = urlCat || '';
+    setSelectedCategory(targetCategory);
+    fetchDownloads('', targetCategory);
   };
 
   const handleOpenAddForm = () => {
@@ -191,6 +192,7 @@ const DownloadsPage = () => {
       {isAdmin && isFormOpen && (
         <AddDownloadForm
           editData={editingItem}
+          defaultCategory={selectedCategory || 'Finance Act'}
           onClose={() => {
             setIsFormOpen(false);
             setEditingItem(null);

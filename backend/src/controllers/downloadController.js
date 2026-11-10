@@ -28,7 +28,16 @@ export const getDownloads = async (req, res, next) => {
     const filter = { isDeleted: { $ne: true } };
 
     if (category) {
-      filter.latest = category;
+      const normCat = String(category).trim().toLowerCase().replace(/[-_\s]+/g, ' ');
+      if (normCat === 'updated law' || normCat === 'updated laws') {
+        filter.latest = 'Updated Law';
+      } else if (normCat === 'tax return' || normCat === 'tax returns') {
+        filter.latest = 'Tax Return';
+      } else if (normCat === 'finance act') {
+        filter.latest = 'Finance Act';
+      } else {
+        filter.latest = category;
+      }
     }
 
     if (query) {

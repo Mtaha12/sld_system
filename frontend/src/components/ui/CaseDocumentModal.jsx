@@ -81,6 +81,9 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 overflow-hidden print:p-0 print:static print:inset-auto print:block print:bg-white">
       <style>{`
         @media print {
+          @page {
+            margin: 15mm;
+          }
           body * {
             visibility: hidden;
           }
@@ -91,8 +94,8 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
             position: absolute;
             left: 0;
             top: 0;
-            width: 100vw;
-            min-height: 100vh;
+            width: 100%;
+            max-width: 100%;
             margin: 0;
             padding: 0;
             box-shadow: none !important;

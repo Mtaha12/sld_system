@@ -366,9 +366,13 @@ const InvoicePrintModal = ({ invoice, isOpen, onClose }) => {
             background: white !important;
             color: black !important;
           }
+          #sld-printable-invoice, #sld-printable-invoice * {
+            font-size: var(--print-font-size, 11.5pt) !important;
+            line-height: var(--print-line-height, 1.55) !important;
+            color: black !important;
+          }
           @page {
-            size: A4 portrait;
-            margin: 0.5in;
+            margin: 15mm;
           }
         }
       `}</style>

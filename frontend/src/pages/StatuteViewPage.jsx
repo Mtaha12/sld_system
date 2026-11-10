@@ -198,11 +198,11 @@ const StatuteViewPage = () => {
         @media print {
           @page {
             size: ${pageSize};
-            margin: 12mm 15mm 12mm 15mm;
+            margin: 15mm;
           }
           .print-document,
           .print-document * {
-            font-size: var(--print-font-size, 14px) !important;
+            font-size: var(--print-font-size, 11.5pt) !important;
             line-height: var(--print-line-height, 1.55) !important;
           }
           .print-document {
@@ -214,7 +214,14 @@ const StatuteViewPage = () => {
             break-inside: avoid !important;
           }
           .print-document h1 {
-            font-size: 1.3rem !important;
+            font-size: 14pt !important;
+          }
+          .print-document h2 {
+            font-size: 12.5pt !important;
+          }
+          .print-document h3,
+          .print-document h4 {
+            font-size: 11.5pt !important;
           }
           body {
             background: white !important;

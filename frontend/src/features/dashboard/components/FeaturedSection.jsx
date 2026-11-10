@@ -16,7 +16,7 @@ const fallbackCards = [
   {
     id: 'case_laws',
     title: 'Citations',
-    count: '165,123',
+    count: '550,000+',
     icon: Scale,
     image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=400',
     link: '/other-caselaws',
@@ -92,7 +92,7 @@ const FeaturedSection = () => {
       if (card.id === 'dictionary') defaultCount = '41,427';
       else if (card.id === 'statutes') defaultCount = sessionStorage.getItem('dashboard_statutes_count') || '9,372';
       else if (card.id === 'notifications') defaultCount = sessionStorage.getItem('dashboard_notifs_count') || '11,618';
-      else if (card.id === 'case_laws') defaultCount = sessionStorage.getItem('dashboard_cases_count') || '100,000+';
+      else if (card.id === 'case_laws') defaultCount = sessionStorage.getItem('dashboard_citations_count_v2') || '550,000+';
       else if (card.id === 'finance_act') defaultCount = sessionStorage.getItem('dashboard_finance_count') || '58';
 
       return {
@@ -202,17 +202,18 @@ const FeaturedSection = () => {
     }).catch(err => console.warn('[FeaturedSection] Tax Cards error:', err));
 
     // 5. Case Laws & Citations (Fast parallel fetch)
-    Promise.allSettled([
-      otherCaseService.getOtherCases('', '', 1, 5, 'srNumber', 'desc'),
-      caseService.getDatabaseCounts()
-    ]).then(([otherRes, statsRes]) => {
+    let retryTimerId = null;
+    const applyCaseStats = (dbStats, otherCases = []) => {
       if (!isMounted) return;
-      const otherCases = otherRes.status === 'fulfilled' ? (otherRes.value?.data || (Array.isArray(otherRes.value) ? otherRes.value : [])) : [];
-      const dbStats = statsRes.status === 'fulfilled' ? statsRes.value : null;
-      const displayCount = dbStats?.totalCitationsWithOtherLaws 
-        ? dbStats.totalCitationsWithOtherLaws.toLocaleString() 
-        : (sessionStorage.getItem('dashboard_cases_count') || '100,000+');
-      sessionStorage.setItem('dashboard_cases_count', displayCount);
+      const validCitationsCount = dbStats?.totalCitationsWithOtherLaws && !dbStats?.isCalculating
+        ? Number(dbStats.totalCitationsWithOtherLaws)
+        : 0;
+      const displayCount = validCitationsCount > 0
+        ? validCitationsCount.toLocaleString()
+        : (sessionStorage.getItem('dashboard_citations_count_v2') || '550,000+');
+      if (validCitationsCount > 0) {
+        sessionStorage.setItem('dashboard_citations_count_v2', displayCount);
+      }
 
       if (otherCases.length > 0) {
         const latest5 = otherCases.map(c => ({
@@ -228,10 +229,36 @@ const FeaturedSection = () => {
       } else {
         updateCard('case_laws', card => ({ ...card, count: displayCount }));
       }
+
+      // If server is computing initial exact citation snapshot in background, poll once shortly after
+      if (dbStats?.isCalculating && isMounted) {
+        retryTimerId = setTimeout(() => {
+          caseService.getDatabaseCounts()
+            .then((fresh) => {
+              if (fresh && !fresh.isCalculating && fresh.totalCitationsWithOtherLaws) {
+                const freshStr = Number(fresh.totalCitationsWithOtherLaws).toLocaleString();
+                sessionStorage.setItem('dashboard_citations_count_v2', freshStr);
+                updateCard('case_laws', card => ({ ...card, count: freshStr }));
+              }
+            })
+            .catch(() => {});
+        }, 8000);
+      }
+    };
+
+    Promise.allSettled([
+      otherCaseService.getOtherCases('', '', 1, 5, 'srNumber', 'desc'),
+      caseService.getDatabaseCounts()
+    ]).then(([otherRes, statsRes]) => {
+      if (!isMounted) return;
+      const otherCases = otherRes.status === 'fulfilled' ? (otherRes.value?.data || (Array.isArray(otherRes.value) ? otherRes.value : [])) : [];
+      const dbStats = statsRes.status === 'fulfilled' ? statsRes.value : null;
+      applyCaseStats(dbStats, otherCases);
     }).catch(err => console.warn('[FeaturedSection] Cases stats error:', err));
 
     return () => {
       isMounted = false;
+      if (retryTimerId) clearTimeout(retryTimerId);
     };
   }, []);
 

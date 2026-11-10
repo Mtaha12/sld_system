@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { 
   Eye, 
   Pencil, 
@@ -11,7 +11,8 @@ import {
   Search, 
   BookA,
   X,
-  Scale
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
@@ -19,6 +20,7 @@ import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { dictionaryService } from '../services/dictionaryService';
 import { useUser } from '../../../contexts/UserContext';
+import { extractFirstTwoWords, fetchCaseCitationsForTerm } from '../../../utils/referenceSearchUtil';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className = "" }) => {
   const isSorted = Boolean(sortKey && sortConfig?.key === sortKey);
@@ -70,6 +72,67 @@ const ManageDictionaryTable = ({
   const [internalCurrentPage, setInternalCurrentPage] = useState(1);
   const isServerPaginated = Boolean(serverPaginated || propTotalItems !== undefined);
   const [itemsPerPage, setItemsPerPage] = useState(100);
+
+  const [caseLawResults, setCaseLawResults] = useState({});
+  const [expandedCaseLawIds, setExpandedCaseLawIds] = useState({});
+  const caseLawCacheRef = useRef(new Map());
+
+  const handleToggleCaseLaw = useCallback(async (item) => {
+    const itemId = item.mongoId || item.id || item.dictionaryId || String(item.srNumber || '');
+    if (!itemId) return;
+
+    if (expandedCaseLawIds[itemId]) {
+      setExpandedCaseLawIds(prev => ({ ...prev, [itemId]: false }));
+      return;
+    }
+
+    setExpandedCaseLawIds(prev => ({ ...prev, [itemId]: true }));
+
+    const phrase = extractFirstTwoWords(item.words);
+    if (!phrase) {
+      setCaseLawResults(prev => ({
+        ...prev,
+        [itemId]: { loading: false, citations: [], phrase: '' }
+      }));
+      return;
+    }
+
+    const cacheKey = phrase.toLowerCase();
+    if (caseLawCacheRef.current.has(cacheKey)) {
+      setCaseLawResults(prev => ({
+        ...prev,
+        [itemId]: { loading: false, citations: caseLawCacheRef.current.get(cacheKey), phrase }
+      }));
+      return;
+    }
+
+    setCaseLawResults(prev => ({
+      ...prev,
+      [itemId]: { loading: true, citations: [], phrase }
+    }));
+
+    try {
+      const extracted = await fetchCaseCitationsForTerm({
+        phrase,
+        existingCitations: item.citations,
+        cacheMap: caseLawCacheRef.current
+      });
+      setCaseLawResults(prev => ({
+        ...prev,
+        [itemId]: { loading: false, citations: extracted, phrase }
+      }));
+    } catch (err) {
+      console.warn('Failed to search case law for dictionary term:', err);
+      setCaseLawResults(prev => ({
+        ...prev,
+        [itemId]: { loading: false, citations: [], error: 'Search failed', phrase }
+      }));
+    }
+  }, [expandedCaseLawIds]);
+
+  const handleCloseCaseLaw = useCallback((itemId) => {
+    setExpandedCaseLawIds(prev => ({ ...prev, [itemId]: false }));
+  }, []);
 
   const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalCurrentPage;
   const setCurrentPage = propSetCurrentPage || setInternalCurrentPage;
@@ -186,7 +249,7 @@ const ManageDictionaryTable = ({
                 <TableHeader title="Sr #" sortKey="srNumber" sortConfig={sortConfig} onSort={handleSort} className="w-16 text-center" />
                 <TableHeader title="Words / Terms" sortKey="words" sortConfig={sortConfig} onSort={handleSort} className="w-64" />
                 <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted">Meaning Preview</th>
-                <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted text-center w-28">Action</th>
+                <th className="px-4 py-2.5 font-semibold text-xs uppercase tracking-wider text-theme-muted text-center w-48">Action</th>
               </tr>
             </thead>
 
@@ -217,48 +280,113 @@ const ManageDictionaryTable = ({
                         {stripHtml(item.meaning) || <span className="italic text-gray-400">No meaning provided</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-2 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <a
-                          href={`/dictionary/view/${item.srNumber || item.mongoId || item.id || item.dictionaryId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1 text-xs font-semibold rounded bg-[#ff5722] hover:bg-[#f4511e] text-white transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs"
-                          title="View dictionary entry in new tab"
-                        >
-                          View
-                        </a>
-                        <a
-                          href={`/search-case-law?phrase=${encodeURIComponent(item.words)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1 text-xs font-semibold rounded bg-[#0d9488] hover:bg-[#0f766e] text-white transition-colors inline-flex items-center justify-center gap-1 cursor-pointer shadow-2xs hover:scale-105"
-                          title={`Find Case Laws citing "${item.words}"`}
-                        >
-                          <Scale className="w-3 h-3" />
-                          <span>Case Law</span>
-                        </a>
-                        {isAdmin && (
-                          <>
+                    <td className="px-4 py-2 text-center whitespace-nowrap align-top">
+                      {(() => {
+                        const itemId = item.mongoId || item.id || item.dictionaryId || String(item.srNumber || idx);
+                        const isExpanded = Boolean(expandedCaseLawIds[itemId]);
+                        const itemState = caseLawResults[itemId];
+                        const phrase = itemState?.phrase || extractFirstTwoWords(item.words);
+
+                        if (!isExpanded) {
+                          return (
+                            <div className="flex items-center justify-center gap-2">
+                              <a
+                                href={`/dictionary/view/${item.srNumber || item.mongoId || item.id || item.dictionaryId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 text-xs font-semibold rounded bg-[#ff5722] hover:bg-[#f4511e] text-white transition-colors inline-flex items-center justify-center cursor-pointer shadow-2xs"
+                                title="View dictionary entry in new tab"
+                              >
+                                View
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCaseLaw(item)}
+                                className="text-[#DC2626] hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 font-serif font-bold text-sm tracking-wide hover:underline cursor-pointer transition-colors whitespace-nowrap"
+                                title={`Search case law citations for "${phrase || item.words}"`}
+                              >
+                                Case Law
+                              </button>
+                              {isAdmin && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => onEdit?.(item)}
+                                    className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+                                    title="Edit"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteModalItem(item)}
+                                    className="p-1 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        if (itemState?.loading) {
+                          return (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-red-600 dark:text-red-400 font-semibold">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Searching...</span>
+                            </div>
+                          );
+                        }
+
+                        if (itemState?.citations && itemState.citations.length > 0) {
+                          return (
+                            <div className="flex flex-col gap-1 py-1 text-left min-w-[160px]">
+                              <div className="flex items-center justify-between pb-0.5 border-b border-red-200 dark:border-red-900/40 text-[10px] font-bold text-red-600 dark:text-red-400">
+                                <span>{itemState.citations.length} Citation{itemState.citations.length > 1 ? 's' : ''}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCloseCaseLaw(itemId)}
+                                  className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xs px-1 cursor-pointer"
+                                  title="Close citations"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div className="flex flex-col gap-1 max-h-36 overflow-y-auto pr-0.5 scrollbar-thin">
+                                {itemState.citations.map((c, i) => (
+                                  <a
+                                    key={i}
+                                    href={c.caseId ? `/cases/view/${c.caseId}` : `/search-case-law?phrase=${encodeURIComponent(phrase)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-between gap-1.5 px-2 py-0.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/60 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 rounded text-xs font-mono font-bold border border-red-200 dark:border-red-800 transition-colors shadow-2xs group cursor-pointer"
+                                    title="Open print view in new tab"
+                                  >
+                                    <span>{c.citation}</span>
+                                    <ExternalLink className="w-3 h-3 text-red-500 opacity-60 group-hover:opacity-100 transition-opacity shrink-0" />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 py-1">
+                            <span className="italic text-[11px]">No case laws</span>
                             <button
                               type="button"
-                              onClick={() => onEdit?.(item)}
-                              className="p-1 rounded text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
-                              title="Edit"
+                              onClick={() => handleCloseCaseLaw(itemId)}
+                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs px-1 cursor-pointer"
+                              title="Close"
                             >
-                              <Pencil className="w-3.5 h-3.5" />
+                              ✕
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteModalItem(item)}
-                              className="p-1 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))

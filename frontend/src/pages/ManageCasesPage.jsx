@@ -132,8 +132,20 @@ const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '', customO
       font-size: 14px;
     }
     @media print {
+      @page {
+        margin: 15mm;
+      }
+      html, body, body * {
+        font-size: 11.5pt !important;
+        line-height: 1.55 !important;
+        color: #000 !important;
+      }
       body {
         padding: 0;
+        margin: 0;
+      }
+      .header h1 {
+        font-size: 14pt !important;
       }
       .case-card {
         border: none;

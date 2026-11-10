@@ -190,8 +190,8 @@ const OtherCaseViewPage = () => {
       </header>
 
       {/* ── Document Container ──────────────────────────────────── */}
-      <main className="print-document max-w-4xl mx-auto p-4 sm:p-8">
-        <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xl p-6 sm:p-10 transition-colors">
+      <main className="print-document max-w-4xl mx-auto p-4 sm:p-8 print:m-0 print:p-0 print:max-w-none">
+        <div className="print-sheet bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xl p-6 sm:p-10 print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none transition-colors">
           
           {/* Header Metadata Ribbon */}
           <div className="border-b border-stone-200 dark:border-stone-800 pb-6 mb-6">

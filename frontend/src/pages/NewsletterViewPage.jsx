@@ -145,8 +145,8 @@ const NewsletterViewPage = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 my-4">
-        <article className="bg-white dark:bg-stone-900 border border-slate-200 dark:border-stone-800 rounded-2xl shadow-sm overflow-hidden print:border-none print:shadow-none">
+      <main className="print-document flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 my-4 print:m-0 print:p-0 print:max-w-none">
+        <article className="print-sheet bg-white dark:bg-stone-900 border border-slate-200 dark:border-stone-800 rounded-2xl shadow-sm overflow-hidden print:overflow-visible print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0">
           
           {/* Document Header Banner */}
           <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-stone-800/80 bg-linear-to-b from-slate-50/70 to-white dark:from-stone-900/50 dark:to-stone-900">

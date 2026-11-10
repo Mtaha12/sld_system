@@ -31,6 +31,10 @@ const AddTaxCardForm = ({
   className = ""
 }) => {
   const isEdit = Boolean(editData && (editData.id || editData.mongoId));
+  const isFinanceAct =
+    categoryTitle === 'Finance Act' ||
+    !defaultCategory ||
+    String(defaultCategory).toLowerCase().replace(/[-_\s]/g, '') === 'financeact';
   const fileInputRef = useRef(null);
   const preserveDraftDefaultsRef = useRef(null);
 
@@ -206,7 +210,7 @@ const AddTaxCardForm = ({
         year: parseInt(year, 10),
         attachment,
         attachmentName,
-        detail: detail || ''
+        detail: isFinanceAct ? (editData?.detail || '') : (detail || '')
       };
 
       let result;
@@ -397,19 +401,21 @@ const AddTaxCardForm = ({
           {errors.attachment && <span className="text-[11px] text-red-500">{errors.attachment}</span>}
         </FormField>
 
-        {/* Detail (Rich text editor) */}
-        <FormField label="Detail">
-          <div className="border border-theme-border rounded-lg overflow-hidden shadow-sm">
-            <RichTextEditor
-              key={`tc-detail-${editData?.mongoId || editData?.id || editData?.srNumber || `new-${nextSr || 1}`}`}
-              name={`tc_detail_${editData?.mongoId || editData?.id || nextSr || 'new'}`}
-              value={detail}
-              onChange={(val) => setDetail(val)}
-              placeholder={`Enter ${categoryTitle.toLowerCase()} details...`}
-              minHeight={180}
-            />
-          </div>
-        </FormField>
+        {/* Detail (Rich text editor) - Removed from Manage Finance Act */}
+        {!isFinanceAct && (
+          <FormField label="Detail">
+            <div className="border border-theme-border rounded-lg overflow-hidden shadow-sm">
+              <RichTextEditor
+                key={`tc-detail-${editData?.mongoId || editData?.id || editData?.srNumber || `new-${nextSr || 1}`}`}
+                name={`tc_detail_${editData?.mongoId || editData?.id || nextSr || 'new'}`}
+                value={detail}
+                onChange={(val) => setDetail(val)}
+                placeholder={`Enter ${categoryTitle.toLowerCase()} details...`}
+                minHeight={180}
+              />
+            </div>
+          </FormField>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-theme-border">

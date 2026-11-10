@@ -159,8 +159,8 @@ const CustomTariffViewPage = () => {
       </header>
 
       {/* Main Document Paper */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="bg-white dark:bg-[#1a1b1e] border border-stone-200/80 dark:border-stone-800 shadow-xl rounded-2xl p-6 sm:p-10 md:p-14">
+      <main className="print-document max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12 print:m-0 print:p-0 print:max-w-none">
+        <div className="print-sheet bg-white dark:bg-[#1a1b1e] border border-stone-200/80 dark:border-stone-800 shadow-xl rounded-2xl p-6 sm:p-10 md:p-14 print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0">
           
           {/* Document Header */}
           <div className="border-b border-stone-200 dark:border-stone-800 pb-8 mb-8 text-center">
@@ -229,7 +229,7 @@ const CustomTariffViewPage = () => {
                 <span>PCT Codes & Tariff Classification Schedule ({items.length} items)</span>
               </h2>
               
-              <div className="overflow-x-auto rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <div className="overflow-x-auto print:overflow-visible rounded-xl border border-stone-200 dark:border-stone-800 shadow-2xs print:rounded-none">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead className="bg-stone-100 dark:bg-stone-800/60 text-stone-700 dark:text-stone-300 font-bold uppercase tracking-wider text-[11px]">
                     <tr>

@@ -168,7 +168,7 @@ const NotificationViewPage = () => {
         @media print {
           @page {
             size: ${pageSize};
-            margin: 12mm 15mm 12mm 15mm;
+            margin: 15mm;
           }
           header, .print-hidden, [data-print-hide="true"] { 
             display: none !important; 

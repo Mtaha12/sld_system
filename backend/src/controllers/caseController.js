@@ -1,6 +1,7 @@
 import XLSX from 'xlsx';
 import Case from '../models/Case.js';
 import OtherCaseLaw from '../models/OtherCaseLaw.js';
+import Counter from '../models/Counter.js';
 import UserActivity from '../models/UserActivity.js';
 import User from '../models/User.js';
 import { clearUserSessionCache } from '../middleware/authMiddleware.js';
@@ -172,93 +173,136 @@ const getTotalCasesCount = async (query, hasFilter) => {
  * High-speed Cached Database Citation & Other Case Statistics
  * Computes exact count of all citations in database + other case laws count
  */
+const CITATION_STATS_COUNTER_ID = 'case_citation_stats_v1';
 let cachedDatabaseStats = null;
 let cachedDatabaseStatsExpiresAt = 0;
+let citationStatsRefreshPromise = null;
+
+export const computeAndPersistCitationStats = async () => {
+  if (citationStatsRefreshPromise) return citationStatsRefreshPromise;
+
+  citationStatsRefreshPromise = (async () => {
+    try {
+      const [totalCases, totalOtherCases, caseStats] = await Promise.all([
+        Case.countDocuments({ isDeleted: false }),
+        OtherCaseLaw.countDocuments({ isDeleted: false }),
+        Case.aggregate([
+          { $match: { isDeleted: false } },
+          {
+            $project: {
+              citationCount: {
+                $max: [
+                  { $size: { $ifNull: ['$publications', []] } },
+                  { $size: { $ifNull: ['$mapYearPage', []] } }
+                ]
+              }
+            }
+          },
+          { $group: { _id: null, totalCitations: { $sum: '$citationCount' } } }
+        ])
+      ]);
+
+      const aggTotalCitations = Array.isArray(caseStats) && caseStats[0]?.totalCitations
+        ? Number(caseStats[0].totalCitations)
+        : 0;
+      const totalCitations = Math.max(aggTotalCitations, totalCases);
+      const totalCitationsWithOtherLaws = totalCitations + totalOtherCases;
+      const totalCombinedCases = totalCases + totalOtherCases;
+
+      await Counter.findByIdAndUpdate(
+        CITATION_STATS_COUNTER_ID,
+        { $set: { seq: totalCitations } },
+        { upsert: true }
+      ).catch(() => {});
+
+      const payload = {
+        totalCases,
+        totalOtherCases,
+        totalCitations,
+        totalCitationsWithOtherLaws,
+        totalCombinedCases,
+        count: totalCitationsWithOtherLaws,
+        displayCount: totalCitationsWithOtherLaws.toLocaleString()
+      };
+
+      cachedDatabaseStats = payload;
+      cachedDatabaseStatsExpiresAt = Date.now() + 1800_000;
+      return payload;
+    } catch (err) {
+      logger.warn('[Case Stats] Background citation aggregation warning:', err?.message);
+      return null;
+    } finally {
+      citationStatsRefreshPromise = null;
+    }
+  })();
+
+  return citationStatsRefreshPromise;
+};
 
 export const getCaseDatabaseStats = async (req, res, next) => {
   try {
     const now = Date.now();
-    // Return cached stats instantly if available and fresh
     if (cachedDatabaseStats && now < cachedDatabaseStatsExpiresAt) {
       return res.status(200).json({ success: true, ...cachedDatabaseStats });
     }
 
-    // Fast indexed counts (completes in < 20ms)
-    const [totalCases, totalOtherCases] = await Promise.all([
+    const [totalCases, totalOtherCases, persisted] = await Promise.all([
       Case.countDocuments({ isDeleted: false }),
-      OtherCaseLaw.countDocuments({ isDeleted: false })
+      OtherCaseLaw.countDocuments({ isDeleted: false }),
+      Counter.findById(CITATION_STATS_COUNTER_ID).lean().catch(() => null)
     ]);
 
-    // If we have previous stats, use them immediately with updated case counts
-    if (cachedDatabaseStats) {
-      const estimatedCitations = cachedDatabaseStats.totalCitations || totalCases;
-      const totalCitationsWithOtherLaws = estimatedCitations + totalOtherCases;
-      cachedDatabaseStats = {
-        ...cachedDatabaseStats,
+    const persistedCitations = Number(persisted?.seq) || 0;
+    const hasReliableSnapshot = persistedCitations > totalCases;
+
+    const bgPromise = computeAndPersistCitationStats();
+
+    if (hasReliableSnapshot) {
+      const totalCitations = persistedCitations;
+      const totalCitationsWithOtherLaws = totalCitations + totalOtherCases;
+      const totalCombinedCases = totalCases + totalOtherCases;
+
+      const snapshotPayload = {
         totalCases,
         totalOtherCases,
+        totalCitations,
         totalCitationsWithOtherLaws,
-        totalCombinedCases: totalCases + totalOtherCases,
+        totalCombinedCases,
         count: totalCitationsWithOtherLaws,
         displayCount: totalCitationsWithOtherLaws.toLocaleString()
       };
-      cachedDatabaseStatsExpiresAt = now + 7200_000; // 2 hour cache
-      return res.status(200).json({ success: true, ...cachedDatabaseStats });
+      cachedDatabaseStats = snapshotPayload;
+      cachedDatabaseStatsExpiresAt = now + 300_000;
+      return res.status(200).json({ success: true, ...snapshotPayload });
     }
 
-    // First time compute: attempt fast citation aggregation with a 2-second timeout
-    let totalCitations = totalCases;
-    try {
-      const aggPromise = Case.aggregate([
-        { $match: { isDeleted: false } },
-        {
-          $project: {
-            citationCount: {
-              $cond: [
-                { $gt: [{ $size: { $ifNull: ['$publications', []] } }, 0] },
-                { $size: { $ifNull: ['$publications', []] } },
-                { $size: { $ifNull: ['$mapYearPage', []] } }
-              ]
-            }
-          }
-        },
-        { $group: { _id: null, totalCitations: { $sum: '$citationCount' } } }
-      ]);
+    const computed = await Promise.race([
+      bgPromise,
+      new Promise((resolve) => setTimeout(() => resolve(null), 3500))
+    ]);
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Aggregation timeout')), 2000)
-      );
-
-      const caseStats = await Promise.race([aggPromise, timeoutPromise]);
-      if (Array.isArray(caseStats) && caseStats[0]?.totalCitations) {
-        totalCitations = caseStats[0].totalCitations;
-      }
-    } catch {
-      // If aggregation times out, fall back safely to totalCases so user never waits 2-3 minutes
-      totalCitations = totalCases;
+    if (computed) {
+      return res.status(200).json({ success: true, ...computed });
     }
 
+    const totalCitations = totalCases;
     const totalCitationsWithOtherLaws = totalCitations + totalOtherCases;
-    const totalCombinedCases = totalCases + totalOtherCases;
-
-    cachedDatabaseStats = {
+    return res.status(200).json({
+      success: true,
       totalCases,
       totalOtherCases,
       totalCitations,
       totalCitationsWithOtherLaws,
-      totalCombinedCases,
+      totalCombinedCases: totalCases + totalOtherCases,
       count: totalCitationsWithOtherLaws,
-      displayCount: totalCitationsWithOtherLaws.toLocaleString()
-    };
-    cachedDatabaseStatsExpiresAt = now + 7200_000; // 2 hour cache
-
-    return res.status(200).json({ success: true, ...cachedDatabaseStats });
+      displayCount: totalCitationsWithOtherLaws.toLocaleString(),
+      isCalculating: true
+    });
   } catch (error) {
     logger.error('Error in getCaseDatabaseStats:', error);
     return next(error);
   }
 };
-
 
 /**
  * Helper to translate a newline separated string into an array of trimmed strings.

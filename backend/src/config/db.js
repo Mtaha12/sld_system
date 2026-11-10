@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { backfillAllMissingUniqueIds } from '../utils/backfillUniqueIds.js';
+import { computeAndPersistCitationStats } from '../controllers/caseController.js';
 
 /**
  * Establishes connection to MongoDB database
@@ -41,6 +42,11 @@ const connectDB = async () => {
     // Automatically verify and backfill missing Unique IDs on existing records
     backfillAllMissingUniqueIds().catch((err) => {
       console.error(`[Unique ID Backfill Error]: ${err.message}`);
+    });
+
+    // Warm persisted exact citation totals (~550k+) asynchronously without blocking startup
+    computeAndPersistCitationStats().catch((err) => {
+      console.warn(`[Citation Stats Warmup Warning]: ${err.message}`);
     });
   } catch (error) {
     console.error(`[SLD System Backend] Database Connection Failed: ${error.message}`);

@@ -128,8 +128,8 @@ const InvoiceViewPage = () => {
       </header>
 
       {/* Main Invoice Sheet */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="bg-white dark:bg-[#1a1b1e] border border-stone-200/80 dark:border-stone-800 shadow-xl rounded-2xl p-6 sm:p-12 md:p-16">
+      <main className="print-document max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 print:m-0 print:p-0 print:max-w-none">
+        <div className="print-sheet bg-white dark:bg-[#1a1b1e] border border-stone-200/80 dark:border-stone-800 shadow-xl rounded-2xl p-6 sm:p-12 md:p-16 print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0">
           
           {/* Invoice Header */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 border-b border-stone-200 dark:border-stone-800 pb-8">
@@ -196,7 +196,7 @@ const InvoiceViewPage = () => {
               Description of Services & Charges
             </h3>
             
-            <div className="overflow-x-auto rounded-xl border border-stone-200 dark:border-stone-800">
+            <div className="overflow-x-auto print:overflow-visible rounded-xl border border-stone-200 dark:border-stone-800 print:rounded-none">
               <table className="w-full text-left border-collapse text-xs">
                 <thead className="bg-stone-50 dark:bg-stone-800/60 text-stone-700 dark:text-stone-300 font-bold uppercase tracking-wider text-[11px]">
                   <tr>

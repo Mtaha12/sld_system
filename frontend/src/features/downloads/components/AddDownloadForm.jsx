@@ -23,6 +23,7 @@ const LATEST_OPTIONS = [
 
 const AddDownloadForm = ({
   editData = null,
+  defaultCategory = 'Finance Act',
   onClose,
   onSuccess,
   className = ""
@@ -32,7 +33,7 @@ const AddDownloadForm = ({
 
   const [heading, setHeading] = useState('');
   const [date, setDate] = useState(getTodayDateString());
-  const [latest, setLatest] = useState('Finance Act');
+  const [latest, setLatest] = useState(defaultCategory || 'Finance Act');
   const [attachment, setAttachment] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
   const [detail, setDetail] = useState('');
@@ -85,13 +86,14 @@ const AddDownloadForm = ({
       setDetail(editData.detail || '');
     } else {
       setHeading('');
+      setLatest(defaultCategory || 'Finance Act');
       setAttachment('');
       setAttachmentName('');
       setDetail('');
     }
     setErrors({});
     setServerError('');
-  }, [editData]);
+  }, [editData, defaultCategory]);
 
   const handleDateChange = (val) => {
     let dateStr = '';

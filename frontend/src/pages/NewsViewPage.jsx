@@ -158,8 +158,8 @@ const NewsViewPage = () => {
       </header>
 
       {/* Main Document Paper */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="bg-white dark:bg-[#1a1b1e] border border-stone-200/80 dark:border-stone-800 shadow-xl rounded-2xl p-6 sm:p-12 md:p-16">
+      <main className="print-document max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 print:m-0 print:p-0 print:max-w-none">
+        <div className="print-sheet bg-white dark:bg-[#1a1b1e] border border-stone-200/80 dark:border-stone-800 shadow-xl rounded-2xl p-6 sm:p-12 md:p-16 print:border-none print:shadow-none print:rounded-none print:p-0 print:m-0">
           
           {/* Document Header */}
           <div className="border-b border-stone-200 dark:border-stone-800 pb-8 mb-8 text-center">
