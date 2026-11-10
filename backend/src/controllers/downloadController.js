@@ -1,6 +1,7 @@
 import DownloadItem from '../models/DownloadItem.js';
 import mongoose from 'mongoose';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
+import { saveBase64ToFile } from '../utils/attachmentStorage.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -106,11 +107,13 @@ export const createDownload = async (req, res, next) => {
     const validCategories = ['Finance Act', 'Tax Return', 'Updated Law'];
     const chosenLatest = validCategories.includes(latest) ? latest : 'Finance Act';
 
+    const cleanAttachment = attachment ? saveBase64ToFile(attachment, attachmentName || 'download.pdf') : '';
+
     const item = new DownloadItem({
       heading: heading.trim(),
       date: date.trim(),
       latest: chosenLatest,
-      attachment: attachment || '',
+      attachment: cleanAttachment,
       attachmentName: attachmentName || '',
       detail: detail || ''
     });
@@ -147,7 +150,9 @@ export const updateDownload = async (req, res, next) => {
         item.latest = latest;
       }
     }
-    if (attachment !== undefined) item.attachment = attachment;
+    if (attachment !== undefined) {
+      item.attachment = attachment ? saveBase64ToFile(attachment, attachmentName || item.attachmentName || 'download.pdf') : '';
+    }
     if (attachmentName !== undefined) item.attachmentName = attachmentName;
     if (detail !== undefined) item.detail = detail;
 

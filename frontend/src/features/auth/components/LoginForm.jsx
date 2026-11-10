@@ -177,8 +177,8 @@ const LoginForm = () => {
             </p>
             <div className="space-y-0.5">
               <p className="text-white font-bold">Haroon Ahmad Rafiq</p>
-              <p className="leading-snug text-slate-300">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
-              <p className="leading-snug text-slate-400 font-mono text-[11px]">0321-5390007-8, 051-8315912 • info@sldsystem.com</p>
+              <p className="leading-snug text-white font-bold">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
+              <p className="leading-snug text-white font-bold font-mono text-[11px]">0321-5390007-8, 051-8315912 • info@sldsystem.com</p>
             </div>
           </div>
         </div>

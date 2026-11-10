@@ -96,7 +96,7 @@ const NewsletterViewPage = () => {
   const isImageAttachment = newsletter.attachment?.startsWith('data:image/') || newsletter.attachmentName?.match(/\.(png|jpg|jpeg|webp)$/i);
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-stone-950 text-slate-800 dark:text-slate-100 flex flex-col justify-between selection:bg-brand-orange/20 selection:text-brand-orange font-sans">
+    <div className="min-h-screen print:!min-h-0 print:!h-auto print:!overflow-visible print:block bg-slate-100 dark:bg-stone-950 text-slate-800 dark:text-slate-100 flex flex-col justify-between selection:bg-brand-orange/20 selection:text-brand-orange font-sans">
       
       {/* Top Header Bar */}
       <header className="sticky top-0 z-30 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border-b border-slate-200 dark:border-stone-800 shadow-xs print:hidden">

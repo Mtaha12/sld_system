@@ -168,8 +168,14 @@ export const checkIsLegalDraftingRequest = (text, attachments = []) => {
   // If the user is specifically looking for case laws, judgments, or legal rulings,
   // DO NOT hijack their query as a pleading drafting request!
   const isCaseResearchQuery = /\b(?:judg(?:e)?ments?|cases?|precedents?|rulings?|authorit(?:y|ies))\b/i.test(t);
-  const isExplicitDraftAction = /\b(?:draft\s+(?:a\s+)?(?:petition|appeal|writ|pleading|notice|stay)|generate\s+(?:a\s+)?(?:petition|appeal|writ|pleading)|prepare\s+(?:a\s+)?(?:petition|appeal|writ|pleading)|format\s+[123]|vakalatnama|pleading\s+format)\b/i.test(t);
+  const isExplicitDraftAction = /\b(?:(?:draft|create|write|make|generate|prepare|file)\s+(?:a\s+|an\s+)?(?:petition|appeal|writ|pleading|notice|stay)|appeal\s+(?:to|before)\s+(?:the\s+)?(?:commissioner|cir|cit|atir|tribunal)|format\s+[123]|vakalatnama|pleading\s+format)\b/i.test(t);
   if (isCaseResearchQuery && !isExplicitDraftAction) {
+    return false;
+  }
+
+  // Informational questions about appeal rules/limitation should not be mistaken for drafting
+  const isInfoQuestion = /\b(?:what\s+is|time\s+limit|limitation\s+period|period\s+of\s+limitation|how\s+many\s+days|court\s+fee)\b/i.test(t) && !/\b(?:draft|create|write|make|generate|prepare)\b/i.test(t);
+  if (isInfoQuestion) {
     return false;
   }
 
@@ -178,9 +184,12 @@ export const checkIsLegalDraftingRequest = (text, attachments = []) => {
     'writ petition', 'article 199', 'petition under article 199',
     'stay petition', 'stay application', 'cm stay', 'c.m stay',
     'exemption petition', 'application for exemption', 'vakalatnama', 'vakalat nama',
-    'form b', 'form "b"', 'appeal to appellate tribunal',
+    'form b', 'form "b"', 'appeal to appellate tribunal', 'appeal to tribunal', 'appeal before tribunal',
     'it-16', 'it 16', 'form of appeal it', 'wealth tax appeal',
-    'generate petition', 'generate appeal', 'draft petition', 'draft appeal',
+    'appeal to commissioner', 'appeal before commissioner', 'appeal to cir', 'appeal before cir', 'appeal to cit',
+    'commissioner appeals', 'commissioner (appeals)', 'cir (appeals)', 'cir appeals', 'cit (appeals)',
+    'generate petition', 'generate appeal', 'create appeal', 'write appeal', 'make appeal',
+    'draft petition', 'draft appeal', 'draft an appeal', 'create writ', 'write writ',
     'draft a writ', 'generate writ', 'prepare petition', 'prepare appeal',
     'draft legal notice', 'pleading format', 'draft stay application'
   ];
@@ -729,19 +738,58 @@ ${limitContext(combinedSourceText, 8000)}`;
  * 3 = Form of Appeal IT-16 (Commissioner Appeals)
  */
 export const determineFormatType = (text, attachments = []) => {
-  const combined = `${text || ''} ${attachments.map(a => a.name || '').join(' ')}`.toLowerCase();
+  const userText = (text || '').toLowerCase();
+  const combined = `${userText} ${attachments.map(a => a.name || '').join(' ')}`.toLowerCase();
 
-  if (combined.includes('format 1') || combined.includes('writ') || combined.includes('article 199') || combined.includes('high court') || combined.includes('psts') || combined.includes('pra') || combined.includes('srb')) {
+  // 1. Honor explicit user forum / format request FIRST (before attachment hints like 'pra' or 'sales tax')
+  if (userText.includes('format 3')) return 3;
+  if (userText.includes('format 2')) return 2;
+  if (userText.includes('format 1')) return 1;
+
+  // Commissioner Appeals explicitly requested in user prompt
+  if (
+    /\b(?:commissioner|cir|cit|cira)\b/i.test(userText) ||
+    userText.includes('it-16') ||
+    userText.includes('it 16') ||
+    userText.includes('45-b') ||
+    userText.includes('section 127') ||
+    userText.includes('wealth tax')
+  ) {
+    return 3;
+  }
+
+  // Appellate Tribunal explicitly requested in user prompt
+  if (
+    userText.includes('tribunal') ||
+    /\batir\b/i.test(userText) ||
+    userText.includes('form b') ||
+    userText.includes('form "b"') ||
+    userText.includes('section 46')
+  ) {
+    return 2;
+  }
+
+  // High Court Writ Petition explicitly requested in user prompt
+  if (
+    userText.includes('writ') ||
+    userText.includes('article 199') ||
+    userText.includes('high court')
+  ) {
     return 1;
+  }
+
+  // 2. Check combined prompt + attachment filenames
+  if (combined.includes('format 3') || combined.includes('it-16') || combined.includes('it 16') || combined.includes('commissioner') || combined.includes('cit') || combined.includes('cir(a)') || combined.includes('wealth tax')) {
+    return 3;
   }
   if (combined.includes('format 2') || combined.includes('form b') || combined.includes('form "b"') || combined.includes('atir') || combined.includes('appellate tribunal') || combined.includes('section 46') || combined.includes('sales tax act, 1990') || combined.includes('federal excise act, 2005')) {
     return 2;
   }
-  if (combined.includes('format 3') || combined.includes('it-16') || combined.includes('it 16') || combined.includes('cit') || combined.includes('commissioner of income tax') || combined.includes('wealth tax')) {
-    return 3;
+  if (combined.includes('format 1') || combined.includes('writ') || combined.includes('article 199') || combined.includes('high court') || combined.includes('psts') || combined.includes('pra') || combined.includes('srb')) {
+    return 1;
   }
 
-  // Fallback heuristic based on attachment content or text
+  // 3. Fallback heuristic based on attachment content or text
   if (combined.includes('sales tax') || combined.includes('excise')) {
     return 2;
   }
@@ -1358,40 +1406,76 @@ export const generatePleadingDocument = async (queryText, rawAttachments = []) =
     }
   }
 
-  // 3. Try LLM Generation with strict system instruction
+  // 3. Try LLM Generation with strict single-format system instruction
   try {
+    const formatSpecifications = {
+      1: `Generate ONLY FORMAT 1: HIGH COURT WRIT PETITION UNDER ARTICLE 199 OF THE CONSTITUTION (Includes Court Heading, W.P. No., Index with 8 items, Main Petition with paras 1-13 citing Al-Hilal Motors 2004 PTD 868 and Nishat Hotels WP 16217/2020 on Section 39 "in the prescribed manner", Grounds a-g, Prayer I-VII, Certificate, Affidavit, C.M Stay u/s 151 CPC + Affidavit, Exemption Application u/s 151 CPC + Affidavit, Vakalatnama).
+STRICT SCOPE GUARD: Generate ONLY this High Court Writ Petition package. DO NOT generate any Appeal to Commissioner or Appeal to Appellate Tribunal (ATIR).`,
+      2: `Generate ONLY FORMAT 2: FORM "B" [see rule 7] FORM OF APPEAL TO THE APPELLATE TRIBUNAL INLAND REVENUE (ATIR) UNDER SECTION 46 OF THE SALES TAX ACT, 1990 / SECTION 34 OF THE FEDERAL EXCISE ACT, 2005 / SECTION 131 ITO 2001 (with Statement of Facts, Grounds of Appeal, Prayer, Verification, and List of Enclosures).
+STRICT SCOPE GUARD: Generate ONLY this ATIR Appeal. DO NOT generate any High Court Writ Petition (Article 199), C.M. Stay u/s 151 CPC, High Court Vakalatnama, or Commissioner Appeal.`,
+      3: `Generate ONLY FORMAT 3: FORM OF APPEAL TO THE COMMISSIONER (APPEALS) / CIR (APPEALS) — IT-16 u/s 127 Income Tax Ordinance, 2001 (or u/s 45-B Sales Tax Act, 1990 / Section 33 Federal Excise Act, 2005 / Provincial Revenue Authority Appeals if the query relates to Sales Tax/FED/PRA/SRB) — including Memorandum of Appeal, Statement of Facts, Grounds of Appeal, Stay Application before Commissioner (Appeals) if needed, Verification & List of Enclosures.
+STRICT SCOPE GUARD: Generate ONLY this Appeal to Commissioner (Appeals). NEVER generate a High Court Writ Petition, Article 199 petition, C.M. Stay u/s 151 CPC, High Court Exemption Application, or Appeal to Appellate Tribunal (ATIR / Form "B") unless explicitly requested.`
+    };
+
+    const formatHeaderHints = {
+      1: '### INDEX OF DOCUMENTS, ### WRIT PETITION, ### GROUNDS, ### PRAYER, ### AFFIDAVIT, ### C.M. FOR STAY, ### APPLICATION FOR EXEMPTION, ### VAKALATNAMA',
+      2: '### FORM "B" APPEAL BEFORE ATIR, ### STATEMENT OF FACTS, ### GROUNDS OF APPEAL, ### PRAYER, ### VERIFICATION, ### LIST OF ENCLOSURES',
+      3: '### FORM OF APPEAL TO COMMISSIONER (APPEALS), ### STATEMENT OF FACTS, ### GROUNDS OF APPEAL, ### PRAYER, ### VERIFICATION, ### LIST OF ENCLOSURES'
+    };
+
     const systemInstruction = `You are the Senior Pakistani Constitutional & Tax Drafting Specialist at the SLD System.
 STRICT RULES:
 1. NEVER generate software code (no Python, Javascript, HTML, SQL). Only generate authoritative legal pleadings.
 2. NEVER invent fake citations or imaginary facts. Strictly ground the document in the provided details or document.
-3. You must follow STRICTLY one of the user's three prescribed formats:
-   - FORMAT 1: HIGH COURT WRIT PETITION UNDER ARTICLE 199 OF THE CONSTITUTION (Includes Court Heading, W.P. No., Index with 8 items, Main Petition with paras 1-13 citing Al-Hilal Motors 2004 PTD 868 and Nishat Hotels WP 16217/2020 on Section 39 "in the prescribed manner", Grounds a-g, Prayer I-VII, Certificate, Affidavit, C.M Stay u/s 151 CPC + Affidavit, Exemption Application u/s 151 CPC + Affidavit, Vakalatnama).
-   - FORMAT 2: FORM "B" [see rule 7] FORM OF APPEAL TO THE APPELLATE TRIBUNAL INLAND REVENUE (ATIR) UNDER SECTION 46 OF THE SALES TAX ACT, 1990 OR SECTION 34 OF THE FEDERAL EXCISE ACT, 2005.
-   - FORMAT 3: FORM OF APPEAL IT - 16 (TO THE COMMISSIONER OF INCOME TAX / WEALTH TAX (APPEALS)).
+3. SINGLE-FORMAT RULE — Generate ONLY the requested target format below (do NOT output multiple formats or alternative drafts):
+   ${formatSpecifications[formatType] || formatSpecifications[1]}
 4. PRESENTATION & TYPOGRAPHY RULES:
    - FORMAT ALL TABLES (e.g. INDEX OF DOCUMENTS, LIST OF ENCLOSURES, TAX ASSESSED BREAKDOWN) using standard Markdown pipe tables:
      | Sr.# | Description of Documents | Annexures | Pages |
      | :---: | :--- | :---: | :---: |
-   - Use clean Markdown headers (### INDEX OF DOCUMENTS, ### WRIT PETITION, ### GROUNDS, ### PRAYER, ### AFFIDAVIT, ### C.M. FOR STAY, ### APPLICATION FOR EXEMPTION, ### VAKALATNAMA).
+   - Use clean Markdown headers (${formatHeaderHints[formatType] || formatHeaderHints[1]}).
    - DO NOT wrap the output in code fences like \`\`\`text or \`\`\`markdown. Output clean formatted markdown directly.
-   - DO NOT output unneeded asterisks or bold markers (**). NEVER wrap party names or signatures in ** (use plain PETITIONER, RESPONDENTS, Advocate High Court).
+   - DO NOT output unneeded asterisks or bold markers (**). NEVER wrap party names or signatures in ** (use plain PETITIONER, RESPONDENTS, APPELLANT, RESPONDENT).
    - DO NOT leave trailing asterisks or raw emojis in headings (e.g. NEVER output "⚖️ INDEX**" or "INDEX**").
    - DO NOT output multiple blank lines or duplicate underline characters. Keep spacing clean, compact, and professional.
    - DO NOT provide download buttons or links.
 5. TOKEN LIMITIZER: Keep the response dense, strictly formatted, complete, and avoid conversational chatter before or after the document.
 Selected Target Format: FORMAT ${formatType}`;
 
-    const userPrompt = `Generate the complete statutory legal pleading for FORMAT ${formatType} using the following extracted facts and instructions:
+    const userPrompt = `Generate ONLY the complete statutory legal pleading for FORMAT ${formatType} (do NOT include any other format such as Writ Petition or Tribunal Appeal if not selected) using the following extracted facts and instructions:
 ${facts.combinedText}
 
 Make sure all blanks that have matching facts from the document are accurately filled in. If a field is unknown, format as clean placeholder line (e.g. "_________").`;
 
     const generated = await callGeminiWithTokenControl(systemInstruction, userPrompt, inlineParts);
     if (generated && generated.length > 200) {
+      const upperGen = generated.toUpperCase();
       // For Format 1, ensure stay and vakalatnama are included in the output
-      if (formatType === 1 && (!generated.includes('151') || !generated.toUpperCase().includes('VAKALAT'))) {
+      if (formatType === 1 && (!generated.includes('151') || !upperGen.includes('VAKALAT'))) {
         return {
           text: generateFormat1WritPetition(facts),
+          formatType,
+          facts
+        };
+      }
+      // For Format 3 (Commissioner Appeal), reject mixed Writ/Tribunal hallucinations
+      if (
+        formatType === 3 &&
+        (/\bWRIT PETITION\b/.test(upperGen) || /\bARTICLE 199\b/.test(upperGen) || /\bFORM\s+["']?B["']?\b/.test(upperGen))
+      ) {
+        return {
+          text: generateFormat3IT16Appeal(facts),
+          formatType,
+          facts
+        };
+      }
+      // For Format 2 (ATIR Appeal), reject mixed Writ Petition hallucinations
+      if (
+        formatType === 2 &&
+        (/\bWRIT PETITION\b/.test(upperGen) || /\bARTICLE 199\b/.test(upperGen))
+      ) {
+        return {
+          text: generateFormat2ATIRAppeal(facts),
           formatType,
           facts
         };

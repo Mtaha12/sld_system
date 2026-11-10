@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
-import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
+import { verifyAndPrint, useSecurePrintShortcut, buildUniformPrintCss } from '../utils/securePrint';
 import { downloadOrViewAttachment, getAttachmentDisplayName } from '../utils/attachmentDownloader';
 
 const fontSizes = [
@@ -28,7 +28,7 @@ const NotificationViewPage = () => {
 
   const [copied, setCopied] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1);
-  const [pageSize, setPageSize] = useState('a4');
+  const [pageSize, setPageSize] = useState('auto');
 
   useEffect(() => {
     const fetchNotification = async () => {
@@ -161,15 +161,12 @@ const NotificationViewPage = () => {
   const contentBody = notification.content || notification.text || notification.description || '';
 
   return (
-    <div className="min-h-screen bg-[#F4F1EA] dark:bg-[#0c0e14] text-stone-900 dark:text-stone-100 font-sans antialiased selection:bg-[#f15a24]/20 selection:text-[#f15a24] print:bg-white print:text-black">
+    <div className="min-h-screen print:!min-h-0 print:!h-auto bg-[#F4F1EA] dark:bg-[#0c0e14] text-stone-900 dark:text-stone-100 font-sans antialiased selection:bg-[#f15a24]/20 selection:text-[#f15a24] print:bg-white print:text-black print:!overflow-visible">
       
-      {/* Dynamic Print CSS for Selected Paper Size (A4, Legal, Letter) */}
+      {/* Dynamic Print CSS for Selected Paper Size (Auto, A4, Legal, Letter) */}
       <style>{`
+        ${buildUniformPrintCss(pageSize)}
         @media print {
-          @page {
-            size: ${pageSize};
-            margin: 15mm;
-          }
           header, .print-hidden, [data-print-hide="true"] { 
             display: none !important; 
           }
@@ -232,6 +229,7 @@ const NotificationViewPage = () => {
               className="text-xs font-bold bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-lg px-2 py-1.5 text-stone-700 dark:text-stone-300 outline-none cursor-pointer shadow-2xs"
               title="Select Print Paper Size"
             >
+              <option value="auto">Auto (Printer)</option>
               <option value="a4">A4 Paper</option>
               <option value="legal">Legal Paper</option>
               <option value="letter">Letter Paper</option>
@@ -299,7 +297,7 @@ const NotificationViewPage = () => {
       </header>
 
       {/* Main Document Content Area */}
-      <main className="print-document max-w-4xl mx-auto my-4 sm:my-8 px-4 sm:px-8 pb-24 print:m-0 print:p-0 print:max-w-none">
+      <main className="print-document max-w-4xl mx-auto my-4 sm:my-8 px-4 sm:px-8 pb-24 print:!m-0 print:!p-0 print:!pb-0 print:!max-w-none">
         
         <article className="print-container bg-[#FCFBF8] dark:bg-[#151821] border border-stone-300/90 dark:border-stone-800/90 rounded-2xl shadow-lg print:border-none print:shadow-none print:bg-white p-6 sm:p-12 print:p-0 print:m-0 relative overflow-hidden print:overflow-visible transition-colors">
           

@@ -373,7 +373,7 @@ const ForgotPasswordForm = () => {
           </h1>
           <p className="text-gray-400 text-sm leading-relaxed">
             We&apos;ve sent a 6-digit verification code to<br />
-            <span className="text-emerald-400 font-mono font-semibold break-all tracking-wide">{maskedEmail || maskEmail(email)}</span>
+            <span className="text-slate-100 font-mono font-semibold break-all tracking-wide">{maskedEmail || maskEmail(email)}</span>
           </p>
         </div>
 
@@ -495,18 +495,12 @@ const ForgotPasswordForm = () => {
             placeholder="Email or Username *"
             icon={Mail}
             variant="dark"
+            readOnly={Boolean(initialId)}
+            title={initialId ? 'Email/Username is locked and cannot be edited' : undefined}
+            className={initialId ? 'opacity-80 cursor-not-allowed select-none' : ''}
             error={errorsRequest.identifier}
             {...registerRequest('identifier')}
           />
-          {maskedEmail && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs text-slate-300 animate-fade-in shadow-xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-              <div className="flex flex-col text-left">
-                <span className="text-[10px] text-slate-400 font-medium">Registered Email:</span>
-                <span className="font-mono text-emerald-300 font-semibold tracking-wide select-all">{maskedEmail}</span>
-              </div>
-            </div>
-          )}
         </div>
 
         <Button type="submit" className="w-full" disabled={isSubmittingRequest}>

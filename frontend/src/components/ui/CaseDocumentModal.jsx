@@ -82,7 +82,7 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
       <style>{`
         @media print {
           @page {
-            margin: 15mm;
+            margin: 6mm;
           }
           body * {
             visibility: hidden;

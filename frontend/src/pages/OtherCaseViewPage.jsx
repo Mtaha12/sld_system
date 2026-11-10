@@ -109,7 +109,7 @@ const OtherCaseViewPage = () => {
   const documentUrl = hasDoc && targetDocId ? getOtherCaseDocumentUrl(targetDocId) : null;
 
   return (
-    <div className="min-h-screen bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans selection:bg-brand-orange selection:text-white">
+    <div className="min-h-screen print:!min-h-0 print:!h-auto print:!overflow-visible bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans selection:bg-brand-orange selection:text-white">
       {/* ── Top Floating Action Bar ─────────────────────────────── */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border-b border-stone-200 dark:border-stone-800 px-4 py-3 print:hidden shadow-xs">
         <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">

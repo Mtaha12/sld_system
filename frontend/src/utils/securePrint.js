@@ -95,5 +95,95 @@ export const useSecurePrintShortcut = ({ onBeforePrint } = {}) => {
   }, [onBeforePrint]);
 };
 
+export const PRINT_PAGE_SIZES = {
+  auto: 'auto',
+  a4: '210mm 297mm',
+  letter: '8.5in 11in',
+  legal: '8.5in 14in',
+};
+
+export const getPagePrintSizeCss = (pageSize) =>
+  PRINT_PAGE_SIZES[String(pageSize || 'auto').toLowerCase()] || 'auto';
+
+export const buildUniformPrintCss = (pageSize = 'auto') => `
+  @media print {
+    @page {
+      size: ${getPagePrintSizeCss(pageSize)};
+      margin: 6mm;
+    }
+    html, body, #root {
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+      background: white !important;
+      color: black !important;
+      font-size: 12pt !important;
+      line-height: 1.5 !important;
+      zoom: 1 !important;
+      transform: none !important;
+      -webkit-text-size-adjust: none !important;
+      text-size-adjust: none !important;
+    }
+    .print-document,
+    .print-sheet,
+    .print-container {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: 0 !important;
+      height: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      background: white !important;
+      color: black !important;
+    }
+    .print-document *,
+    .print-container * {
+      font-size: 12pt !important;
+      line-height: 1.5 !important;
+      overflow-wrap: anywhere !important;
+      word-break: break-word !important;
+      -webkit-text-size-adjust: none !important;
+      text-size-adjust: none !important;
+    }
+    .print-document h1,
+    .print-container h1 {
+      font-size: 14pt !important;
+      line-height: 1.3 !important;
+    }
+    .print-document h2,
+    .print-container h2 {
+      font-size: 12.5pt !important;
+      line-height: 1.35 !important;
+    }
+    .print-document h3,
+    .print-document h4,
+    .print-container h3,
+    .print-container h4 {
+      font-size: 12pt !important;
+      line-height: 1.35 !important;
+    }
+    .print-document p,
+    .print-document div.word-p,
+    .print-container p {
+      orphans: 1 !important;
+      widows: 1 !important;
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+    }
+    .statute-block-card {
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+    }
+  }
+`;
+
 export default verifyAndPrint;
 

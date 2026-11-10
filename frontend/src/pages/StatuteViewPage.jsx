@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { copyCleanDocument } from '../utils/documentCopyUtil';
-import { verifyAndPrint, useSecurePrintShortcut } from '../utils/securePrint';
+import { verifyAndPrint, useSecurePrintShortcut, buildUniformPrintCss } from '../utils/securePrint';
 import { downloadOrViewAttachment, getAttachmentDisplayName, getAttachmentUrl as resolveBackendAttachmentUrl } from '../utils/attachmentDownloader';
 
 const fontSizes = [
@@ -52,7 +52,7 @@ const StatuteViewPage = () => {
   // UI States matching Case Law View
   const [copied, setCopied] = useState(false);
   const [fontSizeIndex, setFontSizeIndex] = useState(1);
-  const [pageSize, setPageSize] = useState('a4'); // 'a4' | 'legal' | 'letter'
+  const [pageSize, setPageSize] = useState('auto'); // 'auto' | 'a4' | 'legal' | 'letter'
 
   useEffect(() => {
     const fetchStatute = async () => {
@@ -188,42 +188,12 @@ const StatuteViewPage = () => {
   const blocks = displayBlocks;
 
   return (
-    <div className="min-h-screen w-full bg-[#F4F1EA] dark:bg-[#0c0e14] text-[#1c1d22] dark:text-[#E2E8F0] overflow-y-auto print:bg-white print:text-black print:overflow-visible transition-colors font-sans antialiased selection:bg-[#f15a24]/20 selection:text-[#f15a24]">
+    <div className="min-h-screen print:!min-h-0 print:!h-auto w-full bg-[#F4F1EA] dark:bg-[#0c0e14] text-[#1c1d22] dark:text-[#E2E8F0] overflow-y-auto print:bg-white print:text-black print:!overflow-visible transition-colors font-sans antialiased selection:bg-[#f15a24]/20 selection:text-[#f15a24]">
       
-      {/* Dynamic Print CSS for Selected Paper Size (Letter, Legal, A4) */}
+      {/* Dynamic Print CSS for Selected Paper Size (Auto, Letter, Legal, A4) */}
       <style>{`
+        ${buildUniformPrintCss(pageSize)}
         @media print {
-          @page {
-            size: ${pageSize};
-            margin: 15mm;
-          }
-          .print-document,
-          .print-document * {
-            font-size: var(--print-font-size, 11.5pt) !important;
-            line-height: var(--print-line-height, 1.55) !important;
-          }
-          .print-document {
-            overflow: visible !important;
-            height: auto !important;
-          }
-          .statute-block-card {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          .print-document h1 {
-            font-size: 14pt !important;
-          }
-          .print-document h2 {
-            font-size: 12.5pt !important;
-          }
-          .print-document h3,
-          .print-document h4 {
-            font-size: 11.5pt !important;
-          }
-          body {
-            background: white !important;
-            color: black !important;
-          }
           .print-hidden, 
           [data-print-hide="true"] {
             display: none !important;
@@ -302,6 +272,7 @@ const StatuteViewPage = () => {
                 className="bg-transparent text-xs font-bold text-stone-900 dark:text-stone-100 outline-none cursor-pointer"
                 title="Select page size for print format"
               >
+                <option value="auto">Auto (Printer)</option>
                 <option value="legal">Legal (8.5×14")</option>
                 <option value="letter">Letter (8.5×11")</option>
                 <option value="a4">A4 (210×297mm)</option>
@@ -358,10 +329,10 @@ const StatuteViewPage = () => {
       </header>
 
       {/* 2. THE STATUTE PROVISION CANVAS */}
-      <main className="max-w-4xl mx-auto my-4 sm:my-8 px-3 sm:px-6 pb-24 print:m-0 print:p-0 print:max-w-none">
+      <main className="max-w-4xl mx-auto my-4 sm:my-8 px-3 sm:px-6 pb-24 print:!m-0 print:!p-0 print:!pb-0 print:!max-w-none">
         
         {/* Document Folio Paper Container */}
-        <article className="print-document bg-[#FCFBF8] dark:bg-[#151821] border border-stone-300/90 dark:border-stone-800/90 rounded-2xl shadow-lg print:border-none print:shadow-none print:bg-white p-6 sm:p-12 print:p-0 print:m-0 relative overflow-hidden print:overflow-visible transition-colors">
+        <article className="print-document bg-[#FCFBF8] dark:bg-[#151821] border border-stone-300/90 dark:border-stone-800/90 rounded-2xl shadow-lg print:border-none print:shadow-none print:bg-white p-6 sm:p-12 print:!p-0 print:!m-0 relative overflow-hidden print:!overflow-visible transition-colors">
           
           {/* Subtle Judicial Watermark Emblem */}
           <div className="absolute top-12 right-12 opacity-[0.035] dark:opacity-[0.05] pointer-events-none select-none print:hidden">

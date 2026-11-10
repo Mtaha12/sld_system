@@ -605,30 +605,57 @@ export const formatStatutesResponse = (results, queryText) => {
       (sldLink ? `• **SLD Statute Record**: ${sldLink}\n` : '');
 
     if (Array.isArray(s.blocks) && s.blocks.length > 0) {
-      // Sort blocks so latest applicable date is first descending
-      const sortedBlocks = [...s.blocks].sort((a, b) => {
-        const tA = a.fromDate ? new Date(a.fromDate).getTime() : 0;
-        const tB = b.fromDate ? new Date(b.fromDate).getTime() : 0;
-        return tB - tA;
-      });
+      const parseBlockTimestamp = (rawVal) => {
+        if (!rawVal) return null;
+        if (rawVal instanceof Date) return isNaN(rawVal.getTime()) ? null : rawVal.getTime();
+        const str = String(rawVal).trim();
+        if (!str) return null;
+        // Handle DD-MM-YYYY or DD/MM/YYYY explicitly before native Date parser
+        const dmy = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+        if (dmy) {
+          const day = parseInt(dmy[1], 10);
+          const month = parseInt(dmy[2], 10);
+          const year = parseInt(dmy[3], 10);
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            return Date.UTC(year, month - 1, day);
+          }
+        }
+        const parsed = new Date(str).getTime();
+        if (!isNaN(parsed)) return parsed;
+        const yrMatch = str.match(/\b(19|20)\d{2}\b/);
+        return yrMatch ? Date.UTC(parseInt(yrMatch[0], 10), 0, 1) : null;
+      };
+
+      // Sort blocks so the single latest applicable block is first; only show the latest block
+      const sortedBlocks = s.blocks
+        .map((block, idx) => ({ block, idx }))
+        .sort((a, b) => {
+          const fromA = parseBlockTimestamp(a.block?.fromDate) ?? 0;
+          const fromB = parseBlockTimestamp(b.block?.fromDate) ?? 0;
+          if (fromB !== fromA) return fromB - fromA;
+
+          const toStrA = String(a.block?.toDate || '').trim().toLowerCase();
+          const toStrB = String(b.block?.toDate || '').trim().toLowerCase();
+          const isOpenA = !toStrA || /current|present|till|date|ongoing/i.test(toStrA);
+          const isOpenB = !toStrB || /current|present|till|date|ongoing/i.test(toStrB);
+          if (isOpenA !== isOpenB) return isOpenB ? 1 : -1;
+
+          const toA = parseBlockTimestamp(a.block?.toDate) ?? 0;
+          const toB = parseBlockTimestamp(b.block?.toDate) ?? 0;
+          if (toB !== toA) return toB - toA;
+
+          // Fallback to last block appended in chronological storage order
+          return b.idx - a.idx;
+        })
+        .map((entry) => entry.block);
 
       const currentBlock = sortedBlocks[0];
-      const olderBlocks = sortedBlocks.slice(1);
 
       if (currentBlock && (currentBlock.detail || currentBlock.sectionHeading)) {
         const fromD = currentBlock.fromDate ? new Date(currentBlock.fromDate).toLocaleDateString() : 'Current Applicable Law';
         text += `\n#### 🏛️ Current Applicable Statutory Text (Effective: ${fromD}):\n` +
           (currentBlock.sectionHeading ? `**${currentBlock.sectionHeading}**\n` : '') +
           `${(currentBlock.detail || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()}\n\n`;
-      }
-
-      if (olderBlocks.length > 0) {
-        text += `#### ⏳ Historical Amendments & Prior Versions (${olderBlocks.length} prior amendment(s) recorded):\n`;
-        olderBlocks.forEach((ob, obIdx) => {
-          const obDate = ob.fromDate ? new Date(ob.fromDate).toLocaleDateString() : 'Historical Version';
-          text += `• **Amendment ${obIdx + 1} (${obDate})**: ${(ob.sectionHeading || '').trim() || (ob.detail || '').replace(/<[^>]*>/g, ' ').slice(0, 150)}...\n`;
-        });
-        text += `\n`;
       }
     }
   }
@@ -4613,7 +4640,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         rawCitationCases = await Case.find({
           mapYearPage: { $in: exactCitations },
           isDeleted: { $ne: true }
-        }).limit(20).maxTimeMS(1500).lean();
+        }).limit(50).maxTimeMS(1500).lean();
       } catch (e) {}
 
       // 1.5 Check indexed publications array if exact mapYearPage did not match (handles year or volume) (< 10ms)
@@ -4690,10 +4717,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         } catch (e) {}
       }
 
-      // STRICT VALIDATION: Ensure returned cases genuinely contain the queried citation and belong to Pakistani jurisdiction
+      // STRICT VALIDATION: Return all database records genuinely containing the queried exact citation
       matchingCitationCases = rawCitationCases.filter(c => {
         if (!c || c.isDeleted) return false;
-        if (isForeignCourt(c.court) || isForeignCase(c)) return false;
         const integrity = validateRecordMetadataIntegrity(c);
         if (!integrity.isValid) return false;
         return validateCitationKeywords(c, citationDetails);

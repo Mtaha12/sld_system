@@ -91,11 +91,26 @@ export const getAttachmentUrl = (att) => {
  * - For Blob URLs: opens or downloads directly.
  * - For server URLs: resolves to absolute backend API host and opens/downloads without triggering SPA redirect to /login.
  */
-export const downloadOrViewAttachment = (att, { download = false } = {}) => {
+export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction = null) => {
   try {
     if (!att) return;
+
+    let opts = {};
+    if (typeof optionsOrName === 'string') {
+      opts = {
+        name: optionsOrName,
+        download: legacyAction === 'download' || legacyAction === true
+      };
+    } else if (optionsOrName && typeof optionsOrName === 'object') {
+      opts = { ...optionsOrName };
+      if (legacyAction !== null) {
+        opts.download = legacyAction === 'download' || legacyAction === true;
+      }
+    }
+
+    const download = Boolean(opts.download);
     const url = getAttachmentUrl(att);
-    const name = getAttachmentDisplayName(att);
+    const name = opts.name || opts.title || getAttachmentDisplayName(att);
 
     if (!url) {
       console.warn('Cannot download attachment: No URL found', att);

@@ -1,6 +1,7 @@
 import TaxCard from '../models/TaxCard.js';
 import mongoose from 'mongoose';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
+import { saveBase64ToFile } from '../utils/attachmentStorage.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -96,12 +97,14 @@ export const createTaxCard = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Valid Year is required.' });
     }
 
+    const cleanAttachment = attachment ? saveBase64ToFile(attachment, attachmentName || 'finance-act.pdf') : '';
+
     const item = new TaxCard({
       heading: heading.trim(),
       category: (category || '').trim(),
       date: date.trim(),
       year: parseInt(year, 10),
-      attachment: attachment || '',
+      attachment: cleanAttachment,
       attachmentName: attachmentName || '',
       detail: detail || ''
     });
@@ -134,7 +137,9 @@ export const updateTaxCard = async (req, res, next) => {
     if (category !== undefined) item.category = category.trim();
     if (date !== undefined) item.date = date.trim();
     if (year !== undefined && !isNaN(Number(year))) item.year = parseInt(year, 10);
-    if (attachment !== undefined) item.attachment = attachment;
+    if (attachment !== undefined) {
+      item.attachment = attachment ? saveBase64ToFile(attachment, attachmentName || item.attachmentName || 'finance-act.pdf') : '';
+    }
     if (attachmentName !== undefined) item.attachmentName = attachmentName;
     if (detail !== undefined) item.detail = detail;
 

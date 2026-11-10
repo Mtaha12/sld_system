@@ -91,7 +91,7 @@ const DownloadViewPage = () => {
   const detail = downloadItem.detail || '';
 
   return (
-    <div className="min-h-screen bg-[#f7f5f0] dark:bg-[#121316] text-stone-900 dark:text-stone-100 font-sans antialiased selection:bg-[#f15a24]/20 selection:text-[#f15a24]">
+    <div className="min-h-screen print:!min-h-0 print:!h-auto print:!overflow-visible bg-[#f7f5f0] dark:bg-[#121316] text-stone-900 dark:text-stone-100 font-sans antialiased selection:bg-[#f15a24]/20 selection:text-[#f15a24]">
       {/* Top Floating Control Bar */}
       <header className="sticky top-0 z-40 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border-b border-stone-200 dark:border-stone-800 shadow-xs print:hidden">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
@@ -227,7 +227,11 @@ const DownloadViewPage = () => {
                   rel="noopener noreferrer"
                   onClick={(e) => {
                     e.preventDefault();
-                    downloadOrViewAttachment(downloadItem.attachment, downloadItem.attachmentName, 'view');
+                    downloadOrViewAttachment(downloadItem.attachment, {
+                      name: downloadItem.attachmentName || '',
+                      title: downloadItem.heading,
+                      download: false
+                    });
                   }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#f15a24] hover:bg-[#d94817] text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
                 >

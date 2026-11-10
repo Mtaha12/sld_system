@@ -170,8 +170,8 @@ const AddTaxCardForm = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors(prev => ({ ...prev, attachment: 'File size exceeds 5MB limit.' }));
+    if (file.size > 10 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, attachment: 'File size exceeds 10MB limit.' }));
       return;
     }
 
@@ -397,7 +397,7 @@ const AddTaxCardForm = ({
               </button>
             )}
           </div>
-          <span className="text-[10px] text-red-500 block mt-1">Max allowed size is 5MB</span>
+          <span className="text-[10px] text-red-500 block mt-1">Max allowed size is 10MB</span>
           {errors.attachment && <span className="text-[11px] text-red-500">{errors.attachment}</span>}
         </FormField>
 

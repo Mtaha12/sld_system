@@ -133,11 +133,11 @@ const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '', customO
     }
     @media print {
       @page {
-        margin: 15mm;
+        margin: 6mm;
       }
       html, body, body * {
-        font-size: 11.5pt !important;
-        line-height: 1.55 !important;
+        font-size: 12pt !important;
+        line-height: 1.5 !important;
         color: #000 !important;
       }
       body {

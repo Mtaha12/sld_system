@@ -80,7 +80,35 @@ const SignupForm = () => {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit(onSubmit)} autoComplete="off" className="flex flex-col gap-4">
+        {/* Prevent browser password-manager autofill on empty signup fields */}
+        <input
+          type="text"
+          name="prevent_autofill_username"
+          autoComplete="username"
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }}
+          defaultValue=""
+        />
+        <input
+          type="email"
+          name="prevent_autofill_email"
+          autoComplete="email"
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }}
+          defaultValue=""
+        />
+        <input
+          type="password"
+          name="prevent_autofill_password"
+          autoComplete="new-password"
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }}
+          defaultValue=""
+        />
         {errors.root && (
           <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-lg text-center animate-shake">
             {errors.root.message}
@@ -222,15 +250,10 @@ const SignupForm = () => {
             <p className="text-brand-orange font-semibold mb-1">
               Having trouble signing up? Please contact:
             </p>
-            <div className="space-y-0.5 border-b border-slate-700/50 pb-2">
-              <p className="text-white font-semibold">Haroon Ahmad Rafiq</p>
-              <p className="text-slate-400 leading-snug">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
-              <p className="text-slate-400 leading-snug">0321-5390007-8, 051-8315912 • info@sldsystem.com</p>
-            </div>
-            <div className="space-y-0.5 pt-0.5">
-              <p className="text-white font-semibold">Abdul Sami Abbasi <span className="text-[11px] font-normal text-slate-400">(Sales Manager)</span></p>
-              <p className="text-slate-400 leading-snug">Karachi Branch Office No. 408, 4th Floor, Al-Ayesha Chambers, Sharar-e-Iraq, Near Passport Office, Saddar-Karachi</p>
-              <p className="text-slate-400 leading-snug">0325-8986393 • sami@sldsystem.com</p>
+            <div className="space-y-0.5">
+              <p className="text-white font-bold">Haroon Ahmad Rafiq</p>
+              <p className="text-white font-bold leading-snug">Head Office # SO-6 & 7, 2nd Floor, City Centre, Bank Road, Saddar-Rawalpindi</p>
+              <p className="text-white font-bold leading-snug">0321-5390007-8, 051-8315912 • info@sldsystem.com</p>
             </div>
           </div>
         </div>
