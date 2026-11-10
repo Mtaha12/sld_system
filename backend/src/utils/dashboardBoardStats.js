@@ -86,3 +86,4 @@ export const getBoardStatuteAndNotificationCounts = async ({
 
   return result;
 };
+
