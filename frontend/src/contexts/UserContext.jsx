@@ -37,18 +37,25 @@ const isJwtExpiredLocally = (token) => {
   }
 };
 
+const clearStoredAuthSession = () => {
+  try {
+    localStorage.removeItem('sld_auth_session');
+    localStorage.removeItem('sld_access_token');
+    localStorage.removeItem('sld_refresh_token');
+    localStorage.removeItem('sld_user_profile');
+  } catch (e) {
+    console.error('Failed to clear auth session', e);
+  }
+};
+
 export const UserProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
       const hasSession = localStorage.getItem('sld_auth_session') === 'true';
       const accessToken = localStorage.getItem('sld_access_token');
-      const refreshToken = localStorage.getItem('sld_refresh_token');
-      if (!hasSession || !accessToken || (isJwtExpiredLocally(accessToken) && !refreshToken)) {
+      if (!hasSession || !accessToken || isJwtExpiredLocally(accessToken)) {
         if (hasSession) {
-          localStorage.removeItem('sld_auth_session');
-          localStorage.removeItem('sld_access_token');
-          localStorage.removeItem('sld_refresh_token');
-          localStorage.removeItem('sld_user_profile');
+          clearStoredAuthSession();
         }
         return false;
       }
@@ -70,18 +77,19 @@ export const UserProvider = ({ children }) => {
     return DEFAULT_USER;
   });
 
-  const logoutUser = (reason) => {
-    setIsAuthenticated(false);
+  const logoutUser = (reason, { skipApi = false } = {}) => {
+    let activeToken = null;
     try {
-      localStorage.removeItem('sld_auth_session');
-      localStorage.removeItem('sld_access_token');
-      localStorage.removeItem('sld_refresh_token');
-      localStorage.removeItem('sld_user_profile');
-    } catch (e) {
-      console.error('Failed to clear auth session', e);
+      activeToken = localStorage.getItem('sld_access_token');
+    } catch {}
+    setIsAuthenticated(false);
+    clearStoredAuthSession();
+    // Signal logout to backend only when explicitly logging out an active token
+    if (!skipApi && activeToken) {
+      api.post('/api/auth/logout', {}, {
+        headers: { Authorization: `Bearer ${activeToken}` }
+      }).catch(() => {});
     }
-    // Signal logout to backend in background
-    api.post('/api/auth/logout').catch(() => {});
     if (reason) {
       alert(reason);
       window.location.href = '/login';
@@ -89,6 +97,15 @@ export const UserProvider = ({ children }) => {
   };
 
   const verifiedOnceRef = React.useRef(false);
+
+  // Sync in-memory auth state whenever API interceptor clears an invalid/expired session
+  React.useEffect(() => {
+    const handleAuthCleared = () => {
+      setIsAuthenticated(false);
+    };
+    window.addEventListener('sld:auth-cleared', handleAuthCleared);
+    return () => window.removeEventListener('sld:auth-cleared', handleAuthCleared);
+  }, []);
 
   // Keep user permissions & status synced from backend; immediately terminate session if admin logs user out
   React.useEffect(() => {
@@ -100,6 +117,7 @@ export const UserProvider = ({ children }) => {
     let isMounted = true;
 
     const verifySession = async () => {
+      const wasVerified = verifiedOnceRef.current;
       try {
         const res = await api.get('/api/auth/me');
         if (res?.data?.data && isMounted) {
@@ -114,14 +132,13 @@ export const UserProvider = ({ children }) => {
         }
       } catch (err) {
         if (err.response?.status === 401 || err.response?.status === 403) {
-          if (!verifiedOnceRef.current && window.location.pathname === '/dashboard') {
+          if (!wasVerified) {
             // Stale stored session from prior visit: clear silently and return to public dashboard
-            logoutUser();
-            window.location.href = '/';
+            logoutUser(undefined, { skipApi: true });
             return;
           }
           const msg = err.response?.data?.message || 'Access Denied: Your session has been closed by an administrator. Please log in again.';
-          logoutUser(msg);
+          logoutUser(msg, { skipApi: true });
         }
       }
     };

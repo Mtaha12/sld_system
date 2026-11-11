@@ -32,6 +32,9 @@ const ProtectedRoute = () => {
   const location = useLocation();
 
   if (!isAuthenticated) {
+    if (location.pathname === '/dashboard') {
+      return <Navigate to="/" replace />;
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

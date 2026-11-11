@@ -45,6 +45,7 @@ api.interceptors.response.use(
       error.response.status === 401 && 
       !originalRequest._retry && 
       !originalRequest.url.includes('/auth/login') &&
+      !originalRequest.url.includes('/auth/logout') &&
       !originalRequest.url.includes('/auth/refresh-token')
     ) {
       originalRequest._retry = true;
@@ -76,17 +77,9 @@ api.interceptors.response.use(
         localStorage.removeItem('sld_auth_session');
         localStorage.removeItem('sld_user_profile');
 
-        // Only trigger hard redirect for expired authenticated sessions off public landing routes
-        const p = typeof window !== 'undefined' ? window.location.pathname : '';
-        if (
-          hadSession &&
-          p !== '/' &&
-          !p.startsWith('/login') &&
-          !p.startsWith('/signup') &&
-          !p.startsWith('/forgot-password') &&
-          !p.startsWith('/verify-email')
-        ) {
-          window.location.href = '/login';
+        // Notify React UserContext synchronously so ProtectedRoute / HomeRoute transition cleanly without full-page reload
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('sld:auth-cleared', { detail: { hadSession } }));
         }
       }
     }
