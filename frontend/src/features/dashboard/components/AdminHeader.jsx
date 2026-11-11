@@ -6,8 +6,8 @@ import { useUser } from '../../../contexts/UserContext';
 import api from '../../../services/api';
 import appStoreLogo from '../../../assets/branding/dashboard/app store.png';
 import playStoreLogo from '../../../assets/branding/dashboard/playstore.png';
-import aiSearchLogo from '/ai-q-search-logo.png';
-import aiBannerImg from '../../../assets/branding/dashboard/ai-banner.jpg';
+import aiSearchLogo from '/ai-q-search-logo.webp';
+import aiBannerImg from '../../../assets/branding/dashboard/ai-banner.webp';
 import LegalReferenceModal from './LegalReferenceModal';
 
 const PAGE_HEADERS = {
@@ -64,8 +64,8 @@ const PAGE_HEADERS = {
     subtitle: 'Search case laws, circulars, SROs and notifications across departments.'
   },
   '/manage-tax-cards': {
-    title: 'Finance Act',
-    subtitle: 'View and search official Finance Act records and annual schedules'
+    title: 'Manage Tax Cards',
+    subtitle: 'Create, manage and publish official Tax Cards, Tax Rates, and Finance Act records'
   },
   '/manage-dictionary': {
     title: 'Dictionary',
@@ -174,7 +174,7 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
 
   const handleLogout = () => {
     logoutUser();
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const handleChangePasswordSubmit = async (e) => {
@@ -245,8 +245,8 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
         };
       }
       return {
-        title: 'Finance Act',
-        subtitle: 'View and search official Finance Act records and annual schedules'
+        title: user?.role === 'Administrator' ? 'Manage Tax Cards' : 'Tax Cards',
+        subtitle: 'Manage and view official Tax Cards and rate schedules'
       };
     }
     if (location.pathname.startsWith('/downloads') || location.pathname.startsWith('/manage-downloads')) {

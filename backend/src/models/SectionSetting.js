@@ -29,6 +29,7 @@ const sectionSettingSchema = new mongoose.Schema(
 );
 
 sectionSettingSchema.index({ ordering: 1 });
+sectionSettingSchema.index({ ordering: 1, name: 1 });
 sectionSettingSchema.index({ status: 1 });
 
 const SectionSetting = mongoose.model('SectionSetting', sectionSettingSchema);

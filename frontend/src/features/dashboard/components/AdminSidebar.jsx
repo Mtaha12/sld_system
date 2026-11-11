@@ -49,7 +49,7 @@ import {
   Type,
   Hash
 } from 'lucide-react';
-import logo from '../../../assets/branding/logo/SLD_Logo.png';
+import logo from '../../../assets/branding/logo/SLD_Logo.webp';
 import { useUser } from '../../../contexts/UserContext';
 
 // Intelligent Route Preloaders: dynamically preload page chunks on mouse enter / focus
@@ -182,6 +182,7 @@ const FOLDER_GROUPS = [
     items: [
       { label: 'Manage News', path: '/news', icon: Newspaper },
       { label: 'Manage Downloads', path: '/manage-downloads', icon: Download },
+      { label: 'Manage Tax Cards', path: '/manage-tax-cards', icon: CreditCard },
       { label: 'Manage Finance Act', path: '/manage-tax-cards?category=finance-act', icon: CreditCard },
       { label: 'Dictionary', path: '/manage-dictionary', icon: BookA },
       { label: 'Manage Emails', path: '/manage-emails', icon: Mail },
@@ -367,7 +368,11 @@ const AdminSidebar = ({
                   {isOpen && (
                     <div className="flex flex-col space-y-1 mt-1 pl-2 border-l border-brand-dark-border/70 ml-5 animate-fade-in">
                       {folder.items.map((subItem) => {
-                        const isSubActive = location.pathname === subItem.path || location.pathname.startsWith(subItem.path + '/');
+                        const [subPath, subQuery] = subItem.path.split('?');
+                        const isSubActive = subQuery
+                          ? (location.pathname === subPath && location.search === `?${subQuery}`)
+                          : (location.pathname === subPath && !new URLSearchParams(location.search).get('category')) ||
+                            location.pathname.startsWith(subPath + '/');
                         return (
                           <Link
                             key={subItem.path}

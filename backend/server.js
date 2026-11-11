@@ -488,7 +488,7 @@ const extractCitation = (text) => {
 };
 
 // AI Support Chatbot Endpoint (Gemini Integration)
-app.post('/api/chat', async (req, res, next) => {
+app.post('/api/chat', protect, async (req, res, next) => {
   try {
     const { message } = req.body;
 

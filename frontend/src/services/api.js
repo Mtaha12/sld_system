@@ -58,16 +58,27 @@ api.interceptors.response.use(
           return api(originalRequest);
         }
       } catch (refreshErr) {
-        console.warn('[API Client] Refresh token validation failed. Redirecting to login.', refreshErr);
-        
+        console.warn('[API Client] Refresh token validation failed.', refreshErr);
+        const hadSession = localStorage.getItem('sld_auth_session') === 'true';
+
         // Clear auth sessions on failure
         localStorage.removeItem('sld_access_token');
         localStorage.removeItem('sld_refresh_token');
         localStorage.removeItem('sld_auth_session');
         localStorage.removeItem('sld_user_profile');
-        
-        // Trigger hard reload to redirect to login route
-        window.location.href = '/login';
+
+        // Only trigger hard redirect for expired authenticated sessions off public landing routes
+        const p = typeof window !== 'undefined' ? window.location.pathname : '';
+        if (
+          hadSession &&
+          p !== '/' &&
+          !p.startsWith('/login') &&
+          !p.startsWith('/signup') &&
+          !p.startsWith('/forgot-password') &&
+          !p.startsWith('/verify-email')
+        ) {
+          window.location.href = '/login';
+        }
       }
     }
 

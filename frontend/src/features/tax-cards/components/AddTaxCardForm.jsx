@@ -33,8 +33,7 @@ const AddTaxCardForm = ({
   const isEdit = Boolean(editData && (editData.id || editData.mongoId));
   const isFinanceAct =
     categoryTitle === 'Finance Act' ||
-    !defaultCategory ||
-    String(defaultCategory).toLowerCase().replace(/[-_\s]/g, '') === 'financeact';
+    String(defaultCategory || '').toLowerCase().replace(/[-_\s]/g, '') === 'financeact';
   const fileInputRef = useRef(null);
   const preserveDraftDefaultsRef = useRef(null);
 
@@ -205,7 +204,7 @@ const AddTaxCardForm = ({
       const savedYear = String(parseInt(year, 10));
       const payload = {
         heading: heading.trim(),
-        category: (defaultCategory || editData?.category || '').trim(),
+        category: (defaultCategory || editData?.category || 'tax-cards').trim(),
         date: savedDate,
         year: parseInt(year, 10),
         attachment,

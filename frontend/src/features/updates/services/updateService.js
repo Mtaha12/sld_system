@@ -2,7 +2,7 @@ import api from '../../../services/api';
 
 export const updateService = {
   getUpdates: async (query = '') => {
-    const params = query ? { query } : {};
+    const params = typeof query === 'string' ? (query ? { query } : {}) : (query || {});
     const res = await api.get('/api/updates', { params });
     return res.data?.data || [];
   },

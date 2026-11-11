@@ -116,5 +116,8 @@ taxCardSchema.pre(/^find/, function () {
   this.where({ isDeleted: { $ne: true } });
 });
 
+taxCardSchema.index({ isDeleted: 1, srNumber: -1, createdAt: -1 });
+taxCardSchema.index({ isDeleted: 1, category: 1, srNumber: -1 });
+
 const TaxCard = mongoose.model('TaxCard', taxCardSchema);
 export default TaxCard;

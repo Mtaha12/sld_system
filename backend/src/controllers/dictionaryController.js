@@ -1,6 +1,9 @@
 import Dictionary from '../models/Dictionary.js';
 import mongoose from 'mongoose';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
+import sharedApiCache from '../utils/memoryCache.js';
+
+const DICTIONARY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -27,6 +30,12 @@ const formatItem = (d) => {
 export const getDictionary = async (req, res, next) => {
   try {
     const { query, page, limit, all, sortField, sortOrder } = req.query;
+    const cacheKey = `dictionary:list:${String(query || '').trim().toLowerCase()}|${page || ''}|${limit || ''}|${all || ''}|${sortField || ''}|${sortOrder || ''}`;
+    const cached = sharedApiCache.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
     const filter = { isDeleted: { $ne: true } };
 
     if (query) {
@@ -51,19 +60,6 @@ export const getDictionary = async (req, res, next) => {
     const safeLimit = isAll ? 1000 : Math.min(Math.max(limitNum || 100, 1), 1000);
     const safePage = Math.max(pageNum || 1, 1);
 
-    const total = await Dictionary.countDocuments(filter);
-    const totalPages = Math.ceil(total / safeLimit) || 1;
-
-    let maxSrNumber = 41427;
-    try {
-      const maxDoc = await Dictionary.findOne().sort({ srNumber: -1 }).select('srNumber').lean();
-      if (maxDoc?.srNumber) {
-        maxSrNumber = Math.max(maxDoc.srNumber, 41427);
-      }
-    } catch {
-      maxSrNumber = 41427;
-    }
-
     const order = sortOrder === 'desc' ? -1 : 1;
     let sortObj = { srNumber: order, words: 1 };
     if (sortField === 'words') {
@@ -73,15 +69,22 @@ export const getDictionary = async (req, res, next) => {
     }
 
     let dbQuery = Dictionary.find(filter).sort(sortObj);
-
     if (!isAll) {
       dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);
     }
 
-    const items = await dbQuery.lean();
+    const isUnfiltered = !query || !String(query).trim();
+    const [total, maxDoc, items] = await Promise.all([
+      isUnfiltered ? Dictionary.estimatedDocumentCount() : Dictionary.countDocuments(filter),
+      Dictionary.findOne().sort({ srNumber: -1 }).select('srNumber').lean().catch(() => null),
+      dbQuery.lean()
+    ]);
+
+    const totalPages = Math.ceil(total / safeLimit) || 1;
+    const maxSrNumber = maxDoc?.srNumber ? Math.max(maxDoc.srNumber, 41427) : 41427;
     const data = items.map(formatItem);
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       message: 'Dictionary terms retrieved successfully.',
       count: data.length,
@@ -91,7 +94,9 @@ export const getDictionary = async (req, res, next) => {
       totalPages,
       currentPage: safePage,
       data
-    });
+    };
+    sharedApiCache.set(cacheKey, payload, DICTIONARY_CACHE_TTL_MS);
+    return res.status(200).json(payload);
   } catch (error) {
     next(error);
   }
@@ -107,7 +112,7 @@ export const getDictionaryById = async (req, res, next) => {
     if (!isNaN(Number(id))) query.$or.push({ srNumber: Number(id) });
     if (mongoose.Types.ObjectId.isValid(id)) query.$or.push({ _id: id });
 
-    const item = await Dictionary.findOne(query);
+    const item = await Dictionary.findOne(query).lean();
     if (!item) {
       return res.status(404).json({ success: false, message: `Dictionary item '${id}' not found.` });
     }
@@ -135,6 +140,8 @@ export const createDictionary = async (req, res, next) => {
     }
 
     await item.save();
+    sharedApiCache.invalidatePrefix('dictionary:');
+    sharedApiCache.invalidatePrefix('dashboard:');
     return res.status(201).json({ success: true, message: 'Dictionary entry added.', data: formatItem(item) });
   } catch (error) {
     next(error);
@@ -165,6 +172,8 @@ export const updateDictionary = async (req, res, next) => {
     }
 
     await item.save();
+    sharedApiCache.invalidatePrefix('dictionary:');
+    sharedApiCache.invalidatePrefix('dashboard:');
     return res.status(200).json({ success: true, message: 'Dictionary entry updated.', data: formatItem(item) });
   } catch (error) {
     next(error);
@@ -191,6 +200,8 @@ export const deleteDictionary = async (req, res, next) => {
     await item.save();
 
     await adjustSrOnDelete(Dictionary, item, { srField: 'srNumber', counterName: 'dictionary_sr_seq' });
+    sharedApiCache.invalidatePrefix('dictionary:');
+    sharedApiCache.invalidatePrefix('dashboard:');
 
     return res.status(200).json({ success: true, message: 'Dictionary entry deleted.' });
   } catch (error) {

@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
-import { UserProvider } from './contexts/UserContext'
+import { UserProvider, useUser } from './contexts/UserContext'
 import AuthLayout from './layouts/AuthLayout'
 import AdminLayout from './layouts/AdminLayout'
+import PublicDashboardLayout from './layouts/PublicDashboardLayout'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import Spinner from './components/ui/Spinner'
 import FloatingAiWatermark from './components/ui/FloatingAiWatermark'
@@ -17,6 +18,18 @@ const PaymentInstructionsPage = lazy(() => import('./pages/PaymentInstructionsPa
 const PaymentReviewApprovePage = lazy(() => import('./pages/PaymentReviewApprovePage'))
 const PaymentReviewRejectPage = lazy(() => import('./pages/PaymentReviewRejectPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+
+const HomeRoute = () => {
+  const { isAuthenticated } = useUser()
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
+  return (
+    <PublicDashboardLayout>
+      <DashboardPage isPublic />
+    </PublicDashboardLayout>
+  )
+}
 const ManageCasesPage = lazy(() => import('./pages/ManageCasesPage'))
 const AddCaseLawPage = lazy(() => import('./pages/AddCaseLawPage'))
 
@@ -86,6 +99,9 @@ function App() {
           <ErrorBoundary>
             <Suspense fallback={<div className="min-h-screen bg-brand-dark flex items-center justify-center"><Spinner size="lg" /></div>}>
               <Routes>
+            {/* Public Landing Route - Restricted Public Dashboard */}
+            <Route path="/" element={<HomeRoute />} />
+
             {/* Public Auth & Verification Routes */}
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
@@ -221,7 +237,7 @@ function App() {
             <Route path="/uploads/*" element={<AttachmentViewerRedirector />} />
             <Route path="/uploads" element={<AttachmentViewerRedirector />} />
 
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>
           </ErrorBoundary>

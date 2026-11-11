@@ -78,6 +78,9 @@ websiteUpdateSchema.index({
   url: 'text',
 });
 
+websiteUpdateSchema.index({ isDeleted: 1, dated: -1, createdAt: -1 });
+websiteUpdateSchema.index({ isDeleted: 1, srNumber: -1 });
+
 websiteUpdateSchema.pre(/^find/, function () {
   this.where({ isDeleted: { $ne: true } });
 });

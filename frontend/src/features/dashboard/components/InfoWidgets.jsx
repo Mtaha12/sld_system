@@ -7,8 +7,8 @@ import {
 import { Link } from 'react-router-dom';
 import whatsappLogo from '../../../assets/branding/dashboard/whatsapp.png';
 import youtubeLogo from '../../../assets/branding/dashboard/youtube.png';
-import sldBroucher from '../../../assets/branding/dashboard/sld_broucher.png';
-import sldEmailWhatsappBanner from '../../../assets/branding/dashboard/sld_email_whatsapp_banner.jpg';
+import sldBroucher from '../../../assets/branding/dashboard/sld_broucher.webp';
+import sldEmailWhatsappBanner from '../../../assets/branding/dashboard/sld_email_whatsapp_banner.webp';
 import Modal from '../../../components/ui/Modal';
 import AboutUsModal from './AboutUsModal';
 import { whatsappService } from '../../whatsapp/services/whatsappService';
@@ -112,7 +112,7 @@ const CompactAccountRow = ({ b }) => {
   );
 };
 
-const InfoWidgets = () => {
+const InfoWidgets = ({ summaryData = undefined, isPublic = false }) => {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isAboutUsModalOpen, setIsAboutUsModalOpen] = useState(false);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
@@ -125,6 +125,20 @@ const InfoWidgets = () => {
   const [currentUpdateIndex, setCurrentUpdateIndex] = useState(0);
 
   useEffect(() => {
+    if (summaryData && typeof summaryData === 'object') {
+      if (Array.isArray(summaryData.whatsappUpdates) && summaryData.whatsappUpdates.length > 0) {
+        setWhatsappUpdates(summaryData.whatsappUpdates);
+      }
+      if (Array.isArray(summaryData.youtube) && summaryData.youtube.length > 0) {
+        setYoutubeUpdates(summaryData.youtube);
+      }
+      if (Array.isArray(summaryData.updates) && summaryData.updates.length > 0) {
+        setWebsiteUpdates(summaryData.updates);
+      }
+      return;
+    }
+    if (isPublic || summaryData === null) return;
+
     let isMounted = true;
     const loadDashboardData = async () => {
       try {
@@ -149,7 +163,7 @@ const InfoWidgets = () => {
     };
     loadDashboardData();
     return () => { isMounted = false; };
-  }, []);
+  }, [summaryData, isPublic]);
 
   const currentList = activeUpdatesTab === 'whatsapp'
     ? (whatsappUpdates.length > 0 ? whatsappUpdates : fallbackWhatsappList)
@@ -422,12 +436,14 @@ const InfoWidgets = () => {
               </div>
             </div>
 
-            <Link
-              to={activeUpdatesTab === 'whatsapp' ? '/whatsapp-updates' : '/updates'}
-              className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-emerald-200 dark:border-emerald-800/40 rounded text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 hover:bg-emerald-50 transition-colors shrink-0"
-            >
-              See All <ArrowRight className="w-3 h-3" />
-            </Link>
+            {!isPublic && (
+              <Link
+                to={activeUpdatesTab === 'whatsapp' ? '/whatsapp-updates' : '/updates'}
+                className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-emerald-200 dark:border-emerald-800/40 rounded text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 hover:bg-emerald-50 transition-colors shrink-0"
+              >
+                See All <ArrowRight className="w-3 h-3" />
+              </Link>
+            )}
           </div>
 
           {/* Animated Slider of Live Records */}
@@ -523,12 +539,14 @@ const InfoWidgets = () => {
                   </button>
                 </div>
               )}
-              <Link
-                to="/youtube-updates"
-                className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-red-200 dark:border-red-800/40 rounded text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 hover:bg-red-50 hover:border-red-300 transition-colors shadow-2xs"
-              >
-                See All <ArrowRight className="w-3 h-3" />
-              </Link>
+              {!isPublic && (
+                <Link
+                  to="/youtube-updates"
+                  className="px-2 py-0.5 bg-white/90 dark:bg-theme-surface border border-red-200 dark:border-red-800/40 rounded text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 hover:bg-red-50 hover:border-red-300 transition-colors shadow-2xs"
+                >
+                  See All <ArrowRight className="w-3 h-3" />
+                </Link>
+              )}
             </div>
           </div>
 
@@ -546,6 +564,8 @@ const InfoWidgets = () => {
                   key={currentVideo.url || currentVideo.caption}
                   src={youtubeThumbnail}
                   alt={currentVideo.caption || "Youtube Thumbnail"}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-contain bg-black transition-all duration-500 group-hover:scale-102"
                 />
 
@@ -618,16 +638,18 @@ const InfoWidgets = () => {
               Official Email & WhatsApp Service Announcement
             </span>
             <div className="flex items-center gap-2">
-              <Link
-                to="/emails"
-                onClick={() => setIsContactModalOpen(false)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white rounded-lg transition-colors font-bold text-xs shadow-sm"
-              >
-                <Mail className="w-3.5 h-3.5" /> Browse Email Digests
-              </Link>
+              {!isPublic && (
+                <Link
+                  to="/emails"
+                  onClick={() => setIsContactModalOpen(false)}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#3d4a7a] hover:bg-[#2e3a6a] text-white rounded-lg transition-colors font-bold text-xs shadow-sm"
+                >
+                  <Mail className="w-3.5 h-3.5" /> Browse Email Digests
+                </Link>
+              )}
               <a
                 href={sldEmailWhatsappBanner}
-                download="SLD_Email_WhatsApp_Service.jpg"
+                download="SLD_Email_WhatsApp_Service.webp"
                 className="flex items-center gap-1.5 px-4 py-2 bg-[#f15a24] hover:bg-[#d44e35] text-white rounded-lg transition-colors font-bold text-xs shadow-sm"
               >
                 <Download className="w-3.5 h-3.5" /> Download Announcement
@@ -640,6 +662,8 @@ const InfoWidgets = () => {
           <img
             src={sldEmailWhatsappBanner}
             alt="SLD System Updating Service Through Email & WhatsApp"
+            loading="lazy"
+            decoding="async"
             className="w-full max-h-[75vh] object-contain rounded-xl border border-theme-border shadow-sm"
           />
         </div>
@@ -659,7 +683,7 @@ const InfoWidgets = () => {
         footer={
           <a
             href={sldBroucher}
-            download="SLD_Brochure.png"
+            download="SLD_Brochure.webp"
             className="flex items-center gap-2 px-4 py-2 bg-[#f15a24] text-white rounded-lg hover:bg-orange-600 transition-colors font-medium text-sm"
           >
             <Download className="w-4 h-4" /> Download Brochure
@@ -670,6 +694,8 @@ const InfoWidgets = () => {
           <img
             src={sldBroucher}
             alt="SLD Brochure"
+            loading="lazy"
+            decoding="async"
             className="max-w-full max-h-[70vh] object-contain rounded border border-gray-200 dark:border-theme-border shadow-sm"
           />
         </div>

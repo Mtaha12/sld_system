@@ -49,7 +49,7 @@ const detectTag = (title = '') => {
   return 'Gazette';
 };
 
-const NewsFeed = () => {
+const NewsFeed = ({ summaryData = undefined, isPublic = false }) => {
   const [activeTab, setActiveTab] = useState('news'); // 'news' (default) | 'updates'
   const [updatesList, setUpdatesList] = useState([]);
   const [newsList, setNewsList] = useState([]);
@@ -59,7 +59,7 @@ const NewsFeed = () => {
 
   const handleItemClick = async (item) => {
     setSelectedUpdate(item);
-    if (activeTab === 'news') {
+    if (activeTab === 'news' && !isPublic) {
       setIsLoadingDetail(true);
       try {
         const fullItem = await newsService.getNewsById(item.mongoId || item.id || item.srNumber);
@@ -79,6 +79,18 @@ const NewsFeed = () => {
   };
 
   useEffect(() => {
+    if (summaryData && typeof summaryData === 'object') {
+      if (Array.isArray(summaryData.updates) && summaryData.updates.length > 0) {
+        setUpdatesList(summaryData.updates.slice(0, 5));
+      }
+      if (Array.isArray(summaryData.news) && summaryData.news.length > 0) {
+        setNewsList(summaryData.news.slice(0, 5));
+      }
+      setIsLoading(false);
+      return;
+    }
+    if (isPublic || summaryData === null) return;
+
     let isMounted = true;
     const fetchFeeds = async () => {
       try {
@@ -101,7 +113,7 @@ const NewsFeed = () => {
     };
     fetchFeeds();
     return () => { isMounted = false; };
-  }, []);
+  }, [summaryData, isPublic]);
 
   const displayedItems = activeTab === 'updates'
       ? (updatesList.length > 0 ? updatesList.slice(0, 5) : fallbackUpdates.slice(0, 5))
@@ -154,13 +166,15 @@ const NewsFeed = () => {
           </button>
         </div>
 
-        <Link 
-          to={activeTab === 'updates' ? '/updates' : '/news'} 
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-brand-orange/40 hover:border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white text-xs font-medium transition-all group shrink-0"
-        >
-          <span>View all</span>
-          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
+        {!isPublic && (
+          <Link 
+            to={activeTab === 'updates' ? '/updates' : '/news'} 
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-brand-orange/40 hover:border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white text-xs font-medium transition-all group shrink-0"
+          >
+            <span>View all</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        )}
       </div>
 
       {/* Main Card Container */}
@@ -275,13 +289,15 @@ const NewsFeed = () => {
             </span>
           </div>
 
-          <Link
-            to={activeTab === 'updates' ? '/updates' : '/news'}
-            className="text-[11px] font-bold text-brand-orange hover:text-[#d44e35] flex items-center gap-1 transition-colors"
-          >
-            <span>Explore all</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
+          {!isPublic && (
+            <Link
+              to={activeTab === 'updates' ? '/updates' : '/news'}
+              className="text-[11px] font-bold text-brand-orange hover:text-[#d44e35] flex items-center gap-1 transition-colors"
+            >
+              <span>Explore all</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          )}
         </div>
 
       </div>
@@ -350,10 +366,22 @@ const NewsFeed = () => {
                   }}
                 />
               ) : (
-                <div className="p-5 rounded-xl bg-gray-50/50 dark:bg-theme-surface-alt/50 border border-theme-border text-center text-xs text-theme-muted italic">
-                  {selectedUpdate.url 
-                    ? 'Full text is hosted externally on official government portal. Click the button below to view.' 
-                    : 'Headline record retrieved from database.'}
+                <div className="p-5 rounded-xl bg-gray-50/50 dark:bg-theme-surface-alt/50 border border-theme-border text-center text-xs text-theme-muted space-y-2">
+                  <p className="italic">
+                    {selectedUpdate.url 
+                      ? 'Full text is hosted externally on official government portal. Click the button below to view.' 
+                      : (isPublic
+                        ? 'Headline summary retrieved. Sign in to view complete full-text news reports and archives.'
+                        : 'Headline record retrieved from database.')}
+                  </p>
+                  {isPublic && !selectedUpdate.url && (
+                    <Link
+                      to="/login"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#f15a24] text-white font-bold text-xs hover:bg-[#d94817] transition-colors"
+                    >
+                      Sign In to Read Full Archive
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

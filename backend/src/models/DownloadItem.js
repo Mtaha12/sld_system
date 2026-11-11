@@ -93,6 +93,9 @@ downloadItemSchema.index({
   detail: 'text',
 });
 
+downloadItemSchema.index({ isDeleted: 1, srNumber: -1 });
+downloadItemSchema.index({ isDeleted: 1, latest: 1, srNumber: -1 });
+
 downloadItemSchema.pre(/^find/, function () {
   this.where({ isDeleted: { $ne: true } });
 });

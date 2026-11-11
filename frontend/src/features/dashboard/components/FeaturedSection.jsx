@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Scale, Bell, Book, Landmark, ChevronLeft, ChevronRight, Circle } from 'lucide-react';
 import { statuteService } from '../../statutes/services/statuteService';
 import { notificationService } from '../../notifications/services/notificationService';
@@ -7,10 +8,12 @@ import { taxCardService } from '../../tax-cards/services/taxCardService';
 import { otherCaseService } from '../../cases/services/otherCaseService';
 import { caseService } from '../../cases/services/caseService';
 
-// Import local assets
-import oldLawBook from '../../../assets/branding/dashboard/old_law_book.png';
-import fbrSecp from '../../../assets/branding/dashboard/fbr_secp.png';
-import judgeHammer from '../../../assets/branding/dashboard/Judge_hammer_with_law_book.png';
+// Import compressed WebP local assets
+import oldLawBook from '../../../assets/branding/dashboard/old_law_book.webp';
+import fbrSecp from '../../../assets/branding/dashboard/fbr_secp.webp';
+import judgeHammer from '../../../assets/branding/dashboard/Judge_hammer_with_law_book.webp';
+import citationsJusticeImg from '../../../assets/branding/dashboard/citations_justice.webp';
+import financeActImg from '../../../assets/branding/dashboard/finance_act.webp';
 
 const fallbackCards = [
   {
@@ -18,7 +21,7 @@ const fallbackCards = [
     title: 'Citations',
     count: '550,000+',
     icon: Scale,
-    image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=400',
+    image: citationsJusticeImg,
     link: '/other-caselaws',
     items: []
   },
@@ -72,7 +75,7 @@ const fallbackCards = [
     title: 'Finance Act',
     count: '58',
     icon: Landmark,
-    image: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=400',
+    image: financeActImg,
     link: '/tax-cards/view/6abcf3cd6db78969163e4ae7',
     items: [
       { text: 'Tax Rates 2023-24 (Annual Income & Corporate Slabs)', link: '/tax-cards/view/6abcf3cd6db78969163e4ae7' },
@@ -84,7 +87,7 @@ const fallbackCards = [
   }
 ];
 
-const FeaturedSection = () => {
+const FeaturedSection = ({ summaryData = undefined, isPublic = false }) => {
   // Pre-seed with verified instant counts from cache so user NEVER sees 0 or delays
   const [cardsList, setCardsList] = useState(() => {
     return fallbackCards.map(card => {
@@ -93,15 +96,34 @@ const FeaturedSection = () => {
       else if (card.id === 'statutes') defaultCount = sessionStorage.getItem('dashboard_statutes_count_v2') || '3,000';
       else if (card.id === 'notifications') defaultCount = sessionStorage.getItem('dashboard_notifs_count_v2') || '30,000';
       else if (card.id === 'case_laws') defaultCount = sessionStorage.getItem('dashboard_citations_count_v2') || '550,000+';
-      else if (card.id === 'finance_act') defaultCount = sessionStorage.getItem('dashboard_finance_count') || '58';
+      else if (card.id === 'finance_act') defaultCount = isPublic ? 'Member' : (sessionStorage.getItem('dashboard_finance_count') || '58');
 
       return {
         ...card,
         count: defaultCount,
-        items: []
+        link: isPublic ? '/login' : card.link,
+        items: (card.id === 'finance_act' && isPublic)
+          ? [{ text: 'Finance Act & Annual Tax Rate Schedules — Sign in to view', link: '/login' }]
+          : []
       };
     });
   });
+
+  const [cardsPerView, setCardsPerView] = useState(() => {
+    if (typeof window === 'undefined') return 3;
+    if (window.innerWidth < 768) return 1;
+    if (window.innerWidth < 1280) return 2;
+    return 3;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      const next = window.innerWidth < 768 ? 1 : (window.innerWidth < 1280 ? 2 : 3);
+      setCardsPerView(prev => (prev === next ? prev : next));
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(true);
@@ -112,8 +134,75 @@ const FeaturedSection = () => {
     setCardsList(prev => prev.map(c => c.id === cardId ? patcher(c) : c));
   }, []);
 
-  // Fetch live latest entries asynchronously and INDEPENDENTLY so slow requests never block others
+  // Hydrate from consolidated /api/dashboard/public or /api/dashboard/summary response when passed by DashboardPage
   useEffect(() => {
+    if (!summaryData || typeof summaryData !== 'object') return;
+    const counts = summaryData.counts || {};
+    const toSafeLink = (authLink) => (isPublic ? '/login' : authLink);
+
+    if (Array.isArray(summaryData.statutes)) {
+      const totalStr = Number(counts.statutes ?? 3000).toLocaleString();
+      sessionStorage.setItem('dashboard_statutes_count_v2', totalStr);
+      const items = summaryData.statutes.slice(0, 5).map(s => ({
+        text: s.law ? `${s.law}${s.section ? ` - Sec. ${s.section}` : ''}` : (s.heading || `Statute Section #${s.srNumber}`),
+        link: toSafeLink(`/statutes/view/${s._id || s.statuteId || s.srNumber}`)
+      }));
+      updateCard('statutes', card => ({ ...card, count: totalStr, items, link: items[0]?.link || toSafeLink(card.link) }));
+    }
+
+    if (Array.isArray(summaryData.notifications)) {
+      const totalStr = Number(counts.notifications ?? 30000).toLocaleString();
+      sessionStorage.setItem('dashboard_notifs_count_v2', totalStr);
+      const items = summaryData.notifications.slice(0, 5).map(n => ({
+        text: n.subject || (n.number ? `Notification No. ${n.number} (${n.year || ''})` : `Notification #${n.srNumber}`),
+        link: toSafeLink(`/notifications/view/${n._id || n.notificationId || n.srNumber}`)
+      }));
+      updateCard('notifications', card => ({ ...card, count: totalStr, items, link: items[0]?.link || toSafeLink(card.link) }));
+    }
+
+    if (Array.isArray(summaryData.dictionary)) {
+      const dictTotal = Number(counts.dictionary || 41427).toLocaleString();
+      const items = summaryData.dictionary.slice(0, 5).map(d => ({
+        text: d.words ? `${d.words}${d.meaning ? `: ${d.meaning.slice(0, 60)}...` : ''}` : `Legal Term #${d.srNumber}`,
+        link: toSafeLink(`/dictionary/view/${d._id || d.dictionaryId || d.srNumber}`)
+      }));
+      updateCard('dictionary', card => ({ ...card, count: dictTotal, items, link: items[0]?.link || toSafeLink(card.link) }));
+    }
+
+    if (Array.isArray(summaryData.otherCases)) {
+      const citStr = Number(counts.citations) > 0
+        ? Number(counts.citations).toLocaleString()
+        : (sessionStorage.getItem('dashboard_citations_count_v2') || '550,000+');
+      if (Number(counts.citations) > 0) sessionStorage.setItem('dashboard_citations_count_v2', citStr);
+      const items = summaryData.otherCases.slice(0, 5).map(c => ({
+        text: c.caseNo || c.citation || c.parties,
+        link: toSafeLink(`/other-cases/view/${c.mongoId || c.id || c.otherCaseId || c.srNumber}`)
+      }));
+      updateCard('case_laws', card => ({ ...card, count: citStr, items, link: items[0]?.link || toSafeLink(card.link) }));
+    }
+
+    if (isPublic) {
+      updateCard('finance_act', card => ({
+        ...card,
+        count: 'Member',
+        link: '/login',
+        items: [{ text: 'Finance Act, Tax Cards & Rate Schedules — Sign in to view', link: '/login' }]
+      }));
+    } else if (Array.isArray(summaryData.taxCards)) {
+      const taxCount = Number(summaryData.taxCardsCount ?? summaryData.taxCards.length ?? 0);
+      const countStr = (taxCount || 58).toLocaleString();
+      sessionStorage.setItem('dashboard_finance_count', countStr);
+      const items = summaryData.taxCards.slice(0, 5).map(t => ({
+        text: t.heading || (t.year ? `Tax Rates & Schedule ${t.year}` : `Finance Schedule #${t.srNumber}`),
+        link: `/tax-cards/view/${t._id || t.taxCardId || t.srNumber}`
+      }));
+      updateCard('finance_act', card => ({ ...card, count: countStr, items, link: items[0]?.link || card.link }));
+    }
+  }, [summaryData, isPublic, updateCard]);
+
+  // Fallback legacy independent fetches ONLY when mounted standalone without summaryData prop
+  useEffect(() => {
+    if (isPublic || summaryData !== undefined) return;
     let isMounted = true;
 
     // 1. Statutes (Fixed baseline 3,000 + newly added records)
@@ -260,7 +349,7 @@ const FeaturedSection = () => {
       isMounted = false;
       if (retryTimerId) clearTimeout(retryTimerId);
     };
-  }, []);
+  }, [isPublic, summaryData]);
 
   // Duplicate cards for seamless loop
   const displayCards = [...cardsList, ...cardsList];
@@ -327,7 +416,7 @@ const FeaturedSection = () => {
           onTransitionEnd={handleTransitionEnd}
           className="flex h-full"
           style={{
-            transform: `translateX(calc(-${currentIndex} * (33.333333% + 16px)))`,
+            transform: `translateX(calc(-${currentIndex} * (${100 / cardsPerView}% + ${24 / cardsPerView}px)))`,
             transition: isTransitioning ? 'transform 0.5s ease-in-out' : 'none',
             gap: '24px'
           }}
@@ -336,20 +425,36 @@ const FeaturedSection = () => {
             <div 
               key={`${card.id}-${idx}`} 
               className="group flex flex-col bg-white dark:bg-theme-surface border border-theme-border rounded-xl overflow-hidden shadow-sm hover:border-[#f15a24]/50 hover:shadow-md transition-all flex-none relative"
-              style={{ width: 'calc(33.333333% - 16px)' }}
+              style={{ width: `calc(${100 / cardsPerView}% - ${((cardsPerView - 1) * 24) / cardsPerView}px)` }}
             >
               {/* Card Image Cover with Explore Button */}
               <div className="h-44 sm:h-48 w-full relative shrink-0 overflow-hidden bg-stone-100 dark:bg-stone-800">
-                <img src={card.image} alt={card.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <img
+                  src={card.image}
+                  alt={card.title}
+                  decoding="async"
+                  fetchPriority={idx < 3 ? 'high' : 'low'}
+                  loading={idx < 3 ? 'eager' : 'lazy'}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
                 <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                  <a 
-                    href={card.link} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="bg-[#f15a24] hover:bg-[#d94817] text-white px-5 py-2 rounded-full font-bold shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 text-xs sm:text-sm cursor-pointer"
-                  >
-                    View Document ↗
-                  </a>
+                  {isPublic ? (
+                    <Link
+                      to="/login"
+                      className="bg-[#f15a24] hover:bg-[#d94817] text-white px-5 py-2 rounded-full font-bold shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 text-xs sm:text-sm cursor-pointer"
+                    >
+                      Sign In to View ↗
+                    </Link>
+                  ) : (
+                    <a 
+                      href={card.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="bg-[#f15a24] hover:bg-[#d94817] text-white px-5 py-2 rounded-full font-bold shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 text-xs sm:text-sm cursor-pointer"
+                    >
+                      View Document ↗
+                    </a>
+                  )}
                 </div>
               </div>
 
@@ -372,33 +477,56 @@ const FeaturedSection = () => {
                     const itemLink = typeof item === 'string' ? card.link : item.link;
                     return (
                       <li key={itemIdx}>
-                        <a 
-                          href={itemLink} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="group/line flex items-start gap-2 p-1.5 -m-1 rounded-lg hover:bg-orange-50/90 dark:hover:bg-orange-950/30 transition-all cursor-pointer block"
-                          title={`Click to view document: "${itemText}" in new tab`}
-                        >
-                          <Circle className="w-1.5 h-1.5 text-[#f15a24] fill-[#f15a24] mt-1.5 shrink-0 group-hover/line:scale-125 transition-transform" />
-                          <span className="text-xs text-theme-main group-hover/line:text-[#f15a24] leading-snug line-clamp-2 transition-colors font-medium">
-                            {itemText}
-                          </span>
-                        </a>
+                        {isPublic ? (
+                          <Link
+                            to="/login"
+                            className="group/line flex items-start gap-2 p-1.5 -m-1 rounded-lg hover:bg-orange-50/90 dark:hover:bg-orange-950/30 transition-all cursor-pointer block"
+                            title="Sign in to view full document"
+                          >
+                            <Circle className="w-1.5 h-1.5 text-[#f15a24] fill-[#f15a24] mt-1.5 shrink-0 group-hover/line:scale-125 transition-transform" />
+                            <span className="text-xs text-theme-main group-hover/line:text-[#f15a24] leading-snug line-clamp-2 transition-colors font-medium">
+                              {itemText}
+                            </span>
+                          </Link>
+                        ) : (
+                          <a 
+                            href={itemLink} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="group/line flex items-start gap-2 p-1.5 -m-1 rounded-lg hover:bg-orange-50/90 dark:hover:bg-orange-950/30 transition-all cursor-pointer block"
+                            title={`Click to view document: "${itemText}" in new tab`}
+                          >
+                            <Circle className="w-1.5 h-1.5 text-[#f15a24] fill-[#f15a24] mt-1.5 shrink-0 group-hover/line:scale-125 transition-transform" />
+                            <span className="text-xs text-theme-main group-hover/line:text-[#f15a24] leading-snug line-clamp-2 transition-colors font-medium">
+                              {itemText}
+                            </span>
+                          </a>
+                        )}
                       </li>
                     );
                   })}
                 </ul>
                 
                 {/* View Document Link */}
-                <a 
-                  href={card.link} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-[#f15a24] text-xs font-bold hover:underline mt-auto flex items-center gap-1 group/all pt-2 border-t border-theme-border/50"
-                >
-                  <span>View Full Document</span>
-                  <ChevronRight className="w-3.5 h-3.5 group-hover/all:translate-x-0.5 transition-transform" />
-                </a>
+                {isPublic ? (
+                  <Link
+                    to="/login"
+                    className="text-[#f15a24] text-xs font-bold hover:underline mt-auto flex items-center gap-1 group/all pt-2 border-t border-theme-border/50"
+                  >
+                    <span>Sign In to View Full Document</span>
+                    <ChevronRight className="w-3.5 h-3.5 group-hover/all:translate-x-0.5 transition-transform" />
+                  </Link>
+                ) : (
+                  <a 
+                    href={card.link} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[#f15a24] text-xs font-bold hover:underline mt-auto flex items-center gap-1 group/all pt-2 border-t border-theme-border/50"
+                  >
+                    <span>View Full Document</span>
+                    <ChevronRight className="w-3.5 h-3.5 group-hover/all:translate-x-0.5 transition-transform" />
+                  </a>
+                )}
               </div>
             </div>
           ))}

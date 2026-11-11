@@ -12,6 +12,9 @@ import Statute from '../models/Statute.js';
 import Notification from '../models/Notification.js';
 import logger from '../utils/logger.js';
 import { PRIORITY_STATUTE_LAWS, sortLawDocsWithPriority } from '../utils/priorityOrdering.js';
+import sharedApiCache from '../utils/memoryCache.js';
+
+const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -571,6 +574,12 @@ export const deletePrinciple = async (req, res, next) => {
 export const getLaws = async (req, res, next) => {
   try {
     const { search = '', court = '', status = '', page, limit } = req.query;
+    const cacheKey = `settings:laws:${status}|${court}|${search}|${page || ''}|${limit || ''}`;
+    const cachedJson = sharedApiCache.get(cacheKey);
+    if (cachedJson) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).send(cachedJson);
+    }
 
     const filter = {};
     if (search.trim()) {
@@ -583,7 +592,7 @@ export const getLaws = async (req, res, next) => {
       filter.status = status.trim().toLowerCase();
     }
 
-    const total = await LawSetting.countDocuments(filter);
+    const isUnfiltered = Object.keys(filter).length === 0;
     let query = LawSetting.find(filter).select('name ordering court status').sort({ ordering: 1, name: 1 });
 
     if (page && limit) {
@@ -595,16 +604,24 @@ export const getLaws = async (req, res, next) => {
       query = query.limit(l);
     }
 
-    const rawLaws = await query.lean();
+    const [total, rawLaws] = await Promise.all([
+      isUnfiltered ? LawSetting.estimatedDocumentCount() : LawSetting.countDocuments(filter),
+      query.lean()
+    ]);
+
     const laws = (!page && !search.trim() && (!court.trim() || court === 'All' || court === 'all'))
       ? sortLawDocsWithPriority(rawLaws)
       : rawLaws;
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       total,
       data: laws,
-    });
+    };
+    const serialized = JSON.stringify(payload);
+    sharedApiCache.set(cacheKey, serialized, SETTINGS_CACHE_TTL_MS);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.status(200).send(serialized);
   } catch (err) {
     next(err);
   }
@@ -641,6 +658,7 @@ export const createLaw = async (req, res, next) => {
       court: court ? court.trim() : '',
       status: status === 'inactive' ? 'inactive' : 'active',
     });
+    sharedApiCache.invalidatePrefix('settings:laws:');
 
     let casesUpdated = 0;
     if (law.date) {
@@ -709,6 +727,7 @@ export const updateLaw = async (req, res, next) => {
     }
 
     await law.save();
+    sharedApiCache.invalidatePrefix('settings:laws:');
 
     // Propagate date (and name if changed) to all law cases where this law is used
     let casesUpdated = 0;
@@ -738,6 +757,7 @@ export const deleteLaw = async (req, res, next) => {
     if (!law) {
       return res.status(404).json({ success: false, message: 'Law / Statute not found' });
     }
+    sharedApiCache.invalidatePrefix('settings:laws:');
 
     return res.status(200).json({
       success: true,
@@ -767,6 +787,7 @@ export const swapLawOrdering = async (req, res, next) => {
     law2.ordering = temp;
     await law1.save();
     await law2.save();
+    sharedApiCache.invalidatePrefix('settings:laws:');
 
     return res.status(200).json({
       success: true,
@@ -785,6 +806,11 @@ export const swapLawOrdering = async (req, res, next) => {
 export const getLegalMaxims = async (req, res, next) => {
   try {
     const { search = '', status = '', letter = '', page, limit, all } = req.query;
+    const cacheKey = `settings:maxims:${all || ''}|${letter}|${status}|${search}|${page || ''}|${limit || ''}`;
+    const cached = sharedApiCache.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
 
     const filter = {};
     if (letter && letter.trim() && letter.trim().toUpperCase() !== 'ALL') {
@@ -810,7 +836,7 @@ export const getLegalMaxims = async (req, res, next) => {
       filter.status = status.trim().toLowerCase();
     }
 
-    const total = await LegalMaxim.countDocuments(filter);
+    const isUnfiltered = Object.keys(filter).length === 0;
     let query = LegalMaxim.find(filter).sort({ srNumber: 1, name: 1 });
 
     if (all === 'true') {
@@ -824,13 +850,18 @@ export const getLegalMaxims = async (req, res, next) => {
       query = query.limit(l);
     }
 
-    const maxims = await query.lean();
+    const [total, maxims] = await Promise.all([
+      isUnfiltered ? LegalMaxim.estimatedDocumentCount() : LegalMaxim.countDocuments(filter),
+      query.lean()
+    ]);
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       total,
       data: maxims,
-    });
+    };
+    sharedApiCache.set(cacheKey, payload, SETTINGS_CACHE_TTL_MS);
+    return res.status(200).json(payload);
   } catch (err) {
     next(err);
   }
@@ -859,6 +890,7 @@ export const createLegalMaxim = async (req, res, next) => {
       attachments: Array.isArray(attachments) ? attachments : [],
       citations: Array.isArray(citations) ? citations : [],
     });
+    sharedApiCache.invalidatePrefix('settings:maxims:');
 
     return res.status(201).json({
       success: true,
@@ -916,6 +948,7 @@ export const updateLegalMaxim = async (req, res, next) => {
     }
 
     await maxim.save();
+    sharedApiCache.invalidatePrefix('settings:maxims:');
 
     return res.status(200).json({
       success: true,
@@ -934,6 +967,7 @@ export const deleteLegalMaxim = async (req, res, next) => {
     if (!maxim) {
       return res.status(404).json({ success: false, message: 'Legal Maxim not found' });
     }
+    sharedApiCache.invalidatePrefix('settings:maxims:');
 
     return res.status(200).json({
       success: true,
@@ -952,6 +986,12 @@ export const deleteLegalMaxim = async (req, res, next) => {
 export const getSections = async (req, res, next) => {
   try {
     const { search = '', status = '', page, limit } = req.query;
+    const cacheKey = `settings:sections:${status}|${search}|${page || ''}|${limit || ''}`;
+    const cachedJson = sharedApiCache.get(cacheKey);
+    if (cachedJson) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).send(cachedJson);
+    }
 
     const filter = {};
     if (search.trim()) {
@@ -961,7 +1001,7 @@ export const getSections = async (req, res, next) => {
       filter.status = status.trim().toLowerCase();
     }
 
-    const total = await SectionSetting.countDocuments(filter);
+    const isUnfiltered = Object.keys(filter).length === 0;
     let query = SectionSetting.find(filter).select('name ordering law status').sort({ ordering: 1, name: 1 });
 
     if (page && limit) {
@@ -973,13 +1013,20 @@ export const getSections = async (req, res, next) => {
       query = query.limit(l);
     }
 
-    const sections = await query.lean();
+    const [total, sections] = await Promise.all([
+      isUnfiltered ? SectionSetting.estimatedDocumentCount() : SectionSetting.countDocuments(filter),
+      query.lean()
+    ]);
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       total,
       data: sections,
-    });
+    };
+    const serialized = JSON.stringify(payload);
+    sharedApiCache.set(cacheKey, serialized, SETTINGS_CACHE_TTL_MS);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.status(200).send(serialized);
   } catch (err) {
     next(err);
   }
@@ -1053,6 +1100,7 @@ export const createSection = async (req, res, next) => {
       law: law ? law.trim() : '',
       status: status === 'inactive' ? 'inactive' : 'active',
     });
+    sharedApiCache.invalidatePrefix('settings:sections:');
 
     return res.status(201).json({
       success: true,
@@ -1115,6 +1163,7 @@ export const updateSection = async (req, res, next) => {
     }
 
     await section.save();
+    sharedApiCache.invalidatePrefix('settings:sections:');
 
     return res.status(200).json({
       success: true,
@@ -1133,6 +1182,7 @@ export const deleteSection = async (req, res, next) => {
     if (!section) {
       return res.status(404).json({ success: false, message: 'Section not found' });
     }
+    sharedApiCache.invalidatePrefix('settings:sections:');
 
     return res.status(200).json({
       success: true,
@@ -1162,6 +1212,7 @@ export const swapSectionOrdering = async (req, res, next) => {
     s2.ordering = temp;
     await s1.save();
     await s2.save();
+    sharedApiCache.invalidatePrefix('settings:sections:');
 
     return res.status(200).json({
       success: true,

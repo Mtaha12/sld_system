@@ -33,6 +33,7 @@ const lawSettingSchema = new mongoose.Schema(
 );
 
 lawSettingSchema.index({ ordering: 1 });
+lawSettingSchema.index({ ordering: 1, name: 1 });
 lawSettingSchema.index({ status: 1 });
 
 const LawSetting = mongoose.model('LawSetting', lawSettingSchema);

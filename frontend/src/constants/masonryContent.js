@@ -1,9 +1,8 @@
-import oldLawBook from '../assets/branding/dashboard/old_law_book.png';
-import fbrSecp from '../assets/branding/dashboard/fbr_secp.png';
-import judgeHammer from '../assets/branding/dashboard/Judge_hammer_with_law_book.png';
-
-const citationsImg = 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=400';
-const financeActImg = 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=400';
+import oldLawBook from '../assets/branding/dashboard/old_law_book.webp';
+import fbrSecp from '../assets/branding/dashboard/fbr_secp.webp';
+import judgeHammer from '../assets/branding/dashboard/Judge_hammer_with_law_book.webp';
+import citationsImg from '../assets/branding/dashboard/citations_justice.webp';
+import financeActImg from '../assets/branding/dashboard/finance_act.webp';
 
 export const MASONRY_COLUMNS = [
   {

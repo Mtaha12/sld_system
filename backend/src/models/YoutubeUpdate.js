@@ -86,6 +86,9 @@ youtubeUpdateSchema.index({
   url: 'text',
 });
 
+youtubeUpdateSchema.index({ isDeleted: 1, dated: -1, createdAt: -1 });
+youtubeUpdateSchema.index({ isDeleted: 1, srNumber: -1 });
+
 youtubeUpdateSchema.pre(/^find/, function () {
   this.where({ isDeleted: { $ne: true } });
 });

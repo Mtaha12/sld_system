@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sparkles, ArrowUpRight } from 'lucide-react';
+import { useUser } from '../../contexts/UserContext';
 
 const FloatingAiWatermark = () => {
+  const { isAuthenticated } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [isHovered, setIsHovered] = useState(false);
@@ -100,6 +102,10 @@ const FloatingAiWatermark = () => {
     }
   };
 
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <>
       <style>{`
@@ -159,7 +165,7 @@ const FloatingAiWatermark = () => {
           <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full p-0.5 bg-gradient-to-tr from-cyan-600 via-blue-500 to-indigo-600 shadow-[0_0_20px_rgba(6,182,212,0.45)] group-hover:shadow-[0_0_28px_rgba(6,182,212,0.7)] group-hover:scale-108 transition-all duration-300 ease-out">
             <div className="w-full h-full rounded-full overflow-hidden bg-black flex items-center justify-center p-0.5 border border-cyan-400/50">
               <img 
-                src="/ai-q-search-logo.png" 
+                src="/ai-q-search-logo.webp" 
                 alt="AI Q Search All in One Logo" 
                 className="w-full h-full object-contain rounded-full group-hover:rotate-3 transition-transform duration-300 pointer-events-none"
                 loading="eager"

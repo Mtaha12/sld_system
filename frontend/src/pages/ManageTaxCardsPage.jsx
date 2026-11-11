@@ -30,7 +30,7 @@ const ManageTaxCardsPage = () => {
   const editId = urlSearchParams.get('edit');
 
   useEffect(() => {
-    if (!editId) return;
+    if (!editId || !isAdmin) return;
     let mounted = true;
     taxCardService.getTaxCardById(editId)
       .then(item => {
@@ -44,7 +44,7 @@ const ManageTaxCardsPage = () => {
         console.warn('Could not load tax card edit item:', err);
       });
     return () => { mounted = false; };
-  }, [editId]);
+  }, [editId, isAdmin]);
 
   const categoryTitle = useMemo(() => {
     if (rawCat === 'finance-act' || rawCat === 'finance act') {
@@ -56,14 +56,14 @@ const ManageTaxCardsPage = () => {
     if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return' || rawCat === 'tax returns') {
       return 'Tax Returns';
     }
-    return 'Finance Act';
+    return 'Tax Cards';
   }, [rawCat]);
 
   const addBtnLabel = useMemo(() => {
     if (rawCat === 'finance-act' || rawCat === 'finance act') return '+ Add Finance Act';
     if (rawCat === 'tax-rates' || rawCat === 'tax-rate' || rawCat === 'tax rates') return '+ Add Tax Rate';
     if (rawCat === 'tax-returns' || rawCat === 'tax-return' || rawCat === 'tax return') return '+ Add Tax Return';
-    return '+ Add Finance Act';
+    return '+ Add Tax Card';
   }, [rawCat]);
 
   const fetchTaxCards = useCallback(async (query = '') => {
@@ -111,7 +111,12 @@ const ManageTaxCardsPage = () => {
   }, [fetchTaxCards]);
 
   const displayedCards = useMemo(() => {
-    if (!rawCat) return taxCards;
+    if (!rawCat) {
+      return taxCards.filter(item => {
+        const cat = (item.category || '').toLowerCase();
+        return cat !== 'finance-act' && cat !== 'finance act' && cat !== 'tax-returns' && cat !== 'tax-return';
+      });
+    }
     const filtered = taxCards.filter(item => {
       const heading = (item.heading || '').toLowerCase();
       const cat = (item.category || '').toLowerCase();
@@ -126,8 +131,16 @@ const ManageTaxCardsPage = () => {
         return cat === 'tax-returns' || cat === 'tax-return' || cat === 'tax return' || heading.includes('return');
       }
       if (rawCat === 'tax-rates' || rawCat === 'tax-rate' || rawCat === 'tax rates') {
-        // Exclude finance acts and tax returns
-        if (heading.includes('finance act') || heading.includes('finance bill')) {
+        // Exclude finance acts and tax returns while keeping Tax Cards & Tax Rates shared
+        if (
+          cat === 'finance-act' ||
+          cat === 'finance act' ||
+          cat === 'tax-returns' ||
+          cat === 'tax-return' ||
+          cat === 'tax return' ||
+          heading.includes('finance act') ||
+          heading.includes('finance bill')
+        ) {
           return false;
         }
         return true;

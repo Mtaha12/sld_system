@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BookOpen, Layers, Type, Bookmark, Scale, Calculator } from 'lucide-react';
 import WarningAlert from '../features/dashboard/components/WarningAlert';
 import TickerBanner from '../features/dashboard/components/TickerBanner';
@@ -7,6 +8,7 @@ import NewsFeed from '../features/dashboard/components/NewsFeed';
 import InfoWidgets from '../features/dashboard/components/InfoWidgets';
 import BottomBanners from '../features/dashboard/components/BottomBanners';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
+import { dashboardService } from '../services/dashboardService';
 
 const REFERENCE_BUTTONS = [
   { key: 'articles', label: 'ARTICLES', count: '1,544', icon: BookOpen },
@@ -16,34 +18,73 @@ const REFERENCE_BUTTONS = [
   { key: 'maxims', label: 'MAXIMS', count: '1,124', icon: Scale },
 ];
 
-const DashboardPage = () => {
+const DashboardPage = ({ isPublic = false }) => {
+  const navigate = useNavigate();
+  const [summaryData, setSummaryData] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSummary = async () => {
+      try {
+        const data = isPublic
+          ? await dashboardService.getPublicSummary()
+          : await dashboardService.getAuthenticatedSummary();
+        if (isMounted && data) {
+          setSummaryData(data);
+        }
+      } catch (err) {
+        console.warn('[DashboardPage] Failed to load summary:', err);
+      }
+    };
+    loadSummary();
+    return () => { isMounted = false; };
+  }, [isPublic]);
+
   const handleOpenReference = (key) => {
+    if (isPublic) {
+      navigate('/login');
+      return;
+    }
     window.open(`/reference/${key}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
     <div className="flex flex-col h-full w-full animate-fade-in space-y-4 pb-4">
-      {/* ── 5 Quick-Access Reference Buttons (Opens in New Tab on Click) ── */}
+      {/* ── 5 Quick-Access Reference Buttons (Opens in New Tab on Click when signed in) ── */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200 dark:border-gray-700 px-3 py-2 flex items-center justify-between overflow-x-auto scrollbar-none gap-2">
         <div className="flex items-center gap-1 sm:gap-2 w-full justify-between sm:justify-start">
           {REFERENCE_BUTTONS.map((btn, idx) => (
             <React.Fragment key={btn.key}>
-              <a
-                href={`/reference/${btn.key}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleOpenReference(btn.key);
-                }}
-                className="group px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-extrabold tracking-wider text-emerald-800 dark:text-emerald-400 hover:text-emerald-950 dark:hover:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap active:scale-95 border-b-2 border-transparent hover:border-emerald-600"
-                title={`Open ${btn.label} Library in New Tab (${btn.count} entries)`}
-              >
-                <span>{btn.label}</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 group-hover:bg-emerald-200 font-mono shadow-2xs">
-                  {btn.count}
-                </span>
-              </a>
+              {isPublic ? (
+                <button
+                  type="button"
+                  onClick={() => handleOpenReference(btn.key)}
+                  className="group px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-extrabold tracking-wider text-emerald-800 dark:text-emerald-400 hover:text-emerald-950 dark:hover:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap active:scale-95 border-b-2 border-transparent hover:border-emerald-600"
+                  title={`Sign in to explore ${btn.label} Library (${btn.count} entries)`}
+                >
+                  <span>{btn.label}</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 group-hover:bg-emerald-200 font-mono shadow-2xs">
+                    {btn.count}
+                  </span>
+                </button>
+              ) : (
+                <a
+                  href={`/reference/${btn.key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleOpenReference(btn.key);
+                  }}
+                  className="group px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-extrabold tracking-wider text-emerald-800 dark:text-emerald-400 hover:text-emerald-950 dark:hover:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap active:scale-95 border-b-2 border-transparent hover:border-emerald-600"
+                  title={`Open ${btn.label} Library in New Tab (${btn.count} entries)`}
+                >
+                  <span>{btn.label}</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 group-hover:bg-emerald-200 font-mono shadow-2xs">
+                    {btn.count}
+                  </span>
+                </a>
+              )}
               {idx < REFERENCE_BUTTONS.length - 1 && (
                 <span className="text-gray-300 dark:text-gray-600 font-light select-none hidden sm:inline">|</span>
               )}
@@ -65,19 +106,19 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      <TickerBanner />
+      <TickerBanner updatesData={summaryData ? summaryData.updates : null} isPublic={isPublic} />
       <WarningAlert />
       
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1">
         <div className="xl:col-span-8 flex flex-col">
-          <FeaturedSection />
+          <FeaturedSection summaryData={summaryData} isPublic={isPublic} />
         </div>
         <div className="xl:col-span-4 flex flex-col">
-          <NewsFeed />
+          <NewsFeed summaryData={summaryData} isPublic={isPublic} />
         </div>
       </div>
       
-      <InfoWidgets />
+      <InfoWidgets summaryData={summaryData} isPublic={isPublic} />
       <BottomBanners />
       <AdminFooter />
     </div>

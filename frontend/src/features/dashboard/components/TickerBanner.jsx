@@ -10,11 +10,17 @@ const fallbackTickerItems = [
   { heading: 'S.R.O. 1245(I)/2026, Islamabad, the 31st July, 2026', dated: '2026-07-31' }
 ];
 
-const TickerBanner = () => {
+const TickerBanner = ({ updatesData = undefined, isPublic = false }) => {
   const [tickerItems, setTickerItems] = useState(fallbackTickerItems);
   const [scrollSpeed, setScrollSpeed] = useState(25);
 
   useEffect(() => {
+    if (Array.isArray(updatesData)) {
+      if (updatesData.length > 0) setTickerItems(updatesData);
+      return;
+    }
+    if (isPublic || updatesData === null) return;
+
     let isMounted = true;
     const fetchLiveUpdates = async () => {
       try {
@@ -28,18 +34,27 @@ const TickerBanner = () => {
     };
     fetchLiveUpdates();
     return () => { isMounted = false; };
-  }, []);
+  }, [updatesData, isPublic]);
 
   return (
     <div className="flex items-center bg-white dark:bg-theme-surface border border-theme-border rounded-lg shadow-sm overflow-hidden h-10">
-      <Link 
-        to="/manage-updates"
-        className="h-full bg-[#f15a24] hover:bg-[#d94816] text-white font-bold text-sm px-6 flex items-center shrink-0 relative z-10 transition-colors cursor-pointer"
-        style={{ clipPath: 'polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%)', paddingRight: '20px' }}
-        title="View all Manage Updates"
-      >
-        SLD System
-      </Link>
+      {isPublic ? (
+        <span
+          className="h-full bg-[#f15a24] text-white font-bold text-sm px-6 flex items-center shrink-0 relative z-10 select-none"
+          style={{ clipPath: 'polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%)', paddingRight: '20px' }}
+        >
+          SLD System
+        </span>
+      ) : (
+        <Link 
+          to="/manage-updates"
+          className="h-full bg-[#f15a24] hover:bg-[#d94816] text-white font-bold text-sm px-6 flex items-center shrink-0 relative z-10 transition-colors cursor-pointer"
+          style={{ clipPath: 'polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%)', paddingRight: '20px' }}
+          title="View all Manage Updates"
+        >
+          SLD System
+        </Link>
+      )}
       
       <style>
         {`
@@ -72,6 +87,11 @@ const TickerBanner = () => {
                       <span className="font-semibold text-[#f15a24]">⚡ UPDATE:</span> {item.heading || item.title}
                       {item.dated && <span className="text-gray-400 text-[10px]">({item.dated})</span>}
                     </a>
+                  ) : isPublic ? (
+                    <span className="mx-6 shrink-0 flex items-center gap-1.5">
+                      <span className="font-semibold text-[#f15a24]">⚡ UPDATE:</span> {item.heading || item.title}
+                      {item.dated && <span className="text-gray-400 text-[10px]">({item.dated})</span>}
+                    </span>
                   ) : (
                     <Link 
                       to="/manage-updates"
