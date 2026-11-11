@@ -8,6 +8,7 @@ import Modal from '../components/ui/Modal';
 import Pagination from '../components/ui/Pagination';
 import { formatWordDocumentDisplay } from '../utils/wordFormatter';
 import { compareSections } from '../utils/sectionComparator';
+import { sortLawsWithPriority } from '../utils/priorityOrdering';
 import { downloadOrViewAttachment, getAttachmentDisplayName, getAttachmentUrl as resolveBackendAttachmentUrl } from '../utils/attachmentDownloader';
 
 /* ── Shared form field styles ────────────────────────────────────────── */
@@ -163,8 +164,7 @@ const StatuteSearchPage = () => {
         }
       }
 
-      list.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
-      setLawOptions(list);
+      setLawOptions(sortLawsWithPriority(list, o => o.label));
     }).catch(err => {
       console.warn('Could not load laws for StatuteSearchPage:', err);
     });

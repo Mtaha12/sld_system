@@ -24,6 +24,7 @@ import { settingService } from '../../../services/settingService';
 import { courtService, magazineService } from '../../../services/adminSettingsServices';
 import CourtCombobox from './CourtCombobox';
 import SearchableCombobox from './SearchableCombobox';
+import { sortLawsWithPriority, sortMagazinesWithPriority } from '../../../utils/priorityOrdering';
 
 const safeDate = (val) => {
   if (!val) return null;
@@ -314,7 +315,8 @@ const AddCaseLawDetail = ({ onClose }) => {
     magazineService.getMagazines({ status: 'active' })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          const mags = res.data.map(m => ({ label: m.name.toUpperCase(), value: m.name.toLowerCase() }));
+          const orderedRaw = sortMagazinesWithPriority(res.data, m => m.name);
+          const mags = orderedRaw.map(m => ({ label: m.name.toUpperCase(), value: m.name.toLowerCase() }));
           setMagazineOptions(prev => {
             const list = [
               { label: 'Select Mag', value: '' },
@@ -341,19 +343,19 @@ const AddCaseLawDetail = ({ onClose }) => {
       });
 
     // Fetch dynamic Laws from backend
-    settingService.getLaws({ status: 'active', limit: 5000 })
+    settingService.getLaws({ status: 'active', limit: 10000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const fetched = res.data.map(l => ({ label: l.name, value: l.name }));
           const seen = new Set();
-          const merged = [{ label: 'Choose a law', value: '' }];
+          const collected = [];
           seen.add('');
 
           fetched.forEach(item => {
             const key = item.value.toLowerCase().trim();
             if (!seen.has(key)) {
               seen.add(key);
-              merged.push(item);
+              collected.push(item);
             }
           });
 
@@ -364,11 +366,12 @@ const AddCaseLawDetail = ({ onClose }) => {
             const key = val.toLowerCase();
             if (val && !seen.has(key)) {
               seen.add(key);
-              merged.push({ label: val, value: val });
+              collected.push({ label: val, value: val });
             }
           });
 
-          setDynamicLawOptions(merged);
+          const sorted = sortLawsWithPriority(collected, o => o.label);
+          setDynamicLawOptions([{ label: 'Choose a law', value: '' }, ...sorted]);
         }
       })
       .catch(err => {

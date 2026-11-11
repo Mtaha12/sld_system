@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import { sanitizeBlocksAttachments as sanitizeBlocksAttachmentsStorage, sanitizeAttachments } from '../utils/attachmentStorage.js';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 import { getBoardStatuteAndNotificationCounts, invalidateBoardCountsCache } from '../utils/dashboardBoardStats.js';
+import { sortLawNamesWithPriority } from '../utils/priorityOrdering.js';
 
 /**
  * Ensures sanitizeBlocksAttachments is safely defined in all execution environments
@@ -87,9 +88,9 @@ const getCachedDistinctLawList = async () => {
     return cachedDistinctLaws;
   }
   const laws = await Statute.distinct('law', { isDeleted: { $ne: true } });
-  const cleanLaws = Array.from(
-    new Set(laws.filter(Boolean).map(l => String(l).trim()).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b));
+  const cleanLaws = sortLawNamesWithPriority(
+    Array.from(new Set(laws.filter(Boolean).map(l => String(l).trim()).filter(Boolean)))
+  );
 
   cachedDistinctLaws = cleanLaws;
   cachedDistinctLawsExpiresAt = now + 10 * 60 * 1000;

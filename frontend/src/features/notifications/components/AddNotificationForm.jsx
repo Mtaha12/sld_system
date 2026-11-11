@@ -18,6 +18,7 @@ import { notificationService } from '../services/notificationService';
 import { downloadOrViewAttachment } from '../../../utils/attachmentDownloader';
 import { settingService } from '../../../services/settingService';
 import { ALL_SECTIONS } from '../../../data/sections';
+import { sortLawsWithPriority } from '../../../utils/priorityOrdering';
 
 /* ── Format date to YYYY-MM-DD for native input ────────────────── */
 const formatDateForInput = (val) => {
@@ -331,14 +332,11 @@ const AddNotificationForm = () => {
 
   useEffect(() => {
     let isMounted = true;
-    settingService.getLaws({ status: 'active', limit: 5000 })
+    settingService.getLaws({ status: 'active', limit: 10000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data)) {
-          const sorted = res.data
-            .map(l => l.name)
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-          setLawOptions(sorted);
+          const ordered = sortLawsWithPriority(res.data.map(l => l.name).filter(Boolean));
+          setLawOptions(ordered);
         }
       })
       .catch(err => {

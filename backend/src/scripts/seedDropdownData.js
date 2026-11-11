@@ -12,9 +12,12 @@ import { COURT_OPTIONS } from '../frontend/src/data/courts.js';
 import { LAW_OPTIONS } from '../frontend/src/data/laws.js';
 
 const HARDCODED_MAGAZINES = [
-  'SLD', 'PTD', 'TAX', 'CTR', 'PTCL', 'SCMR', 'CLD', 'PLD',
-  'PLC', 'PCRLJ', 'MLD', 'CLC', 'PLJ', 'ITR', 'AIR', 'SCC',
-  'YLR', 'NLR', 'KLR', 'TAXMAN', 'SBLR', 'PTR'
+  'SLD', 'PTD', 'TAX', 'PTCL', 'SCMR', 'CLD', 'PLC', 'ITR',
+  'PTR', 'PTCLR', 'TAX FORUM', 'TAXMAN', 'PLD', 'CLC', 'PLJ',
+  'PCRLJ', 'AIR', 'IHC', 'PDS', 'SCC', 'NLR', 'KLR', 'SBLR',
+  'LHC', 'SCAJK', 'PHC', 'SCP', 'SCR', 'SHC',
+  'PLJ (CIVIL NOTES)', 'PLJ (CRIM NOTES)',
+  'CTR', 'MLD', 'YLR', 'SLJ', 'PSC'
 ];
 
 const ADDITIONAL_COURTS = [

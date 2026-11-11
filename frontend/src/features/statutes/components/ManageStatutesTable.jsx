@@ -21,6 +21,7 @@ import SquareLoader from '../../../components/ui/SquareLoader';
 import Pagination from '../../../components/ui/Pagination';
 import { statuteService } from '../services/statuteService';
 import { compareSections } from '../../../utils/sectionComparator';
+import { sortLawsWithPriority } from '../../../utils/priorityOrdering';
 import { downloadOrViewAttachment, getAttachmentDisplayName } from '../../../utils/attachmentDownloader';
 
 const TableHeader = ({ title, sortKey, sortConfig, onSort, className }) => {
@@ -130,7 +131,7 @@ const ManageStatutesTable = ({
     statuteService.getDistinctLaws()
       .then(laws => {
         if (Array.isArray(laws) && laws.length > 0) {
-          setAvailableLaws(laws);
+          setAvailableLaws(sortLawsWithPriority(laws));
         }
       })
       .catch(err => console.warn('Could not load distinct laws:', err));

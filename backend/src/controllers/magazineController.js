@@ -1,30 +1,12 @@
 import Magazine from '../models/Magazine.js';
 import logger from '../utils/logger.js';
+import { PRIORITY_MAGAZINES, sortMagazineDocsWithPriority } from '../utils/priorityOrdering.js';
 
+const EXTRA_DEFAULT_MAGAZINES = ['CTR', 'YLR', 'MLD', 'SLJ', 'PSC'];
 const INITIAL_MAGAZINES = [
-  { name: 'SLD', ordering: 1, status: 'active' },
-  { name: 'PTD', ordering: 2, status: 'active' },
-  { name: 'TAX', ordering: 3, status: 'active' },
-  { name: 'CTR', ordering: 4, status: 'active' },
-  { name: 'PTCL', ordering: 5, status: 'active' },
-  { name: 'SCMR', ordering: 6, status: 'active' },
-  { name: 'CLD', ordering: 7, status: 'active' },
-  { name: 'PLD', ordering: 8, status: 'active' },
-  { name: 'PLC', ordering: 9, status: 'active' },
-  { name: 'PCRLJ', ordering: 10, status: 'active' },
-  { name: 'MLD', ordering: 11, status: 'active' },
-  { name: 'CLC', ordering: 12, status: 'active' },
-  { name: 'PLJ', ordering: 13, status: 'active' },
-  { name: 'ITR', ordering: 14, status: 'active' },
-  { name: 'AIR', ordering: 15, status: 'active' },
-  { name: 'SCC', ordering: 16, status: 'active' },
-  { name: 'YLR', ordering: 17, status: 'active' },
-  { name: 'NLR', ordering: 18, status: 'active' },
-  { name: 'KLR', ordering: 19, status: 'active' },
-  { name: 'TAXMAN', ordering: 20, status: 'active' },
-  { name: 'SBLR', ordering: 21, status: 'active' },
-  { name: 'PTR', ordering: 22, status: 'active' },
-];
+  ...PRIORITY_MAGAZINES,
+  ...EXTRA_DEFAULT_MAGAZINES
+].map((name, idx) => ({ name, ordering: idx + 1, status: 'active' }));
 
 export const getMagazines = async (req, res, next) => {
   try {
@@ -37,13 +19,16 @@ export const getMagazines = async (req, res, next) => {
 
     const query = {};
     if (search && search.trim()) {
-      query.name = { $regex: search.trim(), $options: 'i' };
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.name = { $regex: safeSearch, $options: 'i' };
     }
     if (status && status !== 'all') {
-      query.status = { $regex: `^${status.trim()}$`, $options: 'i' };
+      const safeStatus = status.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.status = { $regex: `^${safeStatus}$`, $options: 'i' };
     }
 
-    const magazines = await Magazine.find(query).sort({ ordering: 1, name: 1 });
+    const rawMagazines = await Magazine.find(query).sort({ ordering: 1, name: 1 }).lean();
+    const magazines = sortMagazineDocsWithPriority(rawMagazines);
     return res.status(200).json({
       success: true,
       total: magazines.length,

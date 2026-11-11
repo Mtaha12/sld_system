@@ -10,6 +10,7 @@ import DatePicker from '../components/ui/DatePicker';
 import { ALL_SECTIONS } from '../data/sections';
 import SearchableSectionSelect from '../components/ui/SearchableSectionSelect';
 import { formatCitations } from '../utils/citationFormatter';
+import { sortLawsWithPriority, sortMagazinesWithPriority } from '../utils/priorityOrdering';
 
 /* ── Shared form field styles ────────────────────────────────────────────── */
 const inp =
@@ -372,9 +373,8 @@ const SearchCaseLawPage = () => {
     magazineService.getMagazines({ status: 'active' })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          const sortedMags = res.data
-            .map(m => ({ value: m.name, label: m.name }))
-            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+          const sortedMags = sortMagazinesWithPriority(res.data, m => m.name)
+            .map(m => ({ value: m.name, label: m.name }));
           setMagazineOptions([
             { value: '', label: 'Select Magazine' },
             ...sortedMags
@@ -397,12 +397,11 @@ const SearchCaseLawPage = () => {
       })
       .catch(err => console.warn('Courts load warning:', err));
 
-    settingService.getLaws({ status: 'active', limit: 5000 })
+    settingService.getLaws({ status: 'active', limit: 10000 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          const fetchedLaws = res.data
-            .map(l => ({ value: l.name, label: l.name }))
-            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+          const fetchedLaws = sortLawsWithPriority(res.data, l => l.name)
+            .map(l => ({ value: l.name, label: l.name }));
           setLawOptions([
             { value: '', label: 'Select Law' },
             ...fetchedLaws

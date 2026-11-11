@@ -17,6 +17,7 @@ import { statuteSchema } from '../validation/statuteSchema';
 import { statuteService } from '../services/statuteService';
 import { settingService } from '../../../services/settingService';
 import { ALL_SECTIONS } from '../../../data/sections';
+import { sortLawsWithPriority } from '../../../utils/priorityOrdering';
 import { downloadOrViewAttachment, getAttachmentDisplayName } from '../../../utils/attachmentDownloader';
 
 const formatDateForInput = (d) => {
@@ -385,14 +386,22 @@ const AddStatuteForm = () => {
     let isMounted = true;
     Promise.all([
       statuteService.getDistinctLaws().catch(() => []),
-      settingService.getLaws({ status: 'active', limit: 5000 }).catch(() => ({ data: [] }))
+      settingService.getLaws({ status: 'active', limit: 10000 }).catch(() => ({ data: [] }))
     ]).then(([statuteLaws, settingsRes]) => {
       if (!isMounted) return;
       const settingsLaws = Array.isArray(settingsRes?.data) ? settingsRes.data.map(l => l.name).filter(Boolean) : [];
       const distinctStatuteLaws = Array.isArray(statuteLaws) ? statuteLaws.filter(Boolean) : [];
-      const combined = Array.from(new Set([...distinctStatuteLaws, ...settingsLaws]))
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-      setLawOptions(combined);
+      const seen = new Set();
+      const unique = [];
+      for (const raw of [...settingsLaws, ...distinctStatuteLaws]) {
+        const clean = String(raw).trim();
+        const key = clean.toLowerCase();
+        if (clean && !seen.has(key)) {
+          seen.add(key);
+          unique.push(clean);
+        }
+      }
+      setLawOptions(sortLawsWithPriority(unique));
     }).catch(err => {
       console.warn('Could not load dynamic laws for AddStatuteForm:', err);
     });

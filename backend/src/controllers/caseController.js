@@ -12,6 +12,7 @@ import path from 'path';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
 import { sanitizeAttachments as sanitizeAttachmentsStorage } from '../utils/attachmentStorage.js';
 import { cleanLegalPlainText } from '../utils/textSanitizer.js';
+import { expandMagazineSearchAliases } from '../utils/priorityOrdering.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -719,7 +720,10 @@ export const getCases = async (req, res, next) => {
     if (hasMag && hasYear) {
       const fy = fromYear ? String(fromYear).trim() : '';
       const ty = toYear ? String(toYear).trim() : '';
-      const magClean = escapeRegex(magazine.trim());
+      const magAliases = expandMagazineSearchAliases(magazine);
+      const magClean = magAliases.length > 1
+        ? `(?:${magAliases.map(escapeRegex).join('|')})`
+        : escapeRegex(magazine.trim());
 
       const elemMatchYear = {};
       if (fy && ty) {
@@ -803,7 +807,10 @@ export const getCases = async (req, res, next) => {
         }
       }
     } else if (hasMag) {
-      const magClean = escapeRegex(magazine.trim());
+      const magAliases = expandMagazineSearchAliases(magazine);
+      const magClean = magAliases.length > 1
+        ? `(?:${magAliases.map(escapeRegex).join('|')})`
+        : escapeRegex(magazine.trim());
       const magRegex = new RegExp(magClean, 'i');
       const magCondition = [
         { 'publications.mag': magRegex },
@@ -942,13 +949,17 @@ export const getMaxPage = async (req, res, next) => {
       });
     }
 
+    const maxPageMagAliases = expandMagazineSearchAliases(mag);
+    const maxPageMagPattern = maxPageMagAliases.length > 1
+      ? `^(?:${maxPageMagAliases.map(escapeRegex).join('|')})$`
+      : `^${escapeRegex(String(mag).trim())}$`;
     const result = await Case.aggregate([
       { $match: { isDeleted: false } },
       { $unwind: '$publications' },
       {
         $match: {
           'publications.year': String(year).trim(),
-          'publications.mag': { $regex: `^${escapeRegex(String(mag).trim())}$`, $options: 'i' }
+          'publications.mag': { $regex: maxPageMagPattern, $options: 'i' }
         }
       },
       {
@@ -1603,13 +1614,19 @@ export const searchCases = async (req, res, next) => {
       const yv = String(filters.yearVolume).trim();
       const mg = String(filters.magazine).trim();
       const pg = String(filters.page).trim();
-      const citPattern = new RegExp(`(^|\\s)${escapeRegex(yv)}\\s+${escapeRegex(mg)}\\s+${escapeRegex(pg)}(\\s|$)`, 'i');
-      const magVariants = [...new Set([
-        mg,
-        mg.toUpperCase(),
-        mg.toLowerCase(),
-        mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()
-      ])].filter(Boolean);
+      const magAliases = expandMagazineSearchAliases(mg);
+      const magCitPart = magAliases.length > 1
+        ? `(?:${magAliases.map(escapeRegex).join('|')})`
+        : escapeRegex(mg);
+      const citPattern = new RegExp(`(^|\\s)${escapeRegex(yv)}\\s+${magCitPart}\\s+${escapeRegex(pg)}(\\s|$)`, 'i');
+      const magVariants = [...new Set(
+        magAliases.flatMap(alias => [
+          alias,
+          alias.toUpperCase(),
+          alias.toLowerCase(),
+          alias.charAt(0).toUpperCase() + alias.slice(1).toLowerCase()
+        ])
+      )].filter(Boolean);
 
       andConditions.push({ 'publications.page': pg });
       andConditions.push({

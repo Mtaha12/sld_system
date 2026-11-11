@@ -17,6 +17,7 @@ import Button from '../../../components/ui/Button';
 import DatePicker from '../../../components/ui/DatePicker';
 import SearchableCombobox from '../../../components/ui/SearchableCombobox';
 import { magazineService } from '../../../services/adminSettingsServices';
+import { sortMagazinesWithPriority } from '../../../utils/priorityOrdering';
 
 const ManageCasesFilterBar = ({
   selectedCount = 0,
@@ -43,10 +44,7 @@ const ManageCasesFilterBar = ({
     magazineService.getMagazines({ status: 'active', limit: 200 })
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          const sorted = [...res.data].sort((a, b) => 
-            String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
-          );
-          setMagazineList(sorted);
+          setMagazineList(sortMagazinesWithPriority(res.data, m => m.name));
         }
       })
       .catch(err => console.warn('Could not load dynamic magazines for filter bar:', err));
@@ -57,16 +55,18 @@ const ManageCasesFilterBar = ({
     if (magazineList.length > 0) {
       return magazineList.map((m) => ({
         value: m.name,
-        label: `${m.name.toUpperCase()} ${m.description ? `(${m.description})` : ''}`
+        label: `${m.name.toUpperCase()} ${m.description ? `(${m.description})` : ''}`.trim()
       }));
     }
     return [
-      { value: 'CLC', label: 'Civil Law Cases (CLC)' },
-      { value: 'PLD', label: 'PLD' },
+      { value: 'SLD', label: 'SLD' },
       { value: 'PTD', label: 'PTD' },
-      { value: 'SCMR', label: 'Supreme Court Monthly Review (SCMR)' },
-      { value: 'SLD', label: 'SLD Law Report' },
-      { value: 'Tax', label: 'Tax Law Journal' }
+      { value: 'TAX', label: 'TAX' },
+      { value: 'PTCL', label: 'PTCL' },
+      { value: 'SCMR', label: 'SCMR' },
+      { value: 'CLD', label: 'CLD' },
+      { value: 'PLD', label: 'PLD' },
+      { value: 'CLC', label: 'CLC' }
     ];
   }, [magazineList]);
 

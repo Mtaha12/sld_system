@@ -11,6 +11,7 @@ import Case from '../models/Case.js';
 import Statute from '../models/Statute.js';
 import Notification from '../models/Notification.js';
 import logger from '../utils/logger.js';
+import { PRIORITY_STATUTE_LAWS, sortLawDocsWithPriority } from '../utils/priorityOrdering.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -278,19 +279,11 @@ const INITIAL_PRINCIPLES = [
   { name: 'Burden of proof on revenue authority alleging suppression of sales' }
 ];
 
-const INITIAL_LAWS = [
-  { name: 'Sindh Sales Tax Special Procedure (Services provided or rendered by cab aggregator and the services provided or rendered by the owners or drivers of the motor vehicles)', ordering: 130, court: 'Sindh High Court' },
-  { name: 'Income Tax Ordinance, 2001', ordering: 1, court: 'Supreme Court of Pakistan' },
-  { name: 'Sales Tax Act, 1990', ordering: 2, court: 'Supreme Court of Pakistan' },
-  { name: 'Customs Act, 1969', ordering: 3, court: 'High Court of Sindh' },
-  { name: 'Federal Excise Act, 2005', ordering: 4, court: 'Lahore High Court' },
-  { name: 'Income Tax Rules, 2002', ordering: 5, court: 'Appellate Tribunal Inland Revenue' },
-  { name: 'Sales Tax Rules, 2006', ordering: 6, court: 'Appellate Tribunal Inland Revenue' },
-  { name: 'Punjab Sales Tax on Services Act, 2012', ordering: 7, court: 'Lahore High Court' },
-  { name: 'Sindh Sales Tax on Services Act, 2011', ordering: 8, court: 'High Court of Sindh' },
-  { name: 'Tax Laws (Amendment) Ordinance, 2025', ordering: 9, court: 'Federal' },
-  { name: 'Stamp (Amendment) Ordinance, 2026', ordering: 50, court: 'Provincial' }
-];
+const INITIAL_LAWS = PRIORITY_STATUTE_LAWS.map((name, idx) => ({
+  name,
+  ordering: idx + 1,
+  court: 'Federal / Provincial'
+}));
 
 /**
  * Seed initial records if collections are empty
@@ -581,10 +574,10 @@ export const getLaws = async (req, res, next) => {
 
     const filter = {};
     if (search.trim()) {
-      filter.name = { $regex: search.trim(), $options: 'i' };
+      filter.name = { $regex: escapeRegex(search.trim()), $options: 'i' };
     }
     if (court.trim() && court !== 'All' && court !== 'all') {
-      filter.court = { $regex: court.trim(), $options: 'i' };
+      filter.court = { $regex: escapeRegex(court.trim()), $options: 'i' };
     }
     if (status.trim() && status !== 'All' && status !== 'all') {
       filter.status = status.trim().toLowerCase();
@@ -598,11 +591,14 @@ export const getLaws = async (req, res, next) => {
       const l = Math.max(1, parseInt(limit, 10) || 20);
       query = query.skip((p - 1) * l).limit(l);
     } else if (limit) {
-      const l = Math.max(1, parseInt(limit, 10) || 5000);
+      const l = Math.max(1, parseInt(limit, 10) || 10000);
       query = query.limit(l);
     }
 
-    const laws = await query.lean();
+    const rawLaws = await query.lean();
+    const laws = (!page && !search.trim() && (!court.trim() || court === 'All' || court === 'all'))
+      ? sortLawDocsWithPriority(rawLaws)
+      : rawLaws;
 
     return res.status(200).json({
       success: true,
