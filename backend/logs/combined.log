@@ -4465,3 +4465,34 @@
 {"level":"info","message":"[SR Auto-Adjust] Adjusting SR numbers in TaxCard after deleting SR #1...","service":"sld-backend-service","timestamp":"2026-11-11 22:44:27"}
 {"level":"info","message":"[SR Auto-Adjust] Successfully adjusted SR numbers for TaxCard. No missing SR numbers remain.","service":"sld-backend-service","timestamp":"2026-11-11 22:44:27"}
 {"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-11-11 22:44:35"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-11-11 23:42:09"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-11-11 23:42:09"}
+{"level":"info","message":"[SR Auto-Adjust] Adjusting SR numbers in TaxCard after deleting SR #1...","service":"sld-backend-service","timestamp":"2026-11-11 23:42:11"}
+{"level":"info","message":"[SR Auto-Adjust] Successfully adjusted SR numbers for TaxCard. No missing SR numbers remain.","service":"sld-backend-service","timestamp":"2026-11-11 23:42:11"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794422531047 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:42:11"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794422531047 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:42:11"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794422531047 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:42:12"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-11-11 23:42:15"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-11-11 23:51:02"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-11-11 23:51:02"}
+{"level":"info","message":"[SR Auto-Adjust] Adjusting SR numbers in TaxCard after deleting SR #1...","service":"sld-backend-service","timestamp":"2026-11-11 23:51:04"}
+{"level":"info","message":"[SR Auto-Adjust] Successfully adjusted SR numbers for TaxCard. No missing SR numbers remain.","service":"sld-backend-service","timestamp":"2026-11-11 23:51:04"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423064659 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:51:05"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423064659 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:51:05"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423064659 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:51:05"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-11-11 23:54:50"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-11-11 23:54:50"}
+{"level":"info","message":"[SR Auto-Adjust] Adjusting SR numbers in TaxCard after deleting SR #1...","service":"sld-backend-service","timestamp":"2026-11-11 23:54:51"}
+{"level":"info","message":"[SR Auto-Adjust] Successfully adjusted SR numbers for TaxCard. No missing SR numbers remain.","service":"sld-backend-service","timestamp":"2026-11-11 23:54:51"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423291756 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:54:52"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423291756 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:54:52"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423291756 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:54:52"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-11-11 23:54:55"}
+{"level":"info","message":"[SLD System Backend] Server listening on port 5000","service":"sld-backend-service","timestamp":"2026-11-11 23:59:35"}
+{"level":"info","message":"[Backfill] Starting system-wide Unique ID backfill check...","service":"sld-backend-service","timestamp":"2026-11-11 23:59:35"}
+{"level":"info","message":"[SR Auto-Adjust] Adjusting SR numbers in TaxCard after deleting SR #1...","service":"sld-backend-service","timestamp":"2026-11-11 23:59:37"}
+{"level":"info","message":"[SR Auto-Adjust] Successfully adjusted SR numbers for TaxCard. No missing SR numbers remain.","service":"sld-backend-service","timestamp":"2026-11-11 23:59:37"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423577318 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:59:38"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423577318 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:59:38"}
+{"level":"info","message":"[Login Success] User VerifyCase_1794423577318 logged in.","service":"sld-backend-service","timestamp":"2026-11-11 23:59:38"}
+{"level":"info","message":"[Backfill] System-wide Unique ID verification & backfill completed.","service":"sld-backend-service","timestamp":"2026-11-11 23:59:42"}

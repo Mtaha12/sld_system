@@ -4,6 +4,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import { sendAdminContactEmail } from '../../services/emailService.js';
 import logger from '../utils/logger.js';
 import { clearUserSessionCache } from '../middleware/authMiddleware.js';
+import { findUserByIdentifier, findExistingUserByUsername } from '../utils/userLookup.js';
 import nodemailer from 'nodemailer';
 
 /**
@@ -117,7 +118,7 @@ export const register = async (req, res, next) => {
       });
     }
 
-    const usernameExist = await User.findOne({ username });
+    const usernameExist = await findExistingUserByUsername(User, username);
     if (usernameExist) {
       return res.status(400).json({
         success: false,
@@ -285,13 +286,8 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Search by username or email for standard authentication
-    const user = await User.findOne({
-      $or: [
-        { email: cleanId },
-        { username: rawIdentifier }
-      ]
-    });
+    // Search by username, loginId, or email (case-insensitive); password remains strictly case-sensitive
+    const user = await findUserByIdentifier(User, rawIdentifier);
 
     if (!user) {
       return res.status(401).json({
@@ -397,13 +393,7 @@ export const lookupEmail = async (req, res, next) => {
     if (!identifier) {
       return res.status(400).json({ success: false, message: 'Identifier is required.' });
     }
-    const user = await User.findOne({
-      $or: [
-        { email: identifier.toLowerCase() },
-        { username: identifier },
-        { loginId: identifier }
-      ]
-    }).select('email username fullName');
+    const user = await findUserByIdentifier(User, identifier, {}, 'email username fullName');
 
     if (!user) {
       return res.status(200).json({ success: false, message: 'User not found' });
@@ -431,12 +421,7 @@ export const forgotPassword = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({
-      $or: [
-        { email: identifier.toLowerCase() },
-        { username: identifier }
-      ]
-    });
+    const user = await findUserByIdentifier(User, identifier);
 
     if (!user) {
       // Security best practice: don't disclose user doesn't exist
@@ -493,12 +478,7 @@ export const verifyResetOtp = async (req, res, next) => {
 
     let user;
     if (searchId) {
-      user = await User.findOne({
-        $or: [
-          { email: searchId.toLowerCase() },
-          { username: searchId }
-        ]
-      });
+      user = await findUserByIdentifier(User, searchId);
     } else {
       user = await User.findOne({
         resetPasswordToken: token,
@@ -595,11 +575,7 @@ export const resetPassword = async (req, res, next) => {
 
     let user;
     if (targetId) {
-      user = await User.findOne({
-        $or: [
-          { email: targetId.toLowerCase() },
-          { username: targetId }
-        ],
+      user = await findUserByIdentifier(User, targetId, {
         resetPasswordToken: resetCode,
         resetPasswordExpires: { $gt: new Date() }
       });
@@ -890,16 +866,18 @@ export const updateProfile = async (req, res, next) => {
       });
     }
 
-    // If changing username, check uniqueness
-    if (username && username !== user.username) {
-      const exist = await User.findOne({ username });
+    // If changing username, check uniqueness (case-insensitive)
+    if (username && username.trim().toLowerCase() !== (user.username || '').trim().toLowerCase()) {
+      const exist = await findExistingUserByUsername(User, username, user._id);
       if (exist) {
         return res.status(400).json({
           success: false,
           message: 'Username is already in use.'
         });
       }
-      user.username = username;
+      user.username = username.trim();
+    } else if (username && username.trim() !== user.username) {
+      user.username = username.trim();
     }
 
     if (fullName) user.fullName = fullName;

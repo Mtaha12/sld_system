@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import User from '../models/User.js';
 import PaymentSubmission from '../models/PaymentSubmission.js';
+import { findUserByIdentifier } from '../utils/userLookup.js';
 import ApprovalToken from '../models/ApprovalToken.js';
 import PaymentConfig from '../models/PaymentConfig.js';
 import { 
@@ -52,12 +53,7 @@ export const getPaymentStatus = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({
-      $or: [
-        { email: identifier.toLowerCase().trim() },
-        { username: identifier.trim() }
-      ]
-    });
+    const user = await findUserByIdentifier(User, identifier);
 
     if (!user) {
       return res.status(404).json({
@@ -124,12 +120,7 @@ export const uploadPaymentProof = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({
-      $or: [
-        { email: targetEmail.toLowerCase() },
-        { username: targetEmail }
-      ]
-    });
+    const user = await findUserByIdentifier(User, targetEmail);
 
     if (!user) {
       if (req.file?.path && fs.existsSync(req.file.path)) {

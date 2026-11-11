@@ -11,6 +11,10 @@ import ChatSession from '../models/ChatSession.js';
 import logger from '../utils/logger.js';
 import { parseAllAIAttachments } from '../utils/aiAttachmentParser.js';
 import {
+  getStoredOtherCaseUrl,
+  getPrimarySupremeCourtCandidateUrl
+} from '../utils/supremeCourtUrlResolver.js';
+import {
   checkIsCodeRequest,
   checkIsLegalDraftingRequest,
   generatePleadingDocument,
@@ -523,10 +527,13 @@ export const formatOtherCasesResponse = (results, queryText) => {
   for (let i = 0; i < results.length; i++) {
     const c = results[i];
     const docId = c._id || c.mongoId || c.otherCaseId;
-    const inlineDocUrl = `/api/other-cases/view-document?id=${encodeURIComponent(docId)}`;
+    const inlineDocUrl = docId ? `/api/other-cases/view-document?id=${encodeURIComponent(docId)}` : '';
 
-    const directLink = (c.downloadLink || c.caseNoLink);
-    const hasHttpDirect = directLink && String(directLink).startsWith('http');
+    const storedDirect = getStoredOtherCaseUrl(c);
+    const resolvedScpUrl = !storedDirect ? getPrimarySupremeCourtCandidateUrl(c) : '';
+    const directLink = storedDirect || resolvedScpUrl;
+    const hasHttpDirect = directLink && /^https?:\/\//i.test(String(directLink));
+    const canOpenViewer = Boolean(inlineDocUrl && (storedDirect || resolvedScpUrl));
 
     text += `---\n\n` +
       `### Judgment ${i + 1}: ${c.caseNo || 'Court Record'}\n` +
@@ -538,8 +545,10 @@ export const formatOtherCasesResponse = (results, queryText) => {
       (c.apexCourt ? `• **Apex Court**: ${c.apexCourt}\n` : '') +
       (c.apexStatus ? `• **Apex Status**: ${c.apexStatus}\n` : '') +
       (c.headNotes ? `\n#### 📜 Headnotes & Judicial Significance:\n${c.headNotes}\n\n` : '\n') +
-      `🔗 **Certified Judgment Document**: [View Certified Order in New Tab ↗](${inlineDocUrl})\n` +
-      (hasHttpDirect ? `• **Official Court Portal Link**: [Direct High Court Order Link ↗](${directLink})\n\n` : '\n');
+      (canOpenViewer
+        ? `🔗 **Certified Judgment Document**: [View Certified Order in New Tab ↗](${inlineDocUrl})\n`
+        : `🔗 **Certified Judgment Document**: Record metadata only (no downloadable document attached)\n`) +
+      (hasHttpDirect ? `• **Official Court Portal Link**: [Direct Court Order Link ↗](${directLink})\n\n` : '\n');
   }
 
   text += `*All records verified directly from the High Court Case Law & Orders database.*`;
@@ -2579,7 +2588,7 @@ export const extractCitationDetails = (text) => {
   const INVALID_JOURNAL_WORDS = new Set(['OF', 'TO', 'AND', 'OR', 'IN', 'AT', 'FOR', 'ON', 'CASE', 'NO', 'SEC', 'SECTION', 'VERSUS', 'VS', 'DATED', 'RULE', 'ORDER', 'ACT', 'WITH', 'CITATION', 'CITATIONS']);
 
   const PAKISTANI_LAW_JOURNALS = new Set([
-    'SLD', 'SCMR', 'PTD', 'CLD', 'PCRLJ', 'PLD', 'MLD', 'CLC', 'PLC', 'YLR', 'TAX', 'PLJ', 'ITR', 'KLR', 'CTR', 'ATR', 'PTCL', 'LN', 'NLR', 'AIR', 'ILR', 'PSC', 'GBLR'
+    'SLD', 'SCMR', 'PTD', 'CLD', 'PCRLJ', 'PLD', 'MLD', 'CLC', 'PLC', 'YLR', 'TAX', 'PLJ', 'ITR', 'KLR', 'CTR', 'ATR', 'PTCL', 'LN', 'NLR', 'AIR', 'ILR', 'PSC', 'GBLR', 'SCP', 'LHC', 'SHC', 'IHC', 'PHC', 'BHC'
   ]);
 
   // 1. Parenthesized year with volume: "(2011) 104 TAX 78" or "2011 104 TAX 78"
@@ -4668,15 +4677,36 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         } catch (pubErr) {}
       }
 
-      // 2. If no match in Case, check OtherCaseLaw for High Court citations (< 50ms)
+      // 2. If no match in Case, check OtherCaseLaw for Superior Court / High Court citations (< 5ms indexed lookup first)
       if (rawCitationCases.length === 0 && p && (y || v)) {
         try {
           const prefix = y || v;
-          const oclCitRegex = new RegExp(`\\b${prefix}\\s*${escapeRegex(m).replace(/\\s+/g, '\\s*')}\\.?\\s*0*${p}\\b`, 'i');
-          const oclCitMatches = await OtherCaseLaw.find({
-            citation: oclCitRegex,
-            isDeleted: { $ne: true }
-          }).limit(5).maxTimeMS(400).lean();
+          const cleanMag = escapeRegex(m).replace(/\\s+/g, '\\s*');
+          const exactCand = [
+            `${prefix} ${m.toUpperCase()} ${p}`,
+            `${prefix} ${m} ${p}`,
+            `${prefix} ${m.toUpperCase()} ${String(p).replace(/^0+/, '')}`,
+          ];
+          let oclCitMatches = await OtherCaseLaw.find({
+            citation: { $in: [...new Set(exactCand)] },
+            isDeleted: false
+          }).limit(5).maxTimeMS(1000).lean();
+
+          if (oclCitMatches.length === 0) {
+            const anchoredUpper = new RegExp(`^${escapeRegex(prefix)}\\s*${escapeRegex(m.toUpperCase()).replace(/\\s+/g, '\\s*')}\\.?\\s*0*${p}(?:$|[^0-9])`);
+            oclCitMatches = await OtherCaseLaw.find({
+              citation: anchoredUpper,
+              isDeleted: false
+            }).limit(5).maxTimeMS(1200).lean();
+          }
+
+          if (oclCitMatches.length === 0) {
+            const oclCitRegex = new RegExp(`\\b${prefix}\\s*${cleanMag}\\.?\\s*0*${p}\\b`, 'i');
+            oclCitMatches = await OtherCaseLaw.find({
+              citation: oclCitRegex,
+              isDeleted: { $ne: true }
+            }).limit(5).maxTimeMS(1500).lean();
+          }
 
           if (oclCitMatches.length > 0) {
             const otherReplyText = formatOtherCasesResponse(oclCitMatches, cleanQuery);

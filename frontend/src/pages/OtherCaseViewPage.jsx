@@ -102,6 +102,7 @@ const OtherCaseViewPage = () => {
 
   const targetDocId = caseData.mongoId || caseData.id || caseData.otherCaseId || caseData.srNumber;
   const hasDoc = Boolean(
+    caseData.hasDocument ||
     (caseData.caseNoLink && caseData.caseNoLink.trim() && caseData.caseNoLink !== 'Nil') ||
     (caseData.downloadLink && caseData.downloadLink.trim() && caseData.downloadLink !== 'Nil') ||
     (caseData.attachment && caseData.attachment.trim() && caseData.attachment !== 'Nil')

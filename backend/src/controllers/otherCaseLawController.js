@@ -4,40 +4,51 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { adjustSrOnDelete } from '../utils/resequenceSr.js';
-import { getCandidateUploadRoots } from '../utils/attachmentStorage.js';
+import { getCandidateUploadRoots, resolveUploadFilePath } from '../utils/attachmentStorage.js';
+import {
+  getStoredOtherCaseUrl,
+  getPrimarySupremeCourtCandidateUrl,
+  isLikelySupremeCourtRecord,
+  resolveAndFetchSupremeCourtPdf
+} from '../utils/supremeCourtUrlResolver.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
   return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-const formatItem = (d) => ({
-  id: d.srNumber ? d.srNumber.toString() : (d.otherCaseId || d._id.toString()),
-  mongoId: d._id.toString(),
-  otherCaseId: d.otherCaseId || d.other_case_id || '',
-  srNumber: d.srNumber || 1,
-  citation: d.citation || 'Nil',
-  caseNo: d.caseNo || '',
-  caseNoLink: d.caseNoLink || '',
-  caseYear: d.caseYear || '',
-  parties: d.parties || d.caseTitle || '',
-  caseTitle: d.caseTitle || d.parties || '',
-  orderDate: d.orderDate || d.judgmentDate || '',
-  judgmentDate: d.judgmentDate || d.orderDate || '',
-  headNotes: d.headNotes || d.notes || '',
-  bench: d.bench || d.authorJudge || '',
-  authorJudge: d.authorJudge || d.bench || '',
-  apexCourt: d.apexCourt || '',
-  apexStatus: d.apexStatus || '',
-  downloadLink: d.downloadLink || d.caseNoLink || d.attachment || '',
-  attachment: d.attachment || d.downloadLink || '',
-  attachmentName: d.attachmentName || (d.caseNo ? `${d.caseNo}.pdf` : 'Certified_Order.pdf'),
-  attachmentSize: d.attachmentSize || '',
-  notes: d.notes || d.headNotes || '',
-  orderPriority: d.orderPriority || '',
-  createdAt: d.createdAt,
-  updatedAt: d.updatedAt
-})/**
+const formatItem = (d) => {
+  const storedLink = getStoredOtherCaseUrl(d);
+  const hasDoc = Boolean(storedLink || getPrimarySupremeCourtCandidateUrl(d));
+  return {
+    id: d.srNumber ? d.srNumber.toString() : (d.otherCaseId || d._id.toString()),
+    mongoId: d._id.toString(),
+    otherCaseId: d.otherCaseId || d.other_case_id || '',
+    srNumber: d.srNumber || 1,
+    citation: d.citation || 'Nil',
+    caseNo: d.caseNo || '',
+    caseNoLink: d.caseNoLink || '',
+    caseYear: d.caseYear || '',
+    parties: d.parties || d.caseTitle || '',
+    caseTitle: d.caseTitle || d.parties || '',
+    orderDate: d.orderDate || d.judgmentDate || '',
+    judgmentDate: d.judgmentDate || d.orderDate || '',
+    headNotes: d.headNotes || d.notes || '',
+    bench: d.bench || d.authorJudge || '',
+    authorJudge: d.authorJudge || d.bench || '',
+    apexCourt: d.apexCourt || '',
+    apexStatus: d.apexStatus || '',
+    downloadLink: d.downloadLink || d.caseNoLink || d.attachment || '',
+    attachment: d.attachment || d.downloadLink || '',
+    hasDocument: hasDoc,
+    attachmentName: d.attachmentName || (d.caseNo ? `${d.caseNo}.pdf` : 'Certified_Order.pdf'),
+    attachmentSize: d.attachmentSize || '',
+    notes: d.notes || d.headNotes || '',
+    orderPriority: d.orderPriority || '',
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt
+  };
+};/**
  * High-speed In-Memory Cache for Other Case Laws (< 1ms)
  */
 const oclDetailCache = new Map();
@@ -413,18 +424,38 @@ export const deleteOtherCaseLaw = async (req, res, next) => {
   }
 };
 
+const sendInlinePdfFile = (res, filePath, size, caseTitle) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${caseTitle}.pdf"`);
+  res.setHeader('Content-Length', size);
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  return fs.createReadStream(filePath).pipe(res);
+};
+
+const sendInlinePdfBuffer = (res, buffer, contentType, caseTitle) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Content-Type', contentType.includes('pdf') ? 'application/pdf' : contentType);
+  res.setHeader('Content-Disposition', `inline; filename="${caseTitle}.pdf"`);
+  res.setHeader('Content-Length', buffer.length);
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  return res.end(buffer);
+};
+
 /**
  * Streams the original judgment document inline so the browser displays it in the tab WITHOUT downloading
  */
 export const viewOtherCaseDocument = async (req, res, next) => {
   let targetUrl = null;
   let caseTitle = 'Case_Document';
+  let doc = null;
   try {
     const { id, url } = req.query;
     targetUrl = url ? decodeURIComponent(url) : null;
 
     if (id) {
-      let doc = null;
       if (mongoose.Types.ObjectId.isValid(id)) {
         doc = await OtherCaseLaw.findById(id).lean();
       }
@@ -434,12 +465,59 @@ export const viewOtherCaseDocument = async (req, res, next) => {
         }).lean();
       }
       if (doc) {
-        targetUrl = doc.caseNoLink || doc.downloadLink || doc.attachment;
+        targetUrl = getStoredOtherCaseUrl(doc);
         if (doc.caseNo) caseTitle = doc.caseNo.replace(/[^a-zA-Z0-9_\-]/g, '_');
       }
     }
 
+    const cacheDir = path.join(getCandidateUploadRoots()[0], 'court_cache');
+    if (!fs.existsSync(cacheDir)) {
+      try { fs.mkdirSync(cacheDir, { recursive: true }); } catch (e) {}
+    }
+
+    // Support locally uploaded PDF files stored under /uploads/...
+    if (targetUrl && !/^https?:\/\//i.test(targetUrl)) {
+      const localPath = resolveUploadFilePath(targetUrl);
+      if (localPath && fs.existsSync(localPath)) {
+        const stats = fs.statSync(localPath);
+        return sendInlinePdfFile(res, localPath, stats.size, caseTitle);
+      }
+      targetUrl = '';
+    }
+
+    // Dynamically resolve and cache Supreme Court judgment PDFs when DB link fields are empty
+    if ((!targetUrl || targetUrl === 'Nil') && doc && isLikelySupremeCourtRecord(doc)) {
+      const resolvedSc = await resolveAndFetchSupremeCourtPdf(doc, { cacheDir });
+      if (resolvedSc) {
+        try {
+          await OtherCaseLaw.updateOne(
+            { _id: doc._id },
+            {
+              $set: {
+                caseNoLink: resolvedSc.url,
+                downloadLink: resolvedSc.url,
+                attachment: resolvedSc.url,
+              },
+            }
+          );
+          oclDetailCache.clear();
+        } catch {}
+
+        if (resolvedSc.fromCache) {
+          return sendInlinePdfFile(res, resolvedSc.cacheFilePath, resolvedSc.size, caseTitle);
+        }
+
+        const urlHash = crypto.createHash('md5').update(resolvedSc.url).digest('hex');
+        const cacheFilePath = path.join(cacheDir, `${urlHash}.pdf`);
+        try {
+          fs.writeFile(cacheFilePath, resolvedSc.buffer, () => {});
+        } catch {}
+        return sendInlinePdfBuffer(res, resolvedSc.buffer, resolvedSc.contentType, caseTitle);
+      }
+    }
+
     if (!targetUrl || targetUrl === 'Nil') {
+      const isScp = isLikelySupremeCourtRecord(doc);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.status(404).send(`
         <!DOCTYPE html>
@@ -458,7 +536,12 @@ export const viewOtherCaseDocument = async (req, res, next) => {
             <div class="card">
               <div style="font-size: 40px; margin-bottom: 12px;">📁</div>
               <h2 style="color: #e55c41; margin: 0 0 8px 0; font-size: 19px;">No Document Link Available</h2>
-              <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">No external certified judgment URL is recorded for this case in the database archives.</p>
+              <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">${
+                isScp
+                  ? `No verified PDF judgment URL was found on the Supreme Court server for <strong>${(doc?.caseNo || 'this case').replace(/[<>&"]/g, '')}</strong>.`
+                  : 'No external certified judgment URL is recorded for this case in the database archives.'
+              }</p>
+              ${isScp ? `<a href="https://www.supremecourt.gov.pk/judgement-search/" target="_blank" rel="noopener noreferrer" class="btn" style="background: #e55c41; color: white;">Search Supreme Court Portal</a>` : ''}
               <button onclick="window.close()" class="btn" style="background: #e2e8f0; color: #334155;">Close Tab</button>
             </div>
           </body>
@@ -467,10 +550,6 @@ export const viewOtherCaseDocument = async (req, res, next) => {
     }
 
     // Check disk cache first for instant response without court latency
-    const cacheDir = path.join(getCandidateUploadRoots()[0], 'court_cache');
-    if (!fs.existsSync(cacheDir)) {
-      try { fs.mkdirSync(cacheDir, { recursive: true }); } catch (e) {}
-    }
     const urlHash = crypto.createHash('md5').update(targetUrl).digest('hex');
     const cacheFilePath = path.join(cacheDir, `${urlHash}.pdf`);
 
@@ -478,14 +557,7 @@ export const viewOtherCaseDocument = async (req, res, next) => {
       try {
         const stats = fs.statSync(cacheFilePath);
         if (stats.size > 1000) {
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', `inline; filename="${caseTitle}.pdf"`);
-          res.setHeader('Content-Length', stats.size);
-          res.setHeader('Cache-Control', 'public, max-age=604800');
-          const stream = fs.createReadStream(cacheFilePath);
-          return stream.pipe(res);
+          return sendInlinePdfFile(res, cacheFilePath, stats.size, caseTitle);
         }
       } catch (err) {
         console.warn('[viewOtherCaseDocument] Cache read failed, fetching fresh:', err.message);
@@ -575,13 +647,7 @@ export const viewOtherCaseDocument = async (req, res, next) => {
       } catch (err) {}
     }
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Content-Type', contentType.includes('pdf') ? 'application/pdf' : contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${caseTitle}.pdf"`);
-    res.setHeader('Content-Length', buffer.length);
-    res.setHeader('Cache-Control', 'public, max-age=604800');
-    return res.end(buffer);
+    return sendInlinePdfBuffer(res, buffer, contentType, caseTitle);
   } catch (err) {
     const isTimeout = err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('aborted');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');

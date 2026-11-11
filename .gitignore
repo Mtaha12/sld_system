@@ -15,4 +15,6 @@ backend/scratch/
 !backend/src/scripts/vps_judgments_delta.json.gz
 *.html
 *_files/
+# Runtime logs and cached remote PDFs
 logs/*.log
+backend/uploads/court_cache/

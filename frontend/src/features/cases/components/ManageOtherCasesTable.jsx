@@ -177,9 +177,12 @@ const ManageOtherCasesTable = ({
               ) : cases.length > 0 ? (
                 cases.map((item, idx) => {
                   const targetDocId = item.mongoId || item.id || item.otherCaseId || item.srNumber;
-                  const hasDoc = (item.caseNoLink && item.caseNoLink.trim() && item.caseNoLink !== 'Nil') ||
-                                 (item.downloadLink && item.downloadLink.trim() && item.downloadLink !== 'Nil') ||
-                                 (item.attachment && item.attachment.trim() && item.attachment !== 'Nil');
+                  const hasDoc = Boolean(
+                    item.hasDocument ||
+                    (item.caseNoLink && item.caseNoLink.trim() && item.caseNoLink !== 'Nil') ||
+                    (item.downloadLink && item.downloadLink.trim() && item.downloadLink !== 'Nil') ||
+                    (item.attachment && item.attachment.trim() && item.attachment !== 'Nil')
+                  );
                   const documentUrl = hasDoc && targetDocId ? getOtherCaseDocumentUrl(targetDocId) : null;
 
                   return (
