@@ -1,7 +1,16 @@
 import axios from 'axios';
 
-// Default to backend port 5000 in dev; sanitize for Vercel production deployment
-const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+// Resolve backend URL cleanly across local dev, Vercel env builds, and VPS static builds
+const resolveDefaultApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    if (host.endsWith('sldsystem.com')) return 'https://api.sldsystem.com';
+    if (host.endsWith('sldsystemspk.com')) return 'https://api.sldsystemspk.com';
+  }
+  return 'http://localhost:5000';
+};
+
+const rawApiUrl = (import.meta.env.VITE_API_URL || resolveDefaultApiUrl()).trim().replace(/\/+$/, '');
 const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl.slice(0, -4) : rawApiUrl;
 
 const api = axios.create({

@@ -12,8 +12,10 @@ import { detectContentTypeForFile, getCandidateUploadRoots, resolveUploadFilePat
 import { buildAttachmentPreview } from './src/utils/attachmentPreview.js';
 import { protect } from './src/middleware/authMiddleware.js';
 
-// Configure public DNS servers to resolve MongoDB Atlas SRV/TXT records securely
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+// Configure public DNS servers cleanly when available (prevents SRV resolution hiccups without breaking restricted VPS DNS)
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (_) {}
 
 // Configurations & Infrastructure
 import connectDB from './src/config/db.js';
@@ -76,13 +78,34 @@ app.use(helmet({
   crossOriginResourcePolicy: false // Allows loading local resources if needed
 }));
 
-// CORS Configuration - Supports Vercel deployments, custom domains, and local dev
+// CORS Configuration - Supports production domains (apex + www), Vercel deployments, and local dev
+const expandDomainVariants = (rawUrl) => {
+  const clean = String(rawUrl || '').trim().replace(/\/+$/, '');
+  if (!clean) return [];
+  const list = [clean];
+  try {
+    const parsed = new URL(clean);
+    if (parsed.hostname.startsWith('www.')) {
+      list.push(`${parsed.protocol}//${parsed.hostname.slice(4)}${parsed.port ? `:${parsed.port}` : ''}`);
+    } else if (parsed.hostname.includes('.') && !parsed.hostname.startsWith('localhost')) {
+      list.push(`${parsed.protocol}//www.${parsed.hostname}${parsed.port ? `:${parsed.port}` : ''}`);
+    }
+  } catch (_) {}
+  return list;
+};
+
 const clientEnvUrls = (process.env.CLIENT_URL || '')
   .split(',')
-  .map(url => url.trim().replace(/\/+$/, ''))
+  .flatMap(expandDomainVariants)
   .filter(Boolean);
 
 const defaultAllowed = [
+  'https://sldsystem.com',
+  'https://www.sldsystem.com',
+  'https://sldsystemspk.com',
+  'https://www.sldsystemspk.com',
+  'https://api.sldsystem.com',
+  'https://api.sldsystemspk.com',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:3000',
@@ -102,6 +125,11 @@ app.use(cors({
     // Explicitly allowed origins
     if (allowedOriginsSet.has(origin)) return callback(null, true);
 
+    // Allow official SLD System domains & subdomains over HTTPS
+    if (/^https:\/\/(?:[a-zA-Z0-9-]+\.)*sldsystem(?:spk)?\.com$/.test(origin)) {
+      return callback(null, true);
+    }
+
     // Allow all Vercel deployments (*.vercel.app)
     if (/^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(origin)) {
       return callback(null, true);
@@ -112,8 +140,8 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // Reject credentialed requests from origins outside the allowlist.
-    callback(new Error('Origin is not allowed by CORS'));
+    // Deny untrusted browser origins cleanly via standard CORS without throwing an internal 500 error
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -142,11 +170,14 @@ app.use('/api', globalLimiter);
 app.use('/api/chat', chatLimiter);
 app.use('/api/ai-chat', chatLimiter);
 
-// Health Check Endpoint
+// Health Check Endpoint (also reports live MongoDB readiness)
 app.get('/api/health', (req, res) => {
+  const readyState = mongoose.connection.readyState;
   res.status(200).json({
     success: true,
     status: 'online',
+    dbConnected: readyState === 1,
+    dbState: readyState,
     timestamp: new Date().toISOString(),
     service: 'SLD System API Portal'
   });

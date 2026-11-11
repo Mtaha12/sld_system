@@ -2,60 +2,129 @@ import mongoose from 'mongoose';
 import { backfillAllMissingUniqueIds } from '../utils/backfillUniqueIds.js';
 import { computeAndPersistCitationStats } from '../controllers/caseController.js';
 
-/**
- * Establishes connection to MongoDB database
- */
-const connectDB = async () => {
-  const mongoUri = process.env.MONGODB_URI;
+let isConnecting = false;
+let reconnectTimer = null;
+let watchdogTimer = null;
+let listenersAttached = false;
+let startupTasksDone = false;
 
-  if (!mongoUri) {
-    console.error('[MongoDB Error] MONGODB_URI is not defined in the environment variables.');
-    // Do not crash the application during build or validation if Mongo is not provided yet,
-    // but log a clear warning so developers know it's missing.
-    console.warn('[MongoDB Warning] Server is starting without database connection. MONGODB_URI is required for full functionality.');
+const MONGO_OPTIONS = {
+  maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE, 10) || 50,
+  minPoolSize: parseInt(process.env.DB_MIN_POOL_SIZE, 10) || 5,
+  maxIdleTimeMS: parseInt(process.env.DB_MAX_IDLE_MS, 10) || 300000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 15000,
+  serverSelectionTimeoutMS: 15000,
+  heartbeatFrequencyMS: 10000,
+  retryWrites: true,
+  retryReads: true,
+  family: 4, // Use IPv4 to avoid unnecessary IPv6 DNS lookup stalls
+};
+
+const runStartupTasksOnce = () => {
+  if (startupTasksDone) return;
+  startupTasksDone = true;
+
+  backfillAllMissingUniqueIds().catch((err) => {
+    console.error(`[Unique ID Backfill Error]: ${err.message}`);
+  });
+
+  computeAndPersistCitationStats().catch((err) => {
+    console.warn(`[Citation Stats Warmup Warning]: ${err.message}`);
+  });
+};
+
+const scheduleReconnect = (delayMs = 3000) => {
+  if (reconnectTimer || mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
     return;
   }
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (mongoose.connection.readyState === 0) {
+      connectDB(Math.min(delayMs * 1.5, 15000));
+    }
+  }, delayMs);
+  if (typeof reconnectTimer.unref === 'function') {
+    reconnectTimer.unref();
+  }
+};
 
-  try {
-    const conn = await mongoose.connect(mongoUri, {
-      maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE, 10) || 50,
-      minPoolSize: parseInt(process.env.DB_MIN_POOL_SIZE, 10) || 10,
-      maxIdleTimeMS: 60000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
-      serverSelectionTimeoutMS: 10000,
-      family: 4 // Use IPv4, skip unnecessary IPv6 lookup roundtrips
-    });
-    console.log(`[SLD System Backend] MongoDB Connected: ${conn.connection.host}`);
+const attachLifecycleListeners = () => {
+  if (listenersAttached) return;
+  listenersAttached = true;
 
-    // Set up connection lifecycle monitoring
-    mongoose.connection.on('disconnected', () => {
-      console.warn('[SLD System Backend] MongoDB connection lost. Driver will automatically retry...');
-    });
-    mongoose.connection.on('reconnected', () => {
-      console.log('[SLD System Backend] MongoDB reconnected successfully.');
-    });
-    mongoose.connection.on('error', (err) => {
-      console.error('[SLD System Backend] MongoDB runtime connection error:', err.message);
-    });
-    
-    // Automatically verify and backfill missing Unique IDs on existing records
-    backfillAllMissingUniqueIds().catch((err) => {
-      console.error(`[Unique ID Backfill Error]: ${err.message}`);
-    });
+  mongoose.connection.on('connected', () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    console.log(`[SLD System Backend] MongoDB Connected: ${mongoose.connection.host}`);
+    runStartupTasksOnce();
+  });
 
-    // Warm persisted exact citation totals (~550k+) asynchronously without blocking startup
-    computeAndPersistCitationStats().catch((err) => {
-      console.warn(`[Citation Stats Warmup Warning]: ${err.message}`);
-    });
-  } catch (error) {
-    console.error(`[SLD System Backend] Database Connection Failed: ${error.message}`);
-    // Exiting the process on connection failure in production, or retrying in development
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
+  mongoose.connection.on('disconnected', () => {
+    console.warn('[SLD System Backend] MongoDB connection lost. Scheduling automatic reconnect...');
+    scheduleReconnect(3000);
+  });
+
+  mongoose.connection.on('reconnected', () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    console.log('[SLD System Backend] MongoDB reconnected successfully.');
+  });
+
+  mongoose.connection.on('error', (err) => {
+    console.error('[SLD System Backend] MongoDB runtime connection error:', err.message);
+    if (mongoose.connection.readyState === 0) {
+      scheduleReconnect(5000);
+    }
+  });
+
+  // Periodic keep-alive watchdog guarantees VPS DB never stays disconnected after transient restarts
+  if (!watchdogTimer) {
+    watchdogTimer = setInterval(() => {
+      if (process.env.MONGODB_URI && mongoose.connection.readyState === 0 && !isConnecting) {
+        console.warn('[SLD System Backend] Watchdog detected disconnected MongoDB. Attempting reconnect...');
+        connectDB(5000);
+      }
+    }, 30000);
+    if (typeof watchdogTimer.unref === 'function') {
+      watchdogTimer.unref();
     }
   }
 };
 
+/**
+ * Establishes and maintains a persistent connection to the MongoDB database.
+ */
+const connectDB = async (retryDelayMs = 3000) => {
+  const mongoUri = process.env.MONGODB_URI;
+
+  if (!mongoUri) {
+    console.error('[MongoDB Error] MONGODB_URI is not defined in the environment variables.');
+    console.warn('[MongoDB Warning] Server is starting without database connection. MONGODB_URI is required for full functionality.');
+    return;
+  }
+
+  attachLifecycleListeners();
+
+  if (isConnecting || mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
+    return;
+  }
+
+  isConnecting = true;
+  try {
+    await mongoose.connect(mongoUri, MONGO_OPTIONS);
+    runStartupTasksOnce();
+  } catch (error) {
+    console.error(`[SLD System Backend] Database Connection Failed: ${error.message}`);
+    // Never exit PM2 process on transient DB boot/restart errors; retry with backoff until connected
+    scheduleReconnect(retryDelayMs);
+  } finally {
+    isConnecting = false;
+  }
+};
 
 export default connectDB;
