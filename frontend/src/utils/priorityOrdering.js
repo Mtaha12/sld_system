@@ -89,3 +89,4 @@ export const sortMagazinesWithPriority = (items = [], getName = (x) => x) =>
     const ordB = Number.isFinite(Number(b?.ordering)) ? Number(b.ordering) : Number.MAX_SAFE_INTEGER;
     return ordA - ordB;
   });
+

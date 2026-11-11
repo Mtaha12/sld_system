@@ -117,3 +117,4 @@ export const expandMagazineSearchAliases = (magName = '') => {
   }
   return Array.from(terms);
 };
+
