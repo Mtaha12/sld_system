@@ -25,10 +25,34 @@ const DEFAULT_USER = {
 
 const UserContext = createContext();
 
+const isJwtExpiredLocally = (token) => {
+  if (!token) return true;
+  try {
+    const part = token.split('.')[1];
+    if (!part) return true;
+    const decoded = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof decoded.exp === 'number' && Date.now() >= decoded.exp * 1000;
+  } catch {
+    return true;
+  }
+};
+
 export const UserProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
-      return localStorage.getItem('sld_auth_session') === 'true';
+      const hasSession = localStorage.getItem('sld_auth_session') === 'true';
+      const accessToken = localStorage.getItem('sld_access_token');
+      const refreshToken = localStorage.getItem('sld_refresh_token');
+      if (!hasSession || !accessToken || (isJwtExpiredLocally(accessToken) && !refreshToken)) {
+        if (hasSession) {
+          localStorage.removeItem('sld_auth_session');
+          localStorage.removeItem('sld_access_token');
+          localStorage.removeItem('sld_refresh_token');
+          localStorage.removeItem('sld_user_profile');
+        }
+        return false;
+      }
+      return true;
     } catch {
       return false;
     }
@@ -64,9 +88,14 @@ export const UserProvider = ({ children }) => {
     }
   };
 
+  const verifiedOnceRef = React.useRef(false);
+
   // Keep user permissions & status synced from backend; immediately terminate session if admin logs user out
   React.useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      verifiedOnceRef.current = false;
+      return;
+    }
 
     let isMounted = true;
 
@@ -74,6 +103,7 @@ export const UserProvider = ({ children }) => {
       try {
         const res = await api.get('/api/auth/me');
         if (res?.data?.data && isMounted) {
+          verifiedOnceRef.current = true;
           const sanitized = sanitizeUserAvatar(res.data.data);
           setUser(sanitized);
           try {
@@ -84,6 +114,12 @@ export const UserProvider = ({ children }) => {
         }
       } catch (err) {
         if (err.response?.status === 401 || err.response?.status === 403) {
+          if (!verifiedOnceRef.current && window.location.pathname === '/dashboard') {
+            // Stale stored session from prior visit: clear silently and return to public dashboard
+            logoutUser();
+            window.location.href = '/';
+            return;
+          }
           const msg = err.response?.data?.message || 'Access Denied: Your session has been closed by an administrator. Please log in again.';
           logoutUser(msg);
         }
