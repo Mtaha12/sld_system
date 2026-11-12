@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LogIn, UserPlus, Sun, Moon, Menu, Lock, X } from 'lucide-react';
 import sldLogo from '../assets/branding/logo/SLD_Logo.webp';
 import { useTheme } from '../contexts/ThemeContext';
 import PublicSidebar from '../features/dashboard/components/PublicSidebar';
+
+const PublicPreviewContext = createContext(null);
+
+/**
+ * Allows public dashboard components to surface the shared subscription preview notice
+ * without opening protected routes, external tools, or forms.
+ */
+export const usePublicPreview = () => useContext(PublicPreviewContext);
 
 /**
  * Public landing layout rendering the existing Dashboard with a read-only
@@ -104,11 +112,11 @@ const PublicDashboardLayout = ({ children }) => {
           </div>
         </header>
 
-        {/* Informational Non-Form Notice When Clicking a Preview Feature in Public Sidebar */}
+        {/* Informational Non-Form Notice When Clicking a Locked Preview Feature */}
         {previewNotice && (
           <div
             role="status"
-            className="mx-3 sm:mx-4 md:mx-6 mt-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-700/60 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-fade-in"
+            className="sticky top-14 z-20 mx-3 sm:mx-4 md:mx-6 mt-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/95 border border-amber-300/80 dark:border-amber-700/60 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fade-in"
           >
             <div className="flex items-center gap-2.5 min-w-0 text-xs sm:text-sm text-amber-950 dark:text-amber-100">
               <Lock className="w-4 h-4 text-[#f15a24] shrink-0" />
@@ -142,9 +150,11 @@ const PublicDashboardLayout = ({ children }) => {
         )}
 
         {/* Existing Dashboard Content */}
-        <main className="flex-1 w-full max-w-[1600px] mx-auto p-3 sm:p-4 md:p-6">
-          {children}
-        </main>
+        <PublicPreviewContext.Provider value={{ triggerFeaturePreview: handleFeaturePreviewClick }}>
+          <main className="flex-1 w-full max-w-[1600px] mx-auto p-3 sm:p-4 md:p-6">
+            {children}
+          </main>
+        </PublicPreviewContext.Provider>
       </div>
     </div>
   );

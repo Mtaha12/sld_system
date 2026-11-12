@@ -919,7 +919,7 @@ async function runMigration() {
       agencyName: u.agency || 'General',
       companyName: u.company || '',
       userType: uType,
-      aiAssistant: u.ai_assistant === 1,
+      aiAssistant: true,
       alreadyLogin: u.already_login === 'Yes',
       isSpammer: u.is_spamer === 1,
       ipRestriction: u.ip_restriction === 2,
