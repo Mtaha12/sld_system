@@ -252,9 +252,9 @@ const InfoWidgets = ({ summaryData = undefined, isPublic = false }) => {
           {/* Bank Accounts Grid/List */}
           <div className="flex flex-col gap-1.5">
             {[
-              { bank: 'Allied Bank Limited', title: 'SLD System', acc: '11050010037270730029' },
-              { bank: 'MCB Bank Limited', title: 'SLD System', acc: 'PK84MUCB1123909311000715', prefix: 'IBAN' },
-              { bank: 'United Bank Limited', title: 'SLD System', acc: '1491-222820349' },
+              { bank: 'Allied Bank Limited', title: 'Super Law Data System', acc: '11050010037270730029' },
+              { bank: 'MCB Bank Limited', title: 'Super Law Data System', acc: 'PK84MUCB1123909311000715', prefix: 'IBAN' },
+              { bank: 'United Bank Limited', title: 'Super Law Data System', acc: '1491-222820349' },
               { bank: 'Jazz Cash / Easy Paisa', title: 'Haroon Ahmad Rafiq', acc: '03215390007' }
             ].map((b, i) => (
               <CompactAccountRow key={i} b={b} />

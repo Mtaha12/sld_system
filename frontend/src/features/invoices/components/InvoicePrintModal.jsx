@@ -9,17 +9,17 @@ import { numberToWords } from '../../../utils/numberToWords';
 const BANK_ACCOUNTS = [
   {
     bank: 'MCB Bank Limited, Privilege Branch, Saddar-Rawalpindi',
-    name: 'SLD System',
+    name: 'Super Law Data System',
     account: 'PK84MUCB1123909311000715'
   },
   {
     bank: 'United Bank Ltd., Bank Road, Saddar-Rawalpindi (Branch Code 1491)',
-    name: 'SLD System',
+    name: 'Super Law Data System',
     account: 'PK60UNIL0109000222820349'
   },
   {
     bank: 'Allied Bank Ltd., Mall Branch, Saddar-Rawalpindi (Branch Code: 1105)',
-    name: 'SLD System',
+    name: 'Super Law Data System',
     account: 'PK58ABPA0010037270730029'
   }
 ];
