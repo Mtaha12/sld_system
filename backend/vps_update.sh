@@ -41,12 +41,25 @@ cd "$PROJECT_DIR/backend"
 npm install --no-audit
 
 echo ""
-echo ">>> [4/7] Updating Admin Credentials in VPS Database..."
+echo ">>> [4/7] Updating Admin Credentials & Database Settings..."
 if [ -f "src/utils/resetAdminPw.js" ]; then
-    node src/utils/resetAdminPw.js
-else
-    echo "Notice: resetAdminPw.js not found."
+    node src/utils/resetAdminPw.js || true
 fi
+
+echo ">>> Setting Top 13 Priority Statute Laws in Database..."
+if [ -f "src/scripts/vps_set_law_magazine_order.js" ]; then
+    node src/scripts/vps_set_law_magazine_order.js || true
+fi
+
+echo ">>> Setting AI Search: YES by default for all users in VPS Database..."
+if [ -f "src/scripts/vps_enable_ai_search_all_users.js" ]; then
+    node src/scripts/vps_enable_ai_search_all_users.js || true
+fi
+
+echo ">>> Ensuring Upload Directories and Permissions..."
+mkdir -p uploads/reference_views uploads/newsletters uploads/court_cache uploads/payment_proofs
+mkdir -p "$PROJECT_DIR/uploads/reference_views" "$PROJECT_DIR/uploads/newsletters" "$PROJECT_DIR/uploads/court_cache"
+chmod -R 775 uploads "$PROJECT_DIR/uploads" 2>/dev/null || true
 
 echo ""
 echo ">>> [5/7] Importing Laws from LIST.xlsx into VPS Database..."

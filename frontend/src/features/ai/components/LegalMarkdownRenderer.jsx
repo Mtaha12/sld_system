@@ -3,6 +3,7 @@ import {
   Scale, FileText, Copy, Check, ChevronRight, 
   BookOpen, ShieldCheck, Gavel
 } from 'lucide-react';
+import { downloadOrViewAttachment, getResolvedBackendUrl } from '../../../utils/attachmentDownloader';
 
 /**
  * Strips markdown asterisks, hashes, emojis, and stray punctuation from a title/heading
@@ -49,7 +50,16 @@ const formatInlineText = (text) => {
   html = html.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-mono font-semibold border border-amber-500/20">$1</code>');
 
   // Markdown links: [text](url)
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-amber-600 dark:text-amber-400 hover:underline font-bold inline-flex items-center gap-0.5">$1 <span class="text-[10px]">↗</span></a>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, url) => {
+    const rawUrl = String(url || '').trim();
+    const resolvedUrl = (rawUrl.startsWith('/') && !rawUrl.startsWith('//')) ? getResolvedBackendUrl(rawUrl) : rawUrl;
+    return `<a href="${resolvedUrl}" target="_blank" rel="noopener noreferrer" class="text-amber-600 dark:text-amber-400 hover:underline font-bold inline-flex items-center gap-0.5 cursor-pointer">${linkText} <span class="text-[10px]">↗</span></a>`;
+  });
+
+  // Autolink bare URLs (http:// or https://) not already enclosed in an anchor tag
+  html = html.replace(/(^|[^"=])(https?:\/\/[^\s<>'"]+)/g, (match, prefix, rawUrl) => {
+    return `${prefix}<a href="${rawUrl}" target="_blank" rel="noopener noreferrer" class="text-amber-600 dark:text-amber-400 hover:underline font-bold inline-flex items-center gap-0.5 cursor-pointer">${rawUrl} <span class="text-[10px]">↗</span></a>`;
+  });
 
   return html;
 };
@@ -386,8 +396,41 @@ const LegalMarkdownRenderer = ({ text, onCopy }) => {
 
   const blocks = parseContentToBlocks(cleanedSourceText);
 
+  const handleContainerClick = (e) => {
+    const link = e.target.closest('a');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    if (!href) return;
+
+    // Intercept document views, court downloads, PDFs, and API preview endpoints
+    if (
+      href.includes('/api/other-cases/view-document') ||
+      href.includes('/other-cases/view-document') ||
+      href.includes('/uploads/') ||
+      href.endsWith('.pdf') ||
+      href.includes('supremecourt.gov.pk') ||
+      href.includes('lhc.gov.pk') ||
+      href.includes('caselaw.shc.gov.pk')
+    ) {
+      e.preventDefault();
+      const title = link.textContent.replace('↗', '').trim();
+      let targetHref = href;
+      if (
+        href.includes('supremecourt.gov.pk') ||
+        href.includes('lhc.gov.pk') ||
+        href.includes('caselaw.shc.gov.pk')
+      ) {
+        const proxyBase = getResolvedBackendUrl('/api/other-cases/view-document');
+        targetHref = `${proxyBase}?url=${encodeURIComponent(href)}`;
+      } else if (targetHref.startsWith('/') && !targetHref.startsWith('//')) {
+        targetHref = getResolvedBackendUrl(targetHref);
+      }
+      downloadOrViewAttachment(targetHref, { title, name: title, download: false });
+    }
+  };
+
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3.5" onClick={handleContainerClick}>
       {/* Top Banner: Statutory Legal Pleading with ONLY "Copy Pleading" Button */}
       {isPleading && (
         <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 rounded-xl shadow-xs">

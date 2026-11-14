@@ -371,7 +371,10 @@ export const searchNotifications = async (queryText) => {
 
     const match = sroExplicit || notifExplicit || bracketNum;
     const sroNum = match ? match[1] : null;
-    const sroYear = match && match[3] ? parseInt(match[3], 10) : null;
+    let sroYear = match && match[3] ? parseInt(match[3], 10) : null;
+    if (sroYear && sroYear < 100) {
+      sroYear = sroYear < 50 ? 2000 + sroYear : 1900 + sroYear;
+    }
 
     // A. Priority 1: Exact SRO Number + Year Lookup (< 30ms)
     if (sroNum && sroYear) {
@@ -381,7 +384,8 @@ export const searchNotifications = async (queryText) => {
         $or: [
           { number: sroNum },
           { sroNumber: new RegExp(escapeRegex(sroNum), 'i') },
-          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
+          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') },
+          { 'blocks.detail': new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
         ]
       }).sort({ createdAt: -1 }).limit(10).lean();
 
@@ -397,7 +401,8 @@ export const searchNotifications = async (queryText) => {
         $or: [
           { number: sroNum },
           { sroNumber: new RegExp(escapeRegex(sroNum), 'i') },
-          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
+          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') },
+          { 'blocks.detail': new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
         ]
       }).sort({ year: -1, createdAt: -1 }).limit(10).lean();
 
@@ -432,7 +437,7 @@ export const searchNotifications = async (queryText) => {
       } catch (tErr) {}
     }
 
-    // D. Priority 4: Search top-level indexed fields (subject, sroNumber, number, department)
+    // D. Priority 4: Search top-level and content fields (subject, sroNumber, number, department, blocks.detail)
     if (textQuery.length >= 2) {
       const searchRegex = new RegExp(escapeRegex(textQuery), 'i');
       const fieldMatches = await Notification.find({
@@ -441,7 +446,8 @@ export const searchNotifications = async (queryText) => {
           { subject: searchRegex },
           { sroNumber: searchRegex },
           { number: searchRegex },
-          { department: searchRegex }
+          { department: searchRegex },
+          { 'blocks.detail': searchRegex }
         ]
       }).sort({ year: -1, createdAt: -1 }).limit(10).lean();
 
@@ -527,13 +533,18 @@ export const formatOtherCasesResponse = (results, queryText) => {
   for (let i = 0; i < results.length; i++) {
     const c = results[i];
     const docId = c._id || c.mongoId || c.otherCaseId;
-    const inlineDocUrl = docId ? `/api/other-cases/view-document?id=${encodeURIComponent(docId)}` : '';
-
     const storedDirect = getStoredOtherCaseUrl(c);
     const resolvedScpUrl = !storedDirect ? getPrimarySupremeCourtCandidateUrl(c) : '';
     const directLink = storedDirect || resolvedScpUrl;
     const hasHttpDirect = directLink && /^https?:\/\//i.test(String(directLink));
-    const canOpenViewer = Boolean(inlineDocUrl && (storedDirect || resolvedScpUrl));
+
+    let inlineDocUrl = '';
+    if (docId) {
+      inlineDocUrl = `/api/other-cases/view-document?id=${encodeURIComponent(docId)}`;
+    } else if (hasHttpDirect) {
+      inlineDocUrl = `/api/other-cases/view-document?url=${encodeURIComponent(directLink)}`;
+    }
+    const canOpenViewer = Boolean(inlineDocUrl);
 
     text += `---\n\n` +
       `### Judgment ${i + 1}: ${c.caseNo || 'Court Record'}\n` +
@@ -548,7 +559,7 @@ export const formatOtherCasesResponse = (results, queryText) => {
       (canOpenViewer
         ? `🔗 **Certified Judgment Document**: [View Certified Order in New Tab ↗](${inlineDocUrl})\n`
         : `🔗 **Certified Judgment Document**: Record metadata only (no downloadable document attached)\n`) +
-      (hasHttpDirect ? `• **Official Court Portal Link**: [Direct Court Order Link ↗](${directLink})\n\n` : '\n');
+      (hasHttpDirect ? `• **Official Court Portal Link**: [Direct Court Order Link ↗](${inlineDocUrl || directLink})\n\n` : '\n');
   }
 
   text += `*All records verified directly from the High Court Case Law & Orders database.*`;
@@ -1692,14 +1703,20 @@ export const buildOfficialPortalFallbackReport = (cleanQuery, portals = []) => {
 };
 
 /**
- * Checks if query targets official government portals or regulatory domains
+ * Checks if query explicitly targets official government portals or regulatory websites
  */
 export const isOfficialPortalOrExternalQuery = (text, matchedPortals = []) => {
   if (!text || typeof text !== 'string') return false;
   const t = text.toLowerCase();
 
-  // If query specifies an exact case document, download link, or case number, do NOT intercept as general portal guidance
-  if (/download-file\.php|doc=|\b(?:civil\s*tran|cr\.?\s*tran|cr\.?\s*bail|const\.?\s*p\.?)\b|\b\d+\s*(?:\/|\s+of\s+)\s*\d{4}\b/i.test(t)) {
+  // If query specifies an exact case document, citation, SRO, section, or case number, prioritize internal database
+  if (/download-file\.php|doc=|\b(?:civil\s*tran|cr\.?\s*tran|cr\.?\s*bail|const\.?\s*p\.?)\b|\b\d+\s*(?:\/|\s+of\s+)\s*\d{4}\b|\b(?:s\.?r\.?o\.?|section|sec\.?|art\.?|article|notification|case\s*law|judgment)\b/i.test(t)) {
+    return false;
+  }
+
+  // Only consider it an external portal query if user explicitly asks for the portal, website, url, or link
+  const isExplicitLinkOrPortalQuery = /\b(?:portal|website|web\s*site|url|link|how\s+to\s+access|login\s+to)\b/i.test(t);
+  if (!isExplicitLinkOrPortalQuery) {
     return false;
   }
 
@@ -1708,27 +1725,10 @@ export const isOfficialPortalOrExternalQuery = (text, matchedPortals = []) => {
   }
 
   const portalTriggers = [
-    'secp', 'fbr sro', 'fbr order', 'sro on', 'sro 20', 'sro 19', 'latest sro', 'tax sro',
-    'lhc reported', 'judgments approved for reporting', 'approved for reporting', 'data.lhc.gov.pk',
-    'scp judgments', 'judgmentssearch', 'supreme court judgments search', 'supreme court judgment search',
-    'shc top trend', 'top trend judgments', 'caselaw.shc', 'imp_judgement_orders',
-    'atpra', 'atpra.punjab', 'pra tribunal', 'srb judgments', 'srb judgements', 'srb.gos.pk',
-    'ebra tribunal', 'portal.bhc.gov.pk', 'bhc judgments', 'ihc.gov.pk'
+    'secp', 'fbr', 'lhc', 'scp', 'shc', 'atpra', 'srb', 'ebra', 'bhc', 'ihc', 'data.lhc.gov.pk'
   ];
 
-  if (portalTriggers.some(trigger => t.includes(trigger))) {
-    return true;
-  }
-
-  if (/\bsecp\b/i.test(t) && /\b(?:circular|notification|regulation|rule|directive|act|ordinance|guideline|compliance)\b/i.test(t)) {
-    return true;
-  }
-
-  if (/\bfbr\b/i.test(t) && /\b(?:sro|order|notification|circular)\b/i.test(t)) {
-    return true;
-  }
-
-  return false;
+  return portalTriggers.some(trigger => t.includes(trigger));
 };
 
 /**

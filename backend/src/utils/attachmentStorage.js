@@ -26,9 +26,17 @@ export const getCandidateUploadRoots = () => {
       ? [
           '/var/www/sld_system/backend/uploads',
           '/var/www/sld_system/uploads',
+          '/var/www/sld-system/backend/uploads',
+          '/var/www/sld-system/uploads',
           '/var/www/sldsystem/sld_system/backend/uploads',
           '/var/www/sldsystem/uploads',
-          '/var/www/uploads'
+          '/var/www/sldsystem/backend/uploads',
+          '/root/sld_system/backend/uploads',
+          '/root/sld_system/uploads',
+          '/root/sld-system/backend/uploads',
+          '/root/sld-system/uploads',
+          '/var/www/uploads',
+          '/tmp/uploads'
         ]
       : [])
   ].filter(Boolean);
@@ -43,6 +51,79 @@ const isExistingRegularFile = (rootDir, candidatePath) => {
   } catch {
     return false;
   }
+};
+
+/**
+ * High-speed in-memory LRU cache for resolved upload file paths
+ */
+const resolvedPathCache = new Map();
+const RESOLVE_CACHE_MAX = 2000;
+
+const getCachedPath = (key) => {
+  const cached = resolvedPathCache.get(key);
+  if (cached && fs.existsSync(cached)) {
+    return cached;
+  }
+  if (cached) {
+    resolvedPathCache.delete(key);
+  }
+  return null;
+};
+
+const setCachedPath = (key, val) => {
+  if (resolvedPathCache.size >= RESOLVE_CACHE_MAX) {
+    const firstKey = resolvedPathCache.keys().next().value;
+    resolvedPathCache.delete(firstKey);
+  }
+  resolvedPathCache.set(key, val);
+};
+
+/**
+ * Recursively searches a directory up to maxDepth levels deep,
+ * matching files case-insensitively and decoded.
+ */
+const findFileRecursively = (dir, targetBaseName, maxDepth = 4, currentDepth = 0) => {
+  if (!dir || currentDepth > maxDepth || !fs.existsSync(dir)) return null;
+
+  const direct = path.join(dir, targetBaseName);
+  try {
+    if (fs.existsSync(direct) && fs.statSync(direct).isFile()) {
+      return direct;
+    }
+  } catch (_) {}
+
+  const targetLower = targetBaseName.toLowerCase();
+  const targetNormalized = targetLower.replace(/[%20+_\-\s]/g, '');
+
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const subdirs = [];
+
+    // 1. Check immediate files first for fast hit
+    for (const entry of entries) {
+      if (entry.isFile()) {
+        const entryLower = entry.name.toLowerCase();
+        if (entryLower === targetLower) {
+          return path.join(dir, entry.name);
+        }
+        if (entryLower.replace(/[%20+_\-\s]/g, '') === targetNormalized) {
+          return path.join(dir, entry.name);
+        }
+      } else if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.git') {
+        subdirs.push(entry.name);
+      }
+    }
+
+    // 2. Recursively inspect subdirectories (e.g. newsletters/2026/, reference_views/archive/)
+    for (const subdir of subdirs) {
+      const match = findFileRecursively(path.join(dir, subdir), targetBaseName, maxDepth, currentDepth + 1);
+      if (match) return match;
+    }
+  } catch (_) {
+    return null;
+  }
+
+  return null;
 };
 
 /**
@@ -96,36 +177,17 @@ export const sanitizeUploadRelPath = (urlOrPath) => {
   return decodedSegments.join('/');
 };
 
-const findFileInSubfolders = (root, folderName, baseName) => {
-  const folderPath = path.resolve(root, folderName);
-  const directNested = path.resolve(folderPath, baseName);
-  if (isExistingRegularFile(root, directNested)) {
-    return directNested;
-  }
-  try {
-    if (!fs.existsSync(folderPath)) return null;
-    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const nestedCandidate = path.resolve(folderPath, entry.name, baseName);
-      if (isExistingRegularFile(root, nestedCandidate)) {
-        return nestedCandidate;
-      }
-    }
-  } catch {
-    return null;
-  }
-  return null;
-};
-
 /**
  * Resolves a stored attachment path (e.g. '/uploads/reference_views/abc.pdf'
  * or '/uploads/newsletters/2026/123.pdf') to an actual existing file on disk,
- * checking all candidate upload roots, category folders, and year subdirectories.
+ * checking all candidate upload roots, category folders, and recursive subdirectories.
  */
 export const resolveUploadFilePath = (urlOrPath) => {
   const cleanRel = sanitizeUploadRelPath(urlOrPath);
   if (!cleanRel) return null;
+
+  const cached = getCachedPath(cleanRel);
+  if (cached) return cached;
 
   const baseName = path.basename(cleanRel);
   const knownFolders = ['reference_views', 'newsletters', 'payment_proofs', 'court_cache'];
@@ -133,16 +195,31 @@ export const resolveUploadFilePath = (urlOrPath) => {
   for (const root of getCandidateUploadRoots()) {
     if (!fs.existsSync(root)) continue;
 
+    // 1. Direct path check
     const direct = path.resolve(root, cleanRel);
     if (isExistingRegularFile(root, direct)) {
+      setCachedPath(cleanRel, direct);
       return direct;
     }
 
+    // 2. Known category folders with recursive traversal
     for (const sub of knownFolders) {
-      const match = findFileInSubfolders(root, sub, baseName);
-      if (match) return match;
+      const folderPath = path.resolve(root, sub);
+      const match = findFileRecursively(folderPath, baseName, 4);
+      if (match && isExistingRegularFile(root, match)) {
+        setCachedPath(cleanRel, match);
+        return match;
+      }
+    }
+
+    // 3. Fallback: Search the entire root recursively for the target basename
+    const rootMatch = findFileRecursively(root, baseName, 4);
+    if (rootMatch && isExistingRegularFile(root, rootMatch)) {
+      setCachedPath(cleanRel, rootMatch);
+      return rootMatch;
     }
   }
+
   return null;
 };
 

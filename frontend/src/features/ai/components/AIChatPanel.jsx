@@ -275,11 +275,23 @@ th { background-color: #f2f2f2; font-weight: bold; }
 <body><div class="Section1">${bodyHtml.join('\n')}</div></body></html>`;
   };
 
-  const handleDownloadCorrectedDoc = (doc) => {
-    if (!doc) return;
-    const rawContent = doc.content || '';
-    const fileName = doc.fileName || 'Corrected_Legal_Document.doc';
-    const formattedContent = formatWordDocumentHtml(rawContent, fileName);
+  const handleDownloadCorrectedDoc = (doc, fallbackText = '') => {
+    if (!doc && !fallbackText) return;
+    let rawContent = (doc?.content || '').trim();
+    if (!rawContent && fallbackText) {
+      const splitIdx = fallbackText.indexOf('### 🏛️ 2. COMPLETE REVISED & CORRECTED LEGAL PLEADING');
+      if (splitIdx !== -1) {
+        rawContent = fallbackText.slice(splitIdx + '### 🏛️ 2. COMPLETE REVISED & CORRECTED LEGAL PLEADING'.length).trim();
+      } else {
+        rawContent = fallbackText.trim();
+      }
+    }
+    if (!rawContent) return;
+
+    const fileName = doc?.fileName || 'Corrected_Legal_Document.doc';
+    const isAlreadyHtml = rawContent.toLowerCase().startsWith('<html') || rawContent.toLowerCase().startsWith('<!doctype html');
+    const formattedContent = isAlreadyHtml ? rawContent : formatWordDocumentHtml(rawContent, fileName);
+
     const blob = new Blob([formattedContent], { type: 'application/msword;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -594,10 +606,7 @@ th { background-color: #f2f2f2; font-weight: bold; }
 
                           <button
                             type="button"
-                            onClick={() => handleDownloadCorrectedDoc(msg.legalAnalysis?.downloadDoc || {
-                              fileName: 'Corrected_Legal_Pleading.doc',
-                              content: msg.text
-                            })}
+                            onClick={() => handleDownloadCorrectedDoc(msg.legalAnalysis?.downloadDoc, msg.text)}
                             className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
                           >
                             <Download className="w-3.5 h-3.5" />

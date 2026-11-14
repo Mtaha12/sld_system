@@ -4,8 +4,9 @@ import axios from 'axios';
 const resolveDefaultApiUrl = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname.toLowerCase();
-    if (host.endsWith('sldsystem.com')) return 'https://api.sldsystem.com';
+    if (host.endsWith('sldsystempk.com')) return 'https://api.sldsystempk.com';
     if (host.endsWith('sldsystemspk.com')) return 'https://api.sldsystemspk.com';
+    if (host.endsWith('sldsystem.com')) return 'https://api.sldsystem.com';
   }
   return 'http://localhost:5000';
 };

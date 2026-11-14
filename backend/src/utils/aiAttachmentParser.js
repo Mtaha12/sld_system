@@ -2,6 +2,135 @@ import zlib from 'zlib';
 import XLSX from 'xlsx';
 import logger from './logger.js';
 
+function decodePdfEscapes(str) {
+  return str
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\b/g, '\b')
+    .replace(/\\f/g, '\f')
+    .replace(/\\\(/g, '(')
+    .replace(/\\\)/g, ')')
+    .replace(/\\\\/g, '\\')
+    .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
+}
+
+function extractTextFromStream(streamBuf) {
+  const textChunks = [];
+  const latin = streamBuf.toString('latin1');
+
+  // Extract text within BT ... ET blocks
+  const btRegex = /BT[\s\S]*?ET/g;
+  let btMatch;
+  while ((btMatch = btRegex.exec(latin)) !== null) {
+    const block = btMatch[0];
+
+    // 1. Array strings: [(str1) -10 (str2)] TJ
+    const tjArrayRegex = /\[((?:[^\(\)\[\]]*|\([^\)]*\))*?)\]\s*TJ/g;
+    let tjArrMatch;
+    while ((tjArrMatch = tjArrayRegex.exec(block)) !== null) {
+      const inner = tjArrMatch[1];
+      const strRegex = /\(([^)]*)\)/g;
+      let sMatch;
+      let combined = '';
+      while ((sMatch = strRegex.exec(inner)) !== null) {
+        combined += decodePdfEscapes(sMatch[1]);
+      }
+      if (combined.trim()) textChunks.push(combined.trim());
+    }
+
+    // 2. Single strings: (str) Tj or (str) ' or (str) "
+    const tjSingleRegex = /\(([^)]*)\)\s*(?:Tj|'|")/g;
+    let singleMatch;
+    while ((singleMatch = tjSingleRegex.exec(block)) !== null) {
+      const decoded = decodePdfEscapes(singleMatch[1]);
+      if (decoded.trim()) textChunks.push(decoded.trim());
+    }
+
+    // 3. Hex strings: <48656c6c6f> Tj
+    const hexRegex = /<([0-9a-fA-F]+)>\s*(?:Tj|'|")/g;
+    let hexMatch;
+    while ((hexMatch = hexRegex.exec(block)) !== null) {
+      try {
+        const hex = hexMatch[1];
+        const bytes = Buffer.from(hex, 'hex');
+        const str = bytes.toString('utf8');
+        if (str.trim()) textChunks.push(str.trim());
+      } catch (_) {}
+    }
+  }
+
+  // If BT...ET yielded nothing, try finding any (string) Tj in the stream
+  if (textChunks.length === 0) {
+    const fallbackTj = /\(([^)]+)\)\s*Tj/g;
+    let fMatch;
+    while ((fMatch = fallbackTj.exec(latin)) !== null) {
+      const dec = decodePdfEscapes(fMatch[1]);
+      if (dec.trim().length > 1) textChunks.push(dec.trim());
+    }
+  }
+
+  return textChunks.join(' ');
+}
+
+/**
+ * Robust Native PDF text extractor
+ * Inflates FlateDecode streams and parses PDF text operators (Tj, TJ, BT/ET)
+ */
+export function extractTextFromPdf(buffer) {
+  try {
+    if (!buffer || buffer.length < 5) return '';
+    const parts = [];
+    const latin = buffer.toString('latin1');
+    const streamStartRegex = /stream[\r\n]+/g;
+    let match;
+
+    while ((match = streamStartRegex.exec(latin)) !== null) {
+      const start = match.index + match[0].length;
+      const end = latin.indexOf('endstream', start);
+      if (end === -1) break;
+
+      const rawStream = buffer.subarray(start, end);
+      let decompressed = null;
+      try {
+        decompressed = zlib.inflateSync(rawStream);
+      } catch (_) {
+        try {
+          decompressed = zlib.inflateRawSync(rawStream);
+        } catch (_) {
+          decompressed = rawStream;
+        }
+      }
+
+      if (decompressed) {
+        const streamText = extractTextFromStream(decompressed);
+        if (streamText && streamText.trim().length > 0) {
+          parts.push(streamText.trim());
+        }
+      }
+    }
+
+    let result = parts.join('\n\n').trim();
+
+    // If stream parsing extracted minimal text, fallback to readable string scanning
+    if (result.length < 50) {
+      const readable = latin
+        .replace(/[^\x20-\x7E\r\n\t]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length >= 3 && /^[a-zA-Z0-9.,;:()'"\/\-]+$/.test(w))
+        .join(' ');
+      if (readable.length > result.length) {
+        result = readable;
+      }
+    }
+
+    return result;
+  } catch (err) {
+    logger?.warn?.(`extractTextFromPdf error: ${err.message}`);
+    return '';
+  }
+}
+
 /**
  * Extracts raw textual content from DOCX (Office Open XML Word) buffer
  */
@@ -77,7 +206,7 @@ export function extractTextFromExcel(buffer) {
 
 /**
  * Parses and enriches attachment objects with textual representations
- * Handles Word (.doc, .docx), Excel (.xlsx, .xls, .csv), and plain text.
+ * Handles PDF (.pdf), Word (.doc, .docx), Excel (.xlsx, .xls, .csv), and plain text.
  */
 export function parseAIAttachment(att) {
   if (!att || typeof att !== 'object') return att;
@@ -98,7 +227,19 @@ export function parseAIAttachment(att) {
   try {
     const buffer = Buffer.from(att.base64, 'base64');
 
-    // 1. Excel Spreadsheets (.xlsx, .xls, .csv)
+    // 1. PDF Documents (.pdf)
+    if (name.endsWith('.pdf') || type === 'application/pdf' || (buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-')) {
+      const pdfText = extractTextFromPdf(buffer);
+      if (pdfText) {
+        return {
+          ...att,
+          type: 'application/pdf',
+          text: `[PDF Document: ${att.name || 'Document'}]\n${pdfText}`
+        };
+      }
+    }
+
+    // 2. Excel Spreadsheets (.xlsx, .xls, .csv)
     if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv') || type.includes('spreadsheet') || type.includes('excel')) {
       const excelText = extractTextFromExcel(buffer);
       if (excelText) {
@@ -110,19 +251,19 @@ export function parseAIAttachment(att) {
       }
     }
 
-    // 2. Word Documents (.docx, .doc)
+    // 3. Word Documents (.docx, .doc)
     if (name.endsWith('.docx') || name.endsWith('.doc') || type.includes('word') || type.includes('officedocument')) {
       const docxText = extractTextFromDocx(buffer);
       if (docxText) {
         return {
           ...att,
-          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          type: name.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/msword',
           text: `[Word Document: ${att.name || 'Document'}]\n${docxText}`
         };
       }
     }
 
-    // 3. Plain Text / RTF / JSON / XML
+    // 4. Plain Text / RTF / JSON / XML
     if (name.endsWith('.txt') || name.endsWith('.rtf') || name.endsWith('.json') || name.endsWith('.xml') || type.includes('text')) {
       const str = buffer.toString('utf8');
       return {
@@ -144,4 +285,3 @@ export function parseAllAIAttachments(attachments = []) {
   if (!Array.isArray(attachments)) return [];
   return attachments.map(parseAIAttachment);
 }
-

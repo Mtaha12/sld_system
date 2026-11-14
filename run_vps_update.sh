@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# SLD System - VPS Production Judgments Import & TaxCard Purge Script
+# SLD System - VPS Production Master Update Script
+# Updates Code, Database (Top 13 Laws, AI Search For All Users), Builds Frontend,
+# Ensures Upload Folders & Permissions, and Restarts PM2 & Nginx Services.
 # Run this script directly on your VPS terminal:
 #   bash run_vps_update.sh
 # ==============================================================================
@@ -35,20 +37,51 @@ cd "$APP_DIR"
 echo -e "${YELLOW}>>> Working Directory: ${APP_DIR}${NC}"
 
 # 2. Pull latest code
-echo -e "\n${YELLOW}>>> Pulling latest updates from GitHub (origin/main)...${NC}"
+echo -e "\n${YELLOW}>>> [1/6] Pulling latest updates from GitHub (origin/main)...${NC}"
 git fetch --all --prune
 git reset --hard origin/main
 git pull origin main
 
-# 3. Run the database judgment import and tax card clean up
-echo -e "\n${YELLOW}>>> Running database updates (filling judgments & deleting tax cards)...${NC}"
-node backend/src/scripts/vps_import_judgments_and_clean.js
+# 3. Update Database: Top 13 Statute Laws Sequence
+echo -e "\n${YELLOW}>>> [2/6] Setting Top 13 Priority Statute Laws in Database...${NC}"
+if [ -f "backend/src/scripts/vps_set_law_magazine_order.js" ]; then
+    node backend/src/scripts/vps_set_law_magazine_order.js || true
+fi
 
-# 4. Restart PM2 backend service
-echo -e "\n${YELLOW}>>> Restarting PM2 backend services...${NC}"
+# 4. Update Database: Enable AI Assistant for All Users (Existing & New)
+echo -e "\n${YELLOW}>>> [3/6] Setting AI Search: YES for All Users in Database...${NC}"
+if [ -f "backend/src/scripts/vps_enable_ai_search_all_users.js" ]; then
+    node backend/src/scripts/vps_enable_ai_search_all_users.js || true
+fi
+
+# 5. Ensure Upload Directories and File Permissions
+echo -e "\n${YELLOW}>>> [4/6] Verifying Upload Storage Directories & Permissions...${NC}"
+mkdir -p backend/uploads/reference_views backend/uploads/newsletters backend/uploads/court_cache backend/uploads/payment_proofs
+mkdir -p uploads/reference_views uploads/newsletters uploads/court_cache
+chmod -R 775 backend/uploads uploads 2>/dev/null || true
+
+# 6. Build Frontend
+echo -e "\n${YELLOW}>>> [5/6] Building Production Frontend...${NC}"
+if [ -d "frontend" ]; then
+    cd "$APP_DIR/frontend"
+    npm install --no-audit
+    npm run build
+    chmod -R 755 dist 2>/dev/null || true
+    echo -e "${GREEN}✓ Frontend built successfully into dist/${NC}"
+    cd "$APP_DIR"
+fi
+
+# 7. Restart PM2 and reload Nginx
+echo -e "\n${YELLOW}>>> [6/6] Reloading PM2 backend services and Nginx...${NC}"
 if command -v pm2 >/dev/null 2>&1; then
     pm2 restart all --update-env 2>/dev/null || pm2 reload all 2>/dev/null || true
-    echo -e "${GREEN}>>> PM2 processes reloaded.${NC}"
+    pm2 save 2>/dev/null || true
+    echo -e "${GREEN}✓ PM2 services reloaded.${NC}"
+fi
+
+if command -v nginx >/dev/null 2>&1; then
+    nginx -t && (systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || service nginx reload 2>/dev/null || true)
+    echo -e "${GREEN}✓ Nginx reloaded successfully.${NC}"
 fi
 
 echo -e "\n${GREEN}==========================================================${NC}"

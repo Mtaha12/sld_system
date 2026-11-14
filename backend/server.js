@@ -57,6 +57,8 @@ import mongoose from 'mongoose';
 import Case from './src/models/Case.js';
 import Statute from './src/models/Statute.js';
 import Notification from './src/models/Notification.js';
+import OtherCaseLaw from './src/models/OtherCaseLaw.js';
+import Newsletter from './src/models/Newsletter.js';
 
 // Services
 import { sendAdminContactEmail } from './services/emailService.js';
@@ -102,9 +104,12 @@ const clientEnvUrls = (process.env.CLIENT_URL || '')
 const defaultAllowed = [
   'https://sldsystem.com',
   'https://www.sldsystem.com',
+  'https://sldsystempk.com',
+  'https://www.sldsystempk.com',
   'https://sldsystemspk.com',
   'https://www.sldsystemspk.com',
   'https://api.sldsystem.com',
+  'https://api.sldsystempk.com',
   'https://api.sldsystemspk.com',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
@@ -126,7 +131,7 @@ app.use(cors({
     if (allowedOriginsSet.has(origin)) return callback(null, true);
 
     // Allow official SLD System domains & subdomains over HTTPS
-    if (/^https:\/\/(?:[a-zA-Z0-9-]+\.)*sldsystem(?:spk)?\.com$/.test(origin)) {
+    if (/^https:\/\/(?:[a-zA-Z0-9-]+\.)*sldsystem(?:s?pk)?\.com$/.test(origin)) {
       return callback(null, true);
     }
 
@@ -249,7 +254,13 @@ for (const uploadRoot of getCandidateUploadRoots()) {
 }
 app.use('/uploads/reference_views', express.static(path.resolve(__serverDir, 'uploads/reference_views'), staticUploadOptions));
 
-const LEGACY_PORTAL_UPLOAD_BASE = 'https://portal.sldsystem.com/uploads/';
+const LEGACY_PORTAL_FALLBACK_URLS = [
+  process.env.LEGACY_PORTAL_URL,
+  'https://www.sldsystempk.com/uploads/',
+  'https://api.sldsystempk.com/uploads/',
+  'https://sldsystem.com/uploads/',
+  'https://portal.sldsystem.com/uploads/'
+].filter(Boolean);
 const MAX_LEGACY_PROXY_BYTES = 30 * 1024 * 1024;
 
 const escapeHtmlSafe = (value = '') =>
@@ -260,6 +271,94 @@ const escapeHtmlSafe = (value = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+/**
+ * Dynamically resolves missing attachments by searching MongoDB metadata
+ * (e.g. court cases, newsletters, SROs) and fetching from authoritative origins.
+ */
+const tryResolveMissingDocumentDynamically = async (cleanRel) => {
+  if (!cleanRel || mongoose.connection.readyState !== 1) return null;
+  const baseName = path.basename(cleanRel);
+  const nameWithoutExt = baseName.replace(/\.[^/.]+$/, '').trim();
+  if (!nameWithoutExt || nameWithoutExt.length < 3) return null;
+
+  try {
+    const escaped = nameWithoutExt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+
+    // 1. Check OtherCaseLaw for a recorded court download link or attachment
+    const ocl = await OtherCaseLaw.findOne({
+      $or: [
+        { attachment: regex },
+        { downloadLink: regex },
+        { caseNoLink: regex },
+        { caseNo: regex }
+      ]
+    }).lean();
+
+    let remoteCandidate = null;
+    if (ocl) {
+      remoteCandidate = (ocl.downloadLink && ocl.downloadLink !== 'Nil' && /^https?:\/\//i.test(ocl.downloadLink))
+        ? ocl.downloadLink
+        : (ocl.caseNoLink && ocl.caseNoLink !== 'Nil' && /^https?:\/\//i.test(ocl.caseNoLink))
+        ? ocl.caseNoLink
+        : (ocl.attachment && ocl.attachment !== 'Nil' && /^https?:\/\//i.test(ocl.attachment))
+        ? ocl.attachment
+        : null;
+    }
+
+    // 2. Check Newsletter
+    if (!remoteCandidate) {
+      const nl = await Newsletter.findOne({
+        $or: [
+          { message: regex },
+          { attachment: regex },
+          { attachmentName: regex }
+        ]
+      }).lean();
+
+      if (nl && nl.message) {
+        const urlMatches = nl.message.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+        for (const u of urlMatches) {
+          if (u.toLowerCase().includes(nameWithoutExt.toLowerCase())) {
+            remoteCandidate = u;
+            break;
+          }
+        }
+      }
+    }
+
+    if (remoteCandidate && /^https?:\/\//i.test(remoteCandidate)) {
+      const upstream = await fetch(remoteCandidate, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/pdf,application/octet-stream,*/*'
+        },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (upstream.ok) {
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        if (buf.length > 500) {
+          const contentType = detectContentTypeForFile(cleanRel, buf);
+          // Persist in candidate upload root
+          try {
+            const cacheRoots = getCandidateUploadRoots();
+            if (cacheRoots.length > 0) {
+              const targetFolder = path.join(cacheRoots[0], 'court_cache');
+              if (!fs.existsSync(targetFolder)) fs.mkdirSync(targetFolder, { recursive: true });
+              fs.writeFileSync(path.join(targetFolder, baseName), buf);
+            }
+          } catch (_) {}
+          return { buf, contentType };
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn('tryResolveMissingDocumentDynamically error: ' + err.message);
+  }
+
+  return null;
+};
+
 const tryLegacyPortalUploadFallback = async (cleanRel) => {
   if (
     !cleanRel ||
@@ -269,35 +368,51 @@ const tryLegacyPortalUploadFallback = async (cleanRel) => {
     return null;
   }
   const encodedRel = cleanRel.split('/').map(seg => encodeURIComponent(seg)).join('/');
-  const remoteUrl = `${LEGACY_PORTAL_UPLOAD_BASE}${encodedRel}`;
-  try {
-    const upstream = await fetch(remoteUrl, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: AbortSignal.timeout(6000)
-    });
-    if (!upstream.ok) return null;
 
-    const declaredLen = Number(upstream.headers.get('content-length') || 0);
-    if (declaredLen > MAX_LEGACY_PROXY_BYTES) return null;
+  for (const base of LEGACY_PORTAL_FALLBACK_URLS) {
+    const remoteUrl = `${base.replace(/\/+$/, '')}/${encodedRel}`;
+    try {
+      const upstream = await fetch(remoteUrl, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(4000)
+      });
+      if (!upstream.ok) continue;
 
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    if (buf.length === 0 || buf.length > MAX_LEGACY_PROXY_BYTES) return null;
+      const declaredLen = Number(upstream.headers.get('content-length') || 0);
+      if (declaredLen > MAX_LEGACY_PROXY_BYTES) continue;
 
-    const upstreamType = (upstream.headers.get('content-type') || '').toLowerCase();
-    if (upstreamType.includes('text/html') && /\.(pdf|docx?|xlsx?|csv|png|jpe?g|webp|gif)$/i.test(cleanRel)) {
-      return null;
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      if (buf.length === 0 || buf.length > MAX_LEGACY_PROXY_BYTES) continue;
+
+      const upstreamType = (upstream.headers.get('content-type') || '').toLowerCase();
+      if (upstreamType.includes('text/html') && /\.(pdf|docx?|xlsx?|csv|png|jpe?g|webp|gif)$/i.test(cleanRel)) {
+        continue;
+      }
+
+      const detectedType = detectContentTypeForFile(cleanRel, buf);
+      const contentType = detectedType !== 'application/octet-stream'
+        ? detectedType
+        : (upstreamType || 'application/octet-stream');
+
+      // Cache locally for instant subsequent access
+      try {
+        const cacheRoots = getCandidateUploadRoots();
+        if (cacheRoots.length > 0) {
+          const directFile = path.resolve(cacheRoots[0], cleanRel);
+          const dir = path.dirname(directFile);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(directFile, buf);
+        }
+      } catch (_) {}
+
+      return { buf, contentType };
+    } catch (_) {
+      continue;
     }
-
-    const detectedType = detectContentTypeForFile(cleanRel, buf);
-    const contentType = detectedType !== 'application/octet-stream'
-      ? detectedType
-      : (upstreamType || 'application/octet-stream');
-
-    return { buf, contentType };
-  } catch {
-    return null;
   }
+
+  return null;
 };
 
 // Resilient fallback for any nested /uploads/* attachment path regardless of PM2 CWD
@@ -309,6 +424,19 @@ app.get(/^\/uploads\/(.+)$/, async (req, res) => {
   }
 
   const cleanRel = sanitizeUploadRelPath(req.params[0]);
+
+  // 1. Try dynamic database resolution for court judgment or newsletter links
+  const dynamicDoc = await tryResolveMissingDocumentDynamically(cleanRel);
+  if (dynamicDoc) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Content-Type', dynamicDoc.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    return res.status(200).send(dynamicDoc.buf);
+  }
+
+  // 2. Try legacy mirror fallback
   const legacyAsset = await tryLegacyPortalUploadFallback(cleanRel);
   if (legacyAsset) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
