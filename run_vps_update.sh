@@ -82,8 +82,14 @@ if [ -d "frontend" ]; then
     cd "$APP_DIR"
 fi
 
-# 8. Restart PM2 and reload Nginx
-echo -e "\n${YELLOW}>>> [7/7] Reloading PM2 backend services and Nginx...${NC}"
+# 8. Configure Nginx upload limits & proxy timeouts and reload
+echo -e "\n${YELLOW}>>> [7/7] Ensuring Nginx upload limits & Reloading PM2 & Nginx...${NC}"
+if [ -d "/etc/nginx" ]; then
+    if ! grep -q "client_max_body_size" /etc/nginx/nginx.conf 2>/dev/null; then
+        sed -i '/http {/a \    client_max_body_size 50M;\n    proxy_read_timeout 180s;\n    proxy_connect_timeout 180s;' /etc/nginx/nginx.conf 2>/dev/null || true
+    fi
+fi
+
 if command -v pm2 >/dev/null 2>&1; then
     pm2 restart sld-backend 2>/dev/null || pm2 restart all --update-env 2>/dev/null || pm2 reload all 2>/dev/null || true
     pm2 save 2>/dev/null || true

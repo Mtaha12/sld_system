@@ -4417,6 +4417,156 @@ RESPONSE GUIDELINES:
 };
 
 /**
+ * Fast string limiter for prompt safety
+ */
+const limitContext = (text, max = 8000) => {
+  if (!text) return '';
+  return String(text).length > max ? String(text).slice(0, max) + '... [TRUNCATED]' : String(text);
+};
+
+/**
+ * Fast Heuristic Fallback for Attached Documents
+ */
+function buildHeuristicDocumentAnalysis(fileName, combinedDocText, userQuery) {
+  const isCrux = /\b(?:2\s*lines?|two\s*lines?|crux|ratio|gist|brief)\b/i.test(userQuery || '');
+  const cleanLines = (combinedDocText || '')
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  let court = '';
+  let caseNo = '';
+  let bench = '';
+  let parties = '';
+  let operativeLines = [];
+
+  for (const line of cleanLines.slice(0, 30)) {
+    if (!court && /\b(?:IN\s+THE\s+SUPREME\s+COURT|IN\s+THE\s+HIGH\s+COURT|BEFORE\s+THE\s+APPELLATE\s+TRIBUNAL|BEFORE\s+THE\s+COMMISSIONER)\b/i.test(line)) {
+      court = line;
+    }
+    if (!caseNo && /\b(?:Appeal\s+No|Petition\s+No|C\.?P\.?L\.?A|W\.?P\.?|Civil\s+Appeal|Criminal\s+Appeal)\b/i.test(line)) {
+      caseNo = line;
+    }
+    if (!bench && /\b(?:Present|Coram|Before|Justice|J\.)\b/i.test(line) && line.length < 120) {
+      bench = line;
+    }
+    if (!parties && /\b(?:Versus|v\.|vs\.?)\b/i.test(line) && line.length < 150) {
+      parties = line;
+    }
+  }
+
+  for (let i = cleanLines.length - 1; i >= 0; i--) {
+    const l = cleanLines[i];
+    if (/\b(?:held|allowed|dismissed|disposed|set\s+aside|impugned\s+order|remanded|stands\s+accepted)\b/i.test(l)) {
+      operativeLines.unshift(l);
+      if (cleanLines[i - 1]) operativeLines.unshift(cleanLines[i - 1]);
+      if (cleanLines[i + 1]) operativeLines.push(cleanLines[i + 1]);
+      break;
+    }
+  }
+
+  if (operativeLines.length === 0) {
+    operativeLines = cleanLines.slice(Math.max(0, cleanLines.length - 4));
+  }
+
+  const excerpt = operativeLines.join(' ').slice(0, 350);
+
+  if (isCrux) {
+    return `### ⚖️ Judicial Crux of ${fileName}\n\n` +
+      `${court ? `**Court**: ${court}\n` : ''}` +
+      `${caseNo ? `**Case / Proceeding**: ${caseNo}\n` : ''}` +
+      `${bench ? `**Bench**: ${bench}\n\n` : '\n'}` +
+      `**Crux of the Decision**:\n` +
+      `${excerpt || 'The superior court examined the legal provisions in dispute and rendered its final determination on the judicial record.'}`;
+  }
+
+  return `### 📋 Legal Document Analysis: ${fileName}\n\n` +
+    `${court ? `• **Forum / Court**: ${court}\n` : ''}` +
+    `${caseNo ? `• **Case Title / Number**: ${caseNo}\n` : ''}` +
+    `${parties ? `• **Parties**: ${parties}\n` : ''}` +
+    `${bench ? `• **Bench / Coram**: ${bench}\n\n` : '\n'}` +
+    `#### **Operative Ruling & Summary**:\n` +
+    `${excerpt || cleanLines.slice(0, 10).join('\n')}\n\n` +
+    `*Analysis prepared from the attached document archives.*`;
+}
+
+/**
+ * Robust Attached Document Q&A, Summarization & Crux Extraction Dispatcher
+ */
+export const handleDocumentAnalysisQuery = async (queryText, rawAttachments = [], requestingUser = null) => {
+  const attachments = parseAllAIAttachments(rawAttachments);
+  if (!attachments || attachments.length === 0) return null;
+
+  const primaryAttachment = attachments[0] || {};
+  const fileName = primaryAttachment.name || 'Attached Legal Document';
+
+  let combinedDocText = '';
+  for (const att of attachments) {
+    if (att.text && att.text.trim()) {
+      combinedDocText += `\n--- [DOCUMENT: ${att.name || 'Attachment'}] ---\n${att.text.trim()}`;
+    }
+  }
+
+  const inlineParts = [];
+  for (const att of attachments) {
+    const mime = (att.type || '').toLowerCase();
+    const isGeminiSupportedMime = mime.startsWith('image/') || mime === 'application/pdf';
+    const hasSufficientText = att.text && att.text.trim().length > 100;
+    if (!hasSufficientText && att.base64 && isGeminiSupportedMime && att.base64.length < 5000000) {
+      inlineParts.push({
+        inlineData: { mimeType: att.type, data: att.base64 }
+      });
+    }
+  }
+
+  const cleanQ = (queryText || '').trim();
+  const isCruxOnly = /\b(?:2\s*lines?|two\s*lines?|crux|ratio|gist|brief\s*summary|nutshell)\b/i.test(cleanQ);
+
+  const systemInstruction = `You are a Senior Judicial Research Counsel for the SLD System (Super Law Data System) of Pakistan.
+The user has provided an attached legal document ("${fileName}") and asked a question or requested an analysis / crux / summary.
+
+CRITICAL INSTRUCTIONS:
+1. Faithfully, accurately, and authoritatively answer the user's specific request using the contents of the attached document.
+2. If the user asks for a 2-line crux, concise summary, or specific length, STRICTLY adhere to their requested length. Do not add unwanted filler or boilerplate.
+3. Identify the Court / Tribunal, Coram / Bench / Judge, Case Number / Title, and the operative decision (e.g. Allowed, Dismissed, Remanded) when present in the document.
+4. Ground your answer 100% in the attached text. Never invent facts, dates, or rulings.`;
+
+  const userPrompt = `USER REQUEST: "${cleanQ || 'Provide a concise judicial crux and analysis of this document.'}"
+
+DOCUMENT CONTENT:
+${limitContext(combinedDocText || `[Attached file: ${fileName}]`, 9000)}`;
+
+  let responseText = null;
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      responseText = await callGeminiWithTokenControl(systemInstruction, userPrompt, inlineParts, {
+        temperature: 0.15,
+        maxOutputTokens: isCruxOnly ? 600 : 2500,
+        timeoutMs: 7000
+      });
+    } catch (geminiErr) {
+      logger.warn('Document Analysis Gemini error: ' + geminiErr.message);
+    }
+  }
+
+  if (!responseText || responseText.trim().length < 20) {
+    responseText = buildHeuristicDocumentAnalysis(fileName, combinedDocText, cleanQ);
+  }
+
+  return {
+    text: responseText.trim(),
+    legalAnalysis: {
+      matchedCase: null,
+      matchType: 'document_analysis',
+      confidence: 100,
+      sourcesFound: attachments.length,
+      activeReferences: ['judgments', 'statutes', 'headnotes'],
+      attachmentName: fileName
+    }
+  };
+};
+
+/**
  * SLD Core Legal AI Intelligence Engine
  * Grounded 100% in the 162,865+ cases database across all fields
  */
@@ -4489,9 +4639,27 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
   const canAccessStatutes = !requestingUser || isAdminOrSuper || requestingUser.displayStatute !== false;
   const canAccessNotifications = !requestingUser || isAdminOrSuper || requestingUser.displayNotification !== false;
 
-  // 0.1 LEGAL DOCUMENT SCRUTINY, PROOFREADING, AMENDMENT & REVIEW DISPATCH
-  // Must execute first so that provided documents/drafts are reviewed and corrected directly
-  // according to their actual forum/subject rather than being overridden by generic template generators!
+  // 0.1 LEGAL DRAFTING / PLEADING GENERATION DISPATCH (For explicit templates or format commands)
+  if (checkIsLegalDraftingRequest(rawClean, attachments)) {
+    try {
+      const draftingResult = await generatePleadingDocument(rawClean, attachments);
+      return {
+        text: draftingResult.text,
+        legalAnalysis: {
+          matchedCase: null,
+          matchType: 'pleading_draft',
+          formatType: draftingResult.formatType,
+          confidence: 100,
+          sourcesFound: 1,
+          activeReferences: ['statutes', 'headnotes', 'case_numbers', 'courts', 'judgments']
+        }
+      };
+    } catch (draftErr) {
+      logger.error('Error generating legal pleading:', draftErr);
+    }
+  }
+
+  // 0.2 LEGAL DOCUMENT SCRUTINY, PROOFREADING, AMENDMENT & REVIEW DISPATCH
   if (checkIsDocumentCorrectionRequest(rawClean, attachments)) {
     try {
       const correctionResult = await performDocumentCorrectionAndReview(rawClean, attachments);
@@ -4512,23 +4680,16 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
     }
   }
 
-  // 0.2 LEGAL DRAFTING / PLEADING GENERATION DISPATCH (For brand new pleadings from scratch)
-  if (checkIsLegalDraftingRequest(rawClean, attachments)) {
+  // 0.25 ATTACHED DOCUMENT ANALYSIS, SUMMARY & LEGAL CRUX EXTRACTION DISPATCH
+  // When an attachment is provided and the user asks a question, requests a summary, or asks for crux (e.g. "give 2 line crux of this judgemnt")
+  if (hasAttachments) {
     try {
-      const draftingResult = await generatePleadingDocument(rawClean, attachments);
-      return {
-        text: draftingResult.text,
-        legalAnalysis: {
-          matchedCase: null,
-          matchType: 'pleading_draft',
-          formatType: draftingResult.formatType,
-          confidence: 100,
-          sourcesFound: 1,
-          activeReferences: ['statutes', 'headnotes', 'case_numbers', 'courts', 'judgments']
-        }
-      };
-    } catch (draftErr) {
-      logger.error('Error generating legal pleading:', draftErr);
+      const docAnalysisResult = await handleDocumentAnalysisQuery(rawClean, attachments, requestingUser);
+      if (docAnalysisResult) {
+        return docAnalysisResult;
+      }
+    } catch (analysisErr) {
+      logger.error('Error analyzing attached document:', analysisErr);
     }
   }
 
@@ -5494,8 +5655,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     const isExplicitParty = Boolean(partyPrefixMatch) || hasVs || hasMajorOrTitle;
     const isQuotedQuery = Boolean(rawClean.match(/"([^"]{3,60})"/));
     const isCaseLawOrPhraseQuery = isQuotedQuery || isCaseLawRequest || /^(?:give\s*(?:me)?\s*case\s*law|find\s*case\s*law|case\s*law\s*on|which\s+judgments?\s+discuss)\b/i.test(rawClean);
+    const isReasonablePartyLength = normalizedQuery.length <= 60 && normalizedQuery.split(/\s+/).length <= 6;
 
-    if (!isCaseLawOrPhraseQuery && (isExplicitParty || (!hasDoctrineKeywords && normalizedQuery.length <= 50)) && normalizedQuery.length >= 3) {
+    if (!isCaseLawOrPhraseQuery && isReasonablePartyLength && (isExplicitParty || (!hasDoctrineKeywords && normalizedQuery.length <= 50)) && normalizedQuery.length >= 3) {
       const partyQueryName = partyPrefixMatch ? partyPrefixMatch[1].trim() : normalizedQuery;
       if (partyQueryName.length >= 3) {
         try {
@@ -6007,7 +6169,8 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
   const isConversationalSearch = /^(?:give\s+case\s+law|case\s+law\s+on|find\s+case|search\s+for|what\s+is|please\s+find|give\s+me|show\s+me|need\s+case|tell\s+me)\b/i.test(normalizedQuery);
   const isQuestionQuery = /^(?:can|is|does|do|whether|how|when|who|which|where|why|what|if|are|should|must|could|would)\b/i.test(normalizedQuery) || normalizedQuery.endsWith('?');
   const isExplicitlyQuoted = /^["'“‘].+["'”’]$/.test(normalizedQuery.trim());
-  const isLongVerbatimExcerpt = normalizedQuery.length >= 25 && !isQuestionQuery && !isConversationalSearch;
+  const isReasonableExcerptLength = normalizedQuery.length <= 120 && normalizedQuery.split(/\s+/).length <= 16;
+  const isLongVerbatimExcerpt = isReasonableExcerptLength && normalizedQuery.length >= 25 && !isQuestionQuery && !isConversationalSearch;
 
   if (!targetCase && !exactCaseNumberSearched && (isExplicitlyQuoted || isLongVerbatimExcerpt) && normalizedQuery.length >= 8) {
     const rawSearchPhrase = normalizedQuery.replace(/^["'“‘]+|["'”’]+$/g, '').trim();
@@ -7312,7 +7475,12 @@ export const sendMessage = async (req, res, next) => {
       session.title = (trimmedMsg || 'Legal Drafting').slice(0, 35) + '...';
     }
 
-    await session.save();
+    // Non-fatal session persistence
+    try {
+      await session.save();
+    } catch (saveErr) {
+      logger.warn('Chat session save non-fatal error: ' + saveErr.message);
+    }
 
     return res.status(200).json({
       success: true,

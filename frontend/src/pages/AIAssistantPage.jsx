@@ -256,12 +256,19 @@ const AIAssistantPage = () => {
       }));
     } catch (err) {
       console.error('AI chat error:', err);
-      const apiErrMsg = err?.response?.data?.message;
-      let displayError = '⚠️ An error occurred while scanning the legal database. Please verify your query and try again.';
+      const apiErrMsg = err?.response?.data?.message || err?.response?.data?.error;
+      const status = err?.response?.status;
+      let displayError = '⚠️ An error occurred while communicating with the legal database. Please verify your query and try again.';
       if (apiErrMsg) {
         displayError = `⚠️ ${apiErrMsg}`;
-      } else if (err?.code === 'ECONNABORTED' || err?.response?.status === 504) {
+      } else if (status === 413) {
+        displayError = '⚠️ The uploaded file is too large for processing. Please attach a document smaller than 25MB.';
+      } else if (status === 502) {
+        displayError = '⚠️ The server is briefly processing a high workload or reloading. Please resend your query in a few moments.';
+      } else if (err?.code === 'ECONNABORTED' || status === 504) {
         displayError = '⚠️ The request timed out while communicating with the legal database. Please try narrowing your query criteria or search by specific citation/case number.';
+      } else if (err?.message && !err?.response) {
+        displayError = `⚠️ Network connection issue: ${err.message}. Please check your connection and retry.`;
       }
       const errMsg = {
         sender: 'assistant',

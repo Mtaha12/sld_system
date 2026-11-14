@@ -126,11 +126,13 @@ export const checkIsDocumentCorrectionRequest = (text, attachments = []) => {
   }
 
   if (Array.isArray(attachments) && attachments.length > 0) {
-    if (/\b(?:check|correct|correction|proofread|review|rectify|verify|examine|amend|fix|error|mistake|change|changes|modify|edit|revise|improve|need\s*of\s*correction|make\s*changes)\b/i.test(t)) {
+    // If user asked a question or asked for crux/summary/analysis, route to document analysis, NOT document correction
+    const isQOrCrux = /\b(?:crux|summary|summarize|summarise|what\s+is|what\s+was|what\s+did|who\s+is|who\s+won|who\s+are|ratio|held|gist|explain|why|how|order|decision|extract|points?|brief)\b/i.test(t);
+    if (!isQOrCrux && /\b(?:check|correct|correction|proofread|review|rectify|verify|examine|amend|fix|error|mistake|change|changes|modify|edit|revise|improve|need\s*of\s*correction|make\s*changes)\b/i.test(t)) {
       return true;
     }
-    // Any attachment uploaded without explicit template command defaults to document review/correction
-    if (!/\b(?:draft\s+format\s*[1-9]|generate\s+format\s*[1-9]|prepare\s+format\s*[1-9])\b/i.test(t)) {
+    // Only default to correction if user uploaded a file without any query text (blank prompt)
+    if (!t) {
       return true;
     }
   }
@@ -1059,7 +1061,7 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
   const {
     temperature = 0.2,
     maxOutputTokens = 3500,
-    timeoutMs = 15000
+    timeoutMs = 7000
   } = config;
 
   const primaryModel = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
@@ -1067,7 +1069,6 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
     primaryModel,
     'gemini-flash-lite-latest',
     'gemini-3.5-flash-lite',
-    'gemini-flash-latest',
     'gemini-3.8-flash'
   ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
@@ -1087,7 +1088,7 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
         }
       ];
 
-      const res = await fetch(url, {
+      let res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(timeoutMs),
@@ -1101,16 +1102,38 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
         })
       });
 
-      const data = await res.json();
+      let data = await res.json();
       if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text;
+      }
+
+      // If inlineParts (binary PDF/image) triggered 400 Invalid Argument, retry without inlineParts using extracted text
+      if (data.error && data.error.code === 400 && inlineParts.length > 0) {
+        logger.warn(`Gemini model ${model} rejected inline binary data (400). Retrying text-only payload.`);
+        const textOnlyContents = [{
+          role: 'user',
+          parts: [{ text: `${systemInstruction}\n\nUSER PROMPT:\n${userPrompt}` }]
+        }];
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(timeoutMs),
+          body: JSON.stringify({
+            contents: textOnlyContents,
+            generationConfig: { temperature, maxOutputTokens, topP: 0.95 }
+          })
+        });
+        data = await res.json();
+        if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+          return data.candidates[0].content.parts[0].text;
+        }
       }
 
       if (data.error) {
         logger.warn(`Gemini model ${model} returned error: ${data.error.message || data.error.code}`);
         lastError = new Error(data.error.message || `API error ${data.error.code}`);
         if (data.error.code === 429 || (data.error.message && data.error.message.includes('quota'))) {
-          await new Promise(r => setTimeout(r, 250 + Math.random() * 200));
+          await new Promise(r => setTimeout(r, 200));
         }
       }
     } catch (err) {
@@ -1283,7 +1306,8 @@ export const performDocumentCorrectionAndReview = async (queryText, rawAttachmen
   for (const att of attachments) {
     const mime = (att.type || '').toLowerCase();
     const isGeminiSupportedMime = mime.startsWith('image/') || mime === 'application/pdf';
-    if (att.base64 && isGeminiSupportedMime && att.base64.length < 5000000) {
+    const hasSufficientText = att.text && att.text.trim().length > 100;
+    if (!hasSufficientText && att.base64 && isGeminiSupportedMime && att.base64.length < 5000000) {
       inlineParts.push({
         inlineData: { mimeType: att.type, data: att.base64 }
       });
