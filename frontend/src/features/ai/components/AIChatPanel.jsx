@@ -307,7 +307,20 @@ th { background-color: #f2f2f2; font-weight: bold; }
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const newItems = files.map(file => {
+    const validFiles = [];
+    for (const file of files) {
+      if (file.size > 20 * 1024 * 1024) {
+        alert(`File "${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Please upload files under 20MB for fast analysis.`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+    if (!validFiles.length) {
+      e.target.value = '';
+      return;
+    }
+
+    const newItems = validFiles.map(file => {
       const isImage = file.type.startsWith('image/');
       return {
         id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
