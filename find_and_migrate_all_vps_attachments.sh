@@ -166,3 +166,4 @@ fi
 echo -e "\n${GREEN}================================================================${NC}"
 echo -e "${BOLD}${GREEN}   ALL DOCUMENTS DISCOVERED & TRANSFERRED SUCCESSFULLY!         ${NC}"
 echo -e "${GREEN}================================================================${NC}\n"
+
