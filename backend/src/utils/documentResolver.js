@@ -484,7 +484,7 @@ export const renderCertifiedNotificationHtml = (notif) => {
  * Dynamically resolves any document by inspecting MongoDB records
  * and authoritative court origins.
  */
-export const resolveDocumentDynamically = async ({ cleanRel = '', name = '', title = '', url = '', id = '' }) => {
+export const resolveDocumentDynamically = async ({ cleanRel = '', name = '', title = '', url = '', id = '', allowSyntheticHtml = true }) => {
   if (mongoose.connection.readyState !== 1) return null;
 
   try {
@@ -556,14 +556,17 @@ export const resolveDocumentDynamically = async ({ cleanRel = '', name = '', tit
           }
         }
 
-        // If no remote link or court server is offline, render certified record from MongoDB
-        const html = renderCertifiedCaseHtml(ocl, { source: 'OtherCaseLaw' });
-        return {
-          type: 'html',
-          buffer: Buffer.from(html, 'utf8'),
-          contentType: 'text/html; charset=utf-8',
-          filename: `${ocl.caseNo || 'Certified_Case_Record'}.html`
-        };
+        // If no remote link or court server is offline, render certified record from MongoDB only if synthetic HTML is permitted
+        if (allowSyntheticHtml) {
+          const html = renderCertifiedCaseHtml(ocl, { source: 'OtherCaseLaw' });
+          return {
+            type: 'html',
+            buffer: Buffer.from(html, 'utf8'),
+            contentType: 'text/html; charset=utf-8',
+            filename: `${ocl.caseNo || 'Certified_Case_Record'}.html`
+          };
+        }
+        return null;
       }
     }
 
@@ -612,14 +615,17 @@ export const resolveDocumentDynamically = async ({ cleanRel = '', name = '', tit
           }
         }
 
-        // Render complete certified judicial report from Case record
-        const html = renderCertifiedCaseHtml(caseDoc, { source: 'Case' });
-        return {
-          type: 'html',
-          buffer: Buffer.from(html, 'utf8'),
-          contentType: 'text/html; charset=utf-8',
-          filename: `SLD_${caseDoc.sldNumber || 'Judgment'}.html`
-        };
+        // Render certified judicial report from Case record only if synthetic HTML is explicitly permitted
+        if (allowSyntheticHtml) {
+          const html = renderCertifiedCaseHtml(caseDoc, { source: 'Case' });
+          return {
+            type: 'html',
+            buffer: Buffer.from(html, 'utf8'),
+            contentType: 'text/html; charset=utf-8',
+            filename: `SLD_${caseDoc.sldNumber || 'Judgment'}.html`
+          };
+        }
+        return null;
       }
     }
 
@@ -648,13 +654,16 @@ export const resolveDocumentDynamically = async ({ cleanRel = '', name = '', tit
 
       if (notif) {
         logger.info(`[documentResolver] Found Notification record: ${notif.notificationNumber || notif.title}`);
-        const html = renderCertifiedNotificationHtml(notif);
-        return {
-          type: 'html',
-          buffer: Buffer.from(html, 'utf8'),
-          contentType: 'text/html; charset=utf-8',
-          filename: `${notif.notificationNumber || 'Statutory_Notification'}.html`
-        };
+        if (allowSyntheticHtml) {
+          const html = renderCertifiedNotificationHtml(notif);
+          return {
+            type: 'html',
+            buffer: Buffer.from(html, 'utf8'),
+            contentType: 'text/html; charset=utf-8',
+            filename: `${notif.notificationNumber || 'Statutory_Notification'}.html`
+          };
+        }
+        return null;
       }
     }
 
@@ -704,13 +713,16 @@ export const resolveDocumentDynamically = async ({ cleanRel = '', name = '', tit
           }
         }
 
-        const html = renderCertifiedStatuteHtml(statuteDoc);
-        return {
-          type: 'html',
-          buffer: Buffer.from(html, 'utf8'),
-          contentType: 'text/html; charset=utf-8',
-          filename: `${statuteDoc.law || 'Statute'}_Section_${statuteDoc.section || 'Provision'}.html`
-        };
+        if (allowSyntheticHtml) {
+          const html = renderCertifiedStatuteHtml(statuteDoc);
+          return {
+            type: 'html',
+            buffer: Buffer.from(html, 'utf8'),
+            contentType: 'text/html; charset=utf-8',
+            filename: `${statuteDoc.law || 'Statute'}_Section_${statuteDoc.section || 'Provision'}.html`
+          };
+        }
+        return null;
       }
     }
 

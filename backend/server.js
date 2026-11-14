@@ -293,7 +293,8 @@ const tryResolveMissingDocumentDynamically = async (cleanRel, req = null) => {
       cleanRel,
       name: queryName || headerName,
       title: queryTitle,
-      id: docId
+      id: docId,
+      allowSyntheticHtml: false // Do NOT substitute uploaded file attachments with synthetic HTML cards
     });
 
     if (resolved && (resolved.buffer || resolved.html)) {

@@ -255,10 +255,14 @@ export const getAttachmentDisplayName = (att) => {
 export const normalizeLegacyAttachmentUrl = (rawUrl) => {
   if (!rawUrl || typeof rawUrl !== 'string') return '';
   let u = rawUrl.trim();
-  const activeBase = (API_URL || '').replace(/\/+$/, '');
+  const activeBase = (API_URL || 'https://api.sldsystem.com').replace(/\/+$/, '');
   u = u.replace(/^https?:\/\/(?:api\.|www\.)?sldsystempk\.com(?::\d+)?/i, activeBase);
   u = u.replace(/^https?:\/\/(?:api\.|www\.)?sldsystemspk\.com(?::\d+)?/i, activeBase);
   u = u.replace(/^https?:\/\/portal\.sldsystem\.com(?::\d+)?/i, activeBase);
+  u = u.replace(
+    /\/uploads\/reference_views\/([0-9a-f]{8})(?:%20|[ +_\-])([0-9a-f]{4})(?:%20|[ +_\-])([0-9a-f]{4})(?:%20|[ +_\-])([0-9a-f]{4})(?:%20|[ +_\-])([0-9a-f]{12})\.([a-z0-9]+)/gi,
+    '/uploads/reference_views/$1-$2-$3-$4-$5.$6'
+  );
   return u;
 };
 
@@ -572,16 +576,21 @@ export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction =
             if (fallbackRes.ok) {
               const fbType = (fallbackRes.headers.get('content-type') || '').toLowerCase();
               if (fbType.includes('text/html')) {
-                const htmlContent = await fallbackRes.text();
-                if (viewerWin && !viewerWin.closed) {
-                  viewerWin.document.open();
-                  viewerWin.document.write(htmlContent);
-                  viewerWin.document.close();
-                  return null;
+                // If user is expecting an uploaded PDF attachment, NEVER overwrite with synthetic HTML!
+                const isPdfAttachment = targetUrl.toLowerCase().endsWith('.pdf') || targetUrl.includes('/reference_views/');
+                if (!isPdfAttachment) {
+                  const htmlContent = await fallbackRes.text();
+                  if (viewerWin && !viewerWin.closed) {
+                    viewerWin.document.open();
+                    viewerWin.document.write(htmlContent);
+                    viewerWin.document.close();
+                    return null;
+                  }
                 }
+              } else {
+                const fbBuf = await fallbackRes.arrayBuffer();
+                return { buf: fbBuf, contentType: fbType || 'application/pdf' };
               }
-              const fbBuf = await fallbackRes.arrayBuffer();
-              return { buf: fbBuf, contentType: fbType || 'application/pdf' };
             }
           } catch (_) {}
 

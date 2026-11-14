@@ -264,29 +264,33 @@ const AddStatuteForm = () => {
   const watchedLaw = watch('law');
   const prevWatchedLawRef = useRef(null);
 
-  // When Law is selected or changed, auto-fill Chapter, Heading, and Department from previous entry of that law
+  // When Law is selected or changed, auto-fill Chapter, Heading, and Department from previous entry of that law (debounced)
   useEffect(() => {
     if (!watchedLaw || isEdit) return;
     const cleanLaw = String(watchedLaw).trim();
     if (!cleanLaw) return;
 
-    const lawChanged = prevWatchedLawRef.current !== null && prevWatchedLawRef.current.toLowerCase() !== cleanLaw.toLowerCase();
-    prevWatchedLawRef.current = cleanLaw;
+    const timer = setTimeout(() => {
+      const lawChanged = prevWatchedLawRef.current !== null && prevWatchedLawRef.current.toLowerCase() !== cleanLaw.toLowerCase();
+      prevWatchedLawRef.current = cleanLaw;
 
-    statuteService.getLatestStatuteMeta(cleanLaw).then(meta => {
-      if (!meta) return;
-      if (meta.chapter && (lawChanged || !getValues('chapter'))) {
-        setValue('chapter', meta.chapter, { shouldValidate: true, shouldDirty: false });
-      }
-      if (meta.heading && (lawChanged || !getValues('heading'))) {
-        setValue('heading', meta.heading, { shouldValidate: true, shouldDirty: false });
-      }
-      if (meta.department && (lawChanged || !getValues('department') || getValues('department') === 'tax')) {
-        setValue('department', meta.department.toLowerCase(), { shouldValidate: true, shouldDirty: false });
-      }
-    }).catch(err => {
-      console.warn('Could not auto-fetch meta for law:', cleanLaw, err);
-    });
+      statuteService.getLatestStatuteMeta(cleanLaw).then(meta => {
+        if (!meta) return;
+        if (meta.chapter && (lawChanged || !getValues('chapter'))) {
+          setValue('chapter', meta.chapter, { shouldValidate: true, shouldDirty: false });
+        }
+        if (meta.heading && (lawChanged || !getValues('heading'))) {
+          setValue('heading', meta.heading, { shouldValidate: true, shouldDirty: false });
+        }
+        if (meta.department && (lawChanged || !getValues('department') || getValues('department') === 'tax')) {
+          setValue('department', meta.department.toLowerCase(), { shouldValidate: true, shouldDirty: false });
+        }
+      }).catch(err => {
+        console.warn('Could not auto-fetch meta for law:', cleanLaw, err);
+      });
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [watchedLaw, isEdit, setValue, getValues]);
 
 
@@ -406,19 +410,23 @@ const AddStatuteForm = () => {
       console.warn('Could not load dynamic laws for AddStatuteForm:', err);
     });
 
-    settingService.getSections({ status: 'active', limit: 30000 })
-      .then(res => {
-        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          const names = res.data.map(s => s.name).filter(Boolean);
-          const combined = Array.from(new Set([...names, ...(ALL_SECTIONS || [])])).sort((a, b) =>
-            String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
-          );
-          setSectionOptions(combined);
-        }
-      })
-      .catch(err => {
-        console.warn('Could not load dynamic sections for AddStatuteForm:', err);
-      });
+    // Load custom dynamic sections in background without blocking initial form render
+    setTimeout(() => {
+      if (!isMounted) return;
+      settingService.getSections({ status: 'active', limit: 2000 })
+        .then(res => {
+          if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+            const names = res.data.map(s => s.name).filter(Boolean);
+            const combined = Array.from(new Set([...names, ...(ALL_SECTIONS || [])])).sort((a, b) =>
+              String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+            );
+            setSectionOptions(combined);
+          }
+        })
+        .catch(err => {
+          console.warn('Could not load dynamic sections for AddStatuteForm:', err);
+        });
+    }, 100);
 
     // Unconditionally fetch system's next auto-generated SR # so Auto New SR # is never stuck on 'Generating...'
     statuteService.getNextSr()

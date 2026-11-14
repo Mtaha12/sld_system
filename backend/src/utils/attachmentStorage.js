@@ -28,6 +28,14 @@ export const getCandidateUploadRoots = () => {
           '/var/www/sld_system/uploads',
           '/var/www/sld-system/backend/uploads',
           '/var/www/sld-system/uploads',
+          '/var/www/api.sldsystem.com/backend/uploads',
+          '/var/www/api.sldsystem.com/uploads',
+          '/var/www/sldsystem.com/backend/uploads',
+          '/var/www/sldsystem.com/uploads',
+          '/var/www/www.sldsystem.com/backend/uploads',
+          '/var/www/www.sldsystem.com/uploads',
+          '/var/www/portal.sldsystem.com/backend/uploads',
+          '/var/www/portal.sldsystem.com/uploads',
           '/var/www/sldsystempk.com/backend/uploads',
           '/var/www/sldsystempk.com/uploads',
           '/var/www/api.sldsystempk.com/backend/uploads',
@@ -47,8 +55,25 @@ export const getCandidateUploadRoots = () => {
           '/tmp/uploads'
         ]
       : [])
-  ].filter(Boolean);
-  return [...new Set(dirs)];
+  ];
+
+  // Dynamic discovery: detect any other uploads directories across /var/www
+  try {
+    if (path.sep === '/' && fs.existsSync('/var/www')) {
+      const siteDirs = fs.readdirSync('/var/www', { withFileTypes: true });
+      for (const entry of siteDirs) {
+        if (entry.isDirectory()) {
+          const sitePath = path.join('/var/www', entry.name);
+          const c1 = path.join(sitePath, 'backend', 'uploads');
+          const c2 = path.join(sitePath, 'uploads');
+          if (fs.existsSync(c1)) dirs.push(c1);
+          if (fs.existsSync(c2)) dirs.push(c2);
+        }
+      }
+    }
+  } catch (_) {}
+
+  return [...new Set(dirs.filter(Boolean))];
 };
 
 const isExistingRegularFile = (rootDir, candidatePath) => {
@@ -200,31 +225,56 @@ export const resolveUploadFilePath = (urlOrPath) => {
   const baseName = path.basename(cleanRel);
   const knownFolders = ['reference_views', 'newsletters', 'payment_proofs', 'court_cache'];
 
+  // Generate robust filename variants (handling spaces, hyphens, %20, and UUID permutations)
+  const baseNameVariants = [
+    baseName,
+    baseName.replace(/\s+/g, '-'),
+    baseName.replace(/-/g, ' '),
+    baseName.replace(/%20/gi, '-'),
+    baseName.replace(/%20/gi, ' ')
+  ];
+  const uniqueBaseVariants = [...new Set(baseNameVariants.filter(Boolean))];
+
+  const relVariants = [
+    cleanRel,
+    cleanRel.replace(/\s+/g, '-'),
+    cleanRel.replace(/-/g, ' '),
+    cleanRel.replace(/%20/gi, '-'),
+    cleanRel.replace(/%20/gi, ' ')
+  ];
+  const uniqueRelVariants = [...new Set(relVariants.filter(Boolean))];
+
   for (const root of getCandidateUploadRoots()) {
     if (!fs.existsSync(root)) continue;
 
-    // 1. Direct path check
-    const direct = path.resolve(root, cleanRel);
-    if (isExistingRegularFile(root, direct)) {
-      setCachedPath(cleanRel, direct);
-      return direct;
-    }
-
-    // 2. Known category folders with recursive traversal
-    for (const sub of knownFolders) {
-      const folderPath = path.resolve(root, sub);
-      const match = findFileRecursively(folderPath, baseName, 4);
-      if (match && isExistingRegularFile(root, match)) {
-        setCachedPath(cleanRel, match);
-        return match;
+    // 1. Direct path check across all relative path variants
+    for (const relVar of uniqueRelVariants) {
+      const direct = path.resolve(root, relVar);
+      if (isExistingRegularFile(root, direct)) {
+        setCachedPath(cleanRel, direct);
+        return direct;
       }
     }
 
-    // 3. Fallback: Search the entire root recursively for the target basename
-    const rootMatch = findFileRecursively(root, baseName, 4);
-    if (rootMatch && isExistingRegularFile(root, rootMatch)) {
-      setCachedPath(cleanRel, rootMatch);
-      return rootMatch;
+    // 2. Known category folders with recursive traversal
+    for (const bVar of uniqueBaseVariants) {
+      for (const sub of knownFolders) {
+        const folderPath = path.resolve(root, sub);
+        const match = findFileRecursively(folderPath, bVar, 4);
+        if (match && isExistingRegularFile(root, match)) {
+          setCachedPath(cleanRel, match);
+          return match;
+        }
+      }
+    }
+
+    // 3. Fallback: Search the entire root recursively for target basename variants
+    for (const bVar of uniqueBaseVariants) {
+      const rootMatch = findFileRecursively(root, bVar, 4);
+      if (rootMatch && isExistingRegularFile(root, rootMatch)) {
+        setCachedPath(cleanRel, rootMatch);
+        return rootMatch;
+      }
     }
   }
 
