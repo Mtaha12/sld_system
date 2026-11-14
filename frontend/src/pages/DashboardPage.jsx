@@ -19,7 +19,14 @@ const REFERENCE_BUTTONS = [
 ];
 
 const DashboardPage = ({ isPublic = false }) => {
-  const [summaryData, setSummaryData] = useState(null);
+  const [summaryData, setSummaryData] = useState(() => {
+    try {
+      const cacheKey = isPublic ? 'dashboard_summary_public_v2' : 'dashboard_summary_auth_v2';
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (_) {}
+    return null;
+  });
   const publicPreview = usePublicPreview();
 
   useEffect(() => {
@@ -31,6 +38,10 @@ const DashboardPage = ({ isPublic = false }) => {
           : await dashboardService.getAuthenticatedSummary();
         if (isMounted && data) {
           setSummaryData(data);
+          try {
+            const cacheKey = isPublic ? 'dashboard_summary_public_v2' : 'dashboard_summary_auth_v2';
+            sessionStorage.setItem(cacheKey, JSON.stringify(data));
+          } catch (_) {}
         }
       } catch (err) {
         console.warn('[DashboardPage] Failed to load summary:', err);

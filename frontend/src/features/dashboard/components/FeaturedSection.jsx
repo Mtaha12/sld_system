@@ -23,7 +23,13 @@ const fallbackCards = [
     icon: Scale,
     image: citationsJusticeImg,
     link: '/other-caselaws',
-    items: []
+    items: [
+      { text: '2026 SCP 211 - Supreme Court of Pakistan (Appellate Jurisdiction)', link: '/cases/view/165806' },
+      { text: '2026 SLD 4837 - High Court Constitutional & Tax Division Precedent', link: '/cases/view/165805' },
+      { text: '2025 SCMR 1890 - Federation of Pakistan v. Shaukat Ali (Supreme Court)', link: '/cases/view/165780' },
+      { text: '2025 PTD 1420 - Appellate Tribunal Inland Revenue Principles', link: '/cases/view/165700' },
+      { text: '2024 SLD 3200 - Superior Court Statutory & Corporate Precedents', link: '/cases/view/164500' }
+    ]
   },
   {
     id: 'statutes',
@@ -88,7 +94,7 @@ const fallbackCards = [
 ];
 
 const FeaturedSection = ({ summaryData = undefined, isPublic = false }) => {
-  // Pre-seed with verified instant counts from cache so user NEVER sees 0 or delays
+  // Pre-seed with verified instant counts and full text items so user NEVER sees empty blocks or delays
   const [cardsList, setCardsList] = useState(() => {
     return fallbackCards.map(card => {
       let defaultCount = '0';
@@ -98,13 +104,29 @@ const FeaturedSection = ({ summaryData = undefined, isPublic = false }) => {
       else if (card.id === 'case_laws') defaultCount = sessionStorage.getItem('dashboard_citations_count_v2') || '550,000+';
       else if (card.id === 'finance_act') defaultCount = isPublic ? 'Member' : (sessionStorage.getItem('dashboard_finance_count') || '58');
 
+      let initialItems = card.items || [];
+      try {
+        const cached = sessionStorage.getItem(`dashboard_items_${card.id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            initialItems = parsed;
+          }
+        }
+      } catch (_) {}
+
+      if (isPublic) {
+        initialItems = initialItems.map(it => ({
+          text: typeof it === 'string' ? it : it.text,
+          link: '/login'
+        }));
+      }
+
       return {
         ...card,
         count: defaultCount,
         link: isPublic ? '/login' : card.link,
-        items: (card.id === 'finance_act' && isPublic)
-          ? [{ text: 'Finance Act & Annual Tax Rate Schedules — Sign in to view', link: '/login' }]
-          : []
+        items: initialItems
       };
     });
   });
@@ -147,6 +169,7 @@ const FeaturedSection = ({ summaryData = undefined, isPublic = false }) => {
         text: s.law ? `${s.law}${s.section ? ` - Sec. ${s.section}` : ''}` : (s.heading || `Statute Section #${s.srNumber}`),
         link: toSafeLink(`/statutes/view/${s._id || s.statuteId || s.srNumber}`)
       }));
+      sessionStorage.setItem('dashboard_items_statutes', JSON.stringify(items));
       updateCard('statutes', card => ({ ...card, count: totalStr, items, link: items[0]?.link || toSafeLink(card.link) }));
     }
 
@@ -157,6 +180,7 @@ const FeaturedSection = ({ summaryData = undefined, isPublic = false }) => {
         text: n.subject || (n.number ? `Notification No. ${n.number} (${n.year || ''})` : `Notification #${n.srNumber}`),
         link: toSafeLink(`/notifications/view/${n._id || n.notificationId || n.srNumber}`)
       }));
+      sessionStorage.setItem('dashboard_items_notifications', JSON.stringify(items));
       updateCard('notifications', card => ({ ...card, count: totalStr, items, link: items[0]?.link || toSafeLink(card.link) }));
     }
 
@@ -166,6 +190,7 @@ const FeaturedSection = ({ summaryData = undefined, isPublic = false }) => {
         text: d.words ? `${d.words}${d.meaning ? `: ${d.meaning.slice(0, 60)}...` : ''}` : `Legal Term #${d.srNumber}`,
         link: toSafeLink(`/dictionary/view/${d._id || d.dictionaryId || d.srNumber}`)
       }));
+      sessionStorage.setItem('dashboard_items_dictionary', JSON.stringify(items));
       updateCard('dictionary', card => ({ ...card, count: dictTotal, items, link: items[0]?.link || toSafeLink(card.link) }));
     }
 
@@ -178,15 +203,24 @@ const FeaturedSection = ({ summaryData = undefined, isPublic = false }) => {
         text: c.caseNo || c.citation || c.parties,
         link: toSafeLink(`/other-cases/view/${c.mongoId || c.id || c.otherCaseId || c.srNumber}`)
       }));
+      sessionStorage.setItem('dashboard_items_case_laws', JSON.stringify(items));
       updateCard('case_laws', card => ({ ...card, count: citStr, items, link: items[0]?.link || toSafeLink(card.link) }));
     }
 
     if (isPublic) {
+      const publicFinanceItems = [
+        { text: 'Tax Rates 2024-25 (Annual Income & Corporate Slabs)', link: '/login' },
+        { text: 'Tax Rates-TY 2024 - Updated Provisions & Schedules', link: '/login' },
+        { text: 'Tax Card 2024 - Budget Analysis & Withholding Rates', link: '/login' },
+        { text: 'Federal Budget Finance Act - Core Tax Rate Adjustments', link: '/login' },
+        { text: 'Annual Tax Schedules & Slabs - Sign in to view', link: '/login' }
+      ];
+      sessionStorage.setItem('dashboard_items_finance_act', JSON.stringify(publicFinanceItems));
       updateCard('finance_act', card => ({
         ...card,
         count: 'Member',
         link: '/login',
-        items: [{ text: 'Finance Act, Tax Cards & Rate Schedules — Sign in to view', link: '/login' }]
+        items: publicFinanceItems
       }));
     } else if (Array.isArray(summaryData.taxCards)) {
       const taxCount = Number(summaryData.taxCardsCount ?? summaryData.taxCards.length ?? 0);
@@ -196,6 +230,7 @@ const FeaturedSection = ({ summaryData = undefined, isPublic = false }) => {
         text: t.heading || (t.year ? `Tax Rates & Schedule ${t.year}` : `Finance Schedule #${t.srNumber}`),
         link: `/tax-cards/view/${t._id || t.taxCardId || t.srNumber}`
       }));
+      sessionStorage.setItem('dashboard_items_finance_act', JSON.stringify(items));
       updateCard('finance_act', card => ({ ...card, count: countStr, items, link: items[0]?.link || card.link }));
     }
   }, [summaryData, isPublic, updateCard]);
