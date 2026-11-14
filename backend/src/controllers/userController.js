@@ -195,7 +195,7 @@ export const createUser = async (req, res, next) => {
       displayStatute: parseBoolean(displayStatute, true),
       displayNotification: parseBoolean(displayNotification, true),
       displayCase: parseBoolean(displayCase, true),
-      allowAllForms: parseBoolean(allowAllForms, false),
+      allowAllForms: parseBoolean(allowAllForms, true),
       downloadLimitStatute: Number(req.body.downloadLimitStatute) || 25,
       downloadLimitNotification: Number(req.body.downloadLimitNotification) || 25,
       downloadLimitCaseLaw: Number(req.body.downloadLimitCaseLaw) || 50,

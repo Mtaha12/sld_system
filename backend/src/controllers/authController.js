@@ -138,7 +138,7 @@ export const register = async (req, res, next) => {
       email: email.toLowerCase(),
       password, // pre-save hook will hash it
       role: 'User', // Public signup CANNOT create admin accounts
-      allowAllForms: false,
+      allowAllForms: true,
       displayCase: true,
       displayStatute: true,
       displayNotification: true,
@@ -806,7 +806,7 @@ export const googleSignup = async (req, res, next) => {
       password: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
       isVerified: false,
       role: 'User', // Strictly standard user
-      allowAllForms: false,
+      allowAllForms: true,
       displayCase: true,
       displayStatute: true,
       displayNotification: true,

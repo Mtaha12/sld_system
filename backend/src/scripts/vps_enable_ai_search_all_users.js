@@ -39,11 +39,11 @@ async function run() {
 
   const res = await db.collection('users').updateMany(
     {},
-    { $set: { aiAssistant: true } }
+    { $set: { aiAssistant: true, allowAllForms: true } }
   );
 
-  console.log(`✓ Updated ${res.modifiedCount} user records to aiAssistant: true.`);
-  console.log(`✓ All users (existing & new) now have AI Search enabled by default.`);
+  console.log(`✓ Updated ${res.modifiedCount} user records to aiAssistant: true and allowAllForms: true.`);
+  console.log(`✓ All users (existing & new) now have AI Search & Allow All Forms enabled by default.`);
   console.log(`==========================================================\n`);
 
   await mongoose.disconnect();

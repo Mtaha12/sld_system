@@ -52,6 +52,7 @@ import newsletterRoutes from './src/routes/newsletterRoutes.js';
 import customTariffRoutes from './src/routes/customTariffRoutes.js';
 import invoiceRoutes from './src/routes/invoiceRoutes.js';
 import otherCaseLawRoutes from './src/routes/otherCaseLawRoutes.js';
+import { viewOtherCaseDocument } from './src/controllers/otherCaseLawController.js';
 
 // Models
 import mongoose from 'mongoose';
@@ -217,6 +218,7 @@ app.use('/api/custom-tariffs', customTariffRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/other-cases', otherCaseLawRoutes);
 app.use('/api/other-caselaws', otherCaseLawRoutes);
+app.get('/api/resolve-document', viewOtherCaseDocument);
 
 const setInlineUploadHeaders = (res, filePath) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

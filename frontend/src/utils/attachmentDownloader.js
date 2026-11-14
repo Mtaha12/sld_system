@@ -53,6 +53,10 @@ const detectMimeAndCategory = (bytes, filename = '', contentType = '') => {
     if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
       return { mime: lowerMime || 'application/octet-stream', category: 'office' };
     }
+    const headerStr = new TextDecoder('utf-8').decode(bytes.subarray(0, 30)).trim().toLowerCase();
+    if (headerStr.startsWith('<!doctype html') || headerStr.startsWith('<html') || headerStr.startsWith('<!--') || headerStr.startsWith('<head')) {
+      return { mime: 'text/html; charset=utf-8', category: 'html' };
+    }
   }
 
   if (lowerName.endsWith('.pdf') || lowerMime.includes('application/pdf')) {
@@ -206,12 +210,20 @@ const renderBytesIntoViewerTab = async (viewerWin, bytes, { filename = 'document
   }
 
   if (category === 'html') {
+    const text = new TextDecoder('utf-8').decode(bytes);
     if (viewerWin && !viewerWin.closed) {
-      viewerWin.location.replace(blobUrl);
+      viewerWin.document.open();
+      viewerWin.document.write(text);
+      viewerWin.document.close();
     } else {
-      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.open();
+        win.document.write(text);
+        win.document.close();
+      }
     }
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 300000);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
     return;
   }
 
@@ -252,6 +264,12 @@ export const getResolvedBackendUrl = (pathOrUrl) => {
   }
 
   const clean = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+
+  // If this is an internal frontend page route, leave it untouched
+  if (/^\/(?:cases|other-cases|other-caselaws|statutes|notifications|dictionary|tax-cards|news|dashboard|search|ai-search|manage-users|login|register)(?:\/|\?|$)/i.test(clean)) {
+    return clean;
+  }
+
   const isApiPath = clean.startsWith('/api/');
   const resolvedPath = isApiPath ? clean : (clean.startsWith('/uploads') ? clean : `/uploads${clean}`);
 

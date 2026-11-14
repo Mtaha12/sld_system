@@ -1220,6 +1220,48 @@ export const getCaseById = async (req, res, next) => {
     const c = await Case.findOne({ ...query, isDeleted: false }).lean();
 
     if (!c) {
+      const ocl = await OtherCaseLaw.findOne({
+        $or: [
+          ...(mongoose.isValidObjectId(rawId) ? [{ _id: rawId }] : []),
+          { srNumber: !isNaN(numInt) ? numInt : -1 },
+          { otherCaseId: rawId },
+          { other_case_id: rawId },
+          { caseNo: new RegExp(`^${escapeRegex(rawId)}$`, 'i') },
+          { citation: new RegExp(`^${escapeRegex(rawId)}$`, 'i') }
+        ],
+        isDeleted: false
+      }).lean();
+
+      if (ocl) {
+        const oclFormatted = {
+          _id: ocl._id,
+          id: ocl.srNumber ? String(ocl.srNumber) : String(ocl._id),
+          caseId: ocl.otherCaseId || String(ocl.srNumber),
+          sldNumber: ocl.srNumber ? String(ocl.srNumber) : '',
+          court: ocl.court || ocl.apexCourt || 'Superior Court of Pakistan',
+          citation: ocl.citation || 'Unreported / Certified Order',
+          mapYearPage: ocl.citation ? [ocl.citation] : [],
+          petitioners: ocl.parties ? [ocl.parties] : [],
+          title: ocl.caseNo || ocl.parties || 'Judicial Case Record',
+          judges: ocl.bench ? [ocl.bench] : (ocl.authorJudge ? [ocl.authorJudge] : []),
+          date: ocl.orderDate || ocl.judgmentDate || '',
+          headNote: ocl.headNotes || ocl.notes || '',
+          judgment: ocl.judgment || ocl.headNotes || '',
+          attachments: (ocl.downloadLink || ocl.caseNoLink || ocl.attachment) ? [{
+            name: ocl.attachmentName || `${ocl.caseNo || 'Certified_Judgment'}.pdf`,
+            url: ocl.downloadLink || ocl.caseNoLink || ocl.attachment,
+            type: 'pdf'
+          }] : [],
+          isOtherCase: true,
+          apexCourt: ocl.apexCourt || '',
+          apexStatus: ocl.apexStatus || ''
+        };
+        return res.status(200).json({
+          success: true,
+          data: oclFormatted
+        });
+      }
+
       return res.status(404).json({
         success: false,
         message: 'Case law record not found.'

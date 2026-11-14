@@ -2918,23 +2918,51 @@ export const clearLegalSearchCache = () => {
 };
 
 /**
- * Formats parties/petitioners array cleanly
+ * Formats parties/petitioners cleanly (handling string or array)
  */
 const cleanParties = (petitioners) => {
   if (!petitioners || petitioners.length === 0) return 'N/A';
-  return petitioners
-    .map(p => String(p || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim())
-    .join(' | ');
+  if (typeof petitioners === 'string') {
+    return petitioners.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  if (Array.isArray(petitioners)) {
+    return petitioners
+      .map(p => String(p || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join(' | ');
+  }
+  return String(petitioners).trim();
 };
 
 /**
- * Formats lawyer and counsel appearances cleanly
+ * Formats lawyer and counsel appearances cleanly (handling string or array)
  */
 const cleanLawyers = (lawyers) => {
   if (!lawyers || lawyers.length === 0) return 'N/A';
-  return lawyers
-    .map(l => String(l || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim())
-    .join(' | ');
+  if (typeof lawyers === 'string') {
+    return lawyers.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  if (Array.isArray(lawyers)) {
+    return lawyers
+      .map(l => String(l || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join(' | ');
+  }
+  return String(lawyers).trim();
+};
+
+/**
+ * Cleanly truncates evidence snippet for deterministic presentation
+ */
+const cleanEvidenceSnippet = (text, maxLength = 350) => {
+  if (!text) return '';
+  const clean = String(text)
+    .replace(/<\/?[a-z][^>]*>/gi, '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength).trim() + '...';
 };
 
 const VALID_CASE_LAW_FIELDS = new Set([
@@ -3333,6 +3361,19 @@ export const extractConversationContext = (conversationHistory = []) => {
         if (msg.legalAnalysis.matchedNotification && !lastNotification) {
           lastNotification = msg.legalAnalysis.matchedNotification;
           hasLegalContext = true;
+          if (!lastSro) {
+            const notifNum = lastNotification.sroNumber || lastNotification.number || '';
+            const sMatch = String(notifNum).match(/(\d+)/);
+            if (sMatch) {
+              lastSro = {
+                sroNum: sMatch[1],
+                sroSuffix: null,
+                sroYear: lastNotification.year || null,
+                fullStr: String(notifNum),
+                source: 'matched_notification'
+              };
+            }
+          }
         }
       }
       if (!lastCase && messageText) {
@@ -3355,6 +3396,20 @@ export const extractConversationContext = (conversationHistory = []) => {
             source: 'assistant_message'
           };
           hasLegalContext = true;
+        } else {
+          const bracketMatch = messageText.match(/\b(\d{2,5})\s*\(([a-z0-9]+)\)(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+          if (bracketMatch) {
+            let year = bracketMatch[3] ? parseInt(bracketMatch[3], 10) : null;
+            if (year && year < 100) year = year < 50 ? 2000 + year : 1900 + year;
+            lastSro = {
+              sroNum: bracketMatch[1],
+              sroSuffix: bracketMatch[2] || null,
+              sroYear: year,
+              fullStr: bracketMatch[0],
+              source: 'assistant_bracket'
+            };
+            hasLegalContext = true;
+          }
         }
       }
     } else if (sender === 'user') {
@@ -3436,19 +3491,27 @@ export const extractSroIdentifier = (queryText, conversationHistory = []) => {
     };
   }
 
-  // 2. Anaphoric check ("this sro", "that sro", "the sro", "same sro", "with this sro", "citing this sro", "it", etc.)
-  const isAnaphoric = /\b(?:this|that|the|same|above|mentioned)\s+(?:s\.?r\.?o\.?|notif(?:i|ee)?cat(?:i|ee)on|circular|c\.?g\.?o)\b/i.test(cleanQ) ||
-    /\b(?:give|show|find|search|get)\s+(?:me\s+)?(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?)\s+(?:with|on|for|under|regarding|citing|about)\s+(?:this|that|it|the\s+same)\b/i.test(cleanQ) ||
-    /\b(?:any\s+)?cases?\s+(?:on|with|citing|for)\s+(?:this|that|it)\b/i.test(cleanQ) ||
-    /\b(?:give|show|find)\s+(?:me\s+)?cases?\s+with\s+this\b/i.test(cleanQ);
+  // 2. Anaphoric check ("this sro", "that sro", "the sro", "required sro", "used required sro", "cases on it", etc.)
+  const isAnaphoric =
+    /\b(?:this|that|the|same|above|mentioned|required|given|needed|demanded|asked|subject)\s+(?:s\.?r\.?o\.?|notif(?:i|ee)?cat(?:i|ee)on|circular|c\.?g\.?o)\b/i.test(cleanQ) ||
+    /\b(?:used|applied|cited|mentioned|referred|governed\s+by|under)\s+(?:the|this|that|required|given|needed|demanded|said)?\s*s\.?r\.?o\.?\b/i.test(cleanQ) ||
+    /\b(?:which|what)\s+case\s*laws?\s+(?:used|applied|cited|mentioned|referred|under)\b/i.test(cleanQ) ||
+    /\b(?:give|show|find|search|get|provide|display)\s+(?:me\s+)?(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?)\s+(?:with|on|for|under|regarding|citing|about|using|applying)\s+(?:this|that|it|the\s+same|required|above)\b/i.test(cleanQ) ||
+    /\b(?:any\s+)?cases?\s+(?:on|with|citing|for|about)\s+(?:this|that|it|same)\b/i.test(cleanQ) ||
+    /\b(?:give|show|find|provide)\s+(?:me\s+)?cases?\s+with\s+this\b/i.test(cleanQ) ||
+    (/\b(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?)\b/i.test(cleanQ) && /\b(?:s\.?r\.?o\.?|notif(?:i|ee)?cat(?:i|ee)on)\b/i.test(cleanQ));
 
-  if (isAnaphoric && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+  if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
     const convCtx = extractConversationContext(conversationHistory);
     if (convCtx.lastSro) {
-      return {
-        ...convCtx.lastSro,
-        source: 'conversation_history'
-      };
+      if (isAnaphoric ||
+          /\b(?:give|show|find|get|provide|search|display)\s+(?:me\s+)?(?:the\s+)?(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?)\b/i.test(cleanQ) ||
+          /^(?:cases?|case\s*law|judgments?|precedents?)\??$/i.test(cleanQ)) {
+        return {
+          ...convCtx.lastSro,
+          source: 'conversation_history'
+        };
+      }
     }
   }
 
@@ -3479,26 +3542,28 @@ const synthesizeLegalAIAnswer = async (userQuery, matchedCases, targetCase, conv
     };
 
     const casesSummary = topCases.map((c, idx) => {
-      const citeStr = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
-      const parties = cleanParties(c.petitioners);
-      const bench = cleanBenchList(c.judges);
+      const citeStr = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : (c.citation ? (Array.isArray(c.citation) ? c.citation.join(' | ') : c.citation) : `SLD #${c.sldNumber || c.otherCaseId}`);
+      const parties = cleanParties(c.caseTitle || c.petitioners || c.parties);
+      const bench = cleanBenchList(c.judges || c.bench || c.authorJudge);
       const lawyers = cleanLawyers(c.lawyers);
-      const caseNums = (c.caseNumber && c.caseNumber.length > 0) ? (Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : String(c.caseNumber)) : 'N/A';
+      const caseNums = (c.caseNumber && c.caseNumber.length > 0) ? (Array.isArray(c.caseNumber) ? c.caseNumber.join(', ') : String(c.caseNumber)) : (c.caseNo || 'N/A');
       const judgmentSnippet = sanitizeEvidenceText((c.judgment || '').slice(0, 450));
-      const principle = sanitizeEvidenceText(c.principleLaw || '');
+      const principle = sanitizeEvidenceText(c.principleLaw || c.notes || '');
+      const headNoteSnippet = sanitizeEvidenceText((c.headNote || c.headNotes || '').slice(0, 500));
       const laws = (c.laws || []).map(l => `${l.lawStatute || ''}${l.section ? ` (s. ${l.section})` : ''}`).filter(Boolean).join(', ');
 
       return `[CASE RECORD #${idx + 1}]
-- SLD Number: SLD #${c.sldNumber} (${c.caseId || ''})
+- SLD Number: SLD #${c.sldNumber || c.otherCaseId || ''}
 - Document Link ID: ${c._id}
 - Citation: ${citeStr}
-- Court: ${c.court || 'High Court / Supreme Court'}
-- Decision Date: ${formatDate(c)}
-- Bench: ${bench}
-- Parties: ${parties}
-- Counsel: ${lawyers}
+- Court: ${c.court || c.apexCourt || 'High Court / Supreme Court'}
+- Decision Date: ${formatDate(c) || c.decisionDate || c.dated || c.judgmentDate || c.orderDate || 'N/A'}
+- Bench: ${bench || 'N/A'}
+- Parties: ${parties || 'N/A'}
+- Counsel: ${lawyers || 'N/A'}
 - Case Numbers: ${caseNums}
-- Statutory Provisions: ${laws || 'Income Tax Ordinance / Relevant Statutes'}
+- Statutory Provisions: ${laws || 'Income Tax / Sales Tax / Relevant Statutes'}
+- Headnote / Legal Ruling: ${headNoteSnippet || 'N/A'}
 - Principle of Law: ${principle || 'N/A'}
 - Operative Judgment Excerpt: ${judgmentSnippet || 'N/A'}`;
     }).join('\n\n---\n\n');
@@ -3520,8 +3585,8 @@ CRITICAL INSTRUCTIONS & PROMPT INJECTION DEFENSE:
      For EACH verified case provided below, include its Citation, Court, Bench, Litigants, and Key Legal Ruling, followed by its document link: [View Full Case Document ↗](/cases/view/<Document Link ID>).
    - #### Ratio Decidendi & Legal Principles: The statutory interpretation, rationale, and doctrine established across the cases.
    - #### Relevant Law Numbers: State the exact statute/article/section numbers only when they appear in the verified statutory provisions above. Never invent a law number.
-8. Official Portals & External References:
-   If the user's query references SROs, notifications, corporate circulars, or superior court portals outside the immediate case records, provide authentic external links (e.g. [FBR SROs ↗](https://fbr.gov.pk/sros), [SECP Circulars ↗](https://www.secp.gov.pk/laws/circulars/), [LHC Reported Judgments ↗](https://data.lhc.gov.pk/reported_judgments/judgments_approved_for_reporting), [SCP Judgments Search ↗](https://scp.gov.pk/JudgmentsSearch)). NEVER show "/cases/view/..." for external or official portal items.
+8. PREFERENCE FOR INTERNAL SLD DATABASE RECORDS:
+   Always prioritize and display the internal database records retrieved from SLD System. NEVER provide external website links in place of internal database case records or SRO notifications. When the user asks for case law on an SRO or statutory provision, your primary duty is to analyze and present the retrieved COURT PRECEDENTS and JUDGMENTS that applied or interpreted that SRO, with their direct SLD case links [View Full Case Document ↗](/cases/view/<Document Link ID>). Do NOT deflect to external websites when genuine internal records are provided.
 9. Formatting Constraints:
    - Do NOT use stray raw asterisks (**) around signature or party blocks.
    - Use clean markdown headings and concise bullet points.`;
@@ -3699,7 +3764,7 @@ export const handleCaseLawOnSroQuery = async (queryText, sroIdent, conversationH
         isDeleted: false
       }, { score: { $meta: 'textScore' } })
       .sort({ score: { $meta: 'textScore' } })
-      .select('sldNumber mapYearPage citation caseTitle court judges decisionDate dated headNote references principleLaw')
+      .select('sldNumber mapYearPage citation caseTitle petitioners court judges decisionDate dated headNote references principleLaw laws lawyers caseNumber caseId judgment')
       .limit(60)
       .maxTimeMS(2500)
       .lean();
@@ -3716,8 +3781,9 @@ export const handleCaseLawOnSroQuery = async (queryText, sroIdent, conversationH
       const hn = c.headNote || '';
       const pl = c.principleLaw || '';
       const ref = Array.isArray(c.references) ? c.references.join(' ') : (c.references || '');
-      return sroRegex.test(hn) || sroRegex.test(pl) || sroRegex.test(ref) ||
-             bracketRegex.test(hn) || bracketRegex.test(pl) || bracketRegex.test(ref);
+      const lawsStr = Array.isArray(c.laws) ? c.laws.map(l => `${l.lawStatute || ''} ${l.section || ''}`).join(' ') : '';
+      return sroRegex.test(hn) || sroRegex.test(pl) || sroRegex.test(ref) || sroRegex.test(lawsStr) ||
+             bracketRegex.test(hn) || bracketRegex.test(pl) || bracketRegex.test(ref) || bracketRegex.test(lawsStr);
     });
 
     // Targeted fallback query if text index candidates yielded fewer than 5
@@ -3728,13 +3794,15 @@ export const handleCaseLawOnSroQuery = async (queryText, sroIdent, conversationH
           $or: [
             { headNote: sroRegex },
             { principleLaw: sroRegex },
-            { references: sroRegex }
+            { references: sroRegex },
+            { 'laws.section': sroRegex },
+            { 'laws.lawStatute': sroRegex }
           ]
         })
-        .select('sldNumber mapYearPage citation caseTitle court judges decisionDate dated headNote references principleLaw')
+        .select('sldNumber mapYearPage citation caseTitle petitioners court judges decisionDate dated headNote references principleLaw laws lawyers caseNumber caseId judgment')
         .sort({ sldNumberInt: -1 })
         .limit(10)
-        .maxTimeMS(2500)
+        .maxTimeMS(3000)
         .lean();
 
         if (directCases && directCases.length > 0) {
@@ -3747,6 +3815,53 @@ export const handleCaseLawOnSroQuery = async (queryText, sroIdent, conversationH
         }
       } catch (directErr) {
         logger.warn('handleCaseLawOnSroQuery direct search warning: ' + directErr.message);
+      }
+    }
+
+    // Also query OtherCaseLaw to ensure 100% database coverage
+    if (verifiedCases.length < 10) {
+      try {
+        const directOther = await OtherCaseLaw.find({
+          $or: [
+            { headNotes: sroRegex },
+            { notes: sroRegex },
+            { caseNo: sroRegex },
+            { citation: sroRegex }
+          ]
+        })
+        .select('otherCaseId caseNo citation scCitation caseYear parties caseTitle orderDate judgmentDate headNotes notes bench authorJudge apexCourt attachment downloadLink')
+        .limit(10)
+        .maxTimeMS(2500)
+        .lean();
+
+        if (directOther && directOther.length > 0) {
+          const existingIds = new Set(verifiedCases.map(c => String(c._id)));
+          for (const o of directOther) {
+            if (!existingIds.has(String(o._id))) {
+              verifiedCases.push({
+                _id: o._id,
+                sldNumber: o.otherCaseId || o.srNumber || '',
+                otherCaseId: o.otherCaseId,
+                citation: (o.citation && o.citation !== 'Nil') ? o.citation : (o.scCitation || o.caseNo),
+                caseTitle: o.parties || o.caseTitle || o.caseNo,
+                petitioners: o.parties || o.caseTitle || '',
+                court: o.apexCourt || 'High Court of Record',
+                judges: o.bench || o.authorJudge ? [o.bench || o.authorJudge] : [],
+                decisionDate: o.judgmentDate || o.orderDate || (o.caseYear ? String(o.caseYear) : ''),
+                headNote: (o.headNotes && o.headNotes !== 'No' && o.headNotes !== 'Yes') ? o.headNotes : (o.notes || ''),
+                principleLaw: o.notes || '',
+                references: [o.caseNo],
+                laws: [],
+                lawyers: [],
+                caseNumber: [o.caseNo],
+                judgment: o.notes || o.headNotes || '',
+                isOtherCaseLaw: true
+              });
+            }
+          }
+        }
+      } catch (otherErr) {
+        logger.warn('handleCaseLawOnSroQuery OtherCaseLaw search warning: ' + otherErr.message);
       }
     }
 
@@ -3793,16 +3908,16 @@ export const handleCaseLawOnSroQuery = async (queryText, sroIdent, conversationH
         responseText += `The following authoritative Pakistani court judgments directly cite, interpret, or apply **S.R.O. ${sroNum}**:\n\n`;
 
         verifiedCases.slice(0, 5).forEach((c, idx) => {
-          const cite = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : (c.citation ? c.citation.join(' | ') : `SLD #${c.sldNumber}`);
-          const parties = cleanParties(c.caseTitle || c.petitioners);
-          const bench = cleanBenchList(c.judges);
-          const excerpt = cleanEvidenceSnippet(c.headNote || c.principleLaw || '', 350);
+          const cite = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : (c.citation ? (Array.isArray(c.citation) ? c.citation.join(' | ') : c.citation) : `SLD #${c.sldNumber || c.otherCaseId}`);
+          const parties = cleanParties(c.caseTitle || c.petitioners || c.parties);
+          const bench = cleanBenchList(c.judges || c.bench || c.authorJudge);
+          const excerpt = cleanEvidenceSnippet(c.headNote || c.headNotes || c.principleLaw || c.notes || '', 350);
 
           responseText += `#### **Authority ${idx + 1}: ${cite}**\n`;
-          responseText += `• **Court**: ${c.court || 'Court of Record'}\n`;
+          responseText += `• **Court**: ${c.court || c.apexCourt || 'Court of Record'}\n`;
           if (bench) responseText += `• **Coram / Bench**: ${bench}\n`;
           if (parties) responseText += `• **Parties**: ${parties}\n`;
-          if (c.decisionDate || c.dated) responseText += `• **Date of Decision**: ${c.decisionDate || c.dated}\n`;
+          if (c.decisionDate || c.dated || c.judgmentDate) responseText += `• **Date of Decision**: ${c.decisionDate || c.dated || c.judgmentDate}\n`;
           if (excerpt) responseText += `• **Judicial Holding / Headnote**:\n> ${excerpt}\n\n`;
           responseText += `[View Full Judgment ↗](/cases/view/${c._id})\n\n---\n\n`;
         });
@@ -4546,10 +4661,12 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
     // (e.g. "give case with this sro", "give case with sro 1125", "cases citing SRO 350", "precedents on SRO"):
     // The AI MUST retrieve authoritative court cases citing the SRO rather than only returning gazette text.
     const sroIdent = extractSroIdentifier(rawClean, conversationHistory);
-    const isCaseRequested = /\b(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?|decisions?|petitions?|appeals?|authorit(?:y|ies))\b/i.test(rawClean);
+    const isCaseRequested = /\b(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?|decisions?|petitions?|appeals?|authorit(?:y|ies)|orders?|holdings?)\b/i.test(rawClean) ||
+      /\b(?:which|what)\s+case\b/i.test(rawClean);
     const isCaseOnSroQuery = Boolean(sroIdent) && (
       isCaseRequested ||
-      /\b(?:with|on|under|for|citing|regarding)\s+(?:this|that|the|same)?\s*s\.?r\.?o\.?\b/i.test(rawClean)
+      /\b(?:with|on|under|for|citing|regarding|used|applied|referring\s+to|governed\s+by)\s+(?:this|that|the|same|required|given|needed)?\s*s\.?r\.?o\.?\b/i.test(rawClean) ||
+      /\b(?:which|what)\s+case\s*laws?\s+(?:used|applied|cited|mentioned|referred)\b/i.test(rawClean)
     );
 
     if (isCaseOnSroQuery) {
@@ -4569,7 +4686,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
     // 0.5C Strict Official Notifications & SROs Routing (Requirement 5.C)
     // When the user's query specifically contains "SRO", "Notification", or "Notifications" WITHOUT requesting cases:
     // The AI must search ONLY the Notifications module. Do not search or include Statutes or Case Law.
-    const isStrictNotifQuery = !isCaseOnSroQuery && (
+    const isStrictNotifQuery = !isCaseOnSroQuery && !isCaseRequested && (
       /\b(?:s\.?r\.?o\.?|notif(?:i|ee)?cat(?:i|ee)ons?|c\.?g\.?o|circulars?)\b/i.test(rawClean) ||
       /s\.?r\.?o\.?\s*[\d(]/i.test(rawClean)
     ) && !/\b(?:cases?|case\s*law|judgm?ents?|rulings?|decisions?|precedents?|authorit(?:y|ies)|petition|appeal|vs\.?|versus)\b/i.test(rawClean);

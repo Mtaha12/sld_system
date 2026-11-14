@@ -59,8 +59,8 @@ if [ -f "backend/src/scripts/vps_set_law_magazine_order.js" ]; then
     node backend/src/scripts/vps_set_law_magazine_order.js || true
 fi
 
-# 5. Update Database: Enable AI Assistant for All Users (Existing & New)
-echo -e "\n${YELLOW}>>> [4/7] Setting AI Search: YES for All Users in Database...${NC}"
+# 5. Update Database: Enable AI Assistant and Allow All Forms for All Users
+echo -e "\n${YELLOW}>>> [4/7] Setting AI Search: YES & Allow All Forms: YES for All Users in Database...${NC}"
 if [ -f "backend/src/scripts/vps_enable_ai_search_all_users.js" ]; then
     node backend/src/scripts/vps_enable_ai_search_all_users.js || true
 fi

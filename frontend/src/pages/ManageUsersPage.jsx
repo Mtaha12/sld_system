@@ -72,7 +72,7 @@ const ManageUsersPage = () => {
     displayStatute: 'Yes',
     displayNotification: 'Yes',
     displayCase: 'Yes',
-    allowAllForms: 'No',
+    allowAllForms: 'Yes',
     downloadLimitStatute: 25,
     downloadLimitNotification: 25,
     downloadLimitCaseLaw: 50,
@@ -189,7 +189,7 @@ const ManageUsersPage = () => {
       displayStatute: 'Yes',
       displayNotification: 'Yes',
       displayCase: 'Yes',
-      allowAllForms: 'No',
+      allowAllForms: 'Yes',
     });
     setModalError('');
     setIsModalOpen(true);
@@ -991,8 +991,8 @@ const ManageUsersPage = () => {
                 onChange={(e) => setModalForm({ ...modalForm, allowAllForms: e.target.value })}
                 className="w-full px-3 py-1.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-900 rounded text-amber-800 dark:text-amber-300 font-semibold focus:outline-none shadow-inner text-xs"
               >
-                <option value="No">No (Search & AI Only)</option>
                 <option value="Yes">Yes (Grant All Forms)</option>
+                <option value="No">No (Search & AI Only)</option>
               </select>
             </div>
           </div>
