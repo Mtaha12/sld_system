@@ -104,16 +104,20 @@ const SearchableCombobox = ({
     return match ? match.label : String(value ?? '');
   }, [normalizedOptions, value]);
 
-  // Filter and sort options based on typed input
+  // Filter and sort options based on typed input (only when dropdown is open)
   const filteredOptions = useMemo(() => {
+    if (!isOpen) return []; // Skip heavy computation when dropdown is closed
     const q = String(value ?? '').trim().toLowerCase();
-    if (!q) return normalizedOptions;
+    if (!q) return normalizedOptions.slice(0, 150);
 
-    const matches = normalizedOptions.filter(
-      (opt) =>
-        opt.value.toLowerCase().includes(q) ||
-        opt.label.toLowerCase().includes(q)
-    );
+    const matches = [];
+    for (let i = 0; i < normalizedOptions.length; i++) {
+      const opt = normalizedOptions[i];
+      if (opt.value.toLowerCase().includes(q) || opt.label.toLowerCase().includes(q)) {
+        matches.push(opt);
+        if (matches.length >= 150) break; // Bounded for blazing fast UI response
+      }
+    }
 
     // Smart relevance sort:
     // 1. Label/value starts with query
@@ -137,7 +141,7 @@ const SearchableCombobox = ({
 
       return aText.localeCompare(bText, undefined, { numeric: true, sensitivity: 'base' });
     });
-  }, [normalizedOptions, value]);
+  }, [isOpen, normalizedOptions, value]);
 
   // Check if current value exactly matches an existing option
   const hasExactMatch = useMemo(() => {

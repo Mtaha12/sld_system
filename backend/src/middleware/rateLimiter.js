@@ -29,15 +29,19 @@ export const authLimiter = rateLimit({
 });
 
 /**
- * Strict limiter for chatbot requests to prevent abuse and external API overload
+ * Rate limiter for chatbot requests to prevent abuse and external API overload
+ * Keyed by authenticated User ID or client IP
  */
 export const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.user?._id ? `user_${req.user._id}` : (req.ip || 'unknown_client');
+  },
   message: {
     success: false,
-    message: 'Too many chatbot requests. Please wait a moment and try again.'
+    message: 'Too many chatbot requests in a short period. Please wait a moment and try again.'
   }
 });

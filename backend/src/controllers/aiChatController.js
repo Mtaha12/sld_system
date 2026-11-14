@@ -5129,30 +5129,27 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
       // 1.5 Check indexed publications array if exact mapYearPage did not match (handles year or volume) (< 10ms)
       if (rawCitationCases.length === 0 && m && p) {
         try {
+          const magVariants = [m.toLowerCase(), m.toUpperCase(), m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()];
           const pubCond = {
             isDeleted: false,
-            'publications.mag': new RegExp(`^${escapeRegex(m)}$`, 'i')
+            'publications.mag': { $in: magVariants },
+            'publications.page': String(p)
           };
           if (y) {
             pubCond['publications.year'] = String(y);
-            pubCond['$or'] = [
-              { 'publications.page': String(p) },
-              { 'publications.page': parseInt(p, 10) }
-            ];
           } else if (v) {
             pubCond['$or'] = [
-              { 'publications.vol': String(v), 'publications.page': String(p) },
-              { 'publications.vol': parseInt(v, 10), 'publications.page': parseInt(p, 10) },
-              { 'publications.vol': String(v), 'publications.page': parseInt(p, 10) },
-              { 'publications.vol': parseInt(v, 10), 'publications.page': String(p) }
+              { 'publications.vol': String(v) },
+              { 'publications.vol': parseInt(v, 10) }
             ];
           }
-          rawCitationCases = await Case.find(pubCond).limit(10).maxTimeMS(400).lean();
+          rawCitationCases = await Case.find(pubCond).limit(10).maxTimeMS(300).lean();
         } catch (pubErr) {}
       }
 
       // 2. If no match in Case, check OtherCaseLaw for Superior Court / High Court citations (< 5ms indexed lookup first)
-      if (rawCitationCases.length === 0 && p && (y || v)) {
+      const isSldJournal = /^(?:sld)$/i.test(m);
+      if (!isSldJournal && rawCitationCases.length === 0 && p && (y || v)) {
         try {
           const prefix = y || v;
           const cleanMag = escapeRegex(m).replace(/\\s+/g, '\\s*');
@@ -7239,7 +7236,8 @@ export const getUserSessions = async (req, res, next) => {
 export const getSessionById = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
-    const session = await ChatSession.findById(sessionId);
+    const isObjectId = mongoose.isValidObjectId(sessionId);
+    const session = isObjectId ? await ChatSession.findById(sessionId) : null;
 
     if (!session) {
       return res.status(404).json({ success: false, message: 'Chat session not found' });
@@ -7270,7 +7268,8 @@ export const sendMessage = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Message or attachment is required' });
     }
 
-    let session = await ChatSession.findById(sessionId);
+    const isObjectId = mongoose.isValidObjectId(sessionId);
+    let session = isObjectId ? await ChatSession.findById(sessionId) : null;
     if (!session) {
       // Auto-create session if not found
       session = new ChatSession({
@@ -7346,7 +7345,8 @@ export const queryLegalCore = async (req, res, next) => {
 export const clearSession = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
-    const session = await ChatSession.findById(sessionId);
+    const isObjectId = mongoose.isValidObjectId(sessionId);
+    const session = isObjectId ? await ChatSession.findById(sessionId) : null;
     if (!session) {
       return res.status(404).json({ success: false, message: 'Session not found' });
     }

@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
+import { chatLimiter } from '../middleware/rateLimiter.js';
 import {
   createSession,
   getUserSessions,
@@ -14,11 +15,11 @@ const router = express.Router();
 // All AI chat routes require authentication
 router.use(protect);
 
-router.post('/query', queryLegalCore);
+router.post('/query', chatLimiter, queryLegalCore);
 router.post('/sessions', createSession);
 router.get('/sessions', getUserSessions);
 router.get('/sessions/:sessionId', getSessionById);
-router.post('/sessions/:sessionId/messages', sendMessage);
+router.post('/sessions/:sessionId/messages', chatLimiter, sendMessage);
 router.post('/sessions/:sessionId/clear', clearSession);
 
 export default router;

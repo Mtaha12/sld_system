@@ -256,9 +256,16 @@ const AIAssistantPage = () => {
       }));
     } catch (err) {
       console.error('AI chat error:', err);
+      const apiErrMsg = err?.response?.data?.message;
+      let displayError = '⚠️ An error occurred while scanning the legal database. Please verify your query and try again.';
+      if (apiErrMsg) {
+        displayError = `⚠️ ${apiErrMsg}`;
+      } else if (err?.code === 'ECONNABORTED' || err?.response?.status === 504) {
+        displayError = '⚠️ The request timed out while communicating with the legal database. Please try narrowing your query criteria or search by specific citation/case number.';
+      }
       const errMsg = {
         sender: 'assistant',
-        text: '⚠️ An error occurred while scanning the legal database. Please verify your query and try again.',
+        text: displayError,
         timestamp: new Date()
       };
       setSessions(prev => prev.map(s => {

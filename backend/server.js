@@ -61,12 +61,14 @@ import Statute from './src/models/Statute.js';
 import Notification from './src/models/Notification.js';
 import OtherCaseLaw from './src/models/OtherCaseLaw.js';
 import Newsletter from './src/models/Newsletter.js';
+import { warmCaseLookupCache } from './src/controllers/caseController.js';
 
 // Services
 import { sendAdminContactEmail } from './services/emailService.js';
 
 // Establish MongoDB connection
 connectDB();
+warmCaseLookupCache().catch(() => {});
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -175,7 +177,6 @@ if (process.env.NODE_ENV === 'development') {
 // Global API rate limiting
 app.use('/api', globalLimiter);
 app.use('/api/chat', chatLimiter);
-app.use('/api/ai-chat', chatLimiter);
 
 // Health Check Endpoint (also reports live MongoDB readiness)
 app.get('/api/health', (req, res) => {

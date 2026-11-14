@@ -4,6 +4,10 @@ import OtherCaseLaw from '../models/OtherCaseLaw.js';
 import Counter from '../models/Counter.js';
 import UserActivity from '../models/UserActivity.js';
 import User from '../models/User.js';
+import LawSetting from '../models/LawSetting.js';
+import SectionSetting from '../models/SectionSetting.js';
+import CourtSetting from '../models/CourtSetting.js';
+import PrincipleOfLaw from '../models/PrincipleOfLaw.js';
 import { clearUserSessionCache } from '../middleware/authMiddleware.js';
 import { spoofCase, spoofCaseList } from '../utils/spammerHoneypot.js';
 import logger from '../utils/logger.js';
@@ -150,11 +154,11 @@ const setCachedSearch = (key, data) => {
 };
 
 /**
- * Distinct Value Lookup Cache for B-Tree Indexed Case Law Filtering (15 min TTL)
- * Converts unindexed infix regex searches on Law, Section, Principle Law, and Court
- * into exact indexed $in queries without sacrificing case-insensitive partial matching.
+ * Distinct Value Lookup Cache for B-Tree Indexed Case Law Filtering (24 hr TTL)
+ * Converts searches on Law, Section, Principle Law, and Court into fast indexed lookups
+ * without stalling MongoDB with massive unindexed distinct scans on 165k documents.
  */
-const CASE_LOOKUP_TTL_MS = 15 * 60 * 1000;
+const CASE_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 let caseLookupCache = null;
 let caseLookupExpiresAt = 0;
 let caseLookupPromise = null;
@@ -162,6 +166,29 @@ let caseLookupPromise = null;
 const normalizeDistinctStrings = (arr) =>
   Array.from(new Set((arr || []).filter(Boolean).map((v) => String(v).trim()).filter(Boolean)))
     .map((raw) => ({ raw, lower: raw.toLowerCase() }));
+
+export const warmCaseLookupCache = async () => {
+  try {
+    const [lawDocs, sectionDocs, courtDocs, principleDocs] = await Promise.all([
+      LawSetting.distinct('name', { status: 'active' }).catch(() => []),
+      SectionSetting.distinct('name', { status: 'active' }).catch(() => []),
+      CourtSetting.distinct('name', { status: 'active' }).catch(() => []),
+      PrincipleOfLaw.distinct('name', { status: 'active' }).catch(() => [])
+    ]);
+
+    caseLookupCache = {
+      lawStatutes: normalizeDistinctStrings(lawDocs),
+      principleLaws: normalizeDistinctStrings(principleDocs),
+      sections: normalizeDistinctStrings(sectionDocs),
+      courts: normalizeDistinctStrings(courtDocs)
+    };
+    caseLookupExpiresAt = Date.now() + CASE_LOOKUP_TTL_MS;
+    return caseLookupCache;
+  } catch (err) {
+    logger.warn('[Case Lookup Cache] Initialization warning:', err?.message);
+    return null;
+  }
+};
 
 const getCaseLookupCache = async () => {
   const now = Date.now();
@@ -172,20 +199,7 @@ const getCaseLookupCache = async () => {
 
   caseLookupPromise = (async () => {
     try {
-      const [lawStatutes, principleLaws, sections, courts] = await Promise.all([
-        Case.distinct('laws.lawStatute', { isDeleted: false }),
-        Case.distinct('principleLaw', { isDeleted: false }),
-        Case.distinct('laws.section', { isDeleted: false }),
-        Case.distinct('court', { isDeleted: false })
-      ]);
-      caseLookupCache = {
-        lawStatutes: normalizeDistinctStrings(lawStatutes),
-        principleLaws: normalizeDistinctStrings(principleLaws),
-        sections: normalizeDistinctStrings(sections),
-        courts: normalizeDistinctStrings(courts)
-      };
-      caseLookupExpiresAt = Date.now() + CASE_LOOKUP_TTL_MS;
-      return caseLookupCache;
+      return await warmCaseLookupCache();
     } finally {
       caseLookupPromise = null;
     }
@@ -1589,29 +1603,29 @@ export const searchCases = async (req, res, next) => {
       const hitsB = lookup ? matchLookupEntries(entriesB, cleanNeedle) : null;
 
       if (hitsA !== null && hitsB !== null) {
-        if (hitsA.length === 0 && hitsB.length === 0) {
-          return { empty: true };
+        if (hitsA.length > 0 || hitsB.length > 0) {
+          const branches = [];
+          if (hitsA.length > 0) {
+            branches.push({ [fieldA]: hitsA.length === 1 ? hitsA[0] : { $in: hitsA } });
+          }
+          if (hitsB.length > 0) {
+            branches.push({ [fieldB]: hitsB.length === 1 ? hitsB[0] : { $in: hitsB } });
+          }
+          return {
+            condition: branches.length === 1 ? branches[0] : { $or: branches },
+            primaryOnly: hitsA.length === 0 && hitsB.length > 0
+          };
         }
-        const branches = [];
-        if (hitsA.length > 0) {
-          branches.push({ [fieldA]: hitsA.length === 1 ? hitsA[0] : { $in: hitsA } });
-        }
-        if (hitsB.length > 0) {
-          branches.push({ [fieldB]: hitsB.length === 1 ? hitsB[0] : { $in: hitsB } });
-        }
-        return {
-          condition: branches.length === 1 ? branches[0] : { $or: branches },
-          primaryOnly: hitsA.length === 0 && hitsB.length > 0
-        };
+        // If neither had hits, fall through cleanly to regex matching below
       }
 
       const rx = { $regex: escapeRegex(cleanNeedle), $options: 'i' };
-      const branchA = hitsA === null ? { [fieldA]: rx } : (hitsA.length > 0 ? { [fieldA]: hitsA.length === 1 ? hitsA[0] : { $in: hitsA } } : null);
-      const branchB = hitsB === null ? { [fieldB]: rx } : (hitsB.length > 0 ? { [fieldB]: hitsB.length === 1 ? hitsB[0] : { $in: hitsB } } : null);
+      const branchA = (hitsA === null || hitsA.length === 0) ? { [fieldA]: rx } : { [fieldA]: hitsA.length === 1 ? hitsA[0] : { $in: hitsA } };
+      const branchB = (hitsB === null || hitsB.length === 0) ? { [fieldB]: rx } : { [fieldB]: hitsB.length === 1 ? hitsB[0] : { $in: hitsB } };
       const branches = [branchA, branchB].filter(Boolean);
       return {
         condition: branches.length === 1 ? branches[0] : { $or: branches },
-        primaryOnly: !branchA && Boolean(branchB) && hitsB !== null
+        primaryOnly: false
       };
     };
 
@@ -1670,10 +1684,17 @@ export const searchCases = async (req, res, next) => {
         ])
       )].filter(Boolean);
 
-      andConditions.push({ 'publications.page': pg });
+      const exactCitationCandidates = magVariants.flatMap(alias => [
+        `${yv} ${alias} ${pg}`,
+        `(${yv}) ${alias} ${pg}`,
+        `${yv} ${alias}. ${pg}`,
+        `${yv} ${alias} 0${pg}`,
+        `(${yv}) ${alias} 0${pg}`
+      ]);
+
       andConditions.push({
         $or: [
-          { mapYearPage: citPattern },
+          { mapYearPage: { $in: exactCitationCandidates } },
           {
             publications: {
               $elemMatch: {
@@ -1907,13 +1928,6 @@ export const searchCases = async (req, res, next) => {
     if (filters.court && !filters.yearVolume && !filters.page && !hasTextSearch) {
       selectedHint = { isDeleted: 1, court: 1, sldNumberInt: -1 };
     } else if (filters.subject && parseLegalCitation(filters.subject)) {
-      selectedHint = {
-        isDeleted: 1,
-        'publications.mag': 1,
-        'publications.page': 1,
-        'publications.year': 1
-      };
-    } else if (filters.yearVolume && filters.magazine && filters.page) {
       selectedHint = {
         isDeleted: 1,
         'publications.mag': 1,

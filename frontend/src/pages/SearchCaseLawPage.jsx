@@ -445,10 +445,10 @@ const SearchCaseLawPage = () => {
     }))
   ], [sectionOptions]);
 
-  const set = field => e => {
+  const set = useCallback(field => e => {
     const val = (e && typeof e === 'object' && 'target' in e) ? e.target.value : e;
     setF(p => ({ ...p, [field]: val ?? '' }));
-  };
+  }, []);
 
   // Extract all active search terms to pass to yellow highlighter
   const colSource = submittedFilters || f;
@@ -616,7 +616,14 @@ const SearchCaseLawPage = () => {
       if (err.name === 'CanceledError' || err.name === 'AbortError' || err?.code === 'ERR_CANCELED') {
         return; // Safe ignore aborted previous query
       }
-      setError(err?.response?.data?.message || 'Search execution failed. Please verify criteria.');
+      const apiMsg = err?.response?.data?.message;
+      if (apiMsg) {
+        setError(apiMsg);
+      } else if (err?.response?.status === 504 || err?.code === 'ECONNABORTED') {
+        setError('Search timed out on the database server. Please refine your criteria or search by citation/case number.');
+      } else {
+        setError('Search execution failed. Please verify criteria.');
+      }
     } finally {
       if (searchAbortRef.current === abortCtrl) {
         setLoading(false);
