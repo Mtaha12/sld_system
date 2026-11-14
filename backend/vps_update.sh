@@ -116,12 +116,18 @@ done
 
 # Deep find for any reference_views and newsletters directories anywhere on the VPS
 if [ -d "/var/www" ]; then
-    find /var/www /root /home -maxdepth 5 -type d -name "reference_views" 2>/dev/null | while read -r ref_dir; do
-        if [ "$ref_dir" != "$APP_DIR/backend/uploads/reference_views" ] && [ "$ref_dir" != "$APP_DIR/uploads/reference_views" ]; then
-            echo "Syncing reference PDFs from $ref_dir..."
-            cp -rn "$ref_dir"/* "$APP_DIR/backend/uploads/reference_views/" 2>/dev/null || true
-        fi
-    done
+    # Exhaustive copy of every PDF anywhere under /var/www, /root, /home into active reference_views
+    echo "Syncing all PDFs across VPS into active reference_views storage..."
+    find /var/www /root /home /opt /tmp -type f -iname "*.pdf" 2>/dev/null \
+        | grep -v "node_modules" \
+        | grep -v "/\.git/" \
+        | while read -r pdf_file; do
+            dir_of_file=$(dirname "$pdf_file")
+            if [ "$dir_of_file" != "$APP_DIR/backend/uploads/reference_views" ] && [ "$dir_of_file" != "$APP_DIR/uploads/reference_views" ]; then
+                cp -n "$pdf_file" "$APP_DIR/backend/uploads/reference_views/" 2>/dev/null || true
+                cp -n "$pdf_file" "$APP_DIR/uploads/reference_views/" 2>/dev/null || true
+            fi
+        done
 
     find /var/www /root /home -maxdepth 5 -type d -name "newsletters" 2>/dev/null | while read -r nl_dir; do
         if [ "$nl_dir" != "$APP_DIR/backend/uploads/newsletters" ] && [ "$nl_dir" != "$APP_DIR/uploads/newsletters" ]; then
