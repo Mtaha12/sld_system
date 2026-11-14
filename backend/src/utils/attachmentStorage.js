@@ -28,6 +28,12 @@ export const getCandidateUploadRoots = () => {
           '/var/www/sld_system/uploads',
           '/var/www/sld-system/backend/uploads',
           '/var/www/sld-system/uploads',
+          '/var/www/sldsystempk.com/backend/uploads',
+          '/var/www/sldsystempk.com/uploads',
+          '/var/www/api.sldsystempk.com/backend/uploads',
+          '/var/www/api.sldsystempk.com/uploads',
+          '/var/www/sldsystempk/backend/uploads',
+          '/var/www/sldsystempk/uploads',
           '/var/www/sldsystem/sld_system/backend/uploads',
           '/var/www/sldsystem/uploads',
           '/var/www/sldsystem/backend/uploads',
@@ -35,6 +41,8 @@ export const getCandidateUploadRoots = () => {
           '/root/sld_system/uploads',
           '/root/sld-system/backend/uploads',
           '/root/sld-system/uploads',
+          '/home/ubuntu/sld_system/backend/uploads',
+          '/home/ubuntu/sld_system/uploads',
           '/var/www/uploads',
           '/tmp/uploads'
         ]

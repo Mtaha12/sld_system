@@ -183,11 +183,12 @@ const AIChatPanel = ({
 
   const formatWordDocumentHtml = (text, title = 'Legal Document') => {
     if (!text) return '';
-    if (text.trim().startsWith('<html') || text.trim().startsWith('<!DOCTYPE html')) {
-      return text;
+    let clean = text.replace(/^```(?:html|xml)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+    if (clean.toLowerCase().startsWith('<html') || clean.toLowerCase().startsWith('<!doctype html') || clean.includes('<w:WordDocument>') || clean.includes('div.Section1')) {
+      return clean;
     }
     // Convert markdown into executive Word document HTML with legal margins
-    const lines = text.split('\n');
+    const lines = clean.split('\n');
     const bodyHtml = [];
     let inTable = false;
     let headerParsed = false;
@@ -288,11 +289,20 @@ th { background-color: #f2f2f2; font-weight: bold; }
     }
     if (!rawContent) return;
 
-    const fileName = doc?.fileName || 'Corrected_Legal_Document.doc';
-    const isAlreadyHtml = rawContent.toLowerCase().startsWith('<html') || rawContent.toLowerCase().startsWith('<!doctype html');
-    const formattedContent = isAlreadyHtml ? rawContent : formatWordDocumentHtml(rawContent, fileName);
+    // Strip markdown code fences if output was wrapped in ```html ... ``` or ```
+    let clean = rawContent.replace(/^```(?:html|xml)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+    if (!clean) return;
 
-    const blob = new Blob([formattedContent], { type: 'application/msword;charset=utf-8' });
+    const fileName = doc?.fileName || 'Corrected_Legal_Document.doc';
+    const isAlreadyHtml = clean.toLowerCase().startsWith('<html') || 
+      clean.toLowerCase().startsWith('<!doctype html') || 
+      clean.includes('<w:WordDocument>') || 
+      clean.includes('div.Section1');
+
+    const formattedContent = isAlreadyHtml ? clean : formatWordDocumentHtml(clean, fileName);
+
+    // Prefix UTF-8 BOM (\ufeff) so Microsoft Word renders the Word HTML without showing raw CSS or markdown tags
+    const blob = new Blob(['\ufeff', formattedContent], { type: 'application/msword;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

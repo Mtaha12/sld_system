@@ -250,20 +250,34 @@ export const getAttachmentDisplayName = (att) => {
 };
 
 /**
+ * Normalizes legacy domain URLs (e.g. from api.sldsystempk.com) to the active production domain or relative path
+ */
+export const normalizeLegacyAttachmentUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  let u = rawUrl.trim();
+  const activeBase = (API_URL || '').replace(/\/+$/, '');
+  u = u.replace(/^https?:\/\/(?:api\.|www\.)?sldsystempk\.com(?::\d+)?/i, activeBase);
+  u = u.replace(/^https?:\/\/(?:api\.|www\.)?sldsystemspk\.com(?::\d+)?/i, activeBase);
+  u = u.replace(/^https?:\/\/portal\.sldsystem\.com(?::\d+)?/i, activeBase);
+  return u;
+};
+
+/**
  * Resolves a relative path to an absolute backend URL when running in production
  */
 export const getResolvedBackendUrl = (pathOrUrl) => {
   if (!pathOrUrl) return '';
+  const normalized = normalizeLegacyAttachmentUrl(pathOrUrl);
   if (
-    pathOrUrl.startsWith('http://') ||
-    pathOrUrl.startsWith('https://') ||
-    pathOrUrl.startsWith('data:') ||
-    pathOrUrl.startsWith('blob:')
+    normalized.startsWith('http://') ||
+    normalized.startsWith('https://') ||
+    normalized.startsWith('data:') ||
+    normalized.startsWith('blob:')
   ) {
-    return pathOrUrl;
+    return normalized;
   }
 
-  const clean = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+  const clean = normalized.startsWith('/') ? normalized : `/${normalized}`;
 
   // If this is an internal frontend page route, leave it untouched
   if (/^\/(?:cases|other-cases|other-caselaws|statutes|notifications|dictionary|tax-cards|news|dashboard|search|ai-search|manage-users|login|register)(?:\/|\?|$)/i.test(clean)) {
@@ -285,10 +299,11 @@ export const getAttachmentUrl = (att) => {
   if (!att) return '';
 
   if (typeof att === 'string') {
-    if (att.startsWith('http://') || att.startsWith('https://') || att.startsWith('data:') || att.startsWith('blob:')) {
-      return att;
+    const norm = normalizeLegacyAttachmentUrl(att);
+    if (norm.startsWith('http://') || norm.startsWith('https://') || norm.startsWith('data:') || norm.startsWith('blob:')) {
+      return norm;
     }
-    return getResolvedBackendUrl(att);
+    return getResolvedBackendUrl(norm);
   }
 
   if (typeof File !== 'undefined' && att instanceof File) {
@@ -308,14 +323,15 @@ export const getAttachmentUrl = (att) => {
 
   const candidate = att.url || att.path || att.attachment || att.raw?.url || att.raw || '';
   if (typeof candidate === 'string' && candidate) {
-    if (candidate.startsWith('http://') || candidate.startsWith('https://') || candidate.startsWith('data:') || candidate.startsWith('blob:')) {
-      return candidate;
+    const norm = normalizeLegacyAttachmentUrl(candidate);
+    if (norm.startsWith('http://') || norm.startsWith('https://') || norm.startsWith('data:') || norm.startsWith('blob:')) {
+      return norm;
     }
-    return getResolvedBackendUrl(candidate);
+    return getResolvedBackendUrl(norm);
   }
 
   if (att.name) {
-    return getResolvedBackendUrl(att.name);
+    return getResolvedBackendUrl(normalizeLegacyAttachmentUrl(att.name));
   }
 
   return '';

@@ -52,6 +52,7 @@ const SearchableCombobox = ({
   placeholder = 'Select or write...',
   error,
   disabled = false,
+  readOnly = false,
   allowCustom = true,
   id = 'searchable-combobox-input',
   name = 'combobox',
@@ -264,10 +265,13 @@ const SearchableCombobox = ({
           id={id}
           name={name}
           disabled={disabled}
+          readOnly={readOnly}
           value={getDisplayString(value)}
           placeholder={placeholder}
           autoComplete="off"
+          onClick={readOnly ? handleToggle : undefined}
           onChange={(e) => {
+            if (readOnly) return;
             triggerChange(e.target.value);
             if (!isOpen) setIsOpen(true);
           }}
@@ -279,7 +283,7 @@ const SearchableCombobox = ({
             error
               ? 'border-red-500'
               : 'border-gray-200 dark:border-zinc-800 hover:border-brand-orange/40'
-          } text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange focus:outline-none shadow-2xs transition-colors px-3 pr-14 rounded-lg ${heightClass}`}
+          } text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange focus:outline-none shadow-2xs transition-colors px-3 pr-14 rounded-lg ${heightClass} ${readOnly ? 'cursor-pointer select-none' : ''}`}
         />
 
         {/* Right Action Icons (Clear + Dropdown Toggle) */}

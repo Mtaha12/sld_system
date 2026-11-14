@@ -397,12 +397,33 @@ const StatuteSearchPage = () => {
     });
 
     // Sort: Section-wise ascending (smart numeric & schedule ordinals), then latest date descending
-    return rows.sort((a, b) => {
+    const sorted = rows.sort((a, b) => {
       const secDiff = compareSections(a.section, b.section);
       if (secDiff !== 0) return secDiff;
       return b.sortTime - a.sortTime;
     });
-  }, [statuteResults, text, text2]);
+
+    // If a client searches only law (e.g. Sales Tax Act, 1990) with no section,
+    // show list of law from only the latest dated block, hiding older duplicate amendment blocks.
+    // When user explicitly searches Law + Section, show all historical blocks for that section.
+    const isSectionSearched = Boolean(section && String(section).trim());
+    if (!isSectionSearched) {
+      const seenSections = new Set();
+      const latestOnlyRows = [];
+      for (const r of sorted) {
+        const secNorm = String(r.section || '').trim().toLowerCase();
+        const lawNorm = String(r.law || '').trim().toLowerCase();
+        const key = `${lawNorm}:::${secNorm}`;
+        if (!seenSections.has(key)) {
+          seenSections.add(key);
+          latestOnlyRows.push(r);
+        }
+      }
+      return latestOnlyRows;
+    }
+
+    return sorted;
+  }, [statuteResults, text, text2, section]);
 
   const totalBlockRows = flattenedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalBlockRows / itemsPerPage));

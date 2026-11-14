@@ -350,6 +350,78 @@ export const renderCertifiedCaseHtml = (doc, options = {}) => {
 /**
  * Generates certified statutory notification report HTML from MongoDB records
  */
+export const renderCertifiedStatuteHtml = (statute) => {
+  const law = escapeHtml(statute.law || 'Statute Law');
+  const section = escapeHtml(statute.section || '');
+  const heading = escapeHtml(statute.heading || statute.sectionHeading || '');
+  const department = escapeHtml(statute.department || 'Statutory Code of Pakistan');
+
+  const blocks = Array.isArray(statute.blocks) && statute.blocks.length > 0
+    ? statute.blocks
+    : [{ detail: statute.detail || statute.content || '', sectionHeading: heading, fromDate: statute.dated || '' }];
+
+  const blocksHtml = blocks.map((b, idx) => {
+    const bHead = escapeHtml(b.sectionHeading || heading || `Block ${idx + 1}`);
+    const bDate = escapeHtml(b.fromDate || b.date || '');
+    const bDetail = b.detail || b.content || '';
+    return `
+      <div style="margin-bottom: 24px; padding: 18px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px;">
+          <strong style="color: #0f172a;">${bHead}</strong>
+          ${bDate ? `<span style="color: #64748b;">Effective: ${bDate}</span>` : ''}
+        </div>
+        <div style="font-size: 14.5px; line-height: 1.8; color: #334155; white-space: pre-wrap; word-break: break-word;">
+          ${escapeHtml(bDetail.replace(/<[^>]*>?/gm, ''))}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${section ? `${section} - ` : ''}${law} - SLD System</title>
+  <style>
+    :root { --brand-accent: #e55c41; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; color: #0f172a; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .toolbar { width: 100%; max-width: 860px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .badge { font-size: 12px; font-weight: 700; color: #1e3a5a; background: #e0f2fe; padding: 6px 12px; border-radius: 999px; border: 1px solid #bae6fd; }
+    .btn { padding: 8px 14px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid #e2e8f0; background: white; color: #334155; cursor: pointer; text-decoration: none; margin-left: 6px; }
+    .btn-primary { background: var(--brand-accent); color: white; border-color: var(--brand-accent); }
+    .card { width: 100%; max-width: 860px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); padding: 36px 40px; }
+    .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px; }
+    .law { font-size: 20px; font-weight: 800; color: #0f172a; }
+    .sec { font-size: 16px; font-weight: 700; color: var(--brand-accent); margin-top: 4px; }
+    @media print { .toolbar { display: none; } .card { border: none; box-shadow: none; padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="badge">📖 SLD Certified Statutory Provision Document</div>
+    <div>
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Print</button>
+      <button class="btn" onclick="navigator.clipboard.writeText(document.querySelector('.card').innerText);alert('Copied!');">📋 Copy</button>
+      <button class="btn" onclick="window.close()">✕ Close</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="header">
+      <div style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px;">Super Law Data System · Pakistani Statutes Archives</div>
+      <div class="law">${law}</div>
+      ${section ? `<div class="sec">${section}${heading ? ` · ${heading}` : ''}</div>` : ''}
+    </div>
+    ${blocksHtml}
+  </div>
+</body>
+</html>`;
+};
+
+/**
+ * Generates certified statutory notification report HTML from MongoDB records
+ */
 export const renderCertifiedNotificationHtml = (notif) => {
   const number = escapeHtml(notif.notificationNumber || notif.sroNumber || notif.title || 'Official Statutory Notification');
   const title = escapeHtml(notif.title || notif.notificationNumber || 'Statutory Notification');
@@ -582,6 +654,62 @@ export const resolveDocumentDynamically = async ({ cleanRel = '', name = '', tit
           buffer: Buffer.from(html, 'utf8'),
           contentType: 'text/html; charset=utf-8',
           filename: `${notif.notificationNumber || 'Statutory_Notification'}.html`
+        };
+      }
+    }
+
+    // =========================================================================
+    // 3.5. Search Statute Collection (Pakistani Statutory Provisions & Sections)
+    // =========================================================================
+    const statuteConditions = [];
+    if (nameWithoutExt && nameWithoutExt.length >= 3) {
+      statuteConditions.push({ 'attachments.url': new RegExp(escapeRegex(nameWithoutExt), 'i') });
+      statuteConditions.push({ 'blocks.attachments.url': new RegExp(escapeRegex(nameWithoutExt), 'i') });
+    }
+    if (targetNum) {
+      statuteConditions.push({ srNumber: String(targetNum) });
+      statuteConditions.push({ srNumberInt: Number(targetNum) });
+      statuteConditions.push({ section: new RegExp('\\b' + escapeRegex(targetNum) + '\\b', 'i') });
+    }
+    if (hintWithoutExt && hintWithoutExt.length >= 2) {
+      statuteConditions.push({ law: new RegExp(escapeRegex(hintWithoutExt), 'i') });
+      statuteConditions.push({ section: new RegExp(escapeRegex(hintWithoutExt), 'i') });
+      statuteConditions.push({ heading: new RegExp(escapeRegex(hintWithoutExt), 'i') });
+      statuteConditions.push({ 'attachments.name': new RegExp(escapeRegex(hintWithoutExt), 'i') });
+    }
+
+    if (statuteConditions.length > 0) {
+      const statuteDoc = await Statute.findOne({
+        isDeleted: { $ne: true },
+        $or: statuteConditions
+      }).lean();
+
+      if (statuteDoc) {
+        logger.info(`[documentResolver] Found Statute record: ${statuteDoc.law} - Section ${statuteDoc.section}`);
+        // Check for remote attachments first
+        const allAtts = [
+          ...(Array.isArray(statuteDoc.attachments) ? statuteDoc.attachments : []),
+          ...(Array.isArray(statuteDoc.blocks) ? statuteDoc.blocks.flatMap(b => b.attachments || []) : [])
+        ];
+        for (const att of allAtts) {
+          const attUrl = att?.url || '';
+          if (/^https?:\/\//i.test(attUrl)) {
+            const pdfResult = await fetchAndCacheRemotePdf(attUrl, baseName);
+            if (pdfResult) {
+              return {
+                ...pdfResult,
+                filename: att.name || `${statuteDoc.law}_Section_${statuteDoc.section}.pdf`
+              };
+            }
+          }
+        }
+
+        const html = renderCertifiedStatuteHtml(statuteDoc);
+        return {
+          type: 'html',
+          buffer: Buffer.from(html, 'utf8'),
+          contentType: 'text/html; charset=utf-8',
+          filename: `${statuteDoc.law || 'Statute'}_Section_${statuteDoc.section || 'Provision'}.html`
         };
       }
     }

@@ -204,12 +204,16 @@ export const formatLegalDocAsWordHtml = (markdownContent, title = 'Legal_Pleadin
 
   const cleanTitle = (title || 'Legal Document').replace(/\.[^/.]+$/, '').replace(/[_]+/g, ' ');
 
-  // If already full HTML document, return as is
-  if (markdownContent.trim().toLowerCase().startsWith('<html')) {
-    return markdownContent;
+  // Strip markdown code fences if wrapped by LLM e.g. ```html ... ``` or ```
+  let clean = String(markdownContent).trim();
+  clean = clean.replace(/^```(?:html|xml)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+
+  // If already full HTML document, return as is cleanly
+  if (clean.toLowerCase().startsWith('<html') || clean.toLowerCase().startsWith('<!doctype html') || clean.includes('<w:WordDocument>')) {
+    return clean;
   }
 
-  let lines = markdownContent.split('\n');
+  let lines = clean.split('\n');
   let htmlLines = [];
   let inTable = false;
   let tableHeaderParsed = false;

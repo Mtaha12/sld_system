@@ -65,11 +65,38 @@ if [ -f "backend/src/scripts/vps_enable_ai_search_all_users.js" ]; then
     node backend/src/scripts/vps_enable_ai_search_all_users.js || true
 fi
 
-# 6. Ensure Upload Directories and File Permissions
+# 6. Ensure Upload Directories and File Permissions + Recover Legacy Uploads from VPS
 echo -e "\n${YELLOW}>>> [5/7] Verifying Upload Storage Directories & Permissions...${NC}"
-mkdir -p backend/uploads/reference_views backend/uploads/newsletters backend/uploads/court_cache backend/uploads/payment_proofs
-mkdir -p uploads/reference_views uploads/newsletters uploads/court_cache uploads/payment_proofs
-chmod -R 775 backend/uploads uploads 2>/dev/null || true
+mkdir -p "$APP_DIR/backend/uploads/reference_views" "$APP_DIR/backend/uploads/newsletters" "$APP_DIR/backend/uploads/court_cache" "$APP_DIR/backend/uploads/payment_proofs"
+mkdir -p "$APP_DIR/uploads/reference_views" "$APP_DIR/uploads/newsletters" "$APP_DIR/uploads/court_cache" "$APP_DIR/uploads/payment_proofs"
+
+# Scan VPS for any existing reference_views or uploads from previous domain/folders
+echo ">>> Scanning VPS for existing PDF uploads from legacy domain folders..."
+for old_dir in \
+    /var/www/sldsystempk.com/backend/uploads \
+    /var/www/sldsystempk.com/uploads \
+    /var/www/api.sldsystempk.com/backend/uploads \
+    /var/www/api.sldsystempk.com/uploads \
+    /var/www/sldsystempk/backend/uploads \
+    /var/www/sldsystempk/uploads \
+    /var/www/sldsystem/backend/uploads \
+    /var/www/sldsystem/uploads \
+    /var/www/sld-system/backend/uploads \
+    /var/www/sld-system/uploads \
+    /root/sld_system/backend/uploads \
+    /root/sld_system/uploads \
+    /home/*/sld*/backend/uploads \
+    /home/*/sld*/uploads; do
+    if [ -d "$old_dir" ] && [ "$old_dir" != "$APP_DIR/backend/uploads" ] && [ "$old_dir" != "$APP_DIR/uploads" ]; then
+        echo "Found uploads in $old_dir. Copying files into active upload storage..."
+        cp -rn "$old_dir"/* "$APP_DIR/backend/uploads/" 2>/dev/null || true
+    fi
+done
+
+# Ensure symmetric files between backend/uploads and root uploads
+cp -rn "$APP_DIR/backend/uploads"/* "$APP_DIR/uploads/" 2>/dev/null || true
+cp -rn "$APP_DIR/uploads"/* "$APP_DIR/backend/uploads/" 2>/dev/null || true
+chmod -R 775 "$APP_DIR/backend/uploads" "$APP_DIR/uploads" 2>/dev/null || true
 
 # 7. Build Frontend
 echo -e "\n${YELLOW}>>> [6/7] Building Production Frontend...${NC}"

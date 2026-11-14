@@ -150,7 +150,9 @@ const setCachedSearch = (key, data) => {
     const oldest = searchResultsCache.keys().next().value;
     searchResultsCache.delete(oldest);
   }
-  searchResultsCache.set(key, { data, expiresAt: Date.now() + SEARCH_CACHE_TTL });
+  // Cache positive search results for 5 min; cache empty results for only 5s to avoid masking newly uploaded cases
+  const ttl = Array.isArray(data) && data.length > 0 ? SEARCH_CACHE_TTL : 5000;
+  searchResultsCache.set(key, { data, expiresAt: Date.now() + ttl });
 };
 
 /**
@@ -1590,7 +1592,7 @@ export const searchCases = async (req, res, next) => {
     );
     const lookup = needLookupCache ? await getCaseLookupCache() : null;
 
-    let andConditions = [{ isDeleted: false }];
+    let andConditions = [{ isDeleted: { $ne: true } }];
     let shortCircuitEmpty = false;
     let resolvedLawFieldOnly = false;
     let resolvedSectionFieldOnly = false;
@@ -1674,7 +1676,6 @@ export const searchCases = async (req, res, next) => {
       const magCitPart = magAliases.length > 1
         ? `(?:${magAliases.map(escapeRegex).join('|')})`
         : escapeRegex(mg);
-      const citPattern = new RegExp(`(^|\\s)${escapeRegex(yv)}\\s+${magCitPart}\\s+${escapeRegex(pg)}(\\s|$)`, 'i');
       const magVariants = [...new Set(
         magAliases.flatMap(alias => [
           alias,
@@ -1689,20 +1690,35 @@ export const searchCases = async (req, res, next) => {
         `(${yv}) ${alias} ${pg}`,
         `${yv} ${alias}. ${pg}`,
         `${yv} ${alias} 0${pg}`,
-        `(${yv}) ${alias} 0${pg}`
+        `(${yv}) ${alias} 0${pg}`,
+        `${alias} ${yv} ${pg}`,
+        `${alias} ${pg}`,
+        `(${yv}) ${alias} ${pg}`
       ]);
+
+      const pgNum = parseInt(pg, 10);
+      const pageCandidates = [pg];
+      if (!isNaN(pgNum)) pageCandidates.push(pgNum);
+
+      const yvNum = parseInt(yv, 10);
+      const yearCandidates = [yv];
+      if (!isNaN(yvNum)) yearCandidates.push(yvNum);
 
       andConditions.push({
         $or: [
           { mapYearPage: { $in: exactCitationCandidates } },
+          { mapYearPage: { $regex: `(?:${escapeRegex(yv)}\\s+${magCitPart}|${magCitPart}\\s+${escapeRegex(yv)}|${magCitPart})\\s+0*${escapeRegex(pg)}(?:\\b|$)`, $options: 'i' } },
           {
             publications: {
               $elemMatch: {
-                mag: { $in: magVariants },
-                page: pg,
                 $or: [
-                  { year: yv },
-                  { vol: yv }
+                  { mag: { $in: magVariants } },
+                  { magazine: { $in: magVariants } }
+                ],
+                page: { $in: pageCandidates },
+                $or: [
+                  { year: { $in: yearCandidates } },
+                  { vol: { $in: yearCandidates } }
                 ]
               }
             }

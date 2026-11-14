@@ -146,16 +146,10 @@ const NotificationViewPage = () => {
   })() : '';
 
   const sroHeaderLine = (() => {
-    let base = notifNumber ? (
-      notifNumber.toUpperCase().startsWith('SRO') || notifNumber.toUpperCase().startsWith('S.R.O')
-        ? notifNumber
-        : `S.R.O. ${notifNumber}`
-    ) : (notification.year ? `Notification ${notification.year}` : '');
-
-    if (base && formattedDateStr && !base.toLowerCase().includes('islamabad')) {
-      return `SROS: ${base}, ${formattedDateStr}`;
-    }
-    return base ? `SROS: ${base}` : 'SROS: Official Notification';
+    // Show only from SRO # Block directly; no redundant 'SROS:' prefix or default SROs fallback
+    const rawSro = (notification.sroNumber || notification.number || notifNumber || '').trim();
+    if (!rawSro) return '';
+    return rawSro;
   })();
 
   const contentBody = notification.content || notification.text || notification.description || '';
@@ -306,10 +300,12 @@ const NotificationViewPage = () => {
             <Bell className="w-80 h-80 text-stone-900 dark:text-white" />
           </div>
 
-          {/* ── 1. SRO # BLOCK ONLY (Number, Date, Law, Section removed as requested in SS3) ── */}
-          <div className="text-center font-serif font-black text-base sm:text-xl text-stone-900 dark:text-stone-100 mb-2 leading-snug">
-            {sroHeaderLine}
-          </div>
+          {/* ── 1. SRO # BLOCK ONLY (Shown only from SRO # Block directly without default repetition) ── */}
+          {sroHeaderLine ? (
+            <div className="text-center font-serif font-black text-base sm:text-xl text-stone-900 dark:text-stone-100 mb-2 leading-snug">
+              {sroHeaderLine}
+            </div>
+          ) : null}
 
           {/* ── 2. SUBJECT / HEADING ── */}
           <div className="text-center font-serif font-bold text-sm sm:text-base text-stone-800 dark:text-stone-200 mb-4 leading-relaxed max-w-3xl mx-auto">

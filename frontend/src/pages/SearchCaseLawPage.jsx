@@ -19,7 +19,7 @@ const inp =
 
 import SearchableCombobox from '../components/ui/SearchableCombobox';
 
-const SelectField = React.memo(({ value, onChange, options = [], placeholder = 'Select or write...' }) => {
+const SelectField = React.memo(({ value, onChange, options = [], placeholder = 'Select or write...', allowCustom = true, readOnly = false }) => {
   return (
     <SearchableCombobox
       value={value}
@@ -27,7 +27,8 @@ const SelectField = React.memo(({ value, onChange, options = [], placeholder = '
       options={options}
       placeholder={placeholder}
       inputSize="sm"
-      allowCustom={true}
+      allowCustom={allowCustom}
+      readOnly={readOnly}
     />
   );
 });
@@ -588,18 +589,21 @@ const SearchCaseLawPage = () => {
         const filteredExact = data.filter(c => {
           const pubs = c.publications || [];
           const hasExactPub = pubs.some(p => {
-            const pMag = String(p.mag || '').trim().toLowerCase();
+            const pMag = String(p.mag || p.magazine || '').trim().toLowerCase();
             const pPage = String(p.page || '').trim().toLowerCase();
             const pYear = String(p.year || '').trim().toLowerCase();
             const pVol = String(p.vol || '').trim().toLowerCase();
-            return pMag === mg && pPage === pg && (pYear === yv || pVol === yv);
+            const magMatches = pMag === mg || (!pMag && mg === 'sld') || pMag.replace(/[^a-z0-9]/g, '') === mg.replace(/[^a-z0-9]/g, '');
+            const pageMatches = pPage === pg || (Number(pPage) > 0 && Number(pPage) === Number(pg));
+            const yearMatches = pYear === yv || pVol === yv || (Number(pYear) > 0 && Number(pYear) === Number(yv)) || (Number(pVol) > 0 && Number(pVol) === Number(yv));
+            return magMatches && pageMatches && yearMatches;
           });
           if (hasExactPub) return true;
 
-          const mapEntries = Array.isArray(c.mapYearPage) ? c.mapYearPage : [];
+          const mapEntries = Array.isArray(c.mapYearPage) ? c.mapYearPage : (c.mapYearPage ? [c.mapYearPage] : []);
           return mapEntries.some(m => {
             const low = String(m).toLowerCase();
-            return low.includes(mg) && low.includes(pg) && low.includes(yv);
+            return (low.includes(mg) || mg === 'sld') && low.includes(pg) && (low.includes(yv) || !yv);
           });
         });
 
@@ -730,20 +734,39 @@ const SearchCaseLawPage = () => {
                   className={inp} 
                   placeholder="Year / Vol" 
                   value={f.yearVolume} 
-                  onChange={set('yearVolume')} 
-                  title="First Block: Enter Volume (e.g. 132) or Year (e.g. 2025)"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setF(prev => ({ ...prev, yearVolume: cleanVal }));
+                  }} 
+                  title="First Block: Enter 4-digit Year or Volume (e.g. 2026)"
                 />
               </div>
             </div>
-            <SelectField value={f.magazine} onChange={set('magazine')} options={magazineOptions} />
+            <SelectField 
+              value={f.magazine} 
+              onChange={set('magazine')} 
+              options={magazineOptions} 
+              placeholder="Select Magazine..."
+              allowCustom={false}
+              readOnly={true}
+            />
             <div className="flex justify-center">
               <div className="w-[85%]">
                 <input 
                   className={inp} 
                   placeholder="Page" 
                   value={f.page} 
-                  onChange={set('page')} 
-                  title="Third Block: Enter exact page number (e.g. 1 or 129)"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setF(prev => ({ ...prev, page: cleanVal }));
+                  }} 
+                  title="Third Block: Enter up to 4-digit page number (e.g. 5178)"
                 />
               </div>
             </div>
