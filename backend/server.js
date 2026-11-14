@@ -260,8 +260,12 @@ app.use('/uploads/reference_views', express.static(path.resolve(__serverDir, 'up
 
 const LEGACY_PORTAL_FALLBACK_URLS = [
   process.env.LEGACY_PORTAL_URL,
+  'https://www.sldsystemspk.com/uploads/',
+  'https://api.sldsystemspk.com/uploads/',
+  'https://sldsystemspk.com/uploads/',
   'https://www.sldsystempk.com/uploads/',
   'https://api.sldsystempk.com/uploads/',
+  'https://sldsystempk.com/uploads/',
   'https://sldsystem.com/uploads/',
   'https://portal.sldsystem.com/uploads/'
 ].filter(Boolean);

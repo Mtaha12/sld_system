@@ -15,7 +15,9 @@ const envPaths = [
   '/var/www/sld_system/backend/.env',
   '/var/www/sld-system/backend/.env',
   '/var/www/sldsystem.com/backend/.env',
-  '/var/www/api.sldsystem.com/backend/.env'
+  '/var/www/api.sldsystem.com/backend/.env',
+  '/var/www/sldsystemspk.com/backend/.env',
+  '/var/www/api.sldsystemspk.com/backend/.env'
 ];
 
 for (const ep of envPaths) {
@@ -26,15 +28,17 @@ for (const ep of envPaths) {
 }
 
 /**
- * Normalizes legacy domain URLs and fixes spaced/malformed UUID filenames
+ * Normalizes legacy domain URLs (both sldsystemspk.com and sldsystempk.com)
+ * and fixes spaced/malformed UUID filenames
  */
 const normalizeUrlString = (str) => {
   if (!str || typeof str !== 'string') return str;
   let s = str.trim();
 
-  // 1. Domain normalization (sldsystempk.com / portal.sldsystem.com -> api.sldsystem.com)
-  s = s.replace(/https?:\/\/(?:api\.|www\.)?sldsystempk\.com(?::\d+)?/gi, 'https://api.sldsystem.com');
-  s = s.replace(/https?:\/\/(?:api\.|www\.)?sldsystemspk\.com(?::\d+)?/gi, 'https://api.sldsystem.com');
+  // 1. Domain normalization:
+  // Matches sldsystemspk.com, api.sldsystemspk.com, www.sldsystemspk.com,
+  // sldsystempk.com, api.sldsystempk.com, portal.sldsystem.com -> https://api.sldsystem.com
+  s = s.replace(/https?:\/\/(?:[a-zA-Z0-9_-]+\.)?sldsystems?pk\.com(?::\d+)?/gi, 'https://api.sldsystem.com');
   s = s.replace(/https?:\/\/portal\.sldsystem\.com(?::\d+)?/gi, 'https://api.sldsystem.com');
   s = s.replace(/http:\/\/api\.sldsystem\.com(?::\d+)?/gi, 'https://api.sldsystem.com');
 
@@ -83,24 +87,26 @@ const normalizeAttachmentList = (list) => {
 
 async function run() {
   const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/sld_system';
-  console.log(`\n==========================================================`);
-  console.log(`   SLD SYSTEM - MIGRATING ATTACHMENT URLS TO NEW DOMAIN   `);
-  console.log(`   api.sldsystempk.com -> api.sldsystem.com               `);
-  console.log(`==========================================================`);
+  console.log(`\n================================================================`);
+  console.log(`   SLD SYSTEM - MIGRATING ATTACHMENT URLS TO NEW DOMAIN         `);
+  console.log(`   sldsystemspk.com / sldsystempk.com -> https://api.sldsystem.com `);
+  console.log(`================================================================`);
   console.log(`Connecting to: ${uri.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`);
 
   await mongoose.connect(uri);
   const db = mongoose.connection.db;
 
+  const legacyDomainRegex = /sldsystems?pk\.com|portal\.sldsystem/i;
+
   // 1. Migrate Cases
   console.log(`\n[1/8] Checking 'cases' collection...`);
   const casesCursor = db.collection('cases').find({
     $or: [
-      { 'attachments.url': { $regex: /sldsystempk\.com|portal\.sldsystem|reference_views\/[0-9a-f]{8}\s+/i } },
-      { 'attachments': { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { 'attachmentsData.url': { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { 'reference': { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { 'references': { $regex: /sldsystempk\.com|portal\.sldsystem/i } }
+      { 'attachments.url': { $regex: /sldsystems?pk\.com|portal\.sldsystem|reference_views\/[0-9a-f]{8}\s+/i } },
+      { 'attachments': { $regex: legacyDomainRegex } },
+      { 'attachmentsData.url': { $regex: legacyDomainRegex } },
+      { 'reference': { $regex: legacyDomainRegex } },
+      { 'references': { $regex: legacyDomainRegex } }
     ]
   });
 
@@ -128,9 +134,9 @@ async function run() {
   console.log(`\n[2/8] Checking 'statutes' collection...`);
   const statuteCursor = db.collection('statutes').find({
     $or: [
-      { 'blocks.attachments.url': { $regex: /sldsystempk\.com|portal\.sldsystem|reference_views\/[0-9a-f]{8}\s+/i } },
-      { 'blocks.attachment.url': { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { 'blocks.attachments': { $regex: /sldsystempk\.com/i } }
+      { 'blocks.attachments.url': { $regex: /sldsystems?pk\.com|portal\.sldsystem|reference_views\/[0-9a-f]{8}\s+/i } },
+      { 'blocks.attachment.url': { $regex: legacyDomainRegex } },
+      { 'blocks.attachments': { $regex: legacyDomainRegex } }
     ]
   });
   let statuteCount = 0;
@@ -156,10 +162,10 @@ async function run() {
   console.log(`\n[3/8] Checking 'notifications' collection...`);
   const notifCursor = db.collection('notifications').find({
     $or: [
-      { 'attachments.url': { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { 'attachment.url': { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { 'attachment': { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { 'blocks.attachments.url': { $regex: /sldsystempk\.com/i } }
+      { 'attachments.url': { $regex: legacyDomainRegex } },
+      { 'attachment.url': { $regex: legacyDomainRegex } },
+      { 'attachment': { $regex: legacyDomainRegex } },
+      { 'blocks.attachments.url': { $regex: legacyDomainRegex } }
     ]
   });
   let notifCount = 0;
@@ -188,9 +194,9 @@ async function run() {
   console.log(`\n[4/8] Checking 'newsletters' collection...`);
   const newsCursor = db.collection('newsletters').find({
     $or: [
-      { attachment: { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { pdfUrl: { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { 'attachments.url': { $regex: /sldsystempk\.com/i } }
+      { attachment: { $regex: legacyDomainRegex } },
+      { pdfUrl: { $regex: legacyDomainRegex } },
+      { 'attachments.url': { $regex: legacyDomainRegex } }
     ]
   });
   let newsCount = 0;
@@ -208,8 +214,8 @@ async function run() {
   console.log(`\n[5/8] Checking 'downloads' collection...`);
   const dlCursor = db.collection('downloads').find({
     $or: [
-      { attachment: { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { attachmentUrl: { $regex: /sldsystempk\.com|portal\.sldsystem/i } }
+      { attachment: { $regex: legacyDomainRegex } },
+      { attachmentUrl: { $regex: legacyDomainRegex } }
     ]
   });
   let dlCount = 0;
@@ -224,11 +230,11 @@ async function run() {
 
   // 6. Migrate CustomTariffs & TaxCards
   console.log(`\n[6/8] Checking 'customtariffs' and 'taxcards' collections...`);
-  const ctRes = await db.collection('customtariffs').find({ attachment: { $regex: /sldsystempk\.com|portal\.sldsystem/i } }).toArray();
+  const ctRes = await db.collection('customtariffs').find({ attachment: { $regex: legacyDomainRegex } }).toArray();
   for (const doc of ctRes) {
     await db.collection('customtariffs').updateOne({ _id: doc._id }, { $set: { attachment: normalizeUrlString(doc.attachment) } });
   }
-  const tcRes = await db.collection('taxcards').find({ attachment: { $regex: /sldsystempk\.com|portal\.sldsystem/i } }).toArray();
+  const tcRes = await db.collection('taxcards').find({ attachment: { $regex: legacyDomainRegex } }).toArray();
   for (const doc of tcRes) {
     await db.collection('taxcards').updateOne({ _id: doc._id }, { $set: { attachment: normalizeUrlString(doc.attachment) } });
   }
@@ -238,9 +244,9 @@ async function run() {
   console.log(`\n[7/8] Checking 'othercaselaws' collection...`);
   const oclCursor = db.collection('othercaselaws').find({
     $or: [
-      { attachment: { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { downloadLink: { $regex: /sldsystempk\.com|portal\.sldsystem/i } },
-      { caseNoLink: { $regex: /sldsystempk\.com|portal\.sldsystem/i } }
+      { attachment: { $regex: legacyDomainRegex } },
+      { downloadLink: { $regex: legacyDomainRegex } },
+      { caseNoLink: { $regex: legacyDomainRegex } }
     ]
   });
   let oclCount = 0;
@@ -256,15 +262,15 @@ async function run() {
 
   // 8. Migrate WhatsApp updates
   console.log(`\n[8/8] Checking 'whatsappupdates' collection...`);
-  const waRes = await db.collection('whatsappupdates').find({ attachment: { $regex: /sldsystempk\.com|portal\.sldsystem/i } }).toArray();
+  const waRes = await db.collection('whatsappupdates').find({ attachment: { $regex: legacyDomainRegex } }).toArray();
   for (const doc of waRes) {
     await db.collection('whatsappupdates').updateOne({ _id: doc._id }, { $set: { attachment: normalizeUrlString(doc.attachment) } });
   }
   console.log(`✓ Migrated ${waRes.length} whatsapp updates.`);
 
-  console.log(`\n==========================================================`);
-  console.log(`✓ ALL DATABASE ATTACHMENT PATHS MIGRATED SUCCESSFULLY!    `);
-  console.log(`==========================================================\n`);
+  console.log(`\n================================================================`);
+  console.log(`✓ ALL DATABASE ATTACHMENT PATHS MIGRATED SUCCESSFULLY!          `);
+  console.log(`================================================================\n`);
 
   await mongoose.disconnect();
   process.exit(0);

@@ -78,8 +78,18 @@ mkdir -p "$APP_DIR/backend/uploads/reference_views" "$APP_DIR/backend/uploads/ne
 mkdir -p "$APP_DIR/uploads/reference_views" "$APP_DIR/uploads/newsletters" "$APP_DIR/uploads/court_cache" "$APP_DIR/uploads/payment_proofs"
 
 # Scan VPS for any existing reference_views or uploads directories
-echo ">>> Consolidating all legacy uploads from VPS into active upload storage..."
+echo ">>> Consolidating all legacy uploads from www.sldsystemspk.com and legacy folders into active storage..."
 for old_dir in \
+    /var/www/sldsystemspk.com/backend/uploads \
+    /var/www/sldsystemspk.com/uploads \
+    /var/www/api.sldsystemspk.com/backend/uploads \
+    /var/www/api.sldsystemspk.com/uploads \
+    /var/www/www.sldsystemspk.com/backend/uploads \
+    /var/www/www.sldsystemspk.com/uploads \
+    /var/www/sldsystemspk/backend/uploads \
+    /var/www/sldsystemspk/uploads \
+    /var/www/sldsystems/backend/uploads \
+    /var/www/sldsystems/uploads \
     /var/www/sldsystempk.com/backend/uploads \
     /var/www/sldsystempk.com/uploads \
     /var/www/api.sldsystempk.com/backend/uploads \
@@ -104,12 +114,19 @@ for old_dir in \
     fi
 done
 
-# Deep find for any reference_views directories anywhere on the VPS
+# Deep find for any reference_views and newsletters directories anywhere on the VPS
 if [ -d "/var/www" ]; then
     find /var/www /root /home -maxdepth 5 -type d -name "reference_views" 2>/dev/null | while read -r ref_dir; do
         if [ "$ref_dir" != "$APP_DIR/backend/uploads/reference_views" ] && [ "$ref_dir" != "$APP_DIR/uploads/reference_views" ]; then
-            echo "Syncing PDFs from $ref_dir..."
+            echo "Syncing reference PDFs from $ref_dir..."
             cp -rn "$ref_dir"/* "$APP_DIR/backend/uploads/reference_views/" 2>/dev/null || true
+        fi
+    done
+
+    find /var/www /root /home -maxdepth 5 -type d -name "newsletters" 2>/dev/null | while read -r nl_dir; do
+        if [ "$nl_dir" != "$APP_DIR/backend/uploads/newsletters" ] && [ "$nl_dir" != "$APP_DIR/uploads/newsletters" ]; then
+            echo "Syncing newsletters from $nl_dir..."
+            cp -rn "$nl_dir"/* "$APP_DIR/backend/uploads/newsletters/" 2>/dev/null || true
         fi
     done
 fi
