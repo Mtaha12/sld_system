@@ -449,9 +449,14 @@ export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction =
     }
 
     if (download) {
+      let downloadUrl = targetUrl;
+      if (targetUrl.includes('/uploads/')) {
+        const sep = targetUrl.includes('?') ? '&' : '?';
+        downloadUrl = `${targetUrl}${sep}name=${encodeURIComponent(name || title || '')}&title=${encodeURIComponent(title || name || '')}&download=1`;
+      }
       const link = document.createElement('a');
       link.style.display = 'none';
-      link.href = targetUrl;
+      link.href = downloadUrl;
       link.download = name;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
@@ -511,9 +516,41 @@ export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction =
       return;
     }
 
-    fetch(targetUrl)
+    let fetchTargetUrl = targetUrl;
+    if (targetUrl.includes('/uploads/')) {
+      const sep = targetUrl.includes('?') ? '&' : '?';
+      fetchTargetUrl = `${targetUrl}${sep}name=${encodeURIComponent(name || title || '')}&title=${encodeURIComponent(title || name || '')}`;
+    }
+
+    fetch(fetchTargetUrl, {
+      headers: {
+        'X-Document-Name': name || title || ''
+      }
+    })
       .then(async (res) => {
         if (!res.ok) {
+          // If static fetch returns 404, query MongoDB dynamic resolver before failing
+          try {
+            const fallbackResolverUrl = getResolvedBackendUrl(
+              `/api/resolve-document?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(name || title || '')}&title=${encodeURIComponent(title || name || '')}`
+            );
+            const fallbackRes = await fetch(fallbackResolverUrl);
+            if (fallbackRes.ok) {
+              const fbType = (fallbackRes.headers.get('content-type') || '').toLowerCase();
+              if (fbType.includes('text/html')) {
+                const htmlContent = await fallbackRes.text();
+                if (viewerWin && !viewerWin.closed) {
+                  viewerWin.document.open();
+                  viewerWin.document.write(htmlContent);
+                  viewerWin.document.close();
+                  return null;
+                }
+              }
+              const fbBuf = await fallbackRes.arrayBuffer();
+              return { buf: fbBuf, contentType: fbType || 'application/pdf' };
+            }
+          } catch (_) {}
+
           let serverMessage = '';
           try {
             const ct = res.headers.get('content-type') || '';
@@ -530,14 +567,16 @@ export const downloadOrViewAttachment = (att, optionsOrName = {}, legacyAction =
         const contentType = res.headers.get('content-type') || '';
         return res.arrayBuffer().then((buf) => ({ buf, contentType }));
       })
-      .then(({ buf, contentType }) =>
+      .then((result) => {
+        if (!result) return;
+        const { buf, contentType } = result;
         renderBytesIntoViewerTab(viewerWin, new Uint8Array(buf), {
           filename: name,
           title,
           contentType,
           serverPath: rawString || targetUrl
-        })
-      )
+        });
+      })
       .catch((err) => {
         if (err?.isHttpError) {
           showViewerHttpError(err.status, err.message);

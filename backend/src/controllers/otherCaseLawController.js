@@ -11,6 +11,8 @@ import {
   isLikelySupremeCourtRecord,
   resolveAndFetchSupremeCourtPdf
 } from '../utils/supremeCourtUrlResolver.js';
+import { renderCertifiedCaseHtml, resolveDocumentDynamically } from '../utils/documentResolver.js';
+import Case from '../models/Case.js';
 
 const escapeRegex = (string) => {
   if (string == null) return '';
@@ -452,8 +454,9 @@ export const viewOtherCaseDocument = async (req, res, next) => {
   let caseTitle = 'Case_Document';
   let doc = null;
   try {
-    const { id, url } = req.query;
+    const { id, url, name, q, title } = req.query;
     targetUrl = url ? decodeURIComponent(url) : null;
+    const lookupHint = (name || title || q || id || '').toString().trim();
 
     if (id) {
       if (mongoose.Types.ObjectId.isValid(id)) {
@@ -461,11 +464,70 @@ export const viewOtherCaseDocument = async (req, res, next) => {
       }
       if (!doc) {
         doc = await OtherCaseLaw.findOne({
-          $or: [{ srNumber: Number(id) || -1 }, { otherCaseId: String(id) }, { other_case_id: String(id) }]
+          $or: [
+            { srNumber: Number(id) || -1 },
+            { otherCaseId: String(id) },
+            { other_case_id: String(id) },
+            { caseNo: new RegExp('^' + escapeRegex(String(id).trim()), 'i') },
+            { citation: new RegExp('^' + escapeRegex(String(id).trim()), 'i') }
+          ]
         }).lean();
       }
+      if (!doc) {
+        doc = await Case.findOne({
+          isDeleted: false,
+          $or: [
+            { sldNumber: String(id).trim() },
+            { sldNumberInt: Number(id) || -1 },
+            { caseId: String(id).trim() }
+          ]
+        }).lean();
+        if (doc) {
+          const html = renderCertifiedCaseHtml(doc, { source: 'Case' });
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Cache-Control', 'public, max-age=604800');
+          return res.status(200).send(html);
+        }
+      }
       if (doc) {
-        targetUrl = getStoredOtherCaseUrl(doc);
+        targetUrl = targetUrl || getStoredOtherCaseUrl(doc);
+        if (doc.caseNo) caseTitle = doc.caseNo.replace(/[^a-zA-Z0-9_\-]/g, '_');
+      }
+    }
+
+    if (!doc && lookupHint) {
+      const hintClean = lookupHint.replace(/\.[^/.]+$/, '').trim();
+      const numMatch = hintClean.match(/\b(\d{2,6})\b/);
+      const targetNum = numMatch ? numMatch[1] : '';
+
+      const orConds = [
+        { caseNo: new RegExp(escapeRegex(hintClean), 'i') },
+        { citation: new RegExp(escapeRegex(hintClean), 'i') },
+        { attachmentName: new RegExp(escapeRegex(hintClean), 'i') }
+      ];
+      if (targetNum) {
+        orConds.push({ caseNo: new RegExp('\\b' + escapeRegex(targetNum) + '\\b', 'i') });
+        orConds.push({ citation: new RegExp('\\b' + escapeRegex(targetNum) + '\\b', 'i') });
+        orConds.push({ srNumber: Number(targetNum) });
+      }
+
+      doc = await OtherCaseLaw.findOne({ isDeleted: false, $or: orConds }).lean();
+      if (!doc && targetNum) {
+        const caseDoc = await Case.findOne({
+          isDeleted: false,
+          $or: [{ sldNumber: targetNum }, { sldNumberInt: Number(targetNum) }, { caseId: targetNum }]
+        }).lean();
+        if (caseDoc) {
+          const html = renderCertifiedCaseHtml(caseDoc, { source: 'Case' });
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Cache-Control', 'public, max-age=604800');
+          return res.status(200).send(html);
+        }
+      }
+      if (doc) {
+        targetUrl = targetUrl || getStoredOtherCaseUrl(doc);
         if (doc.caseNo) caseTitle = doc.caseNo.replace(/[^a-zA-Z0-9_\-]/g, '_');
       }
     }
@@ -516,7 +578,31 @@ export const viewOtherCaseDocument = async (req, res, next) => {
       }
     }
 
+    // If no external URL or PDF found, render certified judicial record from MongoDB
     if (!targetUrl || targetUrl === 'Nil') {
+      if (doc) {
+        const html = renderCertifiedCaseHtml(doc, { source: 'OtherCaseLaw' });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=604800');
+        return res.status(200).send(html);
+      }
+
+      // Universal dynamic resolver fallback
+      const resolved = await resolveDocumentDynamically({
+        cleanRel: targetUrl || '',
+        name: lookupHint,
+        title: lookupHint,
+        url: targetUrl || '',
+        id
+      });
+      if (resolved && (resolved.buffer || resolved.html)) {
+        res.setHeader('Content-Type', resolved.contentType || 'application/pdf');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=604800');
+        return res.status(200).send(resolved.buffer || Buffer.from(resolved.html, 'utf8'));
+      }
+
       const isScp = isLikelySupremeCourtRecord(doc);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.status(404).send(`
@@ -538,7 +624,7 @@ export const viewOtherCaseDocument = async (req, res, next) => {
               <h2 style="color: #e55c41; margin: 0 0 8px 0; font-size: 19px;">No Document Link Available</h2>
               <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">${
                 isScp
-                  ? `No verified PDF judgment URL was found on the Supreme Court server for <strong>${(doc?.caseNo || 'this case').replace(/[<>&"]/g, '')}</strong>.`
+                  ? `No verified PDF judgment URL was found on the Supreme Court server for <strong>${(doc?.caseNo || lookupHint || 'this case').replace(/[<>&"]/g, '')}</strong>.`
                   : 'No external certified judgment URL is recorded for this case in the database archives.'
               }</p>
               ${isScp ? `<a href="https://www.supremecourt.gov.pk/judgement-search/" target="_blank" rel="noopener noreferrer" class="btn" style="background: #e55c41; color: white;">Search Supreme Court Portal</a>` : ''}
@@ -604,6 +690,14 @@ export const viewOtherCaseDocument = async (req, res, next) => {
     }
 
     if (!response || !response.ok) {
+      if (doc) {
+        const html = renderCertifiedCaseHtml(doc, { source: 'OtherCaseLaw' });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=604800');
+        return res.status(200).send(html);
+      }
+
       if (lastError && !response) throw lastError;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.status(502).send(`
@@ -649,6 +743,13 @@ export const viewOtherCaseDocument = async (req, res, next) => {
 
     return sendInlinePdfBuffer(res, buffer, contentType, caseTitle);
   } catch (err) {
+    if (doc) {
+      const html = renderCertifiedCaseHtml(doc, { source: 'OtherCaseLaw' });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      return res.status(200).send(html);
+    }
     const isTimeout = err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('aborted');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(504).send(`

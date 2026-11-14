@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { detectContentTypeForFile, getCandidateUploadRoots, resolveUploadFilePath, sanitizeUploadRelPath } from './src/utils/attachmentStorage.js';
 import { buildAttachmentPreview } from './src/utils/attachmentPreview.js';
 import { protect } from './src/middleware/authMiddleware.js';
+import { resolveDocumentDynamically } from './src/utils/documentResolver.js';
 
 // Configure public DNS servers cleanly when available (prevents SRV resolution hiccups without breaking restricted VPS DNS)
 try {
@@ -273,84 +274,31 @@ const escapeHtmlSafe = (value = '') =>
 
 /**
  * Dynamically resolves missing attachments by searching MongoDB metadata
- * (e.g. court cases, newsletters, SROs) and fetching from authoritative origins.
+ * (e.g. court cases, superior court archives, statutory notifications, newsletters)
+ * and fetching from authoritative court origins or streaming verified certified database records.
  */
-const tryResolveMissingDocumentDynamically = async (cleanRel) => {
+const tryResolveMissingDocumentDynamically = async (cleanRel, req = null) => {
   if (!cleanRel || mongoose.connection.readyState !== 1) return null;
-  const baseName = path.basename(cleanRel);
-  const nameWithoutExt = baseName.replace(/\.[^/.]+$/, '').trim();
-  if (!nameWithoutExt || nameWithoutExt.length < 3) return null;
 
   try {
-    const escaped = nameWithoutExt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escaped, 'i');
+    const queryName = req?.query?.name || req?.query?.title || req?.query?.filename || '';
+    const queryTitle = req?.query?.title || req?.query?.name || '';
+    const headerName = req?.headers?.['x-document-name'] || req?.headers?.['x-document-title'] || '';
+    const docId = req?.query?.id || req?.query?.docId || '';
 
-    // 1. Check OtherCaseLaw for a recorded court download link or attachment
-    const ocl = await OtherCaseLaw.findOne({
-      $or: [
-        { attachment: regex },
-        { downloadLink: regex },
-        { caseNoLink: regex },
-        { caseNo: regex }
-      ]
-    }).lean();
+    const resolved = await resolveDocumentDynamically({
+      cleanRel,
+      name: queryName || headerName,
+      title: queryTitle,
+      id: docId
+    });
 
-    let remoteCandidate = null;
-    if (ocl) {
-      remoteCandidate = (ocl.downloadLink && ocl.downloadLink !== 'Nil' && /^https?:\/\//i.test(ocl.downloadLink))
-        ? ocl.downloadLink
-        : (ocl.caseNoLink && ocl.caseNoLink !== 'Nil' && /^https?:\/\//i.test(ocl.caseNoLink))
-        ? ocl.caseNoLink
-        : (ocl.attachment && ocl.attachment !== 'Nil' && /^https?:\/\//i.test(ocl.attachment))
-        ? ocl.attachment
-        : null;
-    }
-
-    // 2. Check Newsletter
-    if (!remoteCandidate) {
-      const nl = await Newsletter.findOne({
-        $or: [
-          { message: regex },
-          { attachment: regex },
-          { attachmentName: regex }
-        ]
-      }).lean();
-
-      if (nl && nl.message) {
-        const urlMatches = nl.message.match(/https?:\/\/[^\s"'<>]+/gi) || [];
-        for (const u of urlMatches) {
-          if (u.toLowerCase().includes(nameWithoutExt.toLowerCase())) {
-            remoteCandidate = u;
-            break;
-          }
-        }
-      }
-    }
-
-    if (remoteCandidate && /^https?:\/\//i.test(remoteCandidate)) {
-      const upstream = await fetch(remoteCandidate, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/pdf,application/octet-stream,*/*'
-        },
-        signal: AbortSignal.timeout(15000)
-      });
-      if (upstream.ok) {
-        const buf = Buffer.from(await upstream.arrayBuffer());
-        if (buf.length > 500) {
-          const contentType = detectContentTypeForFile(cleanRel, buf);
-          // Persist in candidate upload root
-          try {
-            const cacheRoots = getCandidateUploadRoots();
-            if (cacheRoots.length > 0) {
-              const targetFolder = path.join(cacheRoots[0], 'court_cache');
-              if (!fs.existsSync(targetFolder)) fs.mkdirSync(targetFolder, { recursive: true });
-              fs.writeFileSync(path.join(targetFolder, baseName), buf);
-            }
-          } catch (_) {}
-          return { buf, contentType };
-        }
-      }
+    if (resolved && (resolved.buffer || resolved.html)) {
+      return {
+        buf: resolved.buffer || Buffer.from(resolved.html, 'utf8'),
+        contentType: resolved.contentType || 'application/pdf',
+        filename: resolved.filename || path.basename(cleanRel)
+      };
     }
   } catch (err) {
     logger.warn('tryResolveMissingDocumentDynamically error: ' + err.message);
@@ -425,12 +373,16 @@ app.get(/^\/uploads\/(.+)$/, async (req, res) => {
 
   const cleanRel = sanitizeUploadRelPath(req.params[0]);
 
-  // 1. Try dynamic database resolution for court judgment or newsletter links
-  const dynamicDoc = await tryResolveMissingDocumentDynamically(cleanRel);
+  // 1. Try dynamic database resolution for court judgment, cases, notifications or newsletter links
+  const dynamicDoc = await tryResolveMissingDocumentDynamically(cleanRel, req);
   if (dynamicDoc) {
+    const isDownload = req.query.download === '1' || req.query.download === 'true';
+    const disposition = isDownload ? 'attachment' : 'inline';
+    const safeFilename = encodeURIComponent(dynamicDoc.filename || path.basename(cleanRel));
+
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
     res.setHeader('Content-Type', dynamicDoc.contentType);
     res.setHeader('Cache-Control', 'public, max-age=604800');
     return res.status(200).send(dynamicDoc.buf);
@@ -483,6 +435,44 @@ app.get(/^\/uploads\/(.+)$/, async (req, res) => {
   }
 
   return res.status(404).json({ success: false, message: 'Uploaded attachment file not found.' });
+});
+
+// Universal Document Resolver: fetches genuine court PDFs or certified legal reports from MongoDB
+app.get('/api/resolve-document', async (req, res) => {
+  try {
+    const { url = '', name = '', title = '', id = '', download = false } = req.query;
+    const headerName = req.headers['x-document-name'] || '';
+
+    const cleanRel = url ? sanitizeUploadRelPath(String(url).replace(/^\/?(?:uploads\/)?/, '')) : '';
+    const resolved = await resolveDocumentDynamically({
+      cleanRel,
+      name: name || headerName,
+      title,
+      url,
+      id
+    });
+
+    if (!resolved || (!resolved.buffer && !resolved.html)) {
+      return res.status(404).json({
+        success: false,
+        message: 'No matching certified document or court archive found in database.'
+      });
+    }
+
+    const isDownload = download === '1' || download === 'true' || download === true;
+    const disposition = isDownload ? 'attachment' : 'inline';
+    const safeFilename = encodeURIComponent(resolved.filename || 'Certified_Document.pdf');
+
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
+    res.setHeader('Content-Type', resolved.contentType || 'application/pdf');
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    return res.status(200).send(resolved.buffer || Buffer.from(resolved.html, 'utf8'));
+  } catch (err) {
+    logger.error('Error in /api/resolve-document:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // Protected inline document preview endpoint for spreadsheets (.xlsx/.xls/.csv) and Word (.docx/.doc)
