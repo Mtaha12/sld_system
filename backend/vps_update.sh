@@ -1,102 +1,102 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# ==============================================================================
+# SLD System - VPS Production Master Update Script
+# Updates Code, Database (Top 13 Laws, AI Search For All Users), Builds Frontend,
+# Ensures Upload Folders & Permissions, and Restarts PM2 & Nginx Services.
+# Run this script directly on your VPS terminal:
+#   bash backend/vps_update.sh  OR  bash run_vps_update.sh
+# ==============================================================================
 set -e
 
-echo ""
-echo "=========================================================="
-echo "   SLD SYSTEM - FULL PRODUCTION VPS UPDATE & BUILD SCRIPT "
-echo "=========================================================="
-echo ""
+# Colors
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Find project directory
+echo -e "\n${CYAN}==========================================================${NC}"
+echo -e "${CYAN}   SLD SYSTEM - PRODUCTION VPS ONE-CLICK EXECUTION        ${NC}"
+echo -e "${CYAN}==========================================================${NC}\n"
+
+# 1. Locate repository directory
 if [ -d "/var/www/sld_system" ]; then
-    PROJECT_DIR="/var/www/sld_system"
+    APP_DIR="/var/www/sld_system"
 elif [ -d "/var/www/sld-system" ]; then
-    PROJECT_DIR="/var/www/sld-system"
+    APP_DIR="/var/www/sld-system"
 elif [ -d "$HOME/sld_system" ]; then
-    PROJECT_DIR="$HOME/sld_system"
+    APP_DIR="$HOME/sld_system"
+elif [ -f "package.json" ]; then
+    APP_DIR="$(pwd)"
+elif [ -f "../package.json" ]; then
+    APP_DIR="$(cd .. && pwd)"
 else
-    PROJECT_DIR=$(pwd)
+    echo -e "${RED}Error: Could not locate SLD System repository directory.${NC}"
+    exit 1
 fi
 
-echo ">>> Project Directory: $PROJECT_DIR"
-cd "$PROJECT_DIR"
+cd "$APP_DIR"
+echo -e "${YELLOW}>>> Working Directory: ${APP_DIR}${NC}"
 
-echo ""
-echo ">>> [1/7] Pulling latest code from GitHub (origin/main)..."
-git fetch --all
+# Ensure git safe directory
+git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+
+# 2. Pull latest code
+echo -e "\n${YELLOW}>>> [1/7] Pulling latest updates from GitHub (origin/main)...${NC}"
+git fetch --all --prune
 git reset --hard origin/main
 git pull origin main
 
-echo ""
-echo ">>> [2/7] Building Frontend (Compiling latest assets)..."
-cd "$PROJECT_DIR/frontend"
-npm install --no-audit
-npm run build
-chmod -R 755 dist 2>/dev/null || true
-echo "✓ Frontend built successfully into dist/"
-
-echo ""
-echo ">>> [3/7] Installing Backend Dependencies..."
-cd "$PROJECT_DIR/backend"
-npm install --no-audit
-
-echo ""
-echo ">>> [4/7] Updating Admin Credentials & Database Settings..."
-if [ -f "src/utils/resetAdminPw.js" ]; then
-    node src/utils/resetAdminPw.js || true
+# 3. Install backend dependencies
+echo -e "\n${YELLOW}>>> [2/7] Verifying Backend Dependencies...${NC}"
+if [ -d "backend" ]; then
+    cd "$APP_DIR/backend"
+    npm install --no-audit
+    cd "$APP_DIR"
 fi
 
-echo ">>> Setting Top 13 Priority Statute Laws in Database..."
-if [ -f "src/scripts/vps_set_law_magazine_order.js" ]; then
-    node src/scripts/vps_set_law_magazine_order.js || true
+# 4. Update Database: Top 13 Statute Laws Sequence
+echo -e "\n${YELLOW}>>> [3/7] Setting Top 13 Priority Statute Laws in Database...${NC}"
+if [ -f "backend/src/scripts/vps_set_law_magazine_order.js" ]; then
+    node backend/src/scripts/vps_set_law_magazine_order.js || true
 fi
 
-echo ">>> Setting AI Search: YES by default for all users in VPS Database..."
-if [ -f "src/scripts/vps_enable_ai_search_all_users.js" ]; then
-    node src/scripts/vps_enable_ai_search_all_users.js || true
+# 5. Update Database: Enable AI Assistant for All Users (Existing & New)
+echo -e "\n${YELLOW}>>> [4/7] Setting AI Search: YES for All Users in Database...${NC}"
+if [ -f "backend/src/scripts/vps_enable_ai_search_all_users.js" ]; then
+    node backend/src/scripts/vps_enable_ai_search_all_users.js || true
 fi
 
-echo ">>> Ensuring Upload Directories and Permissions..."
+# 6. Ensure Upload Directories and File Permissions
+echo -e "\n${YELLOW}>>> [5/7] Verifying Upload Storage Directories & Permissions...${NC}"
+mkdir -p backend/uploads/reference_views backend/uploads/newsletters backend/uploads/court_cache backend/uploads/payment_proofs
 mkdir -p uploads/reference_views uploads/newsletters uploads/court_cache uploads/payment_proofs
-mkdir -p "$PROJECT_DIR/uploads/reference_views" "$PROJECT_DIR/uploads/newsletters" "$PROJECT_DIR/uploads/court_cache"
-chmod -R 775 uploads "$PROJECT_DIR/uploads" 2>/dev/null || true
+chmod -R 775 backend/uploads uploads 2>/dev/null || true
 
-echo ""
-echo ">>> [5/7] Importing Laws from LIST.xlsx into VPS Database..."
-if [ -f "src/scripts/importListLaws.js" ]; then
-    node src/scripts/importListLaws.js || true
-else
-    echo "Notice: importListLaws.js not found."
+# 7. Build Frontend
+echo -e "\n${YELLOW}>>> [6/7] Building Production Frontend...${NC}"
+if [ -d "frontend" ]; then
+    cd "$APP_DIR/frontend"
+    npm install --no-audit
+    npm run build
+    chmod -R 755 dist 2>/dev/null || true
+    echo -e "${GREEN}✓ Frontend built successfully into dist/${NC}"
+    cd "$APP_DIR"
 fi
 
-echo ""
-echo ">>> [6/7] Restarting Backend Services via PM2..."
+# 8. Restart PM2 and reload Nginx
+echo -e "\n${YELLOW}>>> [7/7] Reloading PM2 backend services and Nginx...${NC}"
 if command -v pm2 >/dev/null 2>&1; then
-    pm2 restart sld-backend 2>/dev/null || pm2 restart all 2>/dev/null || pm2 reload all 2>/dev/null || pm2 start ecosystem.config.cjs
-    pm2 save
-    echo ""
-    echo ">>> PM2 Status:"
-    pm2 status
-else
-    echo "PM2 not found globally. Trying npx pm2..."
-    npx pm2 restart sld-backend 2>/dev/null || npx pm2 restart all
+    pm2 restart sld-backend 2>/dev/null || pm2 restart all --update-env 2>/dev/null || pm2 reload all 2>/dev/null || true
+    pm2 save 2>/dev/null || true
+    echo -e "${GREEN}✓ PM2 services reloaded.${NC}"
 fi
 
-echo ""
-echo ">>> [7/7] Reloading Nginx to serve new build..."
 if command -v nginx >/dev/null 2>&1; then
     nginx -t && (systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || service nginx reload 2>/dev/null || true)
-    echo "✓ Nginx reloaded successfully."
-else
-    echo "Notice: Nginx binary not detected in PATH."
+    echo -e "${GREEN}✓ Nginx reloaded successfully.${NC}"
 fi
 
-echo ""
-echo "=========================================================="
-echo "   VPS MIGRATION & FRONTEND BUILD COMPLETED SUCCESSFULLY! "
-echo "=========================================================="
-echo "Production Website: https://www.sldsystempk.com/"
-echo "Admin Login:"
-echo "  Email:    haroonarafiq@gmail.com"
-echo "  Password: Admin@123"
-echo "=========================================================="
+echo -e "\n${GREEN}==========================================================${NC}"
+echo -e "${GREEN}   ALL VPS UPDATES & DATABASE OPERATIONS COMPLETED!       ${NC}"
+echo -e "${GREEN}==========================================================\n"

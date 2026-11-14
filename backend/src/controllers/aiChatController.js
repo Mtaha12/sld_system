@@ -376,45 +376,47 @@ export const searchNotifications = async (queryText) => {
       sroYear = sroYear < 50 ? 2000 + sroYear : 1900 + sroYear;
     }
 
-    // A. Priority 1: Exact SRO Number + Year Lookup (< 30ms)
-    if (sroNum && sroYear) {
-      const exactYearResults = await Notification.find({
-        isDeleted: false,
-        year: sroYear,
-        $or: [
-          { number: sroNum },
-          { sroNumber: new RegExp(escapeRegex(sroNum), 'i') },
-          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') },
-          { 'blocks.detail': new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
-        ]
-      }).sort({ createdAt: -1 }).limit(10).lean();
-
-      if (exactYearResults && exactYearResults.length > 0) {
-        return exactYearResults;
-      }
-    }
-
-    // B. Priority 2: SRO Number Across All Years (< 30ms)
+    // A. Priority 1: Exact SRO Number in number or sroNumber (< 15ms)
     if (sroNum) {
-      const numResults = await Notification.find({
+      let directNumMatches = await Notification.find({
         isDeleted: false,
         $or: [
           { number: sroNum },
-          { sroNumber: new RegExp(escapeRegex(sroNum), 'i') },
-          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') },
-          { 'blocks.detail': new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
+          { sroNumber: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
         ]
       }).sort({ year: -1, createdAt: -1 }).limit(10).lean();
 
-      if (numResults && numResults.length > 0) {
+      if (directNumMatches && directNumMatches.length > 0) {
         if (sroYear) {
-          numResults.sort((a, b) => {
+          directNumMatches.sort((a, b) => {
             const aMatch = Number(a.year) === sroYear || String(a.sroNumber).includes(String(sroYear));
             const bMatch = Number(b.year) === sroYear || String(b.sroNumber).includes(String(sroYear));
             return (bMatch ? 1 : 0) - (aMatch ? 1 : 0);
           });
         }
-        return numResults;
+        return directNumMatches;
+      }
+    }
+
+    // B. Priority 2: SRO Number in Subject or Details
+    if (sroNum) {
+      const contentResults = await Notification.find({
+        isDeleted: false,
+        $or: [
+          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') },
+          { 'blocks.detail': new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
+        ]
+      }).sort({ year: -1, createdAt: -1 }).limit(10).lean();
+
+      if (contentResults && contentResults.length > 0) {
+        if (sroYear) {
+          contentResults.sort((a, b) => {
+            const aMatch = Number(a.year) === sroYear || String(a.sroNumber).includes(String(sroYear));
+            const bMatch = Number(b.year) === sroYear || String(b.sroNumber).includes(String(sroYear));
+            return (bMatch ? 1 : 0) - (aMatch ? 1 : 0);
+          });
+        }
+        return contentResults;
       }
     }
 
@@ -3292,6 +3294,8 @@ export const extractConversationContext = (conversationHistory = []) => {
       matchedCases: [],
       lastQuery: '',
       lastText: '',
+      lastSro: null,
+      lastNotification: null,
       hasLegalContext: false
     };
   }
@@ -3300,6 +3304,8 @@ export const extractConversationContext = (conversationHistory = []) => {
   let matchedCases = [];
   let lastText = '';
   let lastQuery = '';
+  let lastSro = null;
+  let lastNotification = null;
   let hasLegalContext = false;
 
   for (let i = conversationHistory.length - 1; i >= 0; i--) {
@@ -3317,6 +3323,17 @@ export const extractConversationContext = (conversationHistory = []) => {
           matchedCases = msg.legalAnalysis.matchedCases;
           hasLegalContext = true;
         }
+        if (msg.legalAnalysis.sroNumber && !lastSro) {
+          lastSro = {
+            sroNum: String(msg.legalAnalysis.sroNumber),
+            source: 'legal_analysis'
+          };
+          hasLegalContext = true;
+        }
+        if (msg.legalAnalysis.matchedNotification && !lastNotification) {
+          lastNotification = msg.legalAnalysis.matchedNotification;
+          hasLegalContext = true;
+        }
       }
       if (!lastCase && messageText) {
         const sldMatch = messageText.match(/\bSLD\s*#?(\d+)\b/i);
@@ -3325,10 +3342,40 @@ export const extractConversationContext = (conversationHistory = []) => {
           hasLegalContext = true;
         }
       }
-    } else if (sender === 'user' && !lastQuery) {
-      lastQuery = messageText;
+      if (!lastSro && messageText) {
+        const sroMatch = messageText.match(/\bS\.?R\.?O\.?\s*(?:No\.?|#)?\s*(\d+)(?:\s*\(([a-z0-9]+)\))?(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+        if (sroMatch) {
+          let year = sroMatch[3] ? parseInt(sroMatch[3], 10) : null;
+          if (year && year < 100) year = year < 50 ? 2000 + year : 1900 + year;
+          lastSro = {
+            sroNum: sroMatch[1],
+            sroSuffix: sroMatch[2] || null,
+            sroYear: year,
+            fullStr: sroMatch[0],
+            source: 'assistant_message'
+          };
+          hasLegalContext = true;
+        }
+      }
+    } else if (sender === 'user') {
+      if (!lastQuery) lastQuery = messageText;
+      if (!lastSro && messageText) {
+        const sroMatch = messageText.match(/\bS\.?R\.?O\.?\s*(?:No\.?|#)?\s*(\d+)(?:\s*\(([a-z0-9]+)\))?(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+        if (sroMatch) {
+          let year = sroMatch[3] ? parseInt(sroMatch[3], 10) : null;
+          if (year && year < 100) year = year < 50 ? 2000 + year : 1900 + year;
+          lastSro = {
+            sroNum: sroMatch[1],
+            sroSuffix: sroMatch[2] || null,
+            sroYear: year,
+            fullStr: sroMatch[0],
+            source: 'user_query'
+          };
+          hasLegalContext = true;
+        }
+      }
     }
-    if (lastCase && matchedCases.length > 0) break;
+    if (lastCase && matchedCases.length > 0 && lastSro) break;
   }
 
   return {
@@ -3336,8 +3383,76 @@ export const extractConversationContext = (conversationHistory = []) => {
     matchedCases: matchedCases.length > 0 ? matchedCases : (lastCase ? [lastCase] : []),
     lastQuery,
     lastText,
+    lastSro,
+    lastNotification,
     hasLegalContext
   };
+};
+
+/**
+ * Extracts SRO / Notification identifier from the current query or recent conversation history.
+ */
+export const extractSroIdentifier = (queryText, conversationHistory = []) => {
+  const cleanQ = (queryText || '').trim();
+
+  // 1. Explicit pattern in current query: S.R.O. 350(I)/2024, SRO 1125, Notification 877
+  const sroMatch = cleanQ.match(/\bS\.?R\.?O\.?\s*(?:No\.?|#)?\s*(\d+)(?:\s*\(([a-z0-9]+)\))?(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+  if (sroMatch) {
+    let year = sroMatch[3] ? parseInt(sroMatch[3], 10) : null;
+    if (year && year < 100) year = year < 50 ? 2000 + year : 1900 + year;
+    return {
+      sroNum: sroMatch[1],
+      sroSuffix: sroMatch[2] || null,
+      sroYear: year,
+      fullStr: sroMatch[0],
+      source: 'query'
+    };
+  }
+
+  const notifMatch = cleanQ.match(/\b(?:notif(?:i|ee)?cat(?:i|ee)on|circular|c\.?g\.?o)\s*(?:no\.?|#)?\s*(\d+)(?:\s*\(([a-z0-9]+)\))?(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+  if (notifMatch) {
+    let year = notifMatch[3] ? parseInt(notifMatch[3], 10) : null;
+    if (year && year < 100) year = year < 50 ? 2000 + year : 1900 + year;
+    return {
+      sroNum: notifMatch[1],
+      sroSuffix: notifMatch[2] || null,
+      sroYear: year,
+      fullStr: notifMatch[0],
+      source: 'query'
+    };
+  }
+
+  // Bracketed pattern: 1125(I)/2011, 350(I)/2024
+  const bracketMatch = cleanQ.match(/\b(\d+)\s*\(([a-z0-9]+)\)(?:\s*(?:\/|\s+of\s+|-)?\s*(\d{4}))?/i);
+  if (bracketMatch) {
+    let year = bracketMatch[3] ? parseInt(bracketMatch[3], 10) : null;
+    if (year && year < 100) year = year < 50 ? 2000 + year : 1900 + year;
+    return {
+      sroNum: bracketMatch[1],
+      sroSuffix: bracketMatch[2] || null,
+      sroYear: year,
+      fullStr: bracketMatch[0],
+      source: 'query'
+    };
+  }
+
+  // 2. Anaphoric check ("this sro", "that sro", "the sro", "same sro", "with this sro", "citing this sro", "it", etc.)
+  const isAnaphoric = /\b(?:this|that|the|same|above|mentioned)\s+(?:s\.?r\.?o\.?|notif(?:i|ee)?cat(?:i|ee)on|circular|c\.?g\.?o)\b/i.test(cleanQ) ||
+    /\b(?:give|show|find|search|get)\s+(?:me\s+)?(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?)\s+(?:with|on|for|under|regarding|citing|about)\s+(?:this|that|it|the\s+same)\b/i.test(cleanQ) ||
+    /\b(?:any\s+)?cases?\s+(?:on|with|citing|for)\s+(?:this|that|it)\b/i.test(cleanQ) ||
+    /\b(?:give|show|find)\s+(?:me\s+)?cases?\s+with\s+this\b/i.test(cleanQ);
+
+  if (isAnaphoric && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    const convCtx = extractConversationContext(conversationHistory);
+    if (convCtx.lastSro) {
+      return {
+        ...convCtx.lastSro,
+        source: 'conversation_history'
+      };
+    }
+  }
+
+  return null;
 };
 
 /**
@@ -3520,6 +3635,10 @@ export const isPakistaniLegalQuery = (queryText) => {
   if (/\b(?:(?:find|show|get|display|view)\s+(?:the\s+)?(?:full\s+)?judgm?ents?|judgm?ents?\s+(?:containing|discussing)|give\s+(?:me\s+)?case\s*law|case\s*law\s*on|show\s+(?:the\s+)?(?:authentic\s+)?head\s*notes?|authentic\s*head\s*notes?|search\s+cases?|ratio\s*decidendi|legal\s*maxim|principle\s*of\s*law|pleading\s*draft|writ\s*petition|vakalatnama|appellate\s*bench)\b/i.test(q)) {
     return true;
   }
+  if (/\b(?:give|show|find|search|get)\s+(?:me\s+)?(?:cases?|case\s*law|judgm?ents?)\s+(?:with|on|for|under|citing|regarding)\b/i.test(q) ||
+      /\bcases?\s+(?:with|on|under|citing|for)\s+(?:this|that|the|same)?\s*s\.?r\.?o\.?\b/i.test(q)) {
+    return true;
+  }
   if (/^["'“‘][^"'”’]{3,}["'”’]$/.test(q.trim())) {
     return true;
   }
@@ -3543,6 +3662,217 @@ export const isPakistaniLegalQuery = (queryText) => {
   }
 
   return false;
+};
+
+/**
+ * Searches and synthesizes Pakistani Case Law and Judicial Precedents citing or interpreting an SRO / Notification.
+ * Grounded 100% in genuine database records from Case and OtherCaseLaw collections.
+ */
+export const handleCaseLawOnSroQuery = async (queryText, sroIdent, conversationHistory = [], requestingUser = null) => {
+  const sroNum = sroIdent?.sroNum;
+  if (!sroNum) return null;
+
+  try {
+    const sroRegex = new RegExp(`\\bS\\.?R\\.?O\\.?\\s*(?:No\\.?|#)?\\s*${escapeRegex(sroNum)}\\b`, 'i');
+    const bracketRegex = new RegExp(`\\b${escapeRegex(sroNum)}\\s*\\([I1a-z0-9]+\\)`, 'i');
+
+    // 1. Fetch Official Notification details for context (< 15ms)
+    let notifRecord = null;
+    try {
+      notifRecord = await Notification.findOne({
+        isDeleted: false,
+        $or: [
+          { number: sroNum },
+          { sroNumber: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') },
+          { subject: new RegExp(`\\b${escapeRegex(sroNum)}\\b`, 'i') }
+        ]
+      }).sort({ year: -1, createdAt: -1 }).lean();
+    } catch (notifErr) {
+      logger.warn('handleCaseLawOnSroQuery notif fetch warning: ' + notifErr.message);
+    }
+
+    // 2. High-speed candidate retrieval from Case using text search index (< 200ms)
+    let candidateCases = [];
+    try {
+      const textMatches = await Case.find({
+        $text: { $search: `"SRO ${sroNum}" "${sroNum}"` },
+        isDeleted: false
+      }, { score: { $meta: 'textScore' } })
+      .sort({ score: { $meta: 'textScore' } })
+      .select('sldNumber mapYearPage citation caseTitle court judges decisionDate dated headNote references principleLaw')
+      .limit(60)
+      .maxTimeMS(2500)
+      .lean();
+
+      if (textMatches && textMatches.length > 0) {
+        candidateCases = textMatches;
+      }
+    } catch (textErr) {
+      logger.warn('handleCaseLawOnSroQuery text index warning: ' + textErr.message);
+    }
+
+    // Filter candidates that genuinely cite the SRO
+    let verifiedCases = candidateCases.filter(c => {
+      const hn = c.headNote || '';
+      const pl = c.principleLaw || '';
+      const ref = Array.isArray(c.references) ? c.references.join(' ') : (c.references || '');
+      return sroRegex.test(hn) || sroRegex.test(pl) || sroRegex.test(ref) ||
+             bracketRegex.test(hn) || bracketRegex.test(pl) || bracketRegex.test(ref);
+    });
+
+    // Targeted fallback query if text index candidates yielded fewer than 5
+    if (verifiedCases.length < 5) {
+      try {
+        const directCases = await Case.find({
+          isDeleted: false,
+          $or: [
+            { headNote: sroRegex },
+            { principleLaw: sroRegex },
+            { references: sroRegex }
+          ]
+        })
+        .select('sldNumber mapYearPage citation caseTitle court judges decisionDate dated headNote references principleLaw')
+        .sort({ sldNumberInt: -1 })
+        .limit(10)
+        .maxTimeMS(2500)
+        .lean();
+
+        if (directCases && directCases.length > 0) {
+          const existingIds = new Set(verifiedCases.map(c => String(c._id)));
+          for (const dc of directCases) {
+            if (!existingIds.has(String(dc._id))) {
+              verifiedCases.push(dc);
+            }
+          }
+        }
+      } catch (directErr) {
+        logger.warn('handleCaseLawOnSroQuery direct search warning: ' + directErr.message);
+      }
+    }
+
+    // Hierarchy sort: Supreme Court first, then High Courts, then Tribunals
+    verifiedCases.sort((a, b) => {
+      const getWeight = (c) => {
+        const court = (c.court || '').toLowerCase();
+        if (court.includes('supreme court')) return 3;
+        if (court.includes('high court')) return 2;
+        if (court.includes('tribunal')) return 1;
+        return 0;
+      };
+      return getWeight(b) - getWeight(a);
+    });
+
+    const targetCase = verifiedCases[0] || null;
+
+    // CASE FOUND BRANCH:
+    if (verifiedCases.length > 0) {
+      // If Gemini is available, attempt full judicial synthesis
+      let aiSynthesis = null;
+      if (process.env.GEMINI_API_KEY && targetCase) {
+        try {
+          aiSynthesis = await synthesizeLegalAIAnswer(queryText, verifiedCases, targetCase, conversationHistory);
+        } catch (geminiErr) {
+          logger.warn('handleCaseLawOnSroQuery Gemini synthesis notice: ' + geminiErr.message);
+        }
+      }
+
+      let responseText = '';
+      if (aiSynthesis) {
+        responseText = aiSynthesis;
+      } else {
+        // High quality deterministic format grounded 100% in database records
+        responseText = `### ⚖️ Judicial Precedents & Case Law on S.R.O. ${sroNum}\n\n`;
+        if (notifRecord) {
+          responseText += `**Regulatory Context**: **S.R.O. ${notifRecord.sroNumber || sroNum}**`;
+          if (notifRecord.date) responseText += ` (${notifRecord.date})`;
+          if (notifRecord.department) responseText += ` issued by ${notifRecord.department}`;
+          if (notifRecord.subject) responseText += ` regarding *${notifRecord.subject}*`;
+          responseText += `.\n\n`;
+        }
+
+        responseText += `The following authoritative Pakistani court judgments directly cite, interpret, or apply **S.R.O. ${sroNum}**:\n\n`;
+
+        verifiedCases.slice(0, 5).forEach((c, idx) => {
+          const cite = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : (c.citation ? c.citation.join(' | ') : `SLD #${c.sldNumber}`);
+          const parties = cleanParties(c.caseTitle || c.petitioners);
+          const bench = cleanBenchList(c.judges);
+          const excerpt = cleanEvidenceSnippet(c.headNote || c.principleLaw || '', 350);
+
+          responseText += `#### **Authority ${idx + 1}: ${cite}**\n`;
+          responseText += `• **Court**: ${c.court || 'Court of Record'}\n`;
+          if (bench) responseText += `• **Coram / Bench**: ${bench}\n`;
+          if (parties) responseText += `• **Parties**: ${parties}\n`;
+          if (c.decisionDate || c.dated) responseText += `• **Date of Decision**: ${c.decisionDate || c.dated}\n`;
+          if (excerpt) responseText += `• **Judicial Holding / Headnote**:\n> ${excerpt}\n\n`;
+          responseText += `[View Full Judgment ↗](/cases/view/${c._id})\n\n---\n\n`;
+        });
+
+        responseText += `*Source: SLD Judicial Precedent Database (165,000+ judgments).*`;
+      }
+
+      return {
+        text: responseText,
+        legalAnalysis: {
+          matchedCase: targetCase,
+          matchedCases: verifiedCases.slice(0, 5),
+          matchType: 'case_law_on_sro',
+          sroNumber: sroNum,
+          confidence: 100,
+          activeReferences: ['cases', 'sros', 'citations'],
+          sourcesFound: verifiedCases.length
+        }
+      };
+    }
+
+    // NO CASES FOUND DIRECTLY BRANCH:
+    // Report truthfully with zero guesswork or fabricated citations
+    let fallbackText = `### ⚖️ Judicial Precedents on S.R.O. ${sroNum}\n\n`;
+    fallbackText += `No reported superior court judgments in the SLD database directly cite **S.R.O. ${sroNum}** by its notification number. This typically occurs when an SRO is of recent origin, procedural in nature, or has not yet been litigated before the High Courts or Supreme Court.\n\n`;
+
+    if (notifRecord) {
+      fallbackText += `#### 🏛️ Verified Official SRO Details (from Notifications Archive)\n`;
+      fallbackText += `• **Notification / SRO**: S.R.O. ${notifRecord.sroNumber || sroNum}\n`;
+      if (notifRecord.date) fallbackText += `• **Date of Issuance**: ${notifRecord.date}\n`;
+      if (notifRecord.department) fallbackText += `• **Issuing Authority**: ${notifRecord.department}\n`;
+      if (notifRecord.subject) fallbackText += `• **Subject Matter**: ${notifRecord.subject}\n\n`;
+    }
+
+    if (notifRecord && notifRecord.subject) {
+      const subjectKeywords = notifRecord.subject.replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 4).slice(0, 3).join(' ');
+      if (subjectKeywords) {
+        try {
+          const relatedStatuteCases = await Case.find({
+            $text: { $search: subjectKeywords },
+            isDeleted: false
+          }).limit(3).select('sldNumber mapYearPage citation caseTitle court headNote').lean();
+
+          if (relatedStatuteCases && relatedStatuteCases.length > 0) {
+            fallbackText += `#### 📖 Related Judicial Authorities on Governing Subject Matter\n\n`;
+            relatedStatuteCases.forEach((rc) => {
+              const cite = (rc.mapYearPage && rc.mapYearPage.length > 0) ? rc.mapYearPage.join(' | ') : `SLD #${rc.sldNumber}`;
+              fallbackText += `• **${cite} (${rc.court})**: ${rc.caseTitle || ''}\n  [View Case ↗](/cases/view/${rc._id})\n`;
+            });
+          }
+        } catch (e) {}
+      }
+    }
+
+    return {
+      text: fallbackText,
+      legalAnalysis: {
+        matchedCase: null,
+        matchedCases: [],
+        matchType: 'case_law_on_sro_not_found',
+        sroNumber: sroNum,
+        confidence: 100,
+        activeReferences: ['notifications', 'sros'],
+        sourcesFound: notifRecord ? 1 : 0
+      }
+    };
+  } catch (err) {
+    logger.warn('handleCaseLawOnSroQuery fatal error: ' + err.message);
+    return null;
+  }
 };
 
 /**
@@ -4211,13 +4541,38 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
       }
     }
 
+    // 0.5B-2 Case Law / Judicial Precedents on SROs or Notifications
+    // When the user requests case law, judgments, or decisions citing an SRO or Notification
+    // (e.g. "give case with this sro", "give case with sro 1125", "cases citing SRO 350", "precedents on SRO"):
+    // The AI MUST retrieve authoritative court cases citing the SRO rather than only returning gazette text.
+    const sroIdent = extractSroIdentifier(rawClean, conversationHistory);
+    const isCaseRequested = /\b(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?|decisions?|petitions?|appeals?|authorit(?:y|ies))\b/i.test(rawClean);
+    const isCaseOnSroQuery = Boolean(sroIdent) && (
+      isCaseRequested ||
+      /\b(?:with|on|under|for|citing|regarding)\s+(?:this|that|the|same)?\s*s\.?r\.?o\.?\b/i.test(rawClean)
+    );
+
+    if (isCaseOnSroQuery) {
+      if (!canAccessCases) {
+        return {
+          text: `### 🔒 Access Authorization Notice\n\nYour account role does not have authorization to view **Case Law Records**. Please contact your administrator.`,
+          legalAnalysis: { matchedCase: null, matchType: 'permission_denied', confidence: 100, sourcesFound: 0 }
+        };
+      }
+
+      const caseSroResult = await handleCaseLawOnSroQuery(rawClean, sroIdent, conversationHistory, requestingUser);
+      if (caseSroResult) {
+        return caseSroResult;
+      }
+    }
+
     // 0.5C Strict Official Notifications & SROs Routing (Requirement 5.C)
-    // When the user's query specifically contains "SRO", "Notification", or "Notifications":
+    // When the user's query specifically contains "SRO", "Notification", or "Notifications" WITHOUT requesting cases:
     // The AI must search ONLY the Notifications module. Do not search or include Statutes or Case Law.
-    const isStrictNotifQuery = (
+    const isStrictNotifQuery = !isCaseOnSroQuery && (
       /\b(?:s\.?r\.?o\.?|notif(?:i|ee)?cat(?:i|ee)ons?|c\.?g\.?o|circulars?)\b/i.test(rawClean) ||
       /s\.?r\.?o\.?\s*[\d(]/i.test(rawClean)
-    ) && !/\b(?:case\s*law|judgm?ents?|petition|appeal|vs\.?|versus)\b/i.test(rawClean);
+    ) && !/\b(?:cases?|case\s*law|judgm?ents?|rulings?|decisions?|precedents?|authorit(?:y|ies)|petition|appeal|vs\.?|versus)\b/i.test(rawClean);
     if (isStrictNotifQuery) {
       if (!canAccessNotifications) {
         return {
@@ -4231,6 +4586,8 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
           text: formatNotificationsResponse(notifRecords, rawClean),
           legalAnalysis: {
             matchedCase: null,
+            matchedNotification: notifRecords[0],
+            sroNumber: notifRecords[0]?.number || notifRecords[0]?.sroNumber,
             exactQuote: null,
             matchType: 'regulatory_notification',
             confidence: 100,
@@ -6570,6 +6927,8 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
       text: formatNotificationsResponse(notifMatches, cleanQuery),
       legalAnalysis: {
         matchedCase: null,
+        matchedNotification: notifMatches[0],
+        sroNumber: notifMatches[0]?.number || notifMatches[0]?.sroNumber,
         exactQuote: null,
         matchType: 'regulatory_notification',
         confidence: 100,

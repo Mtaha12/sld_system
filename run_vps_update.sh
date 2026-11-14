@@ -36,32 +36,43 @@ fi
 cd "$APP_DIR"
 echo -e "${YELLOW}>>> Working Directory: ${APP_DIR}${NC}"
 
+# Ensure git safe directory
+git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+
 # 2. Pull latest code
-echo -e "\n${YELLOW}>>> [1/6] Pulling latest updates from GitHub (origin/main)...${NC}"
+echo -e "\n${YELLOW}>>> [1/7] Pulling latest updates from GitHub (origin/main)...${NC}"
 git fetch --all --prune
 git reset --hard origin/main
 git pull origin main
 
-# 3. Update Database: Top 13 Statute Laws Sequence
-echo -e "\n${YELLOW}>>> [2/6] Setting Top 13 Priority Statute Laws in Database...${NC}"
+# 3. Install backend dependencies
+echo -e "\n${YELLOW}>>> [2/7] Verifying Backend Dependencies...${NC}"
+if [ -d "backend" ]; then
+    cd "$APP_DIR/backend"
+    npm install --no-audit
+    cd "$APP_DIR"
+fi
+
+# 4. Update Database: Top 13 Statute Laws Sequence
+echo -e "\n${YELLOW}>>> [3/7] Setting Top 13 Priority Statute Laws in Database...${NC}"
 if [ -f "backend/src/scripts/vps_set_law_magazine_order.js" ]; then
     node backend/src/scripts/vps_set_law_magazine_order.js || true
 fi
 
-# 4. Update Database: Enable AI Assistant for All Users (Existing & New)
-echo -e "\n${YELLOW}>>> [3/6] Setting AI Search: YES for All Users in Database...${NC}"
+# 5. Update Database: Enable AI Assistant for All Users (Existing & New)
+echo -e "\n${YELLOW}>>> [4/7] Setting AI Search: YES for All Users in Database...${NC}"
 if [ -f "backend/src/scripts/vps_enable_ai_search_all_users.js" ]; then
     node backend/src/scripts/vps_enable_ai_search_all_users.js || true
 fi
 
-# 5. Ensure Upload Directories and File Permissions
-echo -e "\n${YELLOW}>>> [4/6] Verifying Upload Storage Directories & Permissions...${NC}"
+# 6. Ensure Upload Directories and File Permissions
+echo -e "\n${YELLOW}>>> [5/7] Verifying Upload Storage Directories & Permissions...${NC}"
 mkdir -p backend/uploads/reference_views backend/uploads/newsletters backend/uploads/court_cache backend/uploads/payment_proofs
-mkdir -p uploads/reference_views uploads/newsletters uploads/court_cache
+mkdir -p uploads/reference_views uploads/newsletters uploads/court_cache uploads/payment_proofs
 chmod -R 775 backend/uploads uploads 2>/dev/null || true
 
-# 6. Build Frontend
-echo -e "\n${YELLOW}>>> [5/6] Building Production Frontend...${NC}"
+# 7. Build Frontend
+echo -e "\n${YELLOW}>>> [6/7] Building Production Frontend...${NC}"
 if [ -d "frontend" ]; then
     cd "$APP_DIR/frontend"
     npm install --no-audit
@@ -71,10 +82,10 @@ if [ -d "frontend" ]; then
     cd "$APP_DIR"
 fi
 
-# 7. Restart PM2 and reload Nginx
-echo -e "\n${YELLOW}>>> [6/6] Reloading PM2 backend services and Nginx...${NC}"
+# 8. Restart PM2 and reload Nginx
+echo -e "\n${YELLOW}>>> [7/7] Reloading PM2 backend services and Nginx...${NC}"
 if command -v pm2 >/dev/null 2>&1; then
-    pm2 restart all --update-env 2>/dev/null || pm2 reload all 2>/dev/null || true
+    pm2 restart sld-backend 2>/dev/null || pm2 restart all --update-env 2>/dev/null || pm2 reload all 2>/dev/null || true
     pm2 save 2>/dev/null || true
     echo -e "${GREEN}✓ PM2 services reloaded.${NC}"
 fi
@@ -87,4 +98,3 @@ fi
 echo -e "\n${GREEN}==========================================================${NC}"
 echo -e "${GREEN}   ALL VPS UPDATES & DATABASE OPERATIONS COMPLETED!       ${NC}"
 echo -e "${GREEN}==========================================================\n"
-
