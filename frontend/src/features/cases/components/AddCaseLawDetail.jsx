@@ -112,7 +112,7 @@ const getInitialValues = (data = null) => {
       legalMaxim: '',
       judgment: '',
       publications: [
-        { id: 1, year: '2026', vol: '', mag: 'sld', page: '' }
+        { id: 1, year: '2026', vol: '', mag: 'SLD', page: '' }
       ],
       laws: [
         { id: 1, lawStatute: '', section: '' }
@@ -126,10 +126,10 @@ const getInitialValues = (data = null) => {
         id: idx + 1,
         year: String(p.year || ''),
         vol: String(p.vol || ''),
-        mag: String(p.mag || 'sld'),
+        mag: String(p.mag || 'SLD').trim().toUpperCase(),
         page: String(p.page || '')
       }))
-    : [{ id: 1, year: '', vol: '', mag: 'sld', page: '' }];
+    : [{ id: 1, year: '', vol: '', mag: 'SLD', page: '' }];
 
   const laws = Array.isArray(data.laws) && data.laws.length > 0
     ? data.laws.map((l, idx) => ({
@@ -237,7 +237,18 @@ const AddCaseLawDetail = ({ onClose }) => {
   const [magazineOptions, setMagazineOptions] = useState(() => {
     const list = [
       { label: 'Select Mag', value: '' },
-      { label: 'SLD', value: 'SLD' }
+      { label: 'SLD', value: 'SLD' },
+      { label: 'PTD', value: 'PTD' },
+      { label: 'TAX', value: 'TAX' },
+      { label: 'SCMR', value: 'SCMR' },
+      { label: 'CLC', value: 'CLC' },
+      { label: 'MLD', value: 'MLD' },
+      { label: 'PLD', value: 'PLD' },
+      { label: 'YLR', value: 'YLR' },
+      { label: 'CTR', value: 'CTR' },
+      { label: 'CLD', value: 'CLD' },
+      { label: 'PLC', value: 'PLC' },
+      { label: 'PCrLJ', value: 'PCRLJ' }
     ];
     if (Array.isArray(editData?.publications)) {
       editData.publications.forEach(p => {
@@ -320,7 +331,18 @@ const AddCaseLawDetail = ({ onClose }) => {
           setMagazineOptions(prev => {
             const list = [
               { label: 'Select Mag', value: '' },
-              { label: 'SLD', value: 'SLD' }
+              { label: 'SLD', value: 'SLD' },
+              { label: 'PTD', value: 'PTD' },
+              { label: 'TAX', value: 'TAX' },
+              { label: 'SCMR', value: 'SCMR' },
+              { label: 'CLC', value: 'CLC' },
+              { label: 'MLD', value: 'MLD' },
+              { label: 'PLD', value: 'PLD' },
+              { label: 'YLR', value: 'YLR' },
+              { label: 'CTR', value: 'CTR' },
+              { label: 'CLD', value: 'CLD' },
+              { label: 'PLC', value: 'PLC' },
+              { label: 'PCrLJ', value: 'PCRLJ' }
             ];
             mags.forEach(m => {
               if (!list.some(o => o.value === m.value)) {
@@ -626,7 +648,7 @@ const AddCaseLawDetail = ({ onClose }) => {
     // 2. Determine next Publication Page Number
     const prevPub = savedData?.publications?.[0] || getValues('publications.0') || {};
     const year = String(prevPub.year || '2026').trim();
-    const mag  = String(prevPub.mag  || 'sld').trim().toLowerCase();
+    const mag  = String(prevPub.mag  || 'SLD').trim().toUpperCase();
     let calculatedNextPage = '';
 
     const prevPageNum = parseInt(String(prevPub.page || '').replace(/\D+/g, ''), 10);
@@ -634,7 +656,7 @@ const AddCaseLawDetail = ({ onClose }) => {
       calculatedNextPage = String(prevPageNum + 1);
     } else {
       try {
-        const pageRes = await caseService.getMaxPage(year || '2026', mag || 'sld');
+        const pageRes = await caseService.getMaxPage(year || '2026', mag || 'SLD');
         const np = pageRes?.nextPage ?? (pageRes?.maxPage != null ? pageRes.maxPage + 1 : 1);
         if (np != null) calculatedNextPage = String(np);
       } catch (err) {
@@ -657,7 +679,7 @@ const AddCaseLawDetail = ({ onClose }) => {
           id: 1,
           year: year || '2026',
           vol: '',
-          mag: mag || 'sld',
+          mag: mag || 'SLD',
           page: calculatedNextPage || ''
         }
       ]
@@ -678,7 +700,7 @@ const AddCaseLawDetail = ({ onClose }) => {
   }, [assignedSldNumber, getValues, reset, setValue, searchParams, setSearchParams]);
 
   /**
-   * Loads case directly by SLD number from API without moving back
+   * Loads case directly by SLD number, citation, or publication page from API
    */
   const loadCaseBySld = useCallback(async (targetSld) => {
     const cleanSld = String(targetSld ?? loadSldInput ?? getValues('srNumber') ?? '').trim();
@@ -688,7 +710,25 @@ const AddCaseLawDetail = ({ onClose }) => {
     setLoadFeedback(null);
 
     try {
-      const caseData = await caseService.getCaseBySld(cleanSld);
+      let caseData = null;
+      try {
+        caseData = await caseService.getCaseBySld(cleanSld);
+      } catch (directErr) {
+        // Fallback: check if cleanSld is a page or citation e.g. "4840", "4841", "2026 SLD 4840"
+        const cleanDigits = cleanSld.replace(/\D/g, '');
+        if (cleanDigits && cleanDigits.length <= 4) {
+          const searchRes = await caseService.searchCases({
+            yearVolume: '2026',
+            magazine: 'SLD',
+            page: cleanDigits
+          });
+          if (Array.isArray(searchRes) && searchRes.length > 0) {
+            caseData = searchRes[0];
+          }
+        }
+        if (!caseData) throw directErr;
+      }
+
       if (caseData) {
         applyCaseToForm(caseData);
         setAssignedSldNumber(String(caseData.sldNumber || cleanSld));
@@ -699,7 +739,7 @@ const AddCaseLawDetail = ({ onClose }) => {
         }
         setLoadFeedback({
           type: 'success',
-          message: `SLD #${cleanSld} loaded: ${caseData.court || 'Case Record'}`
+          message: `SLD #${caseData.sldNumber || cleanSld} loaded: ${caseData.court || 'Case Record'}`
         });
       }
     } catch (err) {
@@ -733,7 +773,30 @@ const AddCaseLawDetail = ({ onClose }) => {
     hasLoadedInitial.current = true;
 
     const sldQuery = searchParams.get('sld');
-    if (sldQuery) {
+    const editId = searchParams.get('editId');
+
+    if (editId) {
+      setLoadingCase(true);
+      caseService.getCaseById(editId)
+        .then(fullCase => {
+          if (fullCase) {
+            applyCaseToForm(fullCase);
+            if (fullCase.sldNumber) {
+              setAssignedSldNumber(String(fullCase.sldNumber));
+              setValue('srNumber', String(fullCase.sldNumber), { shouldDirty: false });
+              setLoadSldInput(String(fullCase.sldNumber));
+            }
+          }
+        })
+        .catch(err => {
+          console.warn('Could not load case by editId:', err);
+          if (sldQuery) {
+            setLoadSldInput(sldQuery);
+            loadCaseBySld(sldQuery);
+          }
+        })
+        .finally(() => setLoadingCase(false));
+    } else if (sldQuery) {
       setLoadSldInput(sldQuery);
       loadCaseBySld(sldQuery);
     } else if (editData) {
@@ -1055,13 +1118,13 @@ const AddCaseLawDetail = ({ onClose }) => {
 
               {/* Separate Block 2: Load Existing Record (Blank by default) */}
               <div className="md:col-span-4">
-                <FormField label="Load Record (SLD #)">
+                <FormField label="Load Record (SLD # or Page)">
                   <div className="flex items-center gap-1.5">
                     <div className="relative flex-1">
                       <Input 
                         variant="light" 
                         inputSize="sm" 
-                        placeholder="Enter SLD # to load..." 
+                        placeholder="Enter SLD # or Citation / Page..." 
                         value={loadSldInput}
                         onChange={(e) => setLoadSldInput(e.target.value)}
                         onKeyDown={(e) => {

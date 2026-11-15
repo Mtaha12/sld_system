@@ -614,13 +614,16 @@ const SearchCaseLawPage = () => {
           const mapEntries = Array.isArray(c.mapYearPage) ? c.mapYearPage : (c.mapYearPage ? [c.mapYearPage] : []);
           return mapEntries.some(m => {
             const low = String(m).toLowerCase();
-            return (low.includes(mg) || mg === 'sld') && low.includes(pg) && (low.includes(yv) || !yv);
+            const yearRegex = new RegExp(`(?:^|\\D)${yv}(?:\\D|$)`, 'i');
+            const pageRegex = new RegExp(`(?:^|\\D)0*${pg}(?:\\D|$)`, 'i');
+            const magClean = mg.replace(/[^a-z0-9]/g, '');
+            const magMatches = low.includes(mg) || (magClean && low.replace(/[^a-z0-9]/g, '').includes(magClean)) || mg === 'sld';
+            return yearRegex.test(low) && pageRegex.test(low) && magMatches;
           });
         });
 
-        if (filteredExact.length > 0) {
-          data = filteredExact;
-        }
+        // Unconditionally assign filteredExact so an exact 3-block search NEVER returns mismatched years
+        data = filteredExact;
       }
 
       setSubmittedFilters({ ...activeForm });

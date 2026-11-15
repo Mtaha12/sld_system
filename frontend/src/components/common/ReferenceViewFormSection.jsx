@@ -210,9 +210,9 @@ const ReferenceViewFormSection = ({ value = {}, onChange, expanded = true, minRo
                 <input
                   type="text"
                   placeholder="e.g. SLD, TAX, PTD"
-                  value={cit.mag || ''}
-                  onChange={(e) => handleCitationChange(idx, 'mag', e.target.value)}
-                  className="col-span-4 px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                  value={cit.mag ? String(cit.mag).toUpperCase() : ''}
+                  onChange={(e) => handleCitationChange(idx, 'mag', (e.target.value || '').toUpperCase())}
+                  className="col-span-4 px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-stone-700 bg-white dark:bg-stone-900 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-orange uppercase"
                 />
                 <input
                   type="text"

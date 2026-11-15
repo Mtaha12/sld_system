@@ -1105,10 +1105,32 @@ export const getCaseBySld = async (req, res, next) => {
       });
     }
 
-    const c = await Case.findOne({
+    let c = await Case.findOne({
       $or: conditions,
       isDeleted: false
     }).lean();
+
+    // Fallback: If not found by direct SLD/ID, attempt lookup by citation or publication page
+    if (!c) {
+      const citationParsed = parseLegalCitation(cleanSld);
+      if (citationParsed) {
+        c = await Case.findOne({
+          ...buildCitationQuery(citationParsed),
+          isDeleted: false
+        }).sort({ sldNumberInt: -1 }).lean();
+      }
+    }
+
+    if (!c && !isNaN(numInt) && numInt > 0) {
+      // Check if user entered publication page or citation variant
+      c = await Case.findOne({
+        isDeleted: false,
+        $or: [
+          { 'publications.page': { $in: [cleanNum, numInt] } },
+          { mapYearPage: { $regex: `(?:\\b|\\s)0*${escapeRegex(cleanNum)}(?:\\b|$)` } }
+        ]
+      }).sort({ sldNumberInt: -1 }).lean();
+    }
 
     if (!c) {
       return res.status(404).json({
@@ -1362,7 +1384,10 @@ export const createCase = async (req, res, next) => {
       }
     }
 
-    const pubs = publications || [];
+    const pubs = (publications || []).map(p => ({
+      ...p,
+      mag: (p.mag || 'SLD').trim().toUpperCase()
+    }));
     const mapYearPage = buildMapYearPage(pubs);
 
     const newCase = new Case({
@@ -1472,8 +1497,12 @@ export const updateCase = async (req, res, next) => {
     if (legalMaxim !== undefined) c.legalMaxim = legalMaxim;
     if (judgment !== undefined) c.judgment = judgment;
     if (publications !== undefined) {
-      c.publications = publications;
-      c.mapYearPage = buildMapYearPage(publications);
+      const cleanPubs = (publications || []).map(p => ({
+        ...p,
+        mag: (p.mag || 'SLD').trim().toUpperCase()
+      }));
+      c.publications = cleanPubs;
+      c.mapYearPage = buildMapYearPage(cleanPubs);
     }
     if (laws !== undefined) c.laws = normalizeLawReferences(laws);
     if (attachments !== undefined) c.attachments = sanitizeAttachments(attachments);
@@ -1704,7 +1733,6 @@ export const searchCases = async (req, res, next) => {
         `${yv} ${alias} 0${pg}`,
         `(${yv}) ${alias} 0${pg}`,
         `${alias} ${yv} ${pg}`,
-        `${alias} ${pg}`,
         `(${yv}) ${alias} ${pg}`
       ]);
 
@@ -1719,18 +1747,24 @@ export const searchCases = async (req, res, next) => {
       andConditions.push({
         $or: [
           { mapYearPage: { $in: exactCitationCandidates } },
-          { mapYearPage: { $regex: `(?:${escapeRegex(yv)}\\s+${magCitPart}|${magCitPart}\\s+${escapeRegex(yv)}|${magCitPart})\\s+0*${escapeRegex(pg)}(?:\\b|$)`, $options: 'i' } },
+          { mapYearPage: { $regex: `(?:${escapeRegex(yv)}\\s+${magCitPart}|${magCitPart}\\s+${escapeRegex(yv)})\\s+0*${escapeRegex(pg)}(?:\\b|$)`, $options: 'i' } },
           {
             publications: {
               $elemMatch: {
-                $or: [
-                  { mag: { $in: magVariants } },
-                  { magazine: { $in: magVariants } }
-                ],
-                page: { $in: pageCandidates },
-                $or: [
-                  { year: { $in: yearCandidates } },
-                  { vol: { $in: yearCandidates } }
+                $and: [
+                  {
+                    $or: [
+                      { mag: { $in: magVariants } },
+                      { magazine: { $in: magVariants } }
+                    ]
+                  },
+                  { page: { $in: pageCandidates } },
+                  {
+                    $or: [
+                      { year: { $in: yearCandidates } },
+                      { vol: { $in: yearCandidates } }
+                    ]
+                  }
                 ]
               }
             }
