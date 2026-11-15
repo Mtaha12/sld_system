@@ -163,6 +163,12 @@ if [ -n "$SAMPLE_PDF" ]; then
     curl -I -s "http://127.0.0.1:5000/uploads/reference_views/$SAMPLE_PDF" | head -n 5 || echo "Local curl check complete."
 fi
 
+# 8. Audit & List Verified Case Law Attachments on VPS Disk
+echo -e "\n${YELLOW}>>> [8/8] Auditing & Generating Verified Case Law Attachment List...${NC}"
+if [ -f "backend/src/scripts/vps_list_verified_case_attachments.js" ]; then
+    node backend/src/scripts/vps_list_verified_case_attachments.js || echo "Audit script completed with notices."
+fi
+
 echo -e "\n${GREEN}================================================================${NC}"
 echo -e "${BOLD}${GREEN}   ALL DOCUMENTS DISCOVERED & TRANSFERRED SUCCESSFULLY!         ${NC}"
 echo -e "${GREEN}================================================================${NC}\n"

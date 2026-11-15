@@ -237,13 +237,13 @@ const AddCaseLawDetail = ({ onClose }) => {
   const [magazineOptions, setMagazineOptions] = useState(() => {
     const list = [
       { label: 'Select Mag', value: '' },
-      { label: 'SLD', value: 'sld' }
+      { label: 'SLD', value: 'SLD' }
     ];
     if (Array.isArray(editData?.publications)) {
       editData.publications.forEach(p => {
-        const val = String(p?.mag || '').trim().toLowerCase();
+        const val = String(p?.mag || '').trim().toUpperCase();
         if (val && !list.some(o => o.value === val)) {
-          list.push({ label: val.toUpperCase(), value: val });
+          list.push({ label: val, value: val });
         }
       });
     }
@@ -316,11 +316,11 @@ const AddCaseLawDetail = ({ onClose }) => {
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const orderedRaw = sortMagazinesWithPriority(res.data, m => m.name);
-          const mags = orderedRaw.map(m => ({ label: m.name.toUpperCase(), value: m.name.toLowerCase() }));
+          const mags = orderedRaw.map(m => ({ label: m.name.toUpperCase(), value: m.name.toUpperCase() }));
           setMagazineOptions(prev => {
             const list = [
               { label: 'Select Mag', value: '' },
-              { label: 'SLD', value: 'sld' }
+              { label: 'SLD', value: 'SLD' }
             ];
             mags.forEach(m => {
               if (!list.some(o => o.value === m.value)) {
@@ -329,9 +329,9 @@ const AddCaseLawDetail = ({ onClose }) => {
             });
             const currentPubs = getValues('publications') || editData?.publications || [];
             currentPubs.forEach(p => {
-              const val = String(p?.mag || '').trim().toLowerCase();
+              const val = String(p?.mag || '').trim().toUpperCase();
               if (val && !list.some(o => o.value === val)) {
-                list.push({ label: val.toUpperCase(), value: val });
+                list.push({ label: val, value: val });
               }
             });
             return list;
@@ -1182,8 +1182,12 @@ const AddCaseLawDetail = ({ onClose }) => {
                       variant="light" 
                       inputSize="sm" 
                       placeholder={idx === 0 ? "2026" : "YYYY"} 
+                      maxLength={4}
+                      inputMode="numeric"
                       {...register(`publications.${idx}.year`, {
-                        onChange: () => {
+                        onChange: (e) => {
+                          const cleanVal = (e?.target?.value || '').replace(/\D/g, '').slice(0, 4);
+                          setValue(`publications.${idx}.year`, cleanVal);
                           if (idx === 0) autofillPublicationPage(0);
                         },
                       })}
@@ -1196,14 +1200,16 @@ const AddCaseLawDetail = ({ onClose }) => {
                       render={({ field }) => (
                         <SearchableCombobox
                           inputSize="sm"
-                          value={field.value || ''}
+                          value={field.value ? String(field.value).toUpperCase() : ''}
                           onChange={(val) => {
-                            field.onChange(val);
+                            const upperVal = String(val || '').toUpperCase();
+                            field.onChange(upperVal);
                             if (idx === 0) autofillPublicationPage(0);
                           }}
                           options={magazineOptions}
-                          placeholder="Mag"
-                          allowCustom={true}
+                          placeholder="Select Mag"
+                          allowCustom={false}
+                          readOnly={true}
                         />
                       )}
                     />
@@ -1223,7 +1229,14 @@ const AddCaseLawDetail = ({ onClose }) => {
                       variant="light" 
                       inputSize="sm" 
                       placeholder="Page" 
-                      {...register(`publications.${idx}.page`)}
+                      maxLength={4}
+                      inputMode="numeric"
+                      {...register(`publications.${idx}.page`, {
+                        onChange: (e) => {
+                          const cleanVal = (e?.target?.value || '').replace(/\D/g, '').slice(0, 4);
+                          setValue(`publications.${idx}.page`, cleanVal);
+                        }
+                      })}
                     />
                   </FormField>
                   <div className="col-span-3 flex items-center gap-1.5">

@@ -241,14 +241,18 @@ let cachedTotalCasesExpiresAt = 0;
 
 const getTotalCasesCount = async (query, hasFilter) => {
   if (hasFilter) {
-    return Case.countDocuments(query);
+    try {
+      return await Case.countDocuments(query).maxTimeMS(5000);
+    } catch {
+      return 1000;
+    }
   }
   const now = Date.now();
   if (cachedTotalCasesCount > 0 && now < cachedTotalCasesExpiresAt) {
     return cachedTotalCasesCount;
   }
   try {
-    const count = await Case.estimatedDocumentCount();
+    const count = await Case.estimatedDocumentCount().maxTimeMS(3000);
     cachedTotalCasesCount = count;
     cachedTotalCasesExpiresAt = now + 5 * 60_000;
     return count;
@@ -908,6 +912,7 @@ export const getCases = async (req, res, next) => {
       .sort(sortObj)
       .skip(skip)
       .limit(limitNum)
+      .maxTimeMS(10000)
       .lean();
 
     // Citation searches have an exact publication compound index. Using it
@@ -969,12 +974,19 @@ export const getMaxPage = async (req, res, next) => {
     const maxPageMagPattern = maxPageMagAliases.length > 1
       ? `^(?:${maxPageMagAliases.map(escapeRegex).join('|')})$`
       : `^${escapeRegex(String(mag).trim())}$`;
+    const cleanYear = String(year).trim();
+
     const result = await Case.aggregate([
-      { $match: { isDeleted: false } },
+      {
+        $match: {
+          isDeleted: false,
+          'publications.year': cleanYear
+        }
+      },
       { $unwind: '$publications' },
       {
         $match: {
-          'publications.year': String(year).trim(),
+          'publications.year': cleanYear,
           'publications.mag': { $regex: maxPageMagPattern, $options: 'i' }
         }
       },
@@ -993,7 +1005,7 @@ export const getMaxPage = async (req, res, next) => {
           }
         }
       }
-    ]);
+    ]).maxTimeMS(5000);
 
     const maxPage = result.length > 0 && result[0].maxPage != null
       ? result[0].maxPage
@@ -1819,12 +1831,14 @@ export const searchCases = async (req, res, next) => {
         rawCn.toUpperCase(),
         rawCn.toLowerCase(),
         rawCn.replace(/\s+/g, ' '),
-        rawCn.replace(/\s+/g, '')
+        rawCn.replace(/\s+/g, ''),
+        rawCn.replace(/[-_]/g, ' '),
+        rawCn.replace(/\s+/g, '-')
       ])].filter(Boolean);
       andConditions.push({
         $or: [
           { caseNumber: { $in: cnVariants } },
-          { caseNumber: { $regex: escapeRegex(rawCn), $options: 'i' } }
+          { caseNumber: { $regex: `(^|[^a-zA-Z0-9])${escapeRegex(rawCn)}`, $options: 'i' } }
         ]
       });
     }
@@ -1935,13 +1949,16 @@ export const searchCases = async (req, res, next) => {
       let q = Case.find(query)
         .select(selectFields)
         .sort({ sldNumberInt: -1 })
-        .limit(searchLimit);
+        .limit(searchLimit)
+        .maxTimeMS(10000);
       if (hintSpec) q = q.hint(hintSpec);
       return q.lean();
     };
 
     let selectedHint = null;
-    if (filters.court && !filters.yearVolume && !filters.page && !hasTextSearch) {
+    if (filters.caseNumber && !hasTextSearch) {
+      selectedHint = { isDeleted: 1, caseNumber: 1, sldNumberInt: -1 };
+    } else if (filters.court && !filters.yearVolume && !filters.page && !hasTextSearch) {
       selectedHint = { isDeleted: 1, court: 1, sldNumberInt: -1 };
     } else if (filters.subject && parseLegalCitation(filters.subject)) {
       selectedHint = {

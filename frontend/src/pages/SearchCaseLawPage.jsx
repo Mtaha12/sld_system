@@ -361,7 +361,18 @@ const SearchCaseLawPage = () => {
   });
 
   // Dynamic dropdown options
-  const [magazineOptions, setMagazineOptions] = useState([{ value: '', label: 'Select Magazine' }]);
+  const [magazineOptions, setMagazineOptions] = useState([
+    { value: '', label: 'Select Magazine' },
+    { value: 'SLD', label: 'SLD' },
+    { value: 'PTD', label: 'PTD' },
+    { value: 'TAX', label: 'TAX' },
+    { value: 'SCMR', label: 'SCMR' },
+    { value: 'PLD', label: 'PLD' },
+    { value: 'CLC', label: 'CLC' },
+    { value: 'PCrLJ', label: 'PCrLJ' },
+    { value: 'MLD', label: 'MLD' },
+    { value: 'YLR', label: 'YLR' }
+  ]);
   const [courtOptions, setCourtOptions] = useState([{ value: '', label: 'Select Court' }]);
   const [lawOptions, setLawOptions] = useState([{ value: '', label: 'Select Law' }]);
   const [principleOptions, setPrincipleOptions] = useState([{ value: '', label: 'Select Principle Law' }]);
@@ -375,7 +386,7 @@ const SearchCaseLawPage = () => {
       .then(res => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const sortedMags = sortMagazinesWithPriority(res.data, m => m.name)
-            .map(m => ({ value: m.name, label: m.name }));
+            .map(m => ({ value: m.name.toUpperCase(), label: m.name.toUpperCase() }));
           setMagazineOptions([
             { value: '', label: 'Select Magazine' },
             ...sortedMags
@@ -746,8 +757,8 @@ const SearchCaseLawPage = () => {
               </div>
             </div>
             <SelectField 
-              value={f.magazine} 
-              onChange={set('magazine')} 
+              value={f.magazine ? String(f.magazine).toUpperCase() : ''} 
+              onChange={(val) => setF(prev => ({ ...prev, magazine: String(val || '').toUpperCase() }))} 
               options={magazineOptions} 
               placeholder="Select Magazine..."
               allowCustom={false}

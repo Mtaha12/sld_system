@@ -122,12 +122,12 @@ const ManageCasesFilterBar = ({
         {/* From Year Input */}
         <div className="w-full sm:w-[130px] shrink-0">
           <input 
-            type="number"
-            min="1900"
-            max="2099"
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
             value={fromYear}
             onChange={(e) => {
-              const val = e.target.value;
+              const val = e.target.value.replace(/\D/g, '').slice(0, 4);
               setFromYear(val);
               onSearch?.({ subject, fromYear: val, toYear, magazine });
             }}
@@ -139,12 +139,12 @@ const ManageCasesFilterBar = ({
         {/* To Year Input */}
         <div className="w-full sm:w-[130px] shrink-0">
           <input 
-            type="number"
-            min="1900"
-            max="2099"
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
             value={toYear}
             onChange={(e) => {
-              const val = e.target.value;
+              const val = e.target.value.replace(/\D/g, '').slice(0, 4);
               setToYear(val);
               onSearch?.({ subject, fromYear, toYear: val, magazine });
             }}
@@ -155,15 +155,17 @@ const ManageCasesFilterBar = ({
 
         <div className="w-full sm:w-[170px] shrink-0">
           <SearchableCombobox 
-            value={magazine}
+            value={magazine ? String(magazine).toUpperCase() : ''}
             onChange={(val) => {
-              setMagazine(val);
-              onSearch?.({ subject, fromYear, toYear, magazine: val });
+              const upper = String(val || '').toUpperCase();
+              setMagazine(upper);
+              onSearch?.({ subject, fromYear, toYear, magazine: upper });
             }}
             options={magOptions}
             placeholder="Magazine"
             inputSize="default"
-            allowCustom={true}
+            allowCustom={false}
+            readOnly={true}
           />
         </div>
 
