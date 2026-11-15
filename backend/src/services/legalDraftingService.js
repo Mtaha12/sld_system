@@ -206,10 +206,18 @@ export const formatLegalDocAsWordHtml = (markdownContent, title = 'Legal_Pleadin
 
   // Strip markdown code fences if wrapped by LLM e.g. ```html ... ``` or ```
   let clean = String(markdownContent).trim();
-  clean = clean.replace(/^```(?:html|xml)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  clean = clean.replace(/^[\s\r\n]*(?:```|''')(?:html|xml)?[\s\r\n]*/i, '').replace(/[\s\r\n]*(?:```|''')[\s\r\n]*$/i, '').trim();
 
-  // If already full HTML document, return as is cleanly
-  if (clean.toLowerCase().startsWith('<html') || clean.toLowerCase().startsWith('<!doctype html') || clean.includes('<w:WordDocument>')) {
+  // If already full HTML document, extract and return as is cleanly
+  const lower = clean.toLowerCase();
+  const htmlStartIdx = lower.indexOf('<html');
+  const docTypeIdx = lower.indexOf('<!doctype html');
+  const startIdx = docTypeIdx !== -1 ? docTypeIdx : htmlStartIdx;
+  if (startIdx !== -1) {
+    const endIdx = lower.lastIndexOf('</html>');
+    return endIdx !== -1 ? clean.slice(startIdx, endIdx + 7).trim() : clean.slice(startIdx).trim();
+  }
+  if (clean.includes('<w:WordDocument>') || clean.includes('div.Section1')) {
     return clean;
   }
 

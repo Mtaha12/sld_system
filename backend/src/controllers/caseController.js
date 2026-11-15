@@ -1858,8 +1858,10 @@ export const searchCases = async (req, res, next) => {
       }
     }
 
+    let caseNumberSearchRaw = null;
     if (filters.caseNumber) {
       const rawCn = String(filters.caseNumber).trim();
+      caseNumberSearchRaw = rawCn;
       const cnVariants = [...new Set([
         rawCn,
         rawCn.toUpperCase(),
@@ -1869,12 +1871,7 @@ export const searchCases = async (req, res, next) => {
         rawCn.replace(/[-_]/g, ' '),
         rawCn.replace(/\s+/g, '-')
       ])].filter(Boolean);
-      andConditions.push({
-        $or: [
-          { caseNumber: { $in: cnVariants } },
-          { caseNumber: { $regex: `(^|[^a-zA-Z0-9])${escapeRegex(rawCn)}`, $options: 'i' } }
-        ]
-      });
+      andConditions.push({ caseNumber: { $in: cnVariants } });
     }
 
     if (filters.date) {
@@ -2022,6 +2019,59 @@ export const searchCases = async (req, res, next) => {
       }
     } else {
       cases = await runQueryWithHint(null);
+    }
+
+    if (cases.length === 0 && caseNumberSearchRaw) {
+      const cleanCnSearch = caseNumberSearchRaw.replace(/[^a-zA-Z0-9\s]/g, ' ').trim();
+      let foundFallback = false;
+      if (cleanCnSearch) {
+        try {
+          const fallbackConditions = andConditions.filter(cond => !cond.caseNumber);
+          const fallbackQuery = {
+            isDeleted: false,
+            $text: { $search: cleanCnSearch }
+          };
+          if (fallbackConditions.length > 0) {
+            fallbackQuery.$and = fallbackConditions;
+          }
+          const textMatchedCases = await Case.find(fallbackQuery)
+            .select(selectFields)
+            .sort({ sldNumberInt: -1 })
+            .limit(searchLimit)
+            .maxTimeMS(3500)
+            .lean();
+          if (textMatchedCases && textMatchedCases.length > 0) {
+            cases = textMatchedCases;
+            foundFallback = true;
+          }
+        } catch (textErr) {
+          // ignore text search fallback errors
+        }
+      }
+
+      if (!foundFallback) {
+        try {
+          const fallbackConditions = andConditions.filter(cond => !cond.caseNumber);
+          const regexQuery = {
+            isDeleted: false,
+            caseNumber: { $regex: escapeRegex(caseNumberSearchRaw), $options: 'i' }
+          };
+          if (fallbackConditions.length > 0) {
+            regexQuery.$and = fallbackConditions;
+          }
+          const regMatchedCases = await Case.find(regexQuery)
+            .select(selectFields)
+            .sort({ sldNumberInt: -1 })
+            .limit(searchLimit)
+            .maxTimeMS(3000)
+            .lean();
+          if (regMatchedCases && regMatchedCases.length > 0) {
+            cases = regMatchedCases;
+          }
+        } catch (regErr) {
+          // ignore regex fallback timeout errors
+        }
+      }
     }
 
     if (cases.length === 0 && filters.phrase && String(filters.phrase).trim()) {

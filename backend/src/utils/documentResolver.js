@@ -493,9 +493,11 @@ export const resolveDocumentDynamically = async ({ cleanRel = '', name = '', tit
     const rawHint = (name || title || id || '').trim();
     const hintWithoutExt = rawHint.replace(/\.[^/.]+$/, '').trim();
 
-    // Extract any numerical identifier or case number pattern
-    // e.g. "5163.pdf" -> "5163", "5050" -> "5050", "Const. P. 5163/2016" -> "5163"
-    const numMatch = (hintWithoutExt || nameWithoutExt).match(/\b(\d{2,6})\b/);
+    // Check if filename is a random hex UUID (e.g. "af951f65 7866 44ab 82e0 a9a513364e12")
+    const isUuidFilename = /^[0-9a-f]{8}[-_\s][0-9a-f]{4}/i.test(nameWithoutExt);
+
+    // Extract any numerical identifier or case number pattern ONLY for non-UUID filenames
+    const numMatch = (!isUuidFilename && (hintWithoutExt || nameWithoutExt)) ? (hintWithoutExt || nameWithoutExt).match(/\b(\d{2,6})\b/) : null;
     const targetNum = numMatch ? numMatch[1] : '';
 
     logger.info(`[documentResolver] Resolving: cleanRel="${cleanRel}", hint="${rawHint}", targetNum="${targetNum}"`);

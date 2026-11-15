@@ -280,26 +280,39 @@ th { background-color: #f2f2f2; font-weight: bold; }
     if (!doc && !fallbackText) return;
     let rawContent = (doc?.content || '').trim();
     if (!rawContent && fallbackText) {
-      const splitIdx = fallbackText.indexOf('### 🏛️ 2. COMPLETE REVISED & CORRECTED LEGAL PLEADING');
+      const splitIdx = fallbackText.indexOf('COMPLETE REVISED & CORRECTED LEGAL PLEADING');
       if (splitIdx !== -1) {
-        rawContent = fallbackText.slice(splitIdx + '### 🏛️ 2. COMPLETE REVISED & CORRECTED LEGAL PLEADING'.length).trim();
+        rawContent = fallbackText.slice(splitIdx).trim();
       } else {
         rawContent = fallbackText.trim();
       }
     }
     if (!rawContent) return;
 
-    // Strip markdown code fences if output was wrapped in ```html ... ``` or ```
-    let clean = rawContent.replace(/^```(?:html|xml)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+    // Cleanly strip any code fences or markdown wrappers (```html, ```, ''', etc.)
+    let clean = rawContent
+      .replace(/^[\s\r\n]*(?:```|''')(?:html|xml)?[\s\r\n]*/i, '')
+      .replace(/[\s\r\n]*(?:```|''')[\s\r\n]*$/i, '')
+      .trim();
     if (!clean) return;
 
     const fileName = doc?.fileName || 'Corrected_Legal_Document.doc';
-    const isAlreadyHtml = clean.toLowerCase().startsWith('<html') || 
-      clean.toLowerCase().startsWith('<!doctype html') || 
-      clean.includes('<w:WordDocument>') || 
-      clean.includes('div.Section1');
 
-    const formattedContent = isAlreadyHtml ? clean : formatWordDocumentHtml(clean, fileName);
+    // Check if the content already contains an HTML document
+    const lower = clean.toLowerCase();
+    const htmlStartIdx = lower.indexOf('<html');
+    const docTypeIdx = lower.indexOf('<!doctype html');
+    const startIdx = docTypeIdx !== -1 ? docTypeIdx : htmlStartIdx;
+
+    let formattedContent = '';
+    if (startIdx !== -1) {
+      const endIdx = lower.lastIndexOf('</html>');
+      formattedContent = endIdx !== -1 ? clean.slice(startIdx, endIdx + 7).trim() : clean.slice(startIdx).trim();
+    } else if (clean.includes('<w:WordDocument>') || clean.includes('div.Section1')) {
+      formattedContent = clean;
+    } else {
+      formattedContent = formatWordDocumentHtml(clean, fileName);
+    }
 
     // Prefix UTF-8 BOM (\ufeff) so Microsoft Word renders the Word HTML without showing raw CSS or markdown tags
     const blob = new Blob(['\ufeff', formattedContent], { type: 'application/msword;charset=utf-8' });

@@ -381,22 +381,7 @@ app.get(/^\/uploads\/(.+)$/, async (req, res) => {
 
   const cleanRel = sanitizeUploadRelPath(req.params[0]);
 
-  // 1. Try dynamic database resolution for court judgment, cases, notifications or newsletter links
-  const dynamicDoc = await tryResolveMissingDocumentDynamically(cleanRel, req);
-  if (dynamicDoc) {
-    const isDownload = req.query.download === '1' || req.query.download === 'true';
-    const disposition = isDownload ? 'attachment' : 'inline';
-    const safeFilename = encodeURIComponent(dynamicDoc.filename || path.basename(cleanRel));
-
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
-    res.setHeader('Content-Type', dynamicDoc.contentType);
-    res.setHeader('Cache-Control', 'public, max-age=604800');
-    return res.status(200).send(dynamicDoc.buf);
-  }
-
-  // 2. Try legacy mirror fallback
+  // 1. Try legacy mirror fallback first (fetches authentic PDF from sldsystemspk.com / sldsystempk.com)
   const legacyAsset = await tryLegacyPortalUploadFallback(cleanRel);
   if (legacyAsset) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -405,6 +390,24 @@ app.get(/^\/uploads\/(.+)$/, async (req, res) => {
     res.setHeader('Content-Type', legacyAsset.contentType);
     res.setHeader('Cache-Control', 'public, max-age=604800');
     return res.status(200).send(legacyAsset.buf);
+  }
+
+  // 2. Try dynamic database resolution ONLY for non-uploaded reference views
+  const isReferenceViewUpload = cleanRel.startsWith('reference_views/') || cleanRel.startsWith('payment_proofs/');
+  if (!isReferenceViewUpload) {
+    const dynamicDoc = await tryResolveMissingDocumentDynamically(cleanRel, req);
+    if (dynamicDoc) {
+      const isDownload = req.query.download === '1' || req.query.download === 'true';
+      const disposition = isDownload ? 'attachment' : 'inline';
+      const safeFilename = encodeURIComponent(dynamicDoc.filename || path.basename(cleanRel));
+
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`);
+      res.setHeader('Content-Type', dynamicDoc.contentType);
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      return res.status(200).send(dynamicDoc.buf);
+    }
   }
 
   res.setHeader('Access-Control-Allow-Origin', '*');

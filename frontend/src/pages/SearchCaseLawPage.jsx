@@ -751,6 +751,23 @@ const SearchCaseLawPage = () => {
                   type="text"
                   inputMode="numeric"
                   maxLength={4}
+                  onInput={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    e.target.value = cleanVal;
+                    setF(prev => ({ ...prev, yearVolume: cleanVal }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'].includes(e.key)) return;
+                    if (!/^\d$/.test(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 4);
+                    e.target.value = text;
+                    setF(prev => ({ ...prev, yearVolume: text }));
+                  }}
                   onChange={(e) => {
                     const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 4);
                     setF(prev => ({ ...prev, yearVolume: cleanVal }));
@@ -776,6 +793,23 @@ const SearchCaseLawPage = () => {
                   type="text"
                   inputMode="numeric"
                   maxLength={4}
+                  onInput={(e) => {
+                    const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    e.target.value = cleanVal;
+                    setF(prev => ({ ...prev, page: cleanVal }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'].includes(e.key)) return;
+                    if (!/^\d$/.test(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 4);
+                    e.target.value = text;
+                    setF(prev => ({ ...prev, page: text }));
+                  }}
                   onChange={(e) => {
                     const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 4);
                     setF(prev => ({ ...prev, page: cleanVal }));

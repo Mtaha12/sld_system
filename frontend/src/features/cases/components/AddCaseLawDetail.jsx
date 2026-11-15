@@ -1247,9 +1247,28 @@ const AddCaseLawDetail = ({ onClose }) => {
                       placeholder={idx === 0 ? "2026" : "YYYY"} 
                       maxLength={4}
                       inputMode="numeric"
+                      onInput={(e) => {
+                        const cleanVal = (e?.target?.value || '').replace(/\D/g, '').slice(0, 4);
+                        e.target.value = cleanVal;
+                        setValue(`publications.${idx}.year`, cleanVal);
+                      }}
+                      onKeyDown={(e) => {
+                        if (['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'].includes(e.key)) return;
+                        if (!/^\d$/.test(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 4);
+                        e.target.value = text;
+                        setValue(`publications.${idx}.year`, text);
+                        if (idx === 0) autofillPublicationPage(0);
+                      }}
                       {...register(`publications.${idx}.year`, {
                         onChange: (e) => {
                           const cleanVal = (e?.target?.value || '').replace(/\D/g, '').slice(0, 4);
+                          e.target.value = cleanVal;
                           setValue(`publications.${idx}.year`, cleanVal);
                           if (idx === 0) autofillPublicationPage(0);
                         },
@@ -1294,9 +1313,27 @@ const AddCaseLawDetail = ({ onClose }) => {
                       placeholder="Page" 
                       maxLength={4}
                       inputMode="numeric"
+                      onInput={(e) => {
+                        const cleanVal = (e?.target?.value || '').replace(/\D/g, '').slice(0, 4);
+                        e.target.value = cleanVal;
+                        setValue(`publications.${idx}.page`, cleanVal);
+                      }}
+                      onKeyDown={(e) => {
+                        if (['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'].includes(e.key)) return;
+                        if (!/^\d$/.test(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 4);
+                        e.target.value = text;
+                        setValue(`publications.${idx}.page`, text);
+                      }}
                       {...register(`publications.${idx}.page`, {
                         onChange: (e) => {
                           const cleanVal = (e?.target?.value || '').replace(/\D/g, '').slice(0, 4);
+                          e.target.value = cleanVal;
                           setValue(`publications.${idx}.page`, cleanVal);
                         }
                       })}
