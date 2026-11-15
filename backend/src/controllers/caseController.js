@@ -1633,7 +1633,7 @@ export const searchCases = async (req, res, next) => {
     );
     const lookup = needLookupCache ? await getCaseLookupCache() : null;
 
-    let andConditions = [{ isDeleted: { $ne: true } }];
+    let andConditions = [{ isDeleted: false }];
     let shortCircuitEmpty = false;
     let resolvedLawFieldOnly = false;
     let resolvedSectionFieldOnly = false;
@@ -1747,7 +1747,6 @@ export const searchCases = async (req, res, next) => {
       andConditions.push({
         $or: [
           { mapYearPage: { $in: exactCitationCandidates } },
-          { mapYearPage: { $regex: `(?:${escapeRegex(yv)}\\s+${magCitPart}|${magCitPart}\\s+${escapeRegex(yv)})\\s+0*${escapeRegex(pg)}(?:\\b|$)`, $options: 'i' } },
           {
             publications: {
               $elemMatch: {
@@ -1989,6 +1988,8 @@ export const searchCases = async (req, res, next) => {
     let selectedHint = null;
     if (filters.caseNumber && !hasTextSearch) {
       selectedHint = { isDeleted: 1, caseNumber: 1, sldNumberInt: -1 };
+    } else if (hasAnyBlock123 && !hasTextSearch && !filters.court) {
+      selectedHint = { isDeleted: 1, mapYearPage: 1 };
     } else if (filters.court && !filters.yearVolume && !filters.page && !hasTextSearch) {
       selectedHint = { isDeleted: 1, court: 1, sldNumberInt: -1 };
     } else if (filters.subject && parseLegalCitation(filters.subject)) {
