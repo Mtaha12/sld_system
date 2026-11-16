@@ -181,6 +181,11 @@ const CaseTableRow = React.memo(({
         </div>
       </td>
 
+      {/* Court Column (Always displayed right after Citation) */}
+      <td className="px-2.5 py-3 text-gray-800 min-w-[140px] max-w-[190px] break-words font-semibold align-top text-[13px]">
+        <Highlight text={c.court || '—'} terms={activeSearchTerms} />
+      </td>
+
       {/* Dated (Hidden in Text Search Mode) */}
       {!isTextSearchMode && (
         <td className="px-2.5 py-3 whitespace-nowrap align-top text-center font-mono text-[13px] text-gray-800 font-medium">
@@ -256,11 +261,6 @@ const CaseTableRow = React.memo(({
         </td>
       ) : (
         <>
-          {/* Court */}
-          <td className="px-2.5 py-3 text-gray-800 max-w-[170px] break-words font-medium align-top text-[13px]">
-            <Highlight text={c.court || '—'} terms={activeSearchTerms} />
-          </td>
-
           {/* Case No */}
           <td className="px-2.5 py-3 text-gray-800 max-w-[205px] break-words font-medium align-top leading-relaxed text-[13px]">
             <Highlight
@@ -624,6 +624,15 @@ const SearchCaseLawPage = () => {
 
         // Unconditionally assign filteredExact so an exact 3-block search NEVER returns mismatched years
         data = filteredExact;
+      }
+
+      // Guarantee Court filter is strictly respected on returned dataset
+      if (activeForm.court && String(activeForm.court).trim() && Array.isArray(data)) {
+        const courtLower = String(activeForm.court).trim().toLowerCase();
+        data = data.filter(c => {
+          const cCourt = String(c.court || '').trim().toLowerCase();
+          return cCourt === courtLower || cCourt.includes(courtLower) || courtLower.includes(cCourt);
+        });
       }
 
       setSubmittedFilters({ ...activeForm });
@@ -1049,6 +1058,7 @@ const SearchCaseLawPage = () => {
                       <th className="px-2.5 py-3 font-bold w-11 text-center">#</th>
                       <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[72px]">SLD #</th>
                       <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[135px]">Citation</th>
+                      <th className="px-2.5 py-3 font-bold min-w-[140px] max-w-[190px]">Court</th>
                       {!hasTextSearch && (
                         <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[95px] text-center">Dated</th>
                       )}
@@ -1077,7 +1087,6 @@ const SearchCaseLawPage = () => {
                         <th className="px-3 py-3 font-bold">Head Notes</th>
                       ) : (
                         <>
-                          <th className="px-2.5 py-3 font-bold max-w-[170px]">Court</th>
                           <th className="px-2.5 py-3 font-bold max-w-[205px]">Case No.</th>
                           <th className="px-2.5 py-3 font-bold max-w-[330px]">Lawyer / Petitioner / Author</th>
                         </>

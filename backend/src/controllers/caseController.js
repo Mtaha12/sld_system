@@ -2121,23 +2121,115 @@ export const searchCases = async (req, res, next) => {
     if (cases.length === 0 && filters.phrase && String(filters.phrase).trim()) {
       const cleanPhrase = String(filters.phrase).replace(/["'“”]/g, '').trim();
       if (cleanPhrase.length >= 2) {
-        const phraseRegex = new RegExp(escapeRegex(cleanPhrase), 'i');
-        const fallbackCases = await Case.find({
-          isDeleted: false,
-          $or: [
-            { legalMaxim: phraseRegex },
-            { headNote: phraseRegex },
-            { principleLaw: phraseRegex }
-          ]
-        })
-          .select(selectFields)
-          .sort({ sldNumberInt: -1 })
-          .limit(searchLimit)
-          .lean();
-        if (fallbackCases && fallbackCases.length > 0) {
-          cases = fallbackCases;
+        try {
+          const phraseRegex = new RegExp(escapeRegex(cleanPhrase), 'i');
+          const nonTextConditions = andConditions.filter(cond => !cond.$text);
+          const fallbackConditions = [
+            ...nonTextConditions,
+            {
+              $or: [
+                { legalMaxim: phraseRegex },
+                { headNote: phraseRegex },
+                { principleLaw: phraseRegex }
+              ]
+            }
+          ];
+          const fallbackCases = await Case.find({ $and: fallbackConditions })
+            .select(selectFields)
+            .sort({ sldNumberInt: -1 })
+            .limit(searchLimit)
+            .maxTimeMS(3500)
+            .lean();
+          if (fallbackCases && fallbackCases.length > 0) {
+            cases = fallbackCases;
+          }
+        } catch (fallbackErr) {
+          // ignore fallback timeout / regex errors safely
         }
       }
+    }
+
+    // Strict post-filtering: Ensure results strictly conform to all filled blocks
+    if (filters.court && String(filters.court).trim() && cases.length > 0) {
+      const targetCourt = String(filters.court).trim().toLowerCase();
+      cases = cases.filter(c => {
+        const cCourt = String(c.court || '').trim().toLowerCase();
+        return cCourt === targetCourt || cCourt.includes(targetCourt) || targetCourt.includes(cCourt);
+      });
+    }
+
+    if ((filters.selectLaw || filters.law) && cases.length > 0) {
+      const targetLaw = String(filters.selectLaw || filters.law).trim().toLowerCase();
+      cases = cases.filter(c => {
+        const pLaw = String(c.principleLaw || '').toLowerCase();
+        const inLaws = Array.isArray(c.laws) && c.laws.some(l => String(l.lawStatute || '').toLowerCase().includes(targetLaw));
+        return pLaw.includes(targetLaw) || inLaws;
+      });
+    }
+
+    if (filters.section && cases.length > 0) {
+      const targetSec = String(filters.section).trim().toLowerCase();
+      cases = cases.filter(c => {
+        const pLaw = String(c.principleLaw || '').toLowerCase();
+        const inSecs = Array.isArray(c.laws) && c.laws.some(l => String(l.section || '').toLowerCase().includes(targetSec));
+        return pLaw.includes(targetSec) || inSecs;
+      });
+    }
+
+    if (filters.section2 && cases.length > 0) {
+      const targetSec2 = String(filters.section2).trim().toLowerCase();
+      cases = cases.filter(c => {
+        const pLaw = String(c.principleLaw || '').toLowerCase();
+        const inSecs = Array.isArray(c.laws) && c.laws.some(l => String(l.section || '').toLowerCase().includes(targetSec2));
+        return pLaw.includes(targetSec2) || inSecs;
+      });
+    }
+
+    if (filters.caseNumber && cases.length > 0) {
+      const rawCn = String(filters.caseNumber).trim().toLowerCase();
+      cases = cases.filter(c => {
+        const cNum = (Array.isArray(c.caseNumber) ? c.caseNumber.join(' ') : String(c.caseNumber || '')).toLowerCase();
+        return cNum.includes(rawCn);
+      });
+    }
+
+    if (filters.judges && cases.length > 0) {
+      const targetJudge = String(filters.judges).trim().toLowerCase();
+      cases = cases.filter(c => {
+        const jStr = (Array.isArray(c.judges) ? c.judges.join(' ') : String(c.judges || '')).toLowerCase();
+        return jStr.includes(targetJudge);
+      });
+    }
+
+    if (filters.lawyers && cases.length > 0) {
+      const targetLawyer = String(filters.lawyers).trim().toLowerCase();
+      cases = cases.filter(c => {
+        const lStr = (Array.isArray(c.lawyers) ? c.lawyers.join(' ') : String(c.lawyers || '')).toLowerCase();
+        return lStr.includes(targetLawyer);
+      });
+    }
+
+    if (filters.petitioner && cases.length > 0) {
+      const targetPetitioner = String(filters.petitioner).trim().toLowerCase();
+      cases = cases.filter(c => {
+        const pStr = (Array.isArray(c.petitioners) ? c.petitioners.join(' ') : String(c.petitioners || c.parties || '')).toLowerCase();
+        return pStr.includes(targetPetitioner);
+      });
+    }
+
+    if (filters.fromDate && cases.length > 0) {
+      const fd = String(filters.fromDate).trim();
+      cases = cases.filter(c => {
+        const d = String(c.dated || c.date || '').slice(0, 10);
+        return !d || d >= fd;
+      });
+    }
+    if (filters.toDate && cases.length > 0) {
+      const td = String(filters.toDate).trim();
+      cases = cases.filter(c => {
+        const d = String(c.dated || c.date || '').slice(0, 10);
+        return !d || d <= td;
+      });
     }
 
     const searchTerms = [kw1, kw2, filters.phrase].filter(Boolean);
