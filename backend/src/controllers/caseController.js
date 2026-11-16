@@ -1039,6 +1039,9 @@ export const getCases = async (req, res, next) => {
   }
 };
 
+const maxPageCache = new Map();
+const MAX_PAGE_CACHE_TTL = 15000; // 15s in-memory cache
+
 /**
  * GET /api/cases/max-page?year=2026&mag=sld
  * Returns the highest page number stored for a given year+magazine combination.
@@ -1055,48 +1058,114 @@ export const getMaxPage = async (req, res, next) => {
       });
     }
 
-    const maxPageMagAliases = expandMagazineSearchAliases(mag);
-    const maxPageMagPattern = maxPageMagAliases.length > 1
-      ? `^(?:${maxPageMagAliases.map(escapeRegex).join('|')})$`
-      : `^${escapeRegex(String(mag).trim())}$`;
     const cleanYear = String(year).trim();
+    const cleanMag = String(mag).trim();
+    const cacheKey = `${cleanYear}_${cleanMag.toLowerCase()}`;
 
-    const result = await Case.aggregate([
-      {
-        $match: {
-          isDeleted: false,
-          'publications.year': cleanYear
-        }
-      },
-      { $unwind: '$publications' },
-      {
-        $match: {
-          'publications.year': cleanYear,
-          'publications.mag': { $regex: maxPageMagPattern, $options: 'i' }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          maxPage: {
-            $max: {
-              $convert: {
-                input: '$publications.page',
-                to: 'int',
-                onError: 0,
-                onNull: 0
-              }
+    const cached = maxPageCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      return res.status(200).json({
+        success: true,
+        maxPage: cached.maxPage,
+        nextPage: cached.nextPage
+      });
+    }
+
+    const maxPageMagAliases = expandMagazineSearchAliases(cleanMag);
+    const magVariants = [...new Set(
+      maxPageMagAliases.flatMap(alias => [
+        alias,
+        alias.toUpperCase(),
+        alias.toLowerCase(),
+        alias.charAt(0).toUpperCase() + alias.slice(1).toLowerCase()
+      ])
+    )].filter(Boolean);
+
+    const yearCandidates = [cleanYear];
+    const yearInt = parseInt(cleanYear, 10);
+    if (!isNaN(yearInt)) yearCandidates.push(yearInt);
+
+    let maxPage = null;
+
+    // 1. High-speed lookup from newest indexed records (sub-50ms)
+    try {
+      const topCases = await Case.find({
+        isDeleted: false,
+        'publications.mag': { $in: magVariants },
+        'publications.year': { $in: yearCandidates }
+      })
+        .select('publications')
+        .sort({ sldNumberInt: -1 })
+        .limit(300)
+        .maxTimeMS(2000)
+        .lean();
+
+      for (const c of topCases) {
+        for (const p of c.publications || []) {
+          const pYear = String(p.year || '').trim();
+          const pMag = String(p.mag || '').trim().toLowerCase();
+          if ((pYear === cleanYear || pYear === String(yearInt)) && magVariants.map(v => v.toLowerCase()).includes(pMag)) {
+            const pageNum = parseInt(String(p.page || '').replace(/\D+/g, ''), 10);
+            if (!isNaN(pageNum) && (maxPage === null || pageNum > maxPage)) {
+              maxPage = pageNum;
             }
           }
         }
       }
-    ]).maxTimeMS(5000);
+    } catch (fastErr) {
+      logger.warn('[getMaxPage fast scan warning]:', fastErr.message);
+    }
 
-    const maxPage = result.length > 0 && result[0].maxPage != null
-      ? result[0].maxPage
-      : null;
+    // 2. Fallback to aggregation only if fast scan did not find any publications
+    if (maxPage === null) {
+      try {
+        const result = await Case.aggregate([
+          {
+            $match: {
+              isDeleted: false,
+              'publications.mag': { $in: magVariants },
+              'publications.year': { $in: yearCandidates }
+            }
+          },
+          { $unwind: '$publications' },
+          {
+            $match: {
+              'publications.year': { $in: yearCandidates },
+              'publications.mag': { $in: magVariants }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              maxPage: {
+                $max: {
+                  $convert: {
+                    input: '$publications.page',
+                    to: 'int',
+                    onError: 0,
+                    onNull: 0
+                  }
+                }
+              }
+            }
+          }
+        ]).option({ maxTimeMS: 3000 });
+
+        if (result.length > 0 && result[0].maxPage != null && result[0].maxPage > 0) {
+          maxPage = result[0].maxPage;
+        }
+      } catch (aggErr) {
+        logger.warn('[getMaxPage aggregation warning]:', aggErr.message);
+      }
+    }
 
     const nextPage = maxPage != null ? maxPage + 1 : 1;
+
+    maxPageCache.set(cacheKey, {
+      maxPage,
+      nextPage,
+      expiresAt: Date.now() + MAX_PAGE_CACHE_TTL
+    });
 
     return res.status(200).json({
       success: true,

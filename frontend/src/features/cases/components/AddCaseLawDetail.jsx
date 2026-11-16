@@ -843,21 +843,20 @@ const AddCaseLawDetail = ({ onClose }) => {
         .catch(err => console.warn('Could not auto-fetch next SLD:', err));
 
       // Prefill initial publication page for 2026 SLD
-      autofillPublicationPage(0);
+      autofillPublicationPage(0, '2026', 'SLD');
     }
   }, []);
 
-  const autofillPublicationPage = async (index) => {
+  const autofillPublicationPage = async (index, customYear = null, customMag = null) => {
     // Only auto-fill for primary publication (index === 0); newly added publications stay blank
     if (index !== 0) return;
 
     const publications = getValues('publications') || [];
-    const currentPub = publications[index];
-    if (!currentPub) return;
+    const currentPub = publications[index] || {};
 
-    const year = String(currentPub.year || '').trim();
-    const mag  = String(currentPub.mag  || 'sld').trim().toLowerCase();
-    if (!year) return;
+    const year = String(customYear !== null ? customYear : (currentPub.year || '2026')).trim();
+    const mag = String(customMag !== null ? customMag : (currentPub.mag || 'SLD')).trim().toUpperCase();
+    if (!year || !mag) return;
 
     try {
       const res = await caseService.getMaxPage(year, mag);
@@ -1263,14 +1262,14 @@ const AddCaseLawDetail = ({ onClose }) => {
                         const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 4);
                         e.target.value = text;
                         setValue(`publications.${idx}.year`, text);
-                        if (idx === 0) autofillPublicationPage(0);
+                        if (idx === 0) autofillPublicationPage(0, text);
                       }}
                       {...register(`publications.${idx}.year`, {
                         onChange: (e) => {
                           const cleanVal = (e?.target?.value || '').replace(/\D/g, '').slice(0, 4);
                           e.target.value = cleanVal;
                           setValue(`publications.${idx}.year`, cleanVal);
-                          if (idx === 0) autofillPublicationPage(0);
+                          if (idx === 0) autofillPublicationPage(0, cleanVal);
                         },
                       })}
                     />
@@ -1286,7 +1285,7 @@ const AddCaseLawDetail = ({ onClose }) => {
                           onChange={(val) => {
                             const upperVal = String(val || '').toUpperCase();
                             field.onChange(upperVal);
-                            if (idx === 0) autofillPublicationPage(0);
+                            if (idx === 0) autofillPublicationPage(0, null, upperVal);
                           }}
                           options={magazineOptions}
                           placeholder="Select Mag"
