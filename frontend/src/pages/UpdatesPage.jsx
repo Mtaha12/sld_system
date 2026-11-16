@@ -10,7 +10,7 @@ import { useUser } from '../contexts/UserContext';
 
 const UpdatesPage = () => {
   const { user } = useUser();
-  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+  const isAdmin = user?.role === 'Administrator';
 
   const [updates, setUpdates] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');

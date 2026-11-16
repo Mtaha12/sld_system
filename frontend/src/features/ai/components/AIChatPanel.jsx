@@ -6,7 +6,7 @@ import {
   Paperclip, Image as ImageIcon, FileUp, XCircle, FileSpreadsheet, File,
   PanelLeftClose, PanelLeftOpen, Gavel, BookOpen,
   ShieldCheck, FileCheck, Landmark, ChevronRight,
-  HelpCircle, ArrowUpRight, Download, History
+  HelpCircle, ArrowUpRight, Download, History, Printer
 } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import LegalMarkdownRenderer from './LegalMarkdownRenderer';
@@ -276,8 +276,8 @@ th { background-color: #f2f2f2; font-weight: bold; }
 <body><div class="Section1">${bodyHtml.join('\n')}</div></body></html>`;
   };
 
-  const handleDownloadCorrectedDoc = (doc, fallbackText = '') => {
-    if (!doc && !fallbackText) return;
+  const getCleanDocHtml = (doc, fallbackText = '') => {
+    if (!doc && !fallbackText) return null;
     let rawContent = (doc?.content || '').trim();
     if (!rawContent && fallbackText) {
       const splitIdx = fallbackText.indexOf('COMPLETE REVISED & CORRECTED LEGAL PLEADING');
@@ -287,14 +287,19 @@ th { background-color: #f2f2f2; font-weight: bold; }
         rawContent = fallbackText.trim();
       }
     }
-    if (!rawContent) return;
+    if (!rawContent) return null;
 
-    // Cleanly strip any code fences or markdown wrappers (```html, ```, ''', etc.)
+    // Cleanly strip any code fences, markdown wrappers, or leaked XML comments
     let clean = rawContent
-      .replace(/^[\s\r\n]*(?:```|''')(?:html|xml)?[\s\r\n]*/i, '')
-      .replace(/[\s\r\n]*(?:```|''')[\s\r\n]*$/i, '')
+      .replace(/```(?:html|xml)?/gi, '')
+      .replace(/```/g, '')
+      .replace(/'''(?:html|xml)?/gi, '')
+      .replace(/'''/g, '')
+      .replace(/<!--\[if\s+gte\s+mso\s+9\]>[\s\S]*?<!\[endif\]-->/gi, '')
+      .replace(/<\/?w:[^>]+>/gi, '')
+      .replace(/<\/?xml[^>]*>/gi, '')
       .trim();
-    if (!clean) return;
+    if (!clean) return null;
 
     const fileName = doc?.fileName || 'Corrected_Legal_Document.doc';
 
@@ -308,22 +313,54 @@ th { background-color: #f2f2f2; font-weight: bold; }
     if (startIdx !== -1) {
       const endIdx = lower.lastIndexOf('</html>');
       formattedContent = endIdx !== -1 ? clean.slice(startIdx, endIdx + 7).trim() : clean.slice(startIdx).trim();
-    } else if (clean.includes('<w:WordDocument>') || clean.includes('div.Section1')) {
-      formattedContent = clean;
     } else {
       formattedContent = formatWordDocumentHtml(clean, fileName);
     }
+
+    return { formattedContent, fileName };
+  };
+
+  const handleDownloadCorrectedDoc = (doc, fallbackText = '') => {
+    const res = getCleanDocHtml(doc, fallbackText);
+    if (!res) return;
+    const { formattedContent, fileName } = res;
 
     // Prefix UTF-8 BOM (\ufeff) so Microsoft Word renders the Word HTML without showing raw CSS or markdown tags
     const blob = new Blob(['\ufeff', formattedContent], { type: 'application/msword;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = fileName.endsWith('.doc') ? fileName : `${fileName}.doc`;
+    link.download = fileName.endsWith('.doc') ? fileName : `${fileName.replace(/\.[^/.]+$/, '')}.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handlePrintOrSavePdf = (doc, fallbackText = '') => {
+    const res = getCleanDocHtml(doc, fallbackText);
+    if (!res) return;
+    const { formattedContent } = res;
+
+    const printWindow = window.open('', '_blank', 'width=900,height=800');
+    if (!printWindow) {
+      alert('Popup blocker prevented opening the print view. Please allow popups for this site.');
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(formattedContent);
+    printWindow.document.close();
+
+    const triggerPrint = () => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } catch (_) {}
+    };
+
+    printWindow.onload = triggerPrint;
+    setTimeout(triggerPrint, 500);
   };
 
   const handleFileChange = (e) => {
@@ -640,14 +677,26 @@ th { background-color: #f2f2f2; font-weight: bold; }
                             </div>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadCorrectedDoc(msg.legalAnalysis?.downloadDoc, msg.text)}
-                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Download Corrected File</span>
-                          </button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handlePrintOrSavePdf(msg.legalAnalysis?.downloadDoc, msg.text)}
+                              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                              title="Print document directly or save as official PDF"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>Print / PDF</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadCorrectedDoc(msg.legalAnalysis?.downloadDoc, msg.text)}
+                              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                              title="Download editable Microsoft Word document"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Word (.doc)</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </>

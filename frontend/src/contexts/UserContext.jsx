@@ -12,14 +12,14 @@ export const sanitizeUserAvatar = (userObj) => {
 };
 
 const DEFAULT_USER = {
-  fullName: 'Adam Admin',
-  username: 'adam_admin',
-  email: 'adam.admin@sldsystem.com',
-  role: 'Administrator',
-  contactNumber: '+92 300 1234567',
-  city: 'Karachi',
-  companyName: 'SLD Law Firm',
-  address: '123 Legal Street, Phase 4, Clifton',
+  fullName: 'User',
+  username: '',
+  email: '',
+  role: 'User',
+  contactNumber: '',
+  city: '',
+  companyName: '',
+  address: '',
   avatarUrl: DEFAULT_AVATAR
 };
 

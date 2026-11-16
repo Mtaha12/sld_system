@@ -10,7 +10,7 @@ import { useUser } from '../contexts/UserContext';
 
 const ManageDictionaryPage = () => {
   const { user } = useUser();
-  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+  const isAdmin = user?.role === 'Administrator';
 
   const [urlSearchParams] = useSearchParams();
   const initialQuery = urlSearchParams.get('query') || urlSearchParams.get('word') || '';

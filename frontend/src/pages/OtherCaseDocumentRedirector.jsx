@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { API_URL } from '../services/api';
+import { getActiveApiBaseUrl } from '../services/api';
 
 /**
  * Direct Document Viewer Bridge
@@ -8,16 +8,9 @@ import { API_URL } from '../services/api';
  */
 const OtherCaseDocumentRedirector = () => {
   useEffect(() => {
-    const rawBase = (API_URL || '').trim().replace(/\/+$/, '');
+    const rawBase = getActiveApiBaseUrl();
     const search = window.location.search;
-    
-    // If API_URL is set and points to an external host (Hostinger VPS)
-    if (rawBase && !rawBase.includes(window.location.host)) {
-      window.location.replace(`${rawBase}/api/other-cases/view-document${search}`);
-    } else {
-      // In development or local proxy
-      window.location.replace(`http://localhost:5000/api/other-cases/view-document${search}`);
-    }
+    window.location.replace(`${rawBase}/api/other-cases/view-document${search}`);
   }, []);
 
   return (

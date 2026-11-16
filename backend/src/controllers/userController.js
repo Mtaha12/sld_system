@@ -157,8 +157,9 @@ export const createUser = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Login Password is required.' });
     }
 
-    // Security constraint: Only existing Administrators can assign Administrator role
-    const assignedRole = (role === 'Administrator' && req.user?.role === 'Administrator') ? 'Administrator' : 'User';
+    // Security constraint: Manage Users is strictly for client accounts.
+    // Administrator accounts can ONLY be created from Manage Admins.
+    const assignedRole = 'User';
 
     const existing = await User.findOne({
       $or: [
@@ -195,7 +196,7 @@ export const createUser = async (req, res, next) => {
       displayStatute: parseBoolean(displayStatute, true),
       displayNotification: parseBoolean(displayNotification, true),
       displayCase: parseBoolean(displayCase, true),
-      allowAllForms: parseBoolean(allowAllForms, true),
+      allowAllForms: parseBoolean(allowAllForms, false),
       downloadLimitStatute: Number(req.body.downloadLimitStatute) || 25,
       downloadLimitNotification: Number(req.body.downloadLimitNotification) || 25,
       downloadLimitCaseLaw: Number(req.body.downloadLimitCaseLaw) || 50,
@@ -306,7 +307,9 @@ export const updateUser = async (req, res, next) => {
       }
     }
     if (userType !== undefined) user.userType = userType;
-    if (role !== undefined) user.role = role;
+    // Security constraint: Users managed through Manage Users are strictly Clients
+    user.role = 'User';
+    user.allowAllForms = false;
 
     if (aiAssistant !== undefined) user.aiAssistant = parseBoolean(aiAssistant, user.aiAssistant);
     if (alreadyLogin !== undefined) {
@@ -419,6 +422,8 @@ export const changeUserPassword = async (req, res, next) => {
     // Direct password update - No previous password required!
     user.password = password.trim();
     user.plainPassword = password.trim();
+    user.role = 'User';
+    user.allowAllForms = false;
     user.alreadyLogin = false;
     user.sessionVersion = (user.sessionVersion || 1) + 1;
     user.lastLogoutAt = new Date();

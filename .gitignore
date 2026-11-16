@@ -17,6 +17,8 @@ backend/scratch/
 *_files/
 # Runtime logs and cached remote PDFs
 logs/*.log
+backend/logs/
+backend/logs/*.log
 backend/uploads/court_cache/
 backend/uploads/reference_views/
 uploads/

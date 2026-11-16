@@ -13,7 +13,7 @@ const fastTaxCardsCache = new Map();
 
 const ManageTaxCardsPage = () => {
   const { user } = useUser();
-  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+  const isAdmin = user?.role === 'Administrator';
 
   const [urlSearchParams] = useSearchParams();
   const initialQuery = urlSearchParams.get('query') || urlSearchParams.get('text') || '';

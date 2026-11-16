@@ -1,17 +1,25 @@
 import axios from 'axios';
 
 // Resolve backend URL cleanly across local dev, Vercel env builds, and VPS static builds
-const resolveDefaultApiUrl = () => {
+export const getActiveApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname.toLowerCase();
-    if (host.endsWith('sldsystempk.com')) return 'https://api.sldsystempk.com';
-    if (host.endsWith('sldsystemspk.com')) return 'https://api.sldsystemspk.com';
-    if (host.endsWith('sldsystem.com')) return 'https://api.sldsystem.com';
+    // In any browser session on a production domain, strictly force production HTTPS API
+    if (host.endsWith('sldsystem.com') || host.includes('sldsystem.com')) return 'https://api.sldsystem.com';
+    if (host.endsWith('sldsystempk.com') || host.includes('sldsystempk.com')) return 'https://api.sldsystempk.com';
+    if (host.endsWith('sldsystemspk.com') || host.includes('sldsystemspk.com')) return 'https://api.sldsystemspk.com';
+
+    // If on localhost or custom domain
+    const envUrl = String(import.meta.env.VITE_API_URL || '').trim();
+    if (envUrl && (!envUrl.includes('localhost') || host.includes('localhost') || host.includes('127.0.0.1'))) {
+      return envUrl.replace(/\/+$/, '');
+    }
   }
-  return 'http://localhost:5000';
+  const envUrl = String(import.meta.env.VITE_API_URL || '').trim();
+  return (envUrl || 'http://localhost:5000').replace(/\/+$/, '');
 };
 
-const rawApiUrl = (import.meta.env.VITE_API_URL || resolveDefaultApiUrl()).trim().replace(/\/+$/, '');
+const rawApiUrl = getActiveApiBaseUrl();
 const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl.slice(0, -4) : rawApiUrl;
 
 const api = axios.create({
@@ -22,9 +30,13 @@ const api = axios.create({
   timeout: 0,
 });
 
-// Request interceptor to attach JWT Access Token
+// Request interceptor to attach JWT Access Token and dynamically guarantee production baseURL
 api.interceptors.request.use(
   (config) => {
+    const activeBase = getActiveApiBaseUrl();
+    if (!config.baseURL || (config.baseURL.includes('localhost') && typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'))) {
+      config.baseURL = activeBase;
+    }
     const token = localStorage.getItem('sld_access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -55,8 +67,9 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('sld_refresh_token');
         if (!refreshToken) throw new Error('No refresh token available.');
 
+        const activeBase = getActiveApiBaseUrl();
         // Request a new access token
-        const refreshResponse = await axios.post(`${API_URL}/api/auth/refresh-token`, { 
+        const refreshResponse = await axios.post(`${activeBase}/api/auth/refresh-token`, { 
           token: refreshToken 
         });
 

@@ -38,7 +38,7 @@ const ProtectedRoute = () => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+  const isAdmin = user?.role === 'Administrator';
   const curPath = location.pathname.toLowerCase();
 
   // 1. Guard Backend Management pages: only Admins and users with allowAllForms

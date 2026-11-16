@@ -170,7 +170,7 @@ const AdminHeader = ({ onToggleMenu, onOpenChat, isSidebarPinned = false, onTogg
   }, [navigate]);
 
   const { user, logoutUser } = useUser();
-  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+  const isAdmin = user?.role === 'Administrator';
 
   const handleLogout = () => {
     logoutUser();

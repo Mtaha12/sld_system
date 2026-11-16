@@ -78,7 +78,7 @@ const AdminSidebar = ({
   const { user } = useUser();
   const isDarkMode = theme === 'dark';
 
-  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+  const isAdmin = user?.role === 'Administrator';
 
   // Filter top navigation items based on user permissions
   const visibleTopNavItems = React.useMemo(() => {

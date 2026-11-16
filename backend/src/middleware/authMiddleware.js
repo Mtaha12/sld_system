@@ -119,7 +119,7 @@ export const requireAdmin = authorize('Administrator');
  * Middleware to require Administrator role OR allowAllForms privilege
  */
 export const requireAdminOrAllForms = (req, res, next) => {
-  if (!req.user || (req.user.role !== 'Administrator' && req.user.allowAllForms !== true)) {
+  if (!req.user || req.user.role !== 'Administrator') {
     return res.status(403).json({
       success: false,
       message: 'Forbidden: Access restricted. You do not have permissions to perform this action.'

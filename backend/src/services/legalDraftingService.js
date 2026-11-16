@@ -204,21 +204,26 @@ export const formatLegalDocAsWordHtml = (markdownContent, title = 'Legal_Pleadin
 
   const cleanTitle = (title || 'Legal Document').replace(/\.[^/.]+$/, '').replace(/[_]+/g, ' ');
 
-  // Strip markdown code fences if wrapped by LLM e.g. ```html ... ``` or ```
-  let clean = String(markdownContent).trim();
-  clean = clean.replace(/^[\s\r\n]*(?:```|''')(?:html|xml)?[\s\r\n]*/i, '').replace(/[\s\r\n]*(?:```|''')[\s\r\n]*$/i, '').trim();
+  // Thoroughly strip any code fences or markdown wrappers wherever they appear
+  let clean = String(markdownContent)
+    .replace(/```(?:html|xml)?/gi, '')
+    .replace(/```/g, '')
+    .replace(/'''(?:html|xml)?/gi, '')
+    .replace(/'''/g, '')
+    .replace(/<!--\[if\s+gte\s+mso\s+9\]>[\s\S]*?<!\[endif\]-->/gi, '')
+    .replace(/<\/?w:[^>]+>/gi, '')
+    .replace(/<\/?xml[^>]*>/gi, '')
+    .trim();
 
-  // If already full HTML document, extract and return as is cleanly
+  // If already full HTML document, extract clean <html>...</html>
   const lower = clean.toLowerCase();
   const htmlStartIdx = lower.indexOf('<html');
   const docTypeIdx = lower.indexOf('<!doctype html');
   const startIdx = docTypeIdx !== -1 ? docTypeIdx : htmlStartIdx;
   if (startIdx !== -1) {
     const endIdx = lower.lastIndexOf('</html>');
-    return endIdx !== -1 ? clean.slice(startIdx, endIdx + 7).trim() : clean.slice(startIdx).trim();
-  }
-  if (clean.includes('<w:WordDocument>') || clean.includes('div.Section1')) {
-    return clean;
+    const extracted = endIdx !== -1 ? clean.slice(startIdx, endIdx + 7).trim() : clean.slice(startIdx).trim();
+    return extracted.replace(/<!--\[if\s+gte\s+mso\s+9\]>[\s\S]*?<!\[endif\]-->/gi, '').replace(/<\/?w:[^>]+>/gi, '');
   }
 
   let lines = clean.split('\n');
@@ -314,19 +319,12 @@ export const formatLegalDocAsWordHtml = (markdownContent, title = 'Legal_Pleadin
     htmlLines.push('</tbody></table>');
   }
 
-  const docHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+  const docHtml = `<!DOCTYPE html>
+<html lang="en" xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
 <meta charset='utf-8'>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${cleanTitle}</title>
-<!--[if gte mso 9]>
-<xml>
-<w:WordDocument>
-<w:View>Print</w:View>
-<w:Zoom>100</w:Zoom>
-<w:DoNotOptimizeForBrowser/>
-</w:WordDocument>
-</xml>
-<![endif]-->
 <style>
 @page Section1 {
   size: 595.3pt 841.9pt; /* A4 Standard */

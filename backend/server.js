@@ -108,11 +108,14 @@ const clientEnvUrls = (process.env.CLIENT_URL || '')
 const defaultAllowed = [
   'https://sldsystem.com',
   'https://www.sldsystem.com',
+  'http://sldsystem.com',
+  'http://www.sldsystem.com',
   'https://sldsystempk.com',
   'https://www.sldsystempk.com',
   'https://sldsystemspk.com',
   'https://www.sldsystemspk.com',
   'https://api.sldsystem.com',
+  'http://api.sldsystem.com',
   'https://api.sldsystempk.com',
   'https://api.sldsystemspk.com',
   'http://localhost:5173',
@@ -134,8 +137,8 @@ app.use(cors({
     // Explicitly allowed origins
     if (allowedOriginsSet.has(origin)) return callback(null, true);
 
-    // Allow official SLD System domains & subdomains over HTTPS
-    if (/^https:\/\/(?:[a-zA-Z0-9-]+\.)*sldsystem(?:s?pk)?\.com$/.test(origin)) {
+    // Allow official SLD System domains & subdomains over HTTP or HTTPS
+    if (/^https?:\/\/(?:[a-zA-Z0-9-]+\.)*sldsystem(?:s?pk)?\.com(?::\d+)?$/.test(origin)) {
       return callback(null, true);
     }
 

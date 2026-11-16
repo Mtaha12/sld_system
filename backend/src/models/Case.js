@@ -186,42 +186,18 @@ caseSchema.index(
     } 
   }
 );
-caseSchema.index({ isDeleted: 1, status: 1 });
 caseSchema.index({ isDeleted: 1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, sldNumberInt: 1 });
-caseSchema.index({ isDeleted: 1, sldNumberInt: -1, sldNumber: -1 });
-caseSchema.index({ isDeleted: 1, sldNumber: -1 });
-caseSchema.index({ isDeleted: 1, dated: -1 });
-caseSchema.index({ isDeleted: 1, court: 1 });
 caseSchema.index({ isDeleted: 1, mapYearPage: 1 });
-caseSchema.index({ isDeleted: 1, caseNumber: 1 });
-caseSchema.index({ isDeleted: 1, 'laws.section': 1 });
-caseSchema.index({ isDeleted: 1, 'laws.lawStatute': 1 });
 caseSchema.index({ isDeleted: 1, 'publications.mag': 1, 'publications.page': 1, 'publications.year': 1 });
-caseSchema.index({ isDeleted: 1, 'publications.year': 1, 'publications.mag': 1 });
-caseSchema.index({ isDeleted: 1, 'publications.mag': 1, 'publications.year': 1 });
-caseSchema.index({ isDeleted: 1, 'publications.mag': 1, 'publications.year': 1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, updatedAt: -1 });
-caseSchema.index({ isDeleted: 1, court: 1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, 'publications.year': 1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, dated: -1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, caseNumber: 1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, 'publications.page': 1, 'publications.year': 1 });
-caseSchema.index({ 'laws.section': 1 });
-caseSchema.index({ mapYearPage: 1 });
-caseSchema.index({ caseNumber: 1 });
-caseSchema.index({ 'publications.mag': 1, 'publications.page': 1, 'publications.year': 1 });
-caseSchema.index({ 'publications.page': 1, 'publications.year': 1 });
-caseSchema.index({ 'laws.lawStatute': 1 });
-caseSchema.index({ principleLaw: 1 });
+caseSchema.index({ isDeleted: 1, caseNumber: 1 });
 caseSchema.index({ isDeleted: 1, 'laws.lawStatute': 1, 'laws.section': 1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, 'laws.lawStatute': 1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, 'laws.section': 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, court: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, dated: -1, sldNumberInt: -1 });
 caseSchema.index({ isDeleted: 1, principleLaw: 1, sldNumberInt: -1 });
-caseSchema.index({ isDeleted: 1, dated: 1, sldNumberInt: -1 });
 caseSchema.index({ isDeleted: 1, judges: 1, sldNumberInt: -1 });
 caseSchema.index({ isDeleted: 1, lawyers: 1, sldNumberInt: -1 });
 caseSchema.index({ isDeleted: 1, petitioners: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, updatedAt: -1 });
 
 
 // Soft delete query filter middleware

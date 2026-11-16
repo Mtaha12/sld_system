@@ -2011,8 +2011,36 @@ export const searchCases = async (req, res, next) => {
       selectedHint = { isDeleted: 1, 'publications.year': 1, sldNumberInt: -1 };
     }
 
-    let cases;
-    if (selectedHint) {
+    let cases = [];
+    if (hasAnyBlock123 && !hasTextSearch) {
+      // 1. Direct mapYearPage B-tree index lookup (< 5ms)
+      cases = await Case.find({
+        isDeleted: false,
+        mapYearPage: { $in: exactCitationCandidates }
+      })
+        .select(selectFields)
+        .limit(searchLimit)
+        .maxTimeMS(4000)
+        .lean();
+
+      // 2. If not found in mapYearPage, check publications array
+      if (cases.length === 0) {
+        cases = await Case.find({
+          isDeleted: false,
+          publications: {
+            $elemMatch: {
+              mag: { $in: magVariants },
+              page: { $in: pageCandidates },
+              year: { $in: yearCandidates }
+            }
+          }
+        })
+          .select(selectFields)
+          .limit(searchLimit)
+          .maxTimeMS(4000)
+          .lean();
+      }
+    } else if (selectedHint) {
       try {
         cases = await runQueryWithHint(selectedHint);
       } catch (hintErr) {
@@ -2023,21 +2051,21 @@ export const searchCases = async (req, res, next) => {
     }
 
     if (cases.length === 0 && caseNumberSearchRaw) {
-      const cleanCnSearch = caseNumberSearchRaw.replace(/[^a-zA-Z0-9\s]/g, ' ').trim();
+      const cleanTokens = caseNumberSearchRaw.replace(/[^a-zA-Z0-9\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+      const searchPhrase = cleanTokens.length > 0 ? `"${cleanTokens.join(' ')}"` : '';
       let foundFallback = false;
-      if (cleanCnSearch) {
+      if (searchPhrase) {
         try {
           const fallbackConditions = andConditions.filter(cond => !cond.caseNumber);
           const fallbackQuery = {
             isDeleted: false,
-            $text: { $search: cleanCnSearch }
+            $text: { $search: searchPhrase }
           };
           if (fallbackConditions.length > 0) {
             fallbackQuery.$and = fallbackConditions;
           }
           const textMatchedCases = await Case.find(fallbackQuery)
             .select(selectFields)
-            .sort({ sldNumberInt: -1 })
             .limit(searchLimit)
             .maxTimeMS(3500)
             .lean();
@@ -2062,7 +2090,6 @@ export const searchCases = async (req, res, next) => {
           }
           const regMatchedCases = await Case.find(regexQuery)
             .select(selectFields)
-            .sort({ sldNumberInt: -1 })
             .limit(searchLimit)
             .maxTimeMS(3000)
             .lean();

@@ -10,7 +10,7 @@ import { useUser } from '../contexts/UserContext';
 
 const DownloadsPage = () => {
   const { user } = useUser();
-  const isAdmin = user?.role === 'Administrator' || Boolean(user?.allowAllForms);
+  const isAdmin = user?.role === 'Administrator';
 
   const [urlSearchParams] = useSearchParams();
   const urlCat = urlSearchParams.get('category') || '';

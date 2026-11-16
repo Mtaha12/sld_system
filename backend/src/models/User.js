@@ -119,7 +119,7 @@ const userSchema = new mongoose.Schema({
   },
   allowAllForms: {
     type: Boolean,
-    default: true,
+    default: false,
     index: true,
   },
   downloadLimitStatute: {

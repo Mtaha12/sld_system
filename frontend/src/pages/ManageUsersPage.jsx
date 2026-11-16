@@ -72,7 +72,7 @@ const ManageUsersPage = () => {
     displayStatute: 'Yes',
     displayNotification: 'Yes',
     displayCase: 'Yes',
-    allowAllForms: 'Yes',
+    allowAllForms: 'No',
     downloadLimitStatute: 25,
     downloadLimitNotification: 25,
     downloadLimitCaseLaw: 50,
@@ -189,7 +189,7 @@ const ManageUsersPage = () => {
       displayStatute: 'Yes',
       displayNotification: 'Yes',
       displayCase: 'Yes',
-      allowAllForms: 'Yes',
+      allowAllForms: 'No',
     });
     setModalError('');
     setIsModalOpen(true);
@@ -313,7 +313,8 @@ const ManageUsersPage = () => {
         displayStatute: modalForm.displayStatute === 'Yes',
         displayNotification: modalForm.displayNotification === 'Yes',
         displayCase: modalForm.displayCase === 'Yes',
-        allowAllForms: modalForm.allowAllForms === 'Yes',
+        allowAllForms: false,
+        role: 'User',
         downloadLimitStatute: Number(modalForm.downloadLimitStatute) || 25,
         downloadLimitNotification: Number(modalForm.downloadLimitNotification) || 25,
         downloadLimitCaseLaw: Number(modalForm.downloadLimitCaseLaw) || 50,
