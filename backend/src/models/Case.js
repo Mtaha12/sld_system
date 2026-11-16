@@ -187,6 +187,7 @@ caseSchema.index(
   }
 );
 caseSchema.index({ isDeleted: 1, sldNumberInt: -1 });
+caseSchema.index({ isDeleted: 1, sldNumberInt: 1 });
 caseSchema.index({ isDeleted: 1, mapYearPage: 1 });
 caseSchema.index({ isDeleted: 1, 'publications.mag': 1, 'publications.page': 1, 'publications.year': 1 });
 caseSchema.index({ isDeleted: 1, caseNumber: 1 });

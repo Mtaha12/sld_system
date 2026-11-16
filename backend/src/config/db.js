@@ -21,9 +21,24 @@ const MONGO_OPTIONS = {
   family: 4, // Use IPv4 to avoid unnecessary IPv6 DNS lookup stalls
 };
 
+const ensureOptimalIndexes = async () => {
+  try {
+    const Case = (await import('../models/Case.js')).default;
+    await Case.collection.createIndex({ isDeleted: 1, sldNumberInt: -1 }, { background: true });
+    await Case.collection.createIndex({ isDeleted: 1, sldNumberInt: 1 }, { background: true });
+    await Case.collection.createIndex({ isDeleted: 1, dated: -1, sldNumberInt: -1 }, { background: true });
+    await Case.collection.createIndex({ isDeleted: 1, court: 1, sldNumberInt: -1 }, { background: true });
+    await Case.collection.createIndex({ isDeleted: 1, caseNumber: 1 }, { background: true });
+  } catch (err) {
+    console.warn('[Index Ensure Warning]:', err.message);
+  }
+};
+
 const runStartupTasksOnce = () => {
   if (startupTasksDone) return;
   startupTasksDone = true;
+
+  ensureOptimalIndexes().catch(() => {});
 
   backfillAllMissingUniqueIds().catch((err) => {
     console.error(`[Unique ID Backfill Error]: ${err.message}`);

@@ -597,6 +597,9 @@ const ManageCasesPage = () => {
           err?.message === 'canceled';
         if (isCanceled) return;
         if (requestId !== fetchRequestRef.current) return;
+        console.error('[ManageCasesPage] Error fetching cases:', err);
+        setToastMessage(err?.response?.data?.message || 'Failed to load cases. Please click All or Refresh.');
+        setTimeout(() => setToastMessage(''), 4000);
         setCases([]);
         setTotalItems(0);
         setTotalPages(0);

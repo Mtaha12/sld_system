@@ -725,7 +725,7 @@ export const getCases = async (req, res, next) => {
           query.caseNumber = new RegExp(escapeRegex(q), 'i');
         } else {
           const lookup = await getCaseLookupCache().catch(() => null);
-          const matchedCourts = lookup ? matchLookupEntries(lookup.courts, q, { exactOnly: true }) : null;
+          const matchedCourts = lookup ? matchLookupEntries(lookup.courts, q, { exactOnly: false }) : null;
           if (matchedCourts && matchedCourts.length > 0) {
             query.court = matchedCourts.length === 1 ? matchedCourts[0] : { $in: matchedCourts };
           } else {
@@ -947,42 +947,61 @@ export const getCases = async (req, res, next) => {
       ? 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw judgment createdAt'
       : 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws attachments department headNote principleLaw createdAt';
 
-    let casesQuery = Case.find(query)
-      .select(selectFields)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(limitNum)
-      .maxTimeMS(10000)
-      .lean();
+    // Safe query runner that attempts optimal index hint first,
+    // and seamlessly falls back to unhinted execution if the index does not exist.
+    const runCasesQuery = (hintSpec) => {
+      let q = Case.find(query)
+        .select(selectFields)
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limitNum)
+        .maxTimeMS(10000);
+      if (hintSpec) {
+        q = q.hint(hintSpec);
+      }
+      return q.lean();
+    };
 
-    // High-speed index hints
+    // Determine optimal index hint
+    let targetHint = null;
     if (!hasFilter) {
       if (targetSortField === 'sldNumberInt') {
-        casesQuery = casesQuery.hint({ isDeleted: 1, sldNumberInt: safeSortOrder });
+        targetHint = { isDeleted: 1, sldNumberInt: safeSortOrder };
       } else if (targetSortField === 'dated') {
-        casesQuery = casesQuery.hint({ isDeleted: 1, dated: -1, sldNumberInt: -1 });
+        targetHint = { isDeleted: 1, dated: -1, sldNumberInt: -1 };
       } else if (targetSortField === 'court') {
-        casesQuery = casesQuery.hint({ isDeleted: 1, court: 1, sldNumberInt: -1 });
+        targetHint = { isDeleted: 1, court: 1, sldNumberInt: -1 };
       }
     } else if (subject && parseLegalCitation(subject)) {
-      casesQuery = casesQuery.hint({
+      targetHint = {
         isDeleted: 1,
         'publications.mag': 1,
         'publications.page': 1,
         'publications.year': 1
-      });
+      };
     } else if (query.court && !query.$text && !query.$or) {
-      casesQuery = casesQuery.hint({ isDeleted: 1, court: 1, sldNumberInt: -1 });
+      targetHint = { isDeleted: 1, court: 1, sldNumberInt: -1 };
     } else if (query.caseNumber && !query.$text && !query.$or) {
-      casesQuery = casesQuery.hint({ isDeleted: 1, caseNumber: 1 });
+      targetHint = { isDeleted: 1, caseNumber: 1 };
     } else if (isRangeSearch && !query.$text && !query.$or) {
-      casesQuery = casesQuery.hint({ isDeleted: 1, sldNumberInt: safeSortOrder });
+      targetHint = { isDeleted: 1, sldNumberInt: safeSortOrder };
     }
+
+    const fetchCasesWithFallback = async () => {
+      if (targetHint) {
+        try {
+          return await runCasesQuery(targetHint);
+        } catch {
+          return await runCasesQuery(null);
+        }
+      }
+      return await runCasesQuery(null);
+    };
 
     // Execute count + paginated query in parallel using fast indexed queries
     const [totalItems, cases] = await Promise.all([
       getTotalCasesCount(query, hasFilter),
-      casesQuery
+      fetchCasesWithFallback()
     ]);
 
     let data = cases.map(formatCaseForFrontend);
