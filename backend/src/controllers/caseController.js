@@ -1692,6 +1692,11 @@ export const searchCases = async (req, res, next) => {
       }
     }
 
+    let exactCitationCandidates = [];
+    let magVariants = [];
+    let pageCandidates = [];
+    let yearCandidates = [];
+
     // First 3 blocks validation: Year/Vol, Magazine, and Page
     const hasAnyBlock123 = Boolean(
       (filters.yearVolume && String(filters.yearVolume).trim()) ||
@@ -1717,7 +1722,7 @@ export const searchCases = async (req, res, next) => {
       const magCitPart = magAliases.length > 1
         ? `(?:${magAliases.map(escapeRegex).join('|')})`
         : escapeRegex(mg);
-      const magVariants = [...new Set(
+      magVariants = [...new Set(
         magAliases.flatMap(alias => [
           alias,
           alias.toUpperCase(),
@@ -1726,7 +1731,7 @@ export const searchCases = async (req, res, next) => {
         ])
       )].filter(Boolean);
 
-      const exactCitationCandidates = magVariants.flatMap(alias => [
+      exactCitationCandidates = magVariants.flatMap(alias => [
         `${yv} ${alias} ${pg}`,
         `(${yv}) ${alias} ${pg}`,
         `${yv} ${alias}. ${pg}`,
@@ -1737,11 +1742,11 @@ export const searchCases = async (req, res, next) => {
       ]);
 
       const pgNum = parseInt(pg, 10);
-      const pageCandidates = [pg];
+      pageCandidates = [pg];
       if (!isNaN(pgNum)) pageCandidates.push(pgNum);
 
       const yvNum = parseInt(yv, 10);
-      const yearCandidates = [yv];
+      yearCandidates = [yv];
       if (!isNaN(yvNum)) yearCandidates.push(yvNum);
 
       andConditions.push({
@@ -2012,12 +2017,18 @@ export const searchCases = async (req, res, next) => {
     }
 
     let cases = [];
-    if (hasAnyBlock123 && !hasTextSearch) {
-      // 1. Direct mapYearPage B-tree index lookup (< 5ms)
-      cases = await Case.find({
+    if (hasAnyBlock123 && !hasTextSearch && exactCitationCandidates.length > 0) {
+      const otherConditions = andConditions.filter(c => !c.$or || !c.$or.some(b => b.mapYearPage));
+      const citationQuery = {
         isDeleted: false,
         mapYearPage: { $in: exactCitationCandidates }
-      })
+      };
+      if (otherConditions.length > 0) {
+        citationQuery.$and = otherConditions;
+      }
+
+      // 1. Direct mapYearPage B-tree index lookup (< 5ms)
+      cases = await Case.find(citationQuery)
         .select(selectFields)
         .limit(searchLimit)
         .maxTimeMS(4000)
@@ -2025,7 +2036,7 @@ export const searchCases = async (req, res, next) => {
 
       // 2. If not found in mapYearPage, check publications array
       if (cases.length === 0) {
-        cases = await Case.find({
+        const pubQuery = {
           isDeleted: false,
           publications: {
             $elemMatch: {
@@ -2034,7 +2045,12 @@ export const searchCases = async (req, res, next) => {
               year: { $in: yearCandidates }
             }
           }
-        })
+        };
+        if (otherConditions.length > 0) {
+          pubQuery.$and = otherConditions;
+        }
+
+        cases = await Case.find(pubQuery)
           .select(selectFields)
           .limit(searchLimit)
           .maxTimeMS(4000)
