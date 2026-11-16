@@ -1783,30 +1783,65 @@ export const searchCases = async (req, res, next) => {
     let yearCandidates = [];
 
     // First 3 blocks validation: Year/Vol, Magazine, and Page
-    const hasAnyBlock123 = Boolean(
-      (filters.yearVolume && String(filters.yearVolume).trim()) ||
-      (filters.magazine && String(filters.magazine).trim()) ||
-      (filters.page && String(filters.page).trim())
+    const b1 = Boolean(filters.yearVolume && String(filters.yearVolume).trim());
+    const b2 = Boolean(filters.magazine && String(filters.magazine).trim());
+    const b3 = Boolean(filters.page && String(filters.page).trim());
+
+    const hasOtherBlocks = Boolean(
+      (filters.selectLaw && String(filters.selectLaw).trim()) ||
+      (filters.section && String(filters.section).trim()) ||
+      (filters.section2 && String(filters.section2).trim()) ||
+      (filters.court && String(filters.court).trim()) ||
+      (filters.caseNumber && String(filters.caseNumber).trim()) ||
+      (filters.fromDate && String(filters.fromDate).trim()) ||
+      (filters.toDate && String(filters.toDate).trim()) ||
+      (filters.keywords && String(filters.keywords).trim()) ||
+      (filters.keywords2 && String(filters.keywords2).trim()) ||
+      (filters.phrase && String(filters.phrase).trim()) ||
+      (filters.judges && String(filters.judges).trim()) ||
+      (filters.lawyers && String(filters.lawyers).trim()) ||
+      (filters.petitioner && String(filters.petitioner).trim()) ||
+      (filters.principleLaw && String(filters.principleLaw).trim()) ||
+      (filters.subject && String(filters.subject).trim()) ||
+      (filters.text && String(filters.text).trim()) ||
+      (filters.number && String(filters.number).trim())
     );
-    if (hasAnyBlock123) {
-      if (
-        !filters.yearVolume || !String(filters.yearVolume).trim() ||
-        !filters.magazine || !String(filters.magazine).trim() ||
-        !filters.page || !String(filters.page).trim()
-      ) {
+
+    // Validation when NO other blocks are present:
+    // Only single Year, or Year + Mag alone without other blocks is not allowed.
+    // If only the first 3 blocks are used, all 3 must be filled for exact citation search.
+    if (!hasOtherBlocks) {
+      if (b1 && !b2 && !b3) {
         return res.status(400).json({
           success: false,
-          message: 'All 3 first blocks (Year/Vol, Magazine, and Page) must be filled together for citation search. Single field search is not allowed in the first three blocks.'
+          message: 'Single Year search alone is not allowed. Please enter complete citation (Year, Magazine, Page) or combine with other blocks (e.g. Law, Section, Court).'
         });
       }
+      if (b1 && b2 && !b3) {
+        return res.status(400).json({
+          success: false,
+          message: 'Year + Magazine search alone is not allowed. Please enter Page number for exact citation search or combine with other blocks (e.g. Law, Section, Court).'
+        });
+      }
+      if ((b1 || b2 || b3) && (!b1 || !b2 || !b3)) {
+        return res.status(400).json({
+          success: false,
+          message: 'All 3 first blocks (Year/Vol, Magazine, and Page) must be filled together for citation search.'
+        });
+      }
+      if (!b1 && !b2 && !b3) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide at least one search criteria.'
+        });
+      }
+    }
 
+    if (b1 && b2 && b3) {
       const yv = String(filters.yearVolume).trim();
       const mg = String(filters.magazine).trim();
       const pg = String(filters.page).trim();
       const magAliases = expandMagazineSearchAliases(mg);
-      const magCitPart = magAliases.length > 1
-        ? `(?:${magAliases.map(escapeRegex).join('|')})`
-        : escapeRegex(mg);
       magVariants = [...new Set(
         magAliases.flatMap(alias => [
           alias,
@@ -1860,6 +1895,65 @@ export const searchCases = async (req, res, next) => {
           }
         ]
       });
+    } else {
+      if (b1) {
+        const yr = String(filters.yearVolume).trim();
+        const yrCandidates = [yr];
+        const yrNum = parseInt(yr, 10);
+        if (!isNaN(yrNum)) yrCandidates.push(yrNum);
+
+        if (/^\d{4}$/.test(yr)) {
+          const yrRx = new RegExp(`(?:^|\\D)${escapeRegex(yr)}(?:\\D|$)`, 'i');
+          andConditions.push({
+            $or: [
+              { 'publications.year': { $in: yrCandidates } },
+              { 'publications.vol': { $in: yrCandidates } },
+              { dated: { $gte: `${yr}-01-01`, $lte: `${yr}-12-31` } },
+              { mapYearPage: { $regex: yrRx } }
+            ]
+          });
+        } else {
+          const yrRx = new RegExp(escapeRegex(yr), 'i');
+          andConditions.push({
+            $or: [
+              { 'publications.year': { $in: yrCandidates } },
+              { 'publications.vol': { $in: yrCandidates } },
+              { dated: { $regex: yrRx } },
+              { mapYearPage: { $regex: yrRx } }
+            ]
+          });
+        }
+      }
+
+      if (b2) {
+        const mg = String(filters.magazine).trim();
+        const magAliases = expandMagazineSearchAliases(mg);
+        const magVars = [...new Set(
+          magAliases.flatMap(alias => [
+            alias,
+            alias.toUpperCase(),
+            alias.toLowerCase()
+          ])
+        )].filter(Boolean);
+        const magRegex = new RegExp(`\\b(?:${magAliases.map(escapeRegex).join('|')})\\b`, 'i');
+
+        andConditions.push({
+          $or: [
+            { 'publications.mag': { $in: magVars } },
+            { 'publications.magazine': { $in: magVars } },
+            { mapYearPage: { $regex: magRegex } }
+          ]
+        });
+      }
+
+      if (b3) {
+        const pg = String(filters.page).trim();
+        const pgNum = parseInt(pg, 10);
+        const pageConds = [{ 'publications.page': pg }];
+        if (!isNaN(pgNum)) pageConds.push({ 'publications.page': pgNum });
+        pageConds.push({ mapYearPage: new RegExp(`\\b0*${escapeRegex(pg)}\\b`, 'i') });
+        andConditions.push({ $or: pageConds });
+      }
     }
 
     if (lawQuery) {
@@ -2078,7 +2172,7 @@ export const searchCases = async (req, res, next) => {
     let selectedHint = null;
     if (filters.caseNumber && !hasTextSearch) {
       selectedHint = { isDeleted: 1, caseNumber: 1 };
-    } else if (hasAnyBlock123 && !hasTextSearch && !filters.court) {
+    } else if (b1 && b2 && b3 && !hasTextSearch && !filters.court) {
       selectedHint = { isDeleted: 1, mapYearPage: 1 };
     } else if (filters.court && !filters.yearVolume && !filters.page && !hasTextSearch) {
       selectedHint = { isDeleted: 1, court: 1, sldNumberInt: -1 };
@@ -2098,7 +2192,7 @@ export const searchCases = async (req, res, next) => {
     }
 
     let cases = [];
-    if (hasAnyBlock123 && !hasTextSearch && exactCitationCandidates.length > 0) {
+    if (b1 && b2 && b3 && !hasTextSearch && exactCitationCandidates.length > 0) {
       const otherConditions = andConditions.filter(c => !c.$or || !c.$or.some(b => b.mapYearPage));
       const citationQuery = {
         isDeleted: false,

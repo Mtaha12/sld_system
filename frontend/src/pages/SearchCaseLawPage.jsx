@@ -578,15 +578,45 @@ const SearchCaseLawPage = () => {
 
     const activeForm = overrideFilters || f;
 
-    // Rule: First 3 blocks (Year/Vol, Magazine, Page) must ALL be filled if any is filled
-    // Single field search is NOT allowed in the first three blocks
+    // First 3 blocks: Year/Vol, Magazine, Page
     const b1 = Boolean(activeForm.yearVolume && String(activeForm.yearVolume).trim());
     const b2 = Boolean(activeForm.magazine && String(activeForm.magazine).trim());
     const b3 = Boolean(activeForm.page && String(activeForm.page).trim());
 
-    if (b1 || b2 || b3) {
-      if (!b1 || !b2 || !b3) {
-        setError('All 3 first blocks (Year/Vol, Magazine, and Page) must be filled together for citation search. Single field search is not allowed in the first three blocks.');
+    const hasOtherBlocks = Boolean(
+      (activeForm.selectLaw && String(activeForm.selectLaw).trim()) ||
+      (activeForm.section && String(activeForm.section).trim()) ||
+      (activeForm.section2 && String(activeForm.section2).trim()) ||
+      (activeForm.court && String(activeForm.court).trim()) ||
+      (activeForm.caseNumber && String(activeForm.caseNumber).trim()) ||
+      (activeForm.fromDate && String(activeForm.fromDate).trim()) ||
+      (activeForm.toDate && String(activeForm.toDate).trim()) ||
+      (activeForm.text && String(activeForm.text).trim()) ||
+      (activeForm.text2 && String(activeForm.text2).trim()) ||
+      (activeForm.phrase && String(activeForm.phrase).trim()) ||
+      (activeForm.judges && String(activeForm.judges).trim()) ||
+      (activeForm.lawyers && String(activeForm.lawyers).trim()) ||
+      (activeForm.petitioner && String(activeForm.petitioner).trim()) ||
+      (activeForm.principleLaw && String(activeForm.principleLaw).trim())
+    );
+
+    // If no other blocks are filled, enforce citation rules on first 3 blocks
+    // (Single Year alone, or Year + Mag alone without other blocks is not allowed)
+    if (!hasOtherBlocks) {
+      if (b1 && !b2 && !b3) {
+        setError('Single Year search alone is not allowed. Please enter a complete citation (Year, Magazine, Page) or combine with other blocks (e.g. Law, Section, Court).');
+        return;
+      }
+      if (b1 && b2 && !b3) {
+        setError('Year + Magazine search alone is not allowed. Please enter Page number for exact citation search or combine with other blocks (e.g. Law, Section, Court).');
+        return;
+      }
+      if ((b1 || b2 || b3) && (!b1 || !b2 || !b3)) {
+        setError('All 3 first blocks (Year/Vol, Magazine, and Page) must be filled together for citation search.');
+        return;
+      }
+      if (!b1 && !b2 && !b3) {
+        setError('Please enter search criteria.');
         return;
       }
     }
