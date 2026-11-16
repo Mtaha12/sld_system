@@ -231,7 +231,16 @@ const invalidateAllCaseCaches = () => {
   cachedTotalCasesCount = 0;
   caseLookupCache = null;
   caseLookupExpiresAt = 0;
+  manageCasesLandingCache = null;
+  manageCasesLandingExpiresAt = 0;
 };
+
+/**
+ * High-speed In-Memory Cache for Manage Cases Landing Page (< 1ms)
+ */
+let manageCasesLandingCache = null;
+let manageCasesLandingExpiresAt = 0;
+const MANAGE_CASES_CACHE_TTL = 30 * 1000; // 30 seconds
 
 /**
  * High-speed In-Memory Count Cache for Cases
@@ -242,7 +251,7 @@ let cachedTotalCasesExpiresAt = 0;
 const getTotalCasesCount = async (query, hasFilter) => {
   if (hasFilter) {
     try {
-      return await Case.countDocuments(query).maxTimeMS(5000);
+      return await Case.countDocuments(query).maxTimeMS(3500);
     } catch {
       return 1000;
     }
@@ -623,13 +632,17 @@ export const sanitizeAttachments = (attachments) => {
 
 const sanitizeCaseTextIfNoisy = (raw) => {
   if (!raw || typeof raw !== 'string') return '';
+  if (raw.length < 30) return raw;
+  if (raw.indexOf('<') === -1 && raw.indexOf('margin:') === -1 && raw.indexOf('clear:') === -1 && raw.indexOf('Â') === -1 && raw.indexOf('â') === -1) {
+    return raw;
+  }
   if (/<(?:div|hr|script|style|noscript|iframe|table|tbody|tr|td|html|head|body|meta|link|font)\b|<\/?(?:https?|mailto|ftp):|clear:both|margin:\s*50px|!important"|<!--|\b(?:width|height|text-align):""|â€|Â[\s\u00a0]/i.test(raw)) {
     return cleanLegalPlainText(raw);
   }
   return raw;
 };
 
-const formatCaseForFrontend = (c, { skipAttachments = false } = {}) => {
+const formatCaseForFrontend = (c, { skipAttachments = false, includeJudgment = false, isRangeSearch = false } = {}) => {
   const mappedCitations = Array.isArray(c.mapYearPage) ? c.mapYearPage.filter(Boolean) : [];
   const publicationCitations = buildMapYearPage(c.publications || []);
   const seenCitations = new Set();
@@ -662,7 +675,7 @@ const formatCaseForFrontend = (c, { skipAttachments = false } = {}) => {
     references: c.references || '',
     principleLaw: c.principleLaw || '',
     legalMaxim: c.legalMaxim || '',
-    judgment: sanitizeCaseTextIfNoisy(c.judgment || ''),
+    judgment: (c.judgment && (includeJudgment || isRangeSearch)) ? sanitizeCaseTextIfNoisy(c.judgment) : (c.judgment || ''),
     publications: c.publications || [],
     laws: c.laws || [],
     ...(skipAttachments ? {} : {
@@ -705,22 +718,30 @@ export const getCases = async (req, res, next) => {
             { caseId: `CASE-${String(numQ).padStart(6, '0')}` },
             { caseId: `CASE-${cleanNum}` }
           ];
+        } else if (/^case[-_]/i.test(cleanNum)) {
+          const idRx = new RegExp(`^${escapeRegex(cleanNum)}$`, 'i');
+          query.$or = [{ caseId: idRx }, { case_id: idRx }];
+        } else if (/\d+[\/-]\d+/.test(q)) {
+          query.caseNumber = new RegExp(escapeRegex(q), 'i');
         } else {
-          const searchRegex = new RegExp(escapeRegex(q), 'i');
-          query.$or = [
-            { caseId: searchRegex },
-            { case_id: searchRegex },
-            { sldNumber: searchRegex },
-            { court: searchRegex },
-            { headNote: searchRegex },
-            { references: searchRegex },
-            { principleLaw: searchRegex },
-            { caseNumber: searchRegex },
-            { judges: searchRegex },
-            { lawyers: searchRegex },
-            { petitioners: searchRegex },
-            { mapYearPage: searchRegex }
-          ];
+          const lookup = await getCaseLookupCache().catch(() => null);
+          const matchedCourts = lookup ? matchLookupEntries(lookup.courts, q, { exactOnly: true }) : null;
+          if (matchedCourts && matchedCourts.length > 0) {
+            query.court = matchedCourts.length === 1 ? matchedCourts[0] : { $in: matchedCourts };
+          } else {
+            const textQ = q.replace(/[^\w\s"']/g, ' ').replace(/\s+/g, ' ').trim();
+            if (textQ) {
+              query.$text = { $search: textQ };
+            } else {
+              const searchRegex = new RegExp(escapeRegex(q), 'i');
+              query.$or = [
+                { caseId: searchRegex },
+                { sldNumber: searchRegex },
+                { court: searchRegex },
+                { caseNumber: searchRegex }
+              ];
+            }
+          }
         }
       }
     }
@@ -893,11 +914,30 @@ export const getCases = async (req, res, next) => {
       safeSortOrder = isRangeSearch ? 1 : -1;
     }
     const sortObj = { [targetSortField]: safeSortOrder };
-    if (targetSortField === 'sldNumberInt') {
-      sortObj.sldNumber = safeSortOrder;
-    }
 
     const hasFilter = Boolean((subject && subject.trim()) || fromDate || toDate || fromYear || toYear || (magazine && magazine.trim()) || isRangeSearch);
+
+    const isDefaultLanding = (
+      !hasFilter &&
+      pageNum === 1 &&
+      limitNum === 100 &&
+      targetSortField === 'sldNumberInt' &&
+      safeSortOrder === -1 &&
+      req.query.includeJudgment !== 'true'
+    );
+
+    if (isDefaultLanding && manageCasesLandingCache && Date.now() < manageCasesLandingExpiresAt) {
+      let cachedData = manageCasesLandingCache.data;
+      if (req.user?.isSpammer === true) {
+        cachedData = spoofCaseList(cachedData);
+      }
+      return res.status(200).json({
+        success: true,
+        message: 'Cases retrieved successfully.',
+        data: cachedData,
+        pagination: manageCasesLandingCache.pagination
+      });
+    }
 
     // High performance projection:
     // Omit massive 'judgment' field (50KB-500KB per case) for standard table listings.
@@ -915,15 +955,28 @@ export const getCases = async (req, res, next) => {
       .maxTimeMS(10000)
       .lean();
 
-    // Citation searches have an exact publication compound index. Using it
-    // avoids scanning every record sharing the page number before sorting.
-    if (subject && parseLegalCitation(subject)) {
+    // High-speed index hints
+    if (!hasFilter) {
+      if (targetSortField === 'sldNumberInt') {
+        casesQuery = casesQuery.hint({ isDeleted: 1, sldNumberInt: safeSortOrder });
+      } else if (targetSortField === 'dated') {
+        casesQuery = casesQuery.hint({ isDeleted: 1, dated: -1, sldNumberInt: -1 });
+      } else if (targetSortField === 'court') {
+        casesQuery = casesQuery.hint({ isDeleted: 1, court: 1, sldNumberInt: -1 });
+      }
+    } else if (subject && parseLegalCitation(subject)) {
       casesQuery = casesQuery.hint({
         isDeleted: 1,
         'publications.mag': 1,
         'publications.page': 1,
         'publications.year': 1
       });
+    } else if (query.court && !query.$text && !query.$or) {
+      casesQuery = casesQuery.hint({ isDeleted: 1, court: 1, sldNumberInt: -1 });
+    } else if (query.caseNumber && !query.$text && !query.$or) {
+      casesQuery = casesQuery.hint({ isDeleted: 1, caseNumber: 1 });
+    } else if (isRangeSearch && !query.$text && !query.$or) {
+      casesQuery = casesQuery.hint({ isDeleted: 1, sldNumberInt: safeSortOrder });
     }
 
     // Execute count + paginated query in parallel using fast indexed queries
@@ -937,6 +990,19 @@ export const getCases = async (req, res, next) => {
       data = spoofCaseList(data);
     }
     const totalPages = Math.ceil(totalItems / limitNum);
+
+    if (isDefaultLanding) {
+      manageCasesLandingCache = {
+        data,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          totalItems,
+          totalPages
+        }
+      };
+      manageCasesLandingExpiresAt = Date.now() + MANAGE_CASES_CACHE_TTL;
+    }
 
     return res.status(200).json({
       success: true,
@@ -1969,10 +2035,10 @@ export const searchCases = async (req, res, next) => {
     const query = { $and: andConditions };
 
     const requestedLimit = parseInt(filters.limit, 10);
-    const searchLimit = requestedLimit > 0 ? requestedLimit : 3000;
+    const searchLimit = requestedLimit > 0 ? requestedLimit : 1500;
     const hasTextSearch = kwTokens.length > 0;
-    const includeJudgment = filters.includeJudgment === true || req.query.includeJudgment === 'true';
-    const includeAttachments = filters.includeAttachments === true || req.query.includeAttachments === 'true';
+    const includeJudgment = filters.includeJudgment === true || req.query?.includeJudgment === 'true';
+    const includeAttachments = filters.includeAttachments === true || req.query?.includeAttachments === 'true';
     const baseFields = 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws department headNote principleLaw legalMaxim createdAt';
     const selectFields = [
       baseFields,
@@ -1992,7 +2058,7 @@ export const searchCases = async (req, res, next) => {
 
     let selectedHint = null;
     if (filters.caseNumber && !hasTextSearch) {
-      selectedHint = { isDeleted: 1, caseNumber: 1, sldNumberInt: -1 };
+      selectedHint = { isDeleted: 1, caseNumber: 1 };
     } else if (hasAnyBlock123 && !hasTextSearch && !filters.court) {
       selectedHint = { isDeleted: 1, mapYearPage: 1 };
     } else if (filters.court && !filters.yearVolume && !filters.page && !hasTextSearch) {
@@ -2006,14 +2072,10 @@ export const searchCases = async (req, res, next) => {
       };
     } else if (resolvedLawFieldOnly && resolvedSectionFieldOnly && !filters.section2 && !hasTextSearch && !filters.fromYear && !filters.toYear) {
       selectedHint = { isDeleted: 1, 'laws.lawStatute': 1, 'laws.section': 1, sldNumberInt: -1 };
-    } else if (resolvedLawFieldOnly && !filters.section && !filters.section2 && !hasTextSearch && !filters.fromYear && !filters.toYear) {
-      selectedHint = { isDeleted: 1, 'laws.lawStatute': 1, sldNumberInt: -1 };
     } else if (filters.judges && !lawQuery && !filters.section && !filters.section2 && !hasTextSearch && !filters.court && !filters.fromYear && !filters.toYear) {
       selectedHint = { isDeleted: 1, judges: 1, sldNumberInt: -1 };
     } else if (filters.lawyers && !lawQuery && !filters.section && !filters.section2 && !hasTextSearch && !filters.court && !filters.judges && !filters.fromYear && !filters.toYear) {
       selectedHint = { isDeleted: 1, lawyers: 1, sldNumberInt: -1 };
-    } else if ((filters.fromYear || filters.toYear) && !filters.court) {
-      selectedHint = { isDeleted: 1, 'publications.year': 1, sldNumberInt: -1 };
     }
 
     let cases = [];
@@ -2154,7 +2216,8 @@ export const searchCases = async (req, res, next) => {
       const targetCourt = String(filters.court).trim().toLowerCase();
       cases = cases.filter(c => {
         const cCourt = String(c.court || '').trim().toLowerCase();
-        return cCourt === targetCourt || cCourt.includes(targetCourt) || targetCourt.includes(cCourt);
+        if (!cCourt) return false;
+        return cCourt === targetCourt || cCourt.includes(targetCourt) || (cCourt.length >= 6 && targetCourt.includes(cCourt));
       });
     }
 

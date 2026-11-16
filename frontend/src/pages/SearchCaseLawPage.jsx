@@ -33,41 +33,69 @@ const SelectField = React.memo(({ value, onChange, options = [], placeholder = '
   );
 });
 
+const STOP_WORDS = new Set([
+  'of', 'the', 'in', 'on', 'at', 'to', 'by', 'for', 'from', 'with', 'about',
+  'against', 'between', 'into', 'through', 'during', 'before', 'after',
+  'above', 'below', 'under', 'and', 'or', 'an', 'a', 'is', 'as', 'are',
+  'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does',
+  'did', 'but', 'if', 'then', 'else', 'when', 'up', 'out', 'no', 'not',
+  'only', 'own', 'same', 'so', 'than', 'too', 'very', 'can', 'will', 'just',
+  'should', 'now', 'court', 'pakistan'
+]);
 
-/* ── Yellow Word Highlighting Component ─────────────────────────────────── */
+/* ── Yellow Word / Phrase Highlighting Component ────────────────────────── */
 const Highlight = React.memo(({ text, terms = [] }) => {
   if (!text) return null;
   const str = String(text);
-  
-  // Extract unique cleaned tokens (min length 2)
-  const tokens = useMemo(() => {
-    const set = new Set();
-    terms.forEach(t => {
-      if (!t) return;
-      const clean = String(t).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (clean.length >= 2) {
-        set.add(clean);
-        // Also split multi-word phrase into individual words
-        clean.split(/\s+/).forEach(word => {
-          if (word.length >= 2) set.add(word);
-        });
-      }
+
+  const tokenSpecs = useMemo(() => {
+    const list = [];
+    (Array.isArray(terms) ? terms : [terms]).forEach(item => {
+      if (!item) return;
+      const rawVal = typeof item === 'object' && item.value !== undefined ? item.value : item;
+      const isPhrase = typeof item === 'object' && item.isPhrase === true;
+      const clean = String(rawVal).replace(/["'“”]/g, '').trim();
+      if (!clean || clean.length < 2) return;
+      list.push({ clean, isPhrase });
     });
-    return Array.from(set);
+    return list;
   }, [terms]);
 
-  if (tokens.length === 0) return <span>{str}</span>;
+  const regex = useMemo(() => {
+    if (tokenSpecs.length === 0) return null;
+    const patterns = [];
+
+    tokenSpecs.forEach(({ clean, isPhrase }) => {
+      const lower = clean.toLowerCase();
+      // Skip generic isolated stop words if not explicitly marked as phrase
+      if (!isPhrase && !clean.includes(' ') && STOP_WORDS.has(lower)) {
+        return;
+      }
+      // Exact word/phrase boundary matching without splitting phrases into isolated words
+      const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      patterns.push(`\\b${escaped}\\b`);
+    });
+
+    if (patterns.length === 0) return null;
+    patterns.sort((a, b) => b.length - a.length);
+
+    try {
+      return new RegExp(`(${patterns.join('|')})`, 'gi');
+    } catch {
+      return null;
+    }
+  }, [tokenSpecs]);
+
+  if (!regex) return <span>{str}</span>;
 
   try {
-    const regex = new RegExp(`(${tokens.join('|')})`, 'gi');
     const parts = str.split(regex);
-    const lowerTokenSet = new Set(tokens.map(t => t.toLowerCase()));
-
     return (
       <span>
         {parts.map((part, i) => {
           if (!part) return null;
-          const isMatch = lowerTokenSet.has(part.toLowerCase());
+          regex.lastIndex = 0;
+          const isMatch = regex.test(part);
           return isMatch ? (
             <mark key={i} className="bg-yellow-300 text-slate-950 font-bold px-0.5 rounded shadow-2xs">
               {part}
@@ -85,19 +113,20 @@ const Highlight = React.memo(({ text, terms = [] }) => {
 
 /* ── Extract relevant matching paragraph from judgment text ────────────── */
 const extractRelevantParagraph = (judgmentText, headNoteText, searchTerms) => {
-  const queryWords = searchTerms
+  const termsList = Array.isArray(searchTerms) ? searchTerms : [searchTerms];
+  const queryWords = termsList
+    .map(t => (typeof t === 'object' && t?.value ? t.value : t))
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
     .split(/\s+/)
-    .filter(w => w.length >= 3);
+    .filter(w => w.length >= 3 && !STOP_WORDS.has(w));
 
   if (queryWords.length === 0) return null;
 
   const content = judgmentText || headNoteText || '';
   if (!content) return null;
 
-  // Split into clean paragraphs
   const cleanContent = content.replace(/<[^>]*>/g, ' ');
   const paragraphs = cleanContent.split(/\n\s*\n|\r\n\r\n/);
 
@@ -110,7 +139,6 @@ const extractRelevantParagraph = (judgmentText, headNoteText, searchTerms) => {
     }
   }
 
-  // Fallback: search for first occurrence index and take snippet window
   for (const w of queryWords) {
     const idx = cleanContent.toLowerCase().indexOf(w);
     if (idx !== -1) {
@@ -128,7 +156,7 @@ const CaseTableRow = React.memo(({
   c,
   i,
   matchedPara,
-  activeSearchTerms,
+  searchTerms,
   showLawColumns,
   showJudgeColumn,
   showLawyerColumn,
@@ -175,7 +203,7 @@ const CaseTableRow = React.memo(({
               key={j}
               className="inline-block px-2 py-0.5 bg-[#a8cfe0]/65 text-[#1e3a5a] rounded text-xs font-bold border border-[#a8cfe0]"
             >
-              <Highlight text={cit} terms={activeSearchTerms} />
+              <Highlight text={cit} terms={searchTerms?.citation} />
             </span>
           ))}
         </div>
@@ -183,7 +211,7 @@ const CaseTableRow = React.memo(({
 
       {/* Court Column (Always displayed right after Citation) */}
       <td className="px-2.5 py-3 text-gray-800 min-w-[140px] max-w-[190px] break-words font-semibold align-top text-[13px]">
-        <Highlight text={c.court || '—'} terms={activeSearchTerms} />
+        <Highlight text={c.court || '—'} terms={searchTerms?.court} />
       </td>
 
       {/* Dated (Hidden in Text Search Mode) */}
@@ -201,7 +229,7 @@ const CaseTableRow = React.memo(({
               <div className="space-y-1 font-semibold leading-snug">
                 {statutesList.slice(0, 3).map((st, sIdx) => (
                   <div key={sIdx}>
-                    <Highlight text={st} terms={activeSearchTerms} />
+                    <Highlight text={st} terms={searchTerms?.law} />
                   </div>
                 ))}
               </div>
@@ -212,7 +240,7 @@ const CaseTableRow = React.memo(({
               <div className="flex flex-wrap gap-1">
                 {sectionsList.map((sec, secIdx) => (
                   <span key={secIdx} className="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[11px] font-bold leading-tight">
-                    Sec <Highlight text={sec} terms={activeSearchTerms} />
+                    Sec <Highlight text={sec} terms={searchTerms?.section} />
                   </span>
                 ))}
               </div>
@@ -225,7 +253,7 @@ const CaseTableRow = React.memo(({
       {showJudgeColumn && (
         <td className="px-2.5 py-3 text-gray-800 max-w-[155px] break-words font-semibold align-top text-[13px]">
           {Array.isArray(c.judges) && c.judges.length > 0 ? (
-            <Highlight text={c.judges.join('; ')} terms={activeSearchTerms} />
+            <Highlight text={c.judges.join('; ')} terms={searchTerms?.judge} />
           ) : '—'}
         </td>
       )}
@@ -234,7 +262,7 @@ const CaseTableRow = React.memo(({
       {showLawyerColumn && (
         <td className="px-2.5 py-3 text-gray-800 max-w-[155px] break-words font-semibold align-top text-[13px]">
           {Array.isArray(c.lawyers) && c.lawyers.length > 0 ? (
-            <Highlight text={c.lawyers.join('; ')} terms={activeSearchTerms} />
+            <Highlight text={c.lawyers.join('; ')} terms={searchTerms?.lawyer} />
           ) : '—'}
         </td>
       )}
@@ -243,7 +271,7 @@ const CaseTableRow = React.memo(({
       {showPetitionerColumn && (
         <td className="px-2.5 py-3 text-gray-800 max-w-[155px] break-words font-semibold align-top text-[13px]">
           {Array.isArray(c.petitioners) && c.petitioners.length > 0 ? (
-            <Highlight text={c.petitioners.join('; ')} terms={activeSearchTerms} />
+            <Highlight text={c.petitioners.join('; ')} terms={searchTerms?.petitioner} />
           ) : '—'}
         </td>
       )}
@@ -253,7 +281,7 @@ const CaseTableRow = React.memo(({
         <td className="px-3 py-3 text-gray-800 break-words align-top leading-relaxed text-[13px] sm:text-sm">
           {headNoteDisplay ? (
             <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5">
-              <Highlight text={headNoteDisplay} terms={activeSearchTerms} />
+              <Highlight text={headNoteDisplay} terms={searchTerms?.headNote} />
             </div>
           ) : (
             <span className="text-gray-400 italic">No headnote available</span>
@@ -265,7 +293,7 @@ const CaseTableRow = React.memo(({
           <td className="px-2.5 py-3 text-gray-800 max-w-[205px] break-words font-medium align-top leading-relaxed text-[13px]">
             <Highlight
               text={caseNumStr}
-              terms={activeSearchTerms}
+              terms={searchTerms?.caseNumber}
             />
           </td>
 
@@ -278,7 +306,7 @@ const CaseTableRow = React.memo(({
                   Petitioner / Parties
                 </span>
                 <p className="font-semibold text-gray-900 leading-snug">
-                  <Highlight text={c.petitioners || c.parties || '—'} terms={activeSearchTerms} />
+                  <Highlight text={c.petitioners || c.parties || '—'} terms={searchTerms?.petitioner} />
                 </p>
               </div>
 
@@ -290,7 +318,7 @@ const CaseTableRow = React.memo(({
                 <p className="text-gray-800 font-medium leading-snug">
                   <Highlight
                     text={c.authorJudge || (c.judges && c.judges.length > 0 ? (Array.isArray(c.judges) ? c.judges.join('; ') : c.judges) : '—')}
-                    terms={activeSearchTerms}
+                    terms={searchTerms?.judge}
                   />
                 </p>
               </div>
@@ -303,7 +331,7 @@ const CaseTableRow = React.memo(({
                 <p className="text-gray-800 leading-snug">
                   <Highlight
                     text={c.lawyers && c.lawyers.length > 0 ? (Array.isArray(c.lawyers) ? c.lawyers.join('; ') : c.lawyers) : '—'}
-                    terms={activeSearchTerms}
+                    terms={searchTerms?.lawyer}
                   />
                 </p>
               </div>
@@ -462,17 +490,25 @@ const SearchCaseLawPage = () => {
     setF(p => ({ ...p, [field]: val ?? '' }));
   }, []);
 
-  // Extract all active search terms to pass to yellow highlighter
+  // Extract active search terms targeted specifically per column (avoids false-positive keyword bleeding)
   const colSource = submittedFilters || f;
-  const activeSearchTerms = useMemo(() => {
-    return [
-      colSource.yearVolume, colSource.magazine, colSource.page,
-      colSource.selectLaw, colSource.section, colSource.section2,
-      colSource.court, colSource.caseNumber,
-      colSource.text, colSource.text2, colSource.phrase,
-      colSource.judges, colSource.lawyers, colSource.petitioner,
-      colSource.principleLaw
-    ].filter(Boolean);
+  const searchTerms = useMemo(() => {
+    return {
+      headNote: [
+        colSource.phrase ? { value: colSource.phrase, isPhrase: true } : null,
+        colSource.text ? { value: colSource.text, isPhrase: false } : null,
+        colSource.text2 ? { value: colSource.text2, isPhrase: false } : null,
+        colSource.caseNumber ? { value: colSource.caseNumber, isPhrase: false } : null
+      ].filter(Boolean),
+      citation: [colSource.yearVolume, colSource.magazine, colSource.page].filter(Boolean),
+      court: colSource.court ? [colSource.court] : [],
+      law: [colSource.selectLaw, colSource.principleLaw].filter(Boolean),
+      section: [colSource.section, colSource.section2].filter(Boolean),
+      judge: colSource.judges ? [colSource.judges] : [],
+      lawyer: colSource.lawyers ? [colSource.lawyers] : [],
+      petitioner: colSource.petitioner ? [colSource.petitioner] : [],
+      caseNumber: colSource.caseNumber ? [colSource.caseNumber] : []
+    };
   }, [colSource]);
 
   // Determine dynamic column visibility from executed query
@@ -626,12 +662,13 @@ const SearchCaseLawPage = () => {
         data = filteredExact;
       }
 
-      // Guarantee Court filter is strictly respected on returned dataset
+      // Guarantee Court filter is strictly respected on returned dataset (never match empty courts)
       if (activeForm.court && String(activeForm.court).trim() && Array.isArray(data)) {
         const courtLower = String(activeForm.court).trim().toLowerCase();
         data = data.filter(c => {
           const cCourt = String(c.court || '').trim().toLowerCase();
-          return cCourt === courtLower || cCourt.includes(courtLower) || courtLower.includes(cCourt);
+          if (!cCourt) return false;
+          return cCourt === courtLower || cCourt.includes(courtLower) || (cCourt.length >= 6 && courtLower.includes(cCourt));
         });
       }
 
@@ -832,7 +869,7 @@ const SearchCaseLawPage = () => {
           {/* ── Row 2: Select Law (wide) · Select Section · Select Section 2 ─ */}
           <div className="flex gap-4 mb-3 items-center">
             <div className="w-[58%]">
-              <SelectField value={f.selectLaw} onChange={set('selectLaw')} options={lawOptions} />
+              <SelectField value={f.selectLaw} onChange={set('selectLaw')} options={lawOptions} placeholder="Select Law / Statute..." />
             </div>
             <div className="flex-1">
               <SearchableSectionSelect
@@ -857,7 +894,7 @@ const SearchCaseLawPage = () => {
           {/* ── Row 3: Select Court · Enter Case # · From Date · To Date (Calendar Selectors) ─ */}
           <div className="flex flex-wrap sm:flex-nowrap gap-3 mb-3 items-center">
             <div className="w-full sm:w-[46%]">
-              <SelectField value={f.court} onChange={set('court')} options={courtOptions} />
+              <SelectField value={f.court} onChange={set('court')} options={courtOptions} placeholder="Court (e.g. Supreme Court, High Court...)" />
             </div>
             <div className="w-full sm:w-[22%]">
               <input className={inp} placeholder="Enter Case #" value={f.caseNumber} onChange={set('caseNumber')} />
@@ -897,7 +934,7 @@ const SearchCaseLawPage = () => {
           {/* ── Row 6: Select Principle Law — centered wide ───────────────── */}
           <div className="flex justify-center mb-5">
             <div className="w-[72%]">
-              <SelectField value={f.principleLaw} onChange={set('principleLaw')} options={principleOptions} />
+              <SelectField value={f.principleLaw} onChange={set('principleLaw')} options={principleOptions} placeholder="Select Principle of Law..." />
             </div>
           </div>
 
@@ -1107,7 +1144,7 @@ const SearchCaseLawPage = () => {
                           c={c}
                           i={rowIdx}
                           matchedPara={matchedPara}
-                          activeSearchTerms={activeSearchTerms}
+                          searchTerms={searchTerms}
                           showLawColumns={showLawColumns}
                           showJudgeColumn={showJudgeColumn}
                           showLawyerColumn={showLawyerColumn}

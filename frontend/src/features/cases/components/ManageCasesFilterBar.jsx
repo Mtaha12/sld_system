@@ -28,6 +28,7 @@ const ManageCasesFilterBar = ({
   onJudgment,
   onGetCaseId,
   onSearch,
+  onFilterChange,
   onShowAll
 }) => {
   const navigate = useNavigate();
@@ -37,6 +38,14 @@ const ManageCasesFilterBar = ({
   const [toYear, setToYear] = useState('');
   const [magazine, setMagazine] = useState('');
   const [magazineList, setMagazineList] = useState([]);
+
+  const notifyChange = (newFilters) => {
+    if (onFilterChange) {
+      onFilterChange(newFilters);
+    } else {
+      onSearch?.(newFilters);
+    }
+  };
 
   // Fetch active magazines dynamically from backend
   useEffect(() => {
@@ -111,7 +120,7 @@ const ManageCasesFilterBar = ({
               onChange={(e) => {
                 const val = e.target.value;
                 setSubject(val);
-                onSearch?.({ subject: val, fromYear, toYear, magazine });
+                notifyChange({ subject: val, fromYear, toYear, magazine });
               }}
               placeholder="Search by Court, Case #, Judge, Lawyer, Subject..." 
               className="w-full pl-9 pr-4 py-2.5 bg-theme-surface border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange text-theme-main transition-colors shadow-sm"
@@ -129,7 +138,7 @@ const ManageCasesFilterBar = ({
             onChange={(e) => {
               const val = e.target.value.replace(/\D/g, '').slice(0, 4);
               setFromYear(val);
-              onSearch?.({ subject, fromYear: val, toYear, magazine });
+              notifyChange({ subject, fromYear: val, toYear, magazine });
             }}
             placeholder="From Year" 
             className="w-full px-3 py-2.5 bg-theme-surface border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange text-theme-main transition-colors shadow-sm"
@@ -146,7 +155,7 @@ const ManageCasesFilterBar = ({
             onChange={(e) => {
               const val = e.target.value.replace(/\D/g, '').slice(0, 4);
               setToYear(val);
-              onSearch?.({ subject, fromYear, toYear: val, magazine });
+              notifyChange({ subject, fromYear, toYear: val, magazine });
             }}
             placeholder="To Year" 
             className="w-full px-3 py-2.5 bg-theme-surface border border-theme-border rounded-lg text-sm focus:outline-none focus:border-brand-orange text-theme-main transition-colors shadow-sm"
@@ -159,7 +168,7 @@ const ManageCasesFilterBar = ({
             onChange={(val) => {
               const upper = String(val || '').toUpperCase();
               setMagazine(upper);
-              onSearch?.({ subject, fromYear, toYear, magazine: upper });
+              notifyChange({ subject, fromYear, toYear, magazine: upper });
             }}
             options={magOptions}
             placeholder="Magazine"

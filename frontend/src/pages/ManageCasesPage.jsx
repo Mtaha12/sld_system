@@ -504,6 +504,26 @@ const ManageCasesPage = () => {
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const debounceTimerRef = useRef(null);
 
+  const areFiltersEqual = (a, b) => {
+    if (!a || !b) return a === b;
+    return (
+      (a.subject || '') === (b.subject || '') &&
+      (a.fromYear || '') === (b.fromYear || '') &&
+      (a.toYear || '') === (b.toYear || '') &&
+      (a.fromDate || '') === (b.fromDate || '') &&
+      (a.toDate || '') === (b.toDate || '') &&
+      (a.magazine || '') === (b.magazine || '')
+    );
+  };
+
+  // Immediate search apply (on Search button click or All button click)
+  const handleImmediateFilter = useCallback((newFilters) => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    setFilters(newFilters);
+    setDebouncedFilters(newFilters);
+    setCurrentPage(1);
+  }, []);
+
   // State for currentPage, sort (default descending: last number on top), and highlighted case
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: 'sldNumber', direction: 'desc' });
@@ -517,17 +537,18 @@ const ManageCasesPage = () => {
     }
   }, [searchParams]);
 
-  // Debounce filter changes (400ms for subject typing, immediate for other filters)
+  // Debounce filter changes (300ms for subject typing, skips if identical)
   useEffect(() => {
+    if (areFiltersEqual(filters, debouncedFilters)) return;
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       setDebouncedFilters(filters);
       setCurrentPage(1); // Reset to page 1 on filter change
-    }, 400);
+    }, 300);
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [filters]);
+  }, [filters, debouncedFilters]);
 
   // Fetch data from server whenever page, debounced filters, or sort changes
   const fetchRequestRef = useRef(0);
@@ -569,7 +590,12 @@ const ManageCasesPage = () => {
         setTotalPages(response.pagination?.totalPages || 0);
       })
       .catch((err) => {
-        if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
+        const isCanceled =
+          err?.name === 'CanceledError' ||
+          err?.name === 'AbortError' ||
+          err?.code === 'ERR_CANCELED' ||
+          err?.message === 'canceled';
+        if (isCanceled) return;
         if (requestId !== fetchRequestRef.current) return;
         setCases([]);
         setTotalItems(0);
@@ -990,8 +1016,9 @@ const ManageCasesPage = () => {
         onHeadNotes={handleHeadNotes}
         onJudgment={handleJudgment}
         onGetCaseId={handleGetCaseId}
-        onSearch={setFilters}
-        onShowAll={() => setFilters({ subject: '', fromYear: '', toYear: '', magazine: '' })}
+        onSearch={handleImmediateFilter}
+        onFilterChange={setFilters}
+        onShowAll={() => handleImmediateFilter({ subject: '', fromYear: '', toYear: '', magazine: '' })}
       />
 
       <div className="flex-1 w-full min-w-0 max-w-full">
