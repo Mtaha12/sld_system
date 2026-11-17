@@ -15,64 +15,218 @@ function decodePdfEscapes(str) {
     .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
 }
 
-/**
- * Strictly Linear O(N) PDF string extractor - ZERO backtracking, ZERO ReDoS risk
- */
-function extractStringsFromBlock(block) {
-  const texts = [];
-  let inParen = false;
-  let parenDepth = 0;
-  let current = '';
-  let isEscaped = false;
+function sanitizeText(str) {
+  if (!str) return '';
+  return str.replace(/[^\x20-\x7E\r\n\t]/g, ' ').replace(/[ \t]+/g, ' ');
+}
 
-  for (let i = 0; i < block.length; i++) {
-    const ch = block[i];
-    if (isEscaped) {
-      if (inParen) current += ch;
-      isEscaped = false;
-      continue;
+function decodeHexPdfString(hex) {
+  const cleanHex = (hex || '').replace(/\s+/g, '');
+  if (!cleanHex) return '';
+  let decoded = '';
+  if (cleanHex.length >= 4 && (cleanHex.startsWith('00') || cleanHex.startsWith('FEFF') || cleanHex.startsWith('feff'))) {
+    const start = cleanHex.toLowerCase().startsWith('feff') ? 4 : 0;
+    for (let h = start; h < cleanHex.length; h += 4) {
+      const code = parseInt(cleanHex.slice(h, h + 4), 16);
+      if (code >= 32 && code <= 126) decoded += String.fromCharCode(code);
+      else if (code === 10 || code === 13) decoded += '\n';
+      else if (code === 9) decoded += '\t';
     }
-    if (ch === '\\') {
-      isEscaped = true;
-      continue;
-    }
-    if (ch === '(') {
-      if (parenDepth === 0) {
-        inParen = true;
-        current = '';
-      } else {
-        current += ch;
-      }
-      parenDepth++;
-    } else if (ch === ')') {
-      parenDepth--;
-      if (parenDepth <= 0) {
-        inParen = false;
-        parenDepth = 0;
-        if (current.trim().length > 0) {
-          texts.push(decodePdfEscapes(current.trim()));
-        }
-        current = '';
-      } else {
-        current += ch;
-      }
-    } else if (inParen) {
-      current += ch;
+  } else {
+    for (let h = 0; h < cleanHex.length; h += 2) {
+      const code = parseInt(cleanHex.slice(h, h + 2), 16);
+      if (code >= 32 && code <= 126) decoded += String.fromCharCode(code);
+      else if (code === 10 || code === 13) decoded += '\n';
+      else if (code === 9) decoded += '\t';
     }
   }
-  return texts;
-}
-
-function extractTextFromStream(streamBuf) {
-  if (!streamBuf || streamBuf.length === 0) return '';
-  const latin = streamBuf.toString('latin1');
-  const chunks = extractStringsFromBlock(latin);
-  return chunks.join(' ');
+  return decoded;
 }
 
 /**
- * Ultra-Fast Linear Native PDF text extractor (< 10ms execution, zero freeze)
- * Inflates streams and parses text safely with strict linear bounds
+ * Advanced Linear PDF Stream Content Parser
+ * Accurately decodes TJ arrays, Tj strings, hex codes, and kerning bounds
+ */
+function parseStreamContent(streamStr) {
+  let text = '';
+  let i = 0;
+  const len = streamStr.length;
+
+  while (i < len) {
+    // 1. Check for TJ array: [...] TJ
+    if (streamStr[i] === '[') {
+      const endBracket = streamStr.indexOf(']', i);
+      if (endBracket !== -1) {
+        const post = streamStr.slice(endBracket + 1, endBracket + 12).trimStart();
+        if (post.startsWith('TJ')) {
+          const tjContent = streamStr.slice(i + 1, endBracket);
+          let currentStr = '';
+          let inParen = false;
+          let parenDepth = 0;
+          let parenStr = '';
+          let isEsc = false;
+          let inHex = false;
+          let hexStr = '';
+
+          for (let j = 0; j < tjContent.length; j++) {
+            const ch = tjContent[j];
+
+            if (inHex) {
+              if (ch === '>') {
+                inHex = false;
+                currentStr += decodeHexPdfString(hexStr);
+                hexStr = '';
+              } else {
+                hexStr += ch;
+              }
+              continue;
+            }
+
+            if (isEsc) {
+              if (inParen) parenStr += ch;
+              isEsc = false;
+              continue;
+            }
+            if (ch === '\\') {
+              isEsc = true;
+              continue;
+            }
+            if (ch === '<' && !inParen && tjContent[j + 1] !== '<') {
+              inHex = true;
+              hexStr = '';
+              continue;
+            }
+            if (ch === '(') {
+              if (parenDepth === 0) {
+                inParen = true;
+                parenStr = '';
+              } else {
+                parenStr += ch;
+              }
+              parenDepth++;
+            } else if (ch === ')') {
+              parenDepth--;
+              if (parenDepth <= 0) {
+                inParen = false;
+                parenDepth = 0;
+                currentStr += decodePdfEscapes(parenStr);
+                parenStr = '';
+              } else {
+                parenStr += ch;
+              }
+            } else if (inParen) {
+              parenStr += ch;
+            } else if (!inParen) {
+              // Parse spacing numbers between strings
+              if ((ch >= '0' && ch <= '9') || ch === '-' || ch === '+') {
+                let numStr = ch;
+                while (j + 1 < tjContent.length && ((tjContent[j + 1] >= '0' && tjContent[j + 1] <= '9') || tjContent[j + 1] === '.')) {
+                  numStr += tjContent[++j];
+                }
+                const num = parseFloat(numStr);
+                // Negative displacement > 120 units indicates genuine space between words
+                if (num < -120) {
+                  if (currentStr && !currentStr.endsWith(' ')) {
+                    currentStr += ' ';
+                  }
+                }
+              }
+            }
+          }
+          if (currentStr.trim()) {
+            text += sanitizeText(currentStr) + ' ';
+          }
+          i = endBracket + 1;
+          continue;
+        }
+      }
+    }
+
+    // 2. Check for single Tj (paren): (text) Tj, ', "
+    if (streamStr[i] === '(') {
+      let parenDepth = 1;
+      let j = i + 1;
+      let isEsc = false;
+      let str = '';
+      while (j < len && parenDepth > 0) {
+        const ch = streamStr[j];
+        if (isEsc) {
+          str += ch;
+          isEsc = false;
+        } else if (ch === '\\') {
+          isEsc = true;
+        } else if (ch === '(') {
+          parenDepth++;
+          str += ch;
+        } else if (ch === ')') {
+          parenDepth--;
+          if (parenDepth === 0) break;
+          str += ch;
+        } else {
+          str += ch;
+        }
+        j++;
+      }
+      const post = streamStr.slice(j + 1, j + 15).trimStart();
+      if (post.startsWith('Tj') || post.startsWith("'") || post.startsWith('"')) {
+        const decoded = decodePdfEscapes(str);
+        if (decoded.trim()) {
+          text += sanitizeText(decoded) + (post.startsWith("'") || post.startsWith('"') ? '\n' : ' ');
+        }
+        i = j + 1;
+        continue;
+      }
+    }
+
+    // 3. Check for hex string <...> Tj
+    if (streamStr[i] === '<' && streamStr[i + 1] !== '<') {
+      const closeHex = streamStr.indexOf('>', i);
+      if (closeHex !== -1) {
+        const hex = streamStr.slice(i + 1, closeHex);
+        const post = streamStr.slice(closeHex + 1, closeHex + 15).trimStart();
+        if (post.startsWith('Tj')) {
+          const decoded = decodeHexPdfString(hex);
+          if (decoded.trim()) text += sanitizeText(decoded) + ' ';
+          i = closeHex + 1;
+          continue;
+        }
+      }
+    }
+
+    // 4. Line breaks and layout positioning operators
+    if (streamStr.slice(i, i + 2) === 'T*' || streamStr.slice(i, i + 2) === 'TD') {
+      text += '\n';
+      i += 2;
+      continue;
+    }
+
+    i++;
+  }
+  return text;
+}
+
+/**
+ * Normalizes extracted text layout and removes kerning spacing anomalies
+ */
+function normalizeExtractedText(raw) {
+  if (!raw) return '';
+  return raw
+    // Collapse single-letter spaced words: "J U D G M E N T" -> "JUDGMENT", "H I G H  C O U R T" -> "HIGH COURT"
+    .replace(/(?:^|\s)(?:[A-Z]\s+){3,}[A-Z](?:\s|$)/g, m => {
+      return ' ' + m.replace(/\s+/g, '') + ' ';
+    })
+    .replace(/(?:^|\s)(?:[a-z]\s+){3,}[a-z](?:\s|$)/g, m => {
+      return ' ' + m.replace(/\s+/g, '') + ' ';
+    })
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * Ultra-Fast Linear Native PDF text extractor (< 15ms execution, zero freeze)
+ * Inflates streams and parses text safely with strict linear bounds and full word cohesion
  */
 export function extractTextFromPdf(buffer) {
   try {
@@ -83,11 +237,22 @@ export function extractTextFromPdf(buffer) {
     let streamCount = 0;
 
     // Scan for streams linearly without complex regex backtracking
-    while (searchPos < latin.length && streamCount < 60) {
+    while (searchPos < latin.length && streamCount < 120) {
       const streamIdx = latin.indexOf('stream', searchPos);
       if (streamIdx === -1) break;
 
-      // Skip beyond 'stream' and newline
+      // Check delimiter before 'stream'
+      const prevChar = streamIdx > 0 ? latin[streamIdx - 1] : '\n';
+      if (prevChar !== '\n' && prevChar !== '\r' && prevChar !== '>' && prevChar !== ' ') {
+        searchPos = streamIdx + 6;
+        continue;
+      }
+
+      // Inspect preceding dictionary for image filters to skip non-text streams
+      const dictStart = Math.max(0, streamIdx - 350);
+      const precedingDict = latin.slice(dictStart, streamIdx);
+      const isImageStream = /\/(?:Subtype\s*\/Image|Filter\s*\[?\s*\/(?:DCTDecode|JBIG2Decode|JPXDecode|CCITTFaxDecode))\b/i.test(precedingDict);
+
       let start = streamIdx + 6;
       if (latin[start] === '\r') start++;
       if (latin[start] === '\n') start++;
@@ -98,11 +263,19 @@ export function extractTextFromPdf(buffer) {
       searchPos = end + 9;
       streamCount++;
 
+      // Skip image streams
+      if (isImageStream) continue;
+
       const streamLen = end - start;
-      // Skip enormous image streams (> 4MB) to maintain instant response speed
       if (streamLen <= 0 || streamLen > 4000000) continue;
 
-      const rawStream = buffer.subarray(start, end);
+      // Trim trailing whitespace/\r/\n before endstream
+      let realEnd = end;
+      while (realEnd > start && (latin[realEnd - 1] === '\r' || latin[realEnd - 1] === '\n' || latin[realEnd - 1] === ' ')) {
+        realEnd--;
+      }
+
+      const rawStream = buffer.subarray(start, realEnd);
       let decompressed = null;
       try {
         decompressed = zlib.inflateSync(rawStream);
@@ -114,35 +287,59 @@ export function extractTextFromPdf(buffer) {
         }
       }
 
-      if (decompressed && decompressed.length < 3000000) {
-        const streamText = extractTextFromStream(decompressed);
-        if (streamText && streamText.trim().length > 0) {
-          parts.push(streamText.trim());
-          // Once we have 20KB of clean extracted text, stop stream parsing (sufficient for any legal judgment analysis)
-          if (parts.join(' ').length > 20000) break;
+      let streamText = '';
+      if (decompressed && decompressed.length < 5000000) {
+        streamText = parseStreamContent(decompressed.toString('latin1'));
+      } else if (!decompressed && streamLen < 500000) {
+        const rawLatin = rawStream.toString('latin1');
+        if (rawLatin.includes('BT') && (rawLatin.includes('Tj') || rawLatin.includes('TJ'))) {
+          streamText = parseStreamContent(rawLatin);
         }
+      }
+
+      if (streamText && streamText.trim().length > 0) {
+        parts.push(streamText.trim());
+        // Collect up to 60KB of clean extracted text
+        if (parts.join('\n\n').length > 60000) break;
       }
     }
 
-    let result = parts.join('\n\n').trim();
+    let result = normalizeExtractedText(parts.join('\n\n'));
 
-    // If stream parsing extracted minimal text, fallback to readable ascii scanning
-    if (result.length < 50) {
+    // If stream parsing extracted minimal text, fallback to clean ascii/hex scanning
+    if (result.length < 60) {
+      const pdfSyntaxBlacklist = new Set([
+        'obj', 'endobj', 'stream', 'endstream', 'xref', 'trailer', 'startxref',
+        'catalog', 'pages', 'page', 'mediabox', 'resources', 'procset', 'font',
+        'xobject', 'subtype', 'image', 'filter', 'flatedecode', 'dctdecode',
+        'length', 'type', 'root', 'info', 'producer', 'creator', 'creationdate',
+        'moddate', 'author', 'title', 'subject', 'keywords', 'bpc', 'colorspace',
+        'devicergb', 'devicgray', 'devicecmyk', 'bitspercomponent', 'height', 'width'
+      ]);
       const words = [];
       const cleanLatin = latin.replace(/[^\x20-\x7E\r\n\t]/g, ' ');
       const tokens = cleanLatin.split(/\s+/);
       for (const w of tokens) {
-        if (w.length >= 3 && /^[a-zA-Z0-9.,;:()'"\/\-]+$/.test(w)) {
-          words.push(w);
+        // Decode potential UTF-16BE hex tokens (e.g. FEFF0043...)
+        if (/^(?:FEFF|feff|00)[0-9A-Fa-f]{6,}$/.test(w)) {
+          const dec = decodeHexPdfString(w);
+          if (dec && dec.length >= 3) {
+            words.push(dec);
+            continue;
+          }
+        }
+        const cleanW = w.replace(/^[\\\/()<>\[\]%#]+|[\\\/()<>\[\]%#]+$/g, '');
+        if ((cleanW.length >= 2 || /^\d+$/.test(cleanW)) && !pdfSyntaxBlacklist.has(cleanW.toLowerCase()) && /^[a-zA-Z0-9.,;:()'"\/\-]+$/.test(cleanW)) {
+          words.push(cleanW);
           if (words.length > 2500) break;
         }
       }
-      if (words.length > 20) {
-        result = words.join(' ');
+      if (words.length >= 2) {
+        result = normalizeExtractedText(words.join(' '));
       }
     }
 
-    return result.slice(0, 25000);
+    return result.slice(0, 50000);
   } catch (err) {
     logger?.warn?.(`extractTextFromPdf error: ${err.message}`);
     return '';
