@@ -172,15 +172,21 @@ const CaseTableRow = React.memo(({
   }, [c.laws, c.principleLaw]);
 
   const individualSections = useMemo(() => {
-    if (!Array.isArray(c.laws) || c.laws.length === 0) return [];
+    const rawList = Array.isArray(c.laws) && c.laws.length > 0
+      ? c.laws.map(l => l.section).filter(Boolean)
+      : (c.principleLaw ? [c.principleLaw] : []);
+
+    if (rawList.length === 0) return [];
     const seen = new Set();
     const result = [];
-    c.laws.forEach(l => {
-      if (!l?.section) return;
-      const parts = String(l.section)
-        .split(/[,;]+/)
-        .map(s => s.trim().replace(/^(?:sec(?:tion)?\.?\s*)/i, ''))
+
+    rawList.forEach(raw => {
+      if (!raw) return;
+      const parts = String(raw)
+        .split(/[,;\n\r]+/)
+        .map(s => s.trim().replace(/^(?:sec(?:tion)?\.?\s*)/i, '').trim())
         .filter(Boolean);
+
       parts.forEach(p => {
         const lower = p.toLowerCase();
         if (!seen.has(lower)) {
@@ -189,8 +195,9 @@ const CaseTableRow = React.memo(({
         }
       });
     });
+
     return result;
-  }, [c.laws]);
+  }, [c.laws, c.principleLaw]);
 
   const citations = useMemo(() => {
     return formatCitations(c.mapYearPage, c.publications);
@@ -207,13 +214,13 @@ const CaseTableRow = React.memo(({
 
   return (
     <tr className="hover:bg-blue-50/40 transition-colors">
-      <td className="px-2.5 py-3 text-gray-500 text-center font-semibold align-top text-[13px]">{i + 1}</td>
-      <td className="px-2.5 py-3 font-bold text-gray-900 whitespace-nowrap align-top text-[13px]">
+      <td className="px-2.5 py-3 text-gray-500 text-center font-semibold align-top text-[13px] w-[48px]">{i + 1}</td>
+      <td className="px-2.5 py-3 font-bold text-gray-900 whitespace-nowrap align-top text-[13px] w-[78px]">
         {c.sldNumber || '—'}
       </td>
 
       {/* Citation Column with Yellow Highlighting */}
-      <td className="px-2.5 py-3 whitespace-nowrap align-top">
+      <td className="px-2.5 py-3 whitespace-nowrap align-top w-[140px]">
         <div className="flex flex-col gap-1">
           {citations.map((cit, j) => (
             <span
@@ -226,14 +233,16 @@ const CaseTableRow = React.memo(({
         </div>
       </td>
 
-      {/* Court Column (Always displayed right after Citation) */}
-      <td className="px-2.5 py-3 text-gray-800 min-w-[140px] max-w-[190px] break-words font-semibold align-top text-[13px]">
-        <Highlight text={c.court || '—'} terms={searchTerms?.court} />
+      {/* Court Column */}
+      <td className="px-2.5 py-3 text-gray-800 align-top text-[13px] w-[170px]">
+        <div className="w-full overflow-hidden break-words font-semibold leading-snug">
+          <Highlight text={c.court || '—'} terms={searchTerms?.court} />
+        </div>
       </td>
 
       {/* Dated (Hidden in Text Search Mode) */}
       {!isTextSearchMode && (
-        <td className="px-2.5 py-3 whitespace-nowrap align-top text-center font-mono text-[13px] text-gray-800 font-medium">
+        <td className="px-2.5 py-3 whitespace-nowrap align-top text-center font-mono text-[13px] text-gray-800 font-medium w-[100px]">
           {c.dated || c.date ? String(c.dated || c.date).split('T')[0] : '—'}
         </td>
       )}
@@ -241,94 +250,106 @@ const CaseTableRow = React.memo(({
       {/* Dynamic Law & Compact Sections Columns */}
       {showLawColumns && (
         <>
-          <td className="px-2.5 py-3 text-gray-900 w-[180px] min-w-[160px] max-w-[220px] break-words align-top text-[13px]">
-            {statutesList.length > 0 ? (
-              <div className="space-y-1 font-semibold leading-snug">
-                {statutesList.slice(0, 3).map((st, sIdx) => (
+          <td className="px-2.5 py-3 text-gray-900 align-top text-[13px] w-[200px]">
+            <div className="w-full overflow-hidden break-words space-y-1 font-semibold leading-snug">
+              {statutesList.length > 0 ? (
+                statutesList.slice(0, 3).map((st, sIdx) => (
                   <div key={sIdx}>
                     <Highlight text={st} terms={searchTerms?.law} />
                   </div>
-                ))}
-              </div>
-            ) : '—'}
+                ))
+              ) : '—'}
+            </div>
           </td>
-          <td className="px-2.5 py-3 text-gray-800 w-[180px] min-w-[160px] max-w-[210px] align-top overflow-hidden">
-            {individualSections.length > 0 ? (
-              <div className="flex flex-wrap gap-1 max-h-[160px] overflow-y-auto pr-0.5">
-                {individualSections.slice(0, showAllSections ? undefined : 8).map((sec, secIdx) => (
-                  <span
-                    key={secIdx}
-                    className="bg-amber-100/90 text-amber-900 border border-amber-300/60 px-1.5 py-0.5 rounded text-[11px] font-bold leading-tight break-all inline-block shadow-2xs"
-                  >
-                    Sec <Highlight text={sec} terms={searchTerms?.section} />
-                  </span>
-                ))}
-                {!showAllSections && individualSections.length > 8 && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setShowAllSections(true); }}
-                    className="text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-200/80 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
-                  >
-                    +{individualSections.length - 8} more
-                  </button>
-                )}
-              </div>
-            ) : '—'}
+          <td className="px-2.5 py-3 text-gray-800 align-top w-[210px]">
+            <div className="w-full overflow-hidden">
+              {individualSections.length > 0 ? (
+                <div className="flex flex-wrap gap-1 max-h-[160px] overflow-y-auto pr-0.5 scrollbar-thin">
+                  {individualSections.slice(0, showAllSections ? undefined : 8).map((sec, secIdx) => (
+                    <span
+                      key={secIdx}
+                      className="bg-amber-100 text-amber-900 border border-amber-300/80 px-1.5 py-0.5 rounded text-[11px] font-bold leading-tight break-all max-w-full inline-block shadow-2xs"
+                    >
+                      Sec <Highlight text={sec} terms={searchTerms?.section} />
+                    </span>
+                  ))}
+                  {!showAllSections && individualSections.length > 8 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setShowAllSections(true); }}
+                      className="text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-200/80 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                    >
+                      +{individualSections.length - 8} more
+                    </button>
+                  )}
+                </div>
+              ) : '—'}
+            </div>
           </td>
         </>
       )}
 
       {/* Dynamic Judges Column */}
       {showJudgeColumn && (
-        <td className="px-2.5 py-3 text-gray-800 max-w-[155px] break-words font-semibold align-top text-[13px]">
-          {Array.isArray(c.judges) && c.judges.length > 0 ? (
-            <Highlight text={c.judges.join('; ')} terms={searchTerms?.judge} />
-          ) : '—'}
+        <td className="px-2.5 py-3 text-gray-800 align-top text-[13px] w-[160px]">
+          <div className="w-full overflow-hidden break-words font-semibold">
+            {Array.isArray(c.judges) && c.judges.length > 0 ? (
+              <Highlight text={c.judges.join('; ')} terms={searchTerms?.judge} />
+            ) : '—'}
+          </div>
         </td>
       )}
 
       {/* Dynamic Lawyers Column */}
       {showLawyerColumn && (
-        <td className="px-2.5 py-3 text-gray-800 max-w-[155px] break-words font-semibold align-top text-[13px]">
-          {Array.isArray(c.lawyers) && c.lawyers.length > 0 ? (
-            <Highlight text={c.lawyers.join('; ')} terms={searchTerms?.lawyer} />
-          ) : '—'}
+        <td className="px-2.5 py-3 text-gray-800 align-top text-[13px] w-[160px]">
+          <div className="w-full overflow-hidden break-words font-semibold">
+            {Array.isArray(c.lawyers) && c.lawyers.length > 0 ? (
+              <Highlight text={c.lawyers.join('; ')} terms={searchTerms?.lawyer} />
+            ) : '—'}
+          </div>
         </td>
       )}
 
       {/* Dynamic Petitioner Column */}
       {showPetitionerColumn && (
-        <td className="px-2.5 py-3 text-gray-800 max-w-[155px] break-words font-semibold align-top text-[13px]">
-          {Array.isArray(c.petitioners) && c.petitioners.length > 0 ? (
-            <Highlight text={c.petitioners.join('; ')} terms={searchTerms?.petitioner} />
-          ) : '—'}
+        <td className="px-2.5 py-3 text-gray-800 align-top text-[13px] w-[160px]">
+          <div className="w-full overflow-hidden break-words font-semibold">
+            {Array.isArray(c.petitioners) && c.petitioners.length > 0 ? (
+              <Highlight text={c.petitioners.join('; ')} terms={searchTerms?.petitioner} />
+            ) : '—'}
+          </div>
         </td>
       )}
 
       {isTextSearchMode ? (
         /* Text / Phrase Search Mode: Show ONLY Head Notes instead of Dated, Court, Case No., Lawyer/Petitioner/Author */
-        <td className="px-3 py-3 text-gray-800 break-words align-top leading-relaxed text-[13px] sm:text-sm">
-          {headNoteDisplay ? (
-            <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5">
-              <Highlight text={headNoteDisplay} terms={searchTerms?.headNote} />
-            </div>
-          ) : (
-            <span className="text-gray-400 italic">No headnote available</span>
-          )}
+        <td className="px-3 py-3 text-gray-800 break-words align-top leading-relaxed text-[13px] sm:text-sm w-[650px]">
+          <div className="w-full overflow-hidden">
+            {headNoteDisplay ? (
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5">
+                <Highlight text={headNoteDisplay} terms={searchTerms?.headNote} />
+              </div>
+            ) : (
+              <span className="text-gray-400 italic">No headnote available</span>
+            )}
+          </div>
         </td>
       ) : (
         <>
           {/* Case No */}
-          <td className="px-2.5 py-3 text-gray-800 w-[220px] min-w-[190px] max-w-[260px] break-words font-medium align-top leading-relaxed text-[13px]">
-            <Highlight
-              text={caseNumStr}
-              terms={searchTerms?.caseNumber}
-            />
+          <td className="px-2.5 py-3 text-gray-800 align-top text-[13px] w-[240px]">
+            <div className="w-full overflow-hidden break-words font-medium leading-relaxed">
+              <Highlight
+                text={caseNumStr}
+                terms={searchTerms?.caseNumber}
+              />
+            </div>
           </td>
 
           {/* Lawyer / Petitioner / Author Information */}
-          <td className="px-2.5 py-3 text-gray-800 max-w-[330px] break-words align-top">
-            <div className="space-y-2 text-[13px]">
+          <td className="px-2.5 py-3 text-gray-800 align-top w-[310px]">
+            <div className="w-full overflow-hidden break-words space-y-2 text-[13px]">
               {/* Petitioner / Parties */}
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/70 inline-block mb-0.5">
@@ -1147,44 +1168,44 @@ const SearchCaseLawPage = () => {
             </div>
           ) : (
             <>
-              <div className="w-full overflow-x-auto">
-                <table className="w-full min-w-[1380px] text-[13px] sm:text-sm text-left divide-y divide-gray-200">
+              <div className="w-full overflow-x-auto rounded-lg border border-gray-200 shadow-xs">
+                <table className="w-full min-w-[1550px] table-fixed text-[13px] sm:text-sm text-left divide-y divide-gray-200">
                   <thead>
                     <tr className="bg-[#3d4a7a] text-white select-none text-[13px]">
-                      <th className="px-2.5 py-3 font-bold w-11 text-center">#</th>
-                      <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[72px]">SLD #</th>
-                      <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[135px]">Citation</th>
-                      <th className="px-2.5 py-3 font-bold min-w-[140px] max-w-[190px]">Court</th>
+                      <th className="px-2.5 py-3 font-bold w-[48px] text-center">#</th>
+                      <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[78px]">SLD #</th>
+                      <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[140px]">Citation</th>
+                      <th className="px-2.5 py-3 font-bold w-[170px]">Court</th>
                       {!hasTextSearch && (
-                        <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[95px] text-center">Dated</th>
+                        <th className="px-2.5 py-3 font-bold whitespace-nowrap w-[100px] text-center">Dated</th>
                       )}
 
                       {/* Dynamic Columns based on queried fields */}
                       {showLawColumns && (
                         <>
-                          <th className="px-2.5 py-3 font-bold w-[180px] min-w-[160px] max-w-[220px]">Law</th>
-                          <th className="px-2.5 py-3 font-bold w-[180px] min-w-[160px] max-w-[210px]">Sections</th>
+                          <th className="px-2.5 py-3 font-bold w-[200px]">Law</th>
+                          <th className="px-2.5 py-3 font-bold w-[210px]">Sections</th>
                         </>
                       )}
 
                       {showJudgeColumn && (
-                        <th className="px-2.5 py-3 font-bold max-w-[155px]">Judges</th>
+                        <th className="px-2.5 py-3 font-bold w-[160px]">Judges</th>
                       )}
 
                       {showLawyerColumn && (
-                        <th className="px-2.5 py-3 font-bold max-w-[155px]">Lawyers</th>
+                        <th className="px-2.5 py-3 font-bold w-[160px]">Lawyers</th>
                       )}
 
                       {showPetitionerColumn && (
-                        <th className="px-2.5 py-3 font-bold max-w-[155px]">Petitioner</th>
+                        <th className="px-2.5 py-3 font-bold w-[160px]">Petitioner</th>
                       )}
 
                       {hasTextSearch ? (
-                        <th className="px-3 py-3 font-bold">Head Notes</th>
+                        <th className="px-3 py-3 font-bold w-[650px]">Head Notes</th>
                       ) : (
                         <>
-                          <th className="px-2.5 py-3 font-bold w-[220px] min-w-[190px] max-w-[260px]">Case No.</th>
-                          <th className="px-2.5 py-3 font-bold max-w-[330px]">Lawyer / Petitioner / Author</th>
+                          <th className="px-2.5 py-3 font-bold w-[240px]">Case No.</th>
+                          <th className="px-2.5 py-3 font-bold w-[310px]">Lawyer / Petitioner / Author</th>
                         </>
                       )}
                       <th className="px-2.5 py-3 font-bold w-[85px] text-center">Action</th>
