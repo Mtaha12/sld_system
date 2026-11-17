@@ -55,7 +55,7 @@ const Highlight = React.memo(({ text, terms = [] }) => {
       const rawVal = typeof item === 'object' && item.value !== undefined ? item.value : item;
       const isPhrase = typeof item === 'object' && item.isPhrase === true;
       const clean = String(rawVal).replace(/["'“”]/g, '').trim();
-      if (!clean || clean.length < 2) return;
+      if (!clean || (clean.length < 2 && !/^\d+$/.test(clean))) return;
       list.push({ clean, isPhrase });
     });
     return list;
@@ -163,16 +163,33 @@ const CaseTableRow = React.memo(({
   showPetitionerColumn,
   isTextSearchMode
 }) => {
+  const [showAllSections, setShowAllSections] = useState(false);
+
   const statutesList = useMemo(() => {
     return Array.isArray(c.laws) && c.laws.length > 0
       ? c.laws.map(l => l.lawStatute).filter(Boolean)
       : (c.principleLaw ? [c.principleLaw] : []);
   }, [c.laws, c.principleLaw]);
 
-  const sectionsList = useMemo(() => {
-    return Array.isArray(c.laws) && c.laws.length > 0
-      ? c.laws.map(l => l.section).filter(Boolean)
-      : [];
+  const individualSections = useMemo(() => {
+    if (!Array.isArray(c.laws) || c.laws.length === 0) return [];
+    const seen = new Set();
+    const result = [];
+    c.laws.forEach(l => {
+      if (!l?.section) return;
+      const parts = String(l.section)
+        .split(/[,;]+/)
+        .map(s => s.trim().replace(/^(?:sec(?:tion)?\.?\s*)/i, ''))
+        .filter(Boolean);
+      parts.forEach(p => {
+        const lower = p.toLowerCase();
+        if (!seen.has(lower)) {
+          seen.add(lower);
+          result.push(p);
+        }
+      });
+    });
+    return result;
   }, [c.laws]);
 
   const citations = useMemo(() => {
@@ -224,7 +241,7 @@ const CaseTableRow = React.memo(({
       {/* Dynamic Law & Compact Sections Columns */}
       {showLawColumns && (
         <>
-          <td className="px-2.5 py-3 text-gray-900 max-w-[170px] break-words align-top text-[13px]">
+          <td className="px-2.5 py-3 text-gray-900 w-[180px] min-w-[160px] max-w-[220px] break-words align-top text-[13px]">
             {statutesList.length > 0 ? (
               <div className="space-y-1 font-semibold leading-snug">
                 {statutesList.slice(0, 3).map((st, sIdx) => (
@@ -235,14 +252,26 @@ const CaseTableRow = React.memo(({
               </div>
             ) : '—'}
           </td>
-          <td className="px-2 py-3 text-gray-800 w-[135px] max-w-[145px] whitespace-normal align-top">
-            {sectionsList.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                {sectionsList.map((sec, secIdx) => (
-                  <span key={secIdx} className="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[11px] font-bold leading-tight">
+          <td className="px-2.5 py-3 text-gray-800 w-[180px] min-w-[160px] max-w-[210px] align-top overflow-hidden">
+            {individualSections.length > 0 ? (
+              <div className="flex flex-wrap gap-1 max-h-[160px] overflow-y-auto pr-0.5">
+                {individualSections.slice(0, showAllSections ? undefined : 8).map((sec, secIdx) => (
+                  <span
+                    key={secIdx}
+                    className="bg-amber-100/90 text-amber-900 border border-amber-300/60 px-1.5 py-0.5 rounded text-[11px] font-bold leading-tight break-all inline-block shadow-2xs"
+                  >
                     Sec <Highlight text={sec} terms={searchTerms?.section} />
                   </span>
                 ))}
+                {!showAllSections && individualSections.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShowAllSections(true); }}
+                    className="text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-200/80 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                  >
+                    +{individualSections.length - 8} more
+                  </button>
+                )}
               </div>
             ) : '—'}
           </td>
@@ -290,7 +319,7 @@ const CaseTableRow = React.memo(({
       ) : (
         <>
           {/* Case No */}
-          <td className="px-2.5 py-3 text-gray-800 max-w-[205px] break-words font-medium align-top leading-relaxed text-[13px]">
+          <td className="px-2.5 py-3 text-gray-800 w-[220px] min-w-[190px] max-w-[260px] break-words font-medium align-top leading-relaxed text-[13px]">
             <Highlight
               text={caseNumStr}
               terms={searchTerms?.caseNumber}
@@ -1119,7 +1148,7 @@ const SearchCaseLawPage = () => {
           ) : (
             <>
               <div className="w-full overflow-x-auto">
-                <table className="w-full text-[13px] sm:text-sm text-left divide-y divide-gray-200">
+                <table className="w-full min-w-[1380px] text-[13px] sm:text-sm text-left divide-y divide-gray-200">
                   <thead>
                     <tr className="bg-[#3d4a7a] text-white select-none text-[13px]">
                       <th className="px-2.5 py-3 font-bold w-11 text-center">#</th>
@@ -1133,8 +1162,8 @@ const SearchCaseLawPage = () => {
                       {/* Dynamic Columns based on queried fields */}
                       {showLawColumns && (
                         <>
-                          <th className="px-2.5 py-3 font-bold max-w-[170px]">Law</th>
-                          <th className="px-2 py-3 font-bold w-[135px] max-w-[145px]">Sections</th>
+                          <th className="px-2.5 py-3 font-bold w-[180px] min-w-[160px] max-w-[220px]">Law</th>
+                          <th className="px-2.5 py-3 font-bold w-[180px] min-w-[160px] max-w-[210px]">Sections</th>
                         </>
                       )}
 
@@ -1154,7 +1183,7 @@ const SearchCaseLawPage = () => {
                         <th className="px-3 py-3 font-bold">Head Notes</th>
                       ) : (
                         <>
-                          <th className="px-2.5 py-3 font-bold max-w-[205px]">Case No.</th>
+                          <th className="px-2.5 py-3 font-bold w-[220px] min-w-[190px] max-w-[260px]">Case No.</th>
                           <th className="px-2.5 py-3 font-bold max-w-[330px]">Lawyer / Petitioner / Author</th>
                         </>
                       )}

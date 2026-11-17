@@ -23,6 +23,18 @@ const escapeRegex = (string) => {
   return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
+export const buildSectionExactRegex = (needle) => {
+  let clean = String(needle || '').trim();
+  clean = clean.replace(/^(?:sec(?:tion)?\.?\s*)/i, '').trim();
+  if (!clean) return null;
+
+  const escaped = escapeRegex(clean);
+  if (clean.includes('(')) {
+    return new RegExp(`(?:^|[,;\\s/]|(?:sec(?:tion)?\\.?\\s*))${escaped}(?=[,;\\s/]|$)`, 'i');
+  }
+  return new RegExp(`(?:^|[,;\\s/]|(?:sec(?:tion)?\\.?\\s*))${escaped}(?:\\([^)]+\\))*(?=[,;\\s/]|$)`, 'i');
+};
+
 export const parseLegalCitation = (text) => {
   if (!text) return null;
   const clean = String(text).trim().replace(/^["'“‘]+|["'”’]+$/g, '').trim();
@@ -2025,16 +2037,76 @@ export const searchCases = async (req, res, next) => {
       }
     }
 
-    if (lawQuery) {
-      const resLaw = applyDualFieldLookup(
-        lawQuery,
-        'principleLaw', lookup?.principleLaws,
-        'laws.lawStatute', lookup?.lawStatutes
-      );
-      if (resLaw.empty) shortCircuitEmpty = true;
-      else if (resLaw.condition) {
-        andConditions.push(resLaw.condition);
-        resolvedLawFieldOnly = Boolean(resLaw.primaryOnly);
+    const hasLaw = Boolean(lawQuery && String(lawQuery).trim());
+    const hasSec1 = Boolean(filters.section && String(filters.section).trim());
+    const hasSec2 = Boolean(filters.section2 && String(filters.section2).trim());
+
+    if (hasLaw && hasSec1) {
+      const cleanLaw = String(lawQuery).trim();
+      const lawHits = lookup ? matchLookupEntries(lookup.lawStatutes, cleanLaw, { exactOnly: false }) : null;
+      const lawMatcher = (lawHits !== null && lawHits.length > 0)
+        ? (lawHits.length === 1 ? lawHits[0] : { $in: lawHits })
+        : { $regex: escapeRegex(cleanLaw), $options: 'i' };
+
+      const secRx = buildSectionExactRegex(filters.section);
+      if (secRx) {
+        andConditions.push({
+          $or: [
+            {
+              laws: {
+                $elemMatch: {
+                  lawStatute: lawMatcher,
+                  section: secRx
+                }
+              }
+            },
+            {
+              $and: [
+                { principleLaw: lawMatcher },
+                { principleLaw: secRx }
+              ]
+            }
+          ]
+        });
+        resolvedLawFieldOnly = true;
+        resolvedSectionFieldOnly = true;
+      }
+    } else if (hasLaw) {
+      const cleanLaw = String(lawQuery).trim();
+      const lawHits = lookup ? matchLookupEntries(lookup.lawStatutes, cleanLaw, { exactOnly: false }) : null;
+      const lawMatcher = (lawHits !== null && lawHits.length > 0)
+        ? (lawHits.length === 1 ? lawHits[0] : { $in: lawHits })
+        : { $regex: escapeRegex(cleanLaw), $options: 'i' };
+
+      andConditions.push({
+        $or: [
+          { 'laws.lawStatute': lawMatcher },
+          { principleLaw: lawMatcher }
+        ]
+      });
+      resolvedLawFieldOnly = true;
+    } else if (hasSec1 && !shortCircuitEmpty) {
+      const secRx = buildSectionExactRegex(filters.section);
+      if (secRx) {
+        andConditions.push({
+          $or: [
+            { 'laws.section': secRx },
+            { principleLaw: secRx }
+          ]
+        });
+        resolvedSectionFieldOnly = true;
+      }
+    }
+
+    if (hasSec2 && !shortCircuitEmpty) {
+      const sec2Rx = buildSectionExactRegex(filters.section2);
+      if (sec2Rx) {
+        andConditions.push({
+          $or: [
+            { 'laws.section': sec2Rx },
+            { principleLaw: sec2Rx }
+          ]
+        });
       }
     }
 
@@ -2071,31 +2143,6 @@ export const searchCases = async (req, res, next) => {
             { mapYearPage: { $regex: escapeRegex(yr), $options: 'i' } }
           ]
         });
-      }
-    }
-
-    if (filters.section && !shortCircuitEmpty) {
-      const resSec = applyDualFieldLookup(
-        filters.section,
-        'principleLaw', lookup?.principleLaws,
-        'laws.section', lookup?.sections
-      );
-      if (resSec.empty) shortCircuitEmpty = true;
-      else if (resSec.condition) {
-        andConditions.push(resSec.condition);
-        resolvedSectionFieldOnly = Boolean(resSec.primaryOnly);
-      }
-    }
-
-    if (filters.section2 && !shortCircuitEmpty) {
-      const resSec2 = applyDualFieldLookup(
-        filters.section2,
-        'principleLaw', lookup?.principleLaws,
-        'laws.section', lookup?.sections
-      );
-      if (resSec2.empty) shortCircuitEmpty = true;
-      else if (resSec2.condition) {
-        andConditions.push(resSec2.condition);
       }
     }
 
@@ -2403,30 +2450,49 @@ export const searchCases = async (req, res, next) => {
       });
     }
 
-    if ((filters.selectLaw || filters.law) && cases.length > 0) {
+    if ((filters.selectLaw || filters.law) && filters.section && cases.length > 0) {
       const targetLaw = String(filters.selectLaw || filters.law).trim().toLowerCase();
+      const secRx = buildSectionExactRegex(filters.section);
       cases = cases.filter(c => {
         const pLaw = String(c.principleLaw || '').toLowerCase();
-        const inLaws = Array.isArray(c.laws) && c.laws.some(l => String(l.lawStatute || '').toLowerCase().includes(targetLaw));
-        return pLaw.includes(targetLaw) || inLaws;
+        const matchesPrinciple = pLaw.includes(targetLaw) && (secRx ? secRx.test(pLaw) : false);
+        const matchesLaws = Array.isArray(c.laws) && c.laws.some(l => {
+          const statuteStr = String(l.lawStatute || '').toLowerCase();
+          const matchesStatute = statuteStr.includes(targetLaw) || targetLaw.includes(statuteStr);
+          const matchesSec = secRx ? secRx.test(String(l.section || '').trim()) : false;
+          return matchesStatute && matchesSec;
+        });
+        return matchesPrinciple || matchesLaws;
       });
-    }
+    } else {
+      if ((filters.selectLaw || filters.law) && cases.length > 0) {
+        const targetLaw = String(filters.selectLaw || filters.law).trim().toLowerCase();
+        cases = cases.filter(c => {
+          const pLaw = String(c.principleLaw || '').toLowerCase();
+          const inLaws = Array.isArray(c.laws) && c.laws.some(l => {
+            const statuteStr = String(l.lawStatute || '').toLowerCase();
+            return statuteStr.includes(targetLaw) || targetLaw.includes(statuteStr);
+          });
+          return pLaw.includes(targetLaw) || inLaws;
+        });
+      }
 
-    if (filters.section && cases.length > 0) {
-      const targetSec = String(filters.section).trim().toLowerCase();
-      cases = cases.filter(c => {
-        const pLaw = String(c.principleLaw || '').toLowerCase();
-        const inSecs = Array.isArray(c.laws) && c.laws.some(l => String(l.section || '').toLowerCase().includes(targetSec));
-        return pLaw.includes(targetSec) || inSecs;
-      });
+      if (filters.section && cases.length > 0) {
+        const secRx = buildSectionExactRegex(filters.section);
+        cases = cases.filter(c => {
+          const pLaw = String(c.principleLaw || '');
+          const inSecs = Array.isArray(c.laws) && c.laws.some(l => secRx ? secRx.test(String(l.section || '').trim()) : false);
+          return (secRx ? secRx.test(pLaw) : false) || inSecs;
+        });
+      }
     }
 
     if (filters.section2 && cases.length > 0) {
-      const targetSec2 = String(filters.section2).trim().toLowerCase();
+      const sec2Rx = buildSectionExactRegex(filters.section2);
       cases = cases.filter(c => {
-        const pLaw = String(c.principleLaw || '').toLowerCase();
-        const inSecs = Array.isArray(c.laws) && c.laws.some(l => String(l.section || '').toLowerCase().includes(targetSec2));
-        return pLaw.includes(targetSec2) || inSecs;
+        const pLaw = String(c.principleLaw || '');
+        const inSecs = Array.isArray(c.laws) && c.laws.some(l => sec2Rx ? sec2Rx.test(String(l.section || '').trim()) : false);
+        return (sec2Rx ? sec2Rx.test(pLaw) : false) || inSecs;
       });
     }
 
