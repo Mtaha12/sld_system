@@ -196,6 +196,46 @@ export const checkIsLegalDraftingRequest = (text, attachments = []) => {
 };
 
 /**
+ * Normalizes legal pleading text formatting, typography, line spacing,
+ * paragraph spacing, and strips printer/OCR scanning artifacts.
+ */
+export const normalizeLegalPleadingFormatting = (rawText) => {
+  if (!rawText) return '';
+  let s = String(rawText);
+
+  // 1. Purge OCR scan headers/footers, date stamps, and pagination
+  s = s.replace(/\bPrinted\s+on\s+\d+\s+Page\s+\d+\s+of\s+\d+\b/gi, '');
+  s = s.replace(/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s*\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+[\d:]+\b/gi, '');
+  s = s.replace(/\b(?:RTO|LTO|MTO)\s+[A-Z\s]+,\s*TAX\s+HOUSE[^\r\n]*/gi, '');
+  s = s.replace(/\bBANK\s+ACCOUNT\s+NO\s+CREDIT\s+ENTRIES\b/gi, '');
+  s = s.replace(/\bPage\s+\d+\s+of\s+\d+\b/gi, '');
+
+  // 2. Break embedded sub-items stuck in a single line (e.g. " (b) DG PDA (c) DG DHA" -> "\n\n(b) DG PDA\n\n(c) DG DHA")
+  s = s.replace(/([^\n])\s+(\([a-z\d]+\))\s+/gi, '$1\n\n$2 ');
+
+  // 3. Break embedded numbered points (e.g. " 1. In the wealth ... 2. In the wealth ...")
+  s = s.replace(/([^\n])\s+(\b[1-9]\d?\.)\s+/g, '$1\n\n$2 ');
+
+  // 4. Break embedded SUBJECT: or SHOW CAUSE lines into bold headings
+  s = s.replace(/([^\n])\s+(SUBJECT:\s*[^\n.]+)\.?/gi, '$1\n\n**$2**\n\n');
+
+  // 5. Ensure Cause Title elements have proper spacing
+  s = s.replace(/([^\n])\s+(VERSUS|VS\.?|V\/S)\s+([^\n])/gi, '$1\n\n$2\n\n$3');
+  s = s.replace(/([^\n])\s+(\*?\(?Appellant\)?\*?)/gi, '$1\n\n$2');
+  s = s.replace(/([^\n])\s+(\*?\(?Respondent\)?\*?)/gi, '$1\n\n$2');
+
+  // 6. Ensure Markdown headings (###) have clean double newlines before and after
+  s = s.replace(/([^\n])\n(#{1,4}\s+[^\n]+)/g, '$1\n\n$2');
+  s = s.replace(/(#{1,4}\s+[^\n]+)\n([^\n#])/g, '$1\n\n$2');
+
+  // 7. Ensure clean paragraph breaks and collapse runaway empty lines (> 2 newlines)
+  s = s.replace(/\r\n/g, '\n');
+  s = s.replace(/\n{3,}/g, '\n\n').trim();
+
+  return s;
+};
+
+/**
  * Converts a legal markdown pleading into an executive, registry-compliant
  * Microsoft Word (.doc) HTML document with standard legal margins:
  * - 1.25" Left binding margin, 1.0" Right/Top/Bottom margins
@@ -1485,16 +1525,23 @@ STRICT RULES:
 2. NEVER invent fake citations or imaginary facts. Strictly ground the document in the provided details.
 3. STRICT SINGLE-FORMAT RULE — Generate ONLY the requested format below. NEVER combine multiple formats or generate alternative templates:
    ${formatSpecifications[formatType] || formatSpecifications[1]}
-4. PRESENTATION & TYPOGRAPHY:
-   - Format all tables using Markdown pipe syntax.
-   - Use clean Markdown headers.
-   - DO NOT output conversational chatter ("Sure, here is your draft..."). Begin immediately with the official document heading.
+4. PRESENTATION, PARAGRAPH FORMATTING & LINE SPACING:
+   - PARAGRAPH SEPARATION: Separate EVERY paragraph, ground, and section with explicit double newlines (\n\n). Never output long, clumped walls of text.
+   - NUMBERED ITEMS: Each ground (1 to 14) and factual statement (1 to 8) MUST be its own separate block with double newlines between items.
+   - SUB-ITEMS: Sub-clauses (such as (a), (b), (c) or 1., 2., 3.) MUST be placed on new lines with clear indentation.
+   - CITING NOTICES & IDRs: When referencing prior notices, IDRs, or SCNs from attachments, NEVER copy raw unformatted text or OCR artifacts verbatim. Summarize them into structured, indented bullet points or blockquotes.
+   - STRIP SCAN/OCR ARTIFACTS: NEVER include printer/scanner watermarks, header/footer text, dates, or pagination (e.g. "Printed on 6 Page 2 of", "RTO Peshawar Tax House", timestamps).
+   - Format all tables using Markdown pipe syntax with headers and dividers.
+   - Begin immediately with the official Executive Examination and Court Heading.
 Target Format: ${formatTitles[formatType] || 'Legal Pleading'}`;
 
-    const userPrompt = `Generate ONLY the single complete statutory legal document for ${formatTitles[formatType] || 'Pleading'} using the following facts and context:
+    const userPrompt = `Generate ONLY the complete, beautifully formatted statutory legal document for ${formatTitles[formatType] || 'Pleading'} using the following facts and context:
 ${facts.combinedText}
 
-Make sure all blanks that have matching facts are accurately filled in.`;
+CRITICAL FORMATTING MANDATES:
+- Ensure generous paragraph spacing with double newlines (\\n\\n) between every paragraph and numbered point.
+- Ensure the Memorandum of Appeal includes the Cause Title, Chronological Facts (1-8), Grounds of Appeal (1-14), Prayer (a-h), Verification, Key Particulars Table, Procedural Requirements, and Missing Details Checklist.
+- Purge any scan artifacts (such as "Printed on", page numbers, timestamps, or raw office addresses).`;
 
     const primaryAttachment = attachments?.[0];
     const originalFileName = primaryAttachment?.name || `${(facts.petitioner || 'Legal_Pleading').replace(/[^a-zA-Z0-9]/g, '_')}.doc`;
@@ -1503,13 +1550,14 @@ Make sure all blanks that have matching facts are accurately filled in.`;
 
     const generated = await callGeminiWithTokenControl(systemInstruction, userPrompt, inlineParts);
     if (generated && generated.length > 250) {
+      const cleanDoc = normalizeLegalPleadingFormatting(generated);
       return {
-        text: generated,
+        text: cleanDoc,
         formatType,
         facts,
         downloadDoc: {
           fileName: downloadFileName,
-          content: formatLegalDocAsWordHtml(generated, originalFileName)
+          content: formatLegalDocAsWordHtml(cleanDoc, originalFileName)
         }
       };
     }
@@ -1537,13 +1585,15 @@ Make sure all blanks that have matching facts are accurately filled in.`;
     default: deterministicText = generateFormat1WritPetition(facts); break;
   }
 
+  const cleanDeterministic = normalizeLegalPleadingFormatting(deterministicText);
+
   return {
-    text: deterministicText,
+    text: cleanDeterministic,
     formatType,
     facts,
     downloadDoc: {
       fileName: downloadFileName,
-      content: formatLegalDocAsWordHtml(deterministicText, originalFileName)
+      content: formatLegalDocAsWordHtml(cleanDeterministic, originalFileName)
     }
   };
 };

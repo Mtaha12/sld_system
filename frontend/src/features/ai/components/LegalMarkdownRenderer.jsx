@@ -83,7 +83,7 @@ const isTableSeparator = (line) => {
 };
 
 // Words that are party titles or advocate signatures — NEVER treat as section headings
-const NON_HEADING_WORDS = /^(?:PETITIONER|PETITIONERS|APPLICANT|APPLICANTS|APPELLANT|APPELLANTS|RESPONDENT|RESPONDENTS|DEFENDANT|PLAINTIFF|DEPONENT|THROUGH|THROUGH\s+COUNSEL|THROUGH:|ADVOCATE|ADVOCATE\s+HIGH\s+COURT|ADVOCATE\s+SUPREME\s+COURT|ADVOCATES)$/i;
+const NON_HEADING_WORDS = /^(?:PETITIONER|PETITIONERS|APPLICANT|APPLICANTS|APPELLANT|APPELLANTS|RESPONDENT|RESPONDENTS|DEFENDANT|PLAINTIFF|DEPONENT|THROUGH|THROUGH\s+COUNSEL|THROUGH:|ADVOCATE|ADVOCATE\s+HIGH\s+COURT|ADVOCATE\s+SUPREME\s+COURT|ADVOCATES|IN\s+THE\s+MATTER\s+OF|IN\s+THE\s+MATTER\s+OF:)$/i;
 
 /**
  * Determines whether a line represents a formal legal section heading
@@ -110,7 +110,7 @@ const detectLegalHeading = (trimmed) => {
   }
 
   // Known legal pleading sections in Pakistani Courts
-  const legalSectionRegex = /^(?:INDEX|INDEX\s+OF\s+DOCUMENTS|LIST\s+OF\s+ANNEXURES|LIST\s+OF\s+ENCLOSURES|WRIT\s+PETITION|PETITION\s+UNDER\s+ARTICLE\s+199|PETITION\s+UNDER\s+SECTION\s+151|APPLICATION\s+FOR\s+STAY|C\.?M\.?\s+STAY|APPLICATION\s+FOR\s+EXEMPTION|C\.?M\.?\s+EXEMPTION|GROUNDS|GROUNDS\s+OF\s+APPEAL|GROUNDS\s+FOR\s+RELIEF|PRAYER|PRAYERS|RELIEF\s+CLAIMED|CERTIFICATE|AFFIDAVIT|VERIFICATION|VAKALAT\s*NAMA|POWER\s+OF\s+ATTORNEY|FORM\s*[“"']?B[”"']?|FORM\s+IT\s*-\s*16|FORM\s+OF\s+APPEAL|TAX\s+ASSESSED|TAX\s+ASSESSED\s+BREAKDOWN|STATEMENT\s+OF\s+FACTS|RELIEF\s+SOUGHT|BEFORE\s+THE\s+HON(?:'?BLE|\.))\b/i;
+  const legalSectionRegex = /^(?:INDEX|INDEX\s+OF\s+DOCUMENTS|LIST\s+OF\s+ANNEXURES|LIST\s+OF\s+ENCLOSURES|WRIT\s+PETITION|PETITION\s+UNDER\s+ARTICLE\s+199|PETITION\s+UNDER\s+SECTION\s+151|APPLICATION\s+FOR\s+STAY|C\.?M\.?\s+STAY|APPLICATION\s+FOR\s+EXEMPTION|C\.?M\.?\s+EXEMPTION|GROUNDS|GROUNDS\s+OF\s+APPEAL|GROUNDS\s+FOR\s+RELIEF|PRAYER|PRAYERS|RELIEF\s+CLAIMED|CERTIFICATE|AFFIDAVIT|VERIFICATION|VAKALAT\s*NAMA|POWER\s+OF\s+ATTORNEY|FORM\s*[“"']?B[”"']?|FORM\s+IT\s*-\s*16|FORM\s+OF\s+APPEAL|TAX\s+ASSESSED|TAX\s+ASSESSED\s+BREAKDOWN|STATEMENT\s+OF\s+FACTS|RELIEF\s+SOUGHT|BEFORE\s+THE\s+HON(?:'?BLE|\.)|BEFORE\s+THE\s+COMMISSIONER)\b/i;
 
   if (legalSectionRegex.test(clean) && clean.length < 90) {
     return { isHeading: true, text: clean, level: 2 };
@@ -134,7 +134,25 @@ const isSignatureTrigger = (trimmed) => {
  */
 const parseContentToBlocks = (rawText) => {
   if (!rawText) return [];
-  const lines = rawText.split('\n');
+
+  // 1. Purge OCR scan headers/footers, date stamps, and pagination
+  let cleanText = String(rawText)
+    .replace(/\bPrinted\s+on\s+\d+\s+Page\s+\d+\s+of\s+\d+\b/gi, '')
+    .replace(/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s*\d{1,2}\s+[A-Za-z]+\s+\d{4}\s+[\d:]+\b/gi, '')
+    .replace(/\b(?:RTO|LTO|MTO)\s+[A-Z\s]+,\s*TAX\s+HOUSE[^\r\n]*/gi, '')
+    .replace(/\bBANK\s+ACCOUNT\s+NO\s+CREDIT\s+ENTRIES\b/gi, '')
+    .replace(/\bPage\s+\d+\s+of\s+\d+\b/gi, '');
+
+  // 2. Break embedded sub-items stuck in a single line (e.g. " (b) DG PDA (c) DG DHA" -> "\n\n(b) DG PDA\n\n(c) DG DHA")
+  cleanText = cleanText.replace(/([^\n])\s+(\([a-z\d]+\))\s+/gi, '$1\n\n$2 ');
+
+  // 3. Break embedded numbered points (e.g. " 1. In the wealth ... 2. In the wealth ...")
+  cleanText = cleanText.replace(/([^\n])\s+(\b[1-9]\d?\.)\s+/g, '$1\n\n$2 ');
+
+  // 4. Break embedded SUBJECT: or SHOW CAUSE lines into bold headings
+  cleanText = cleanText.replace(/([^\n])\s+(SUBJECT:\s*[^\n.]+)\.?/gi, '$1\n\n**$2**\n\n');
+
+  const lines = cleanText.split(/\r?\n/);
   const blocks = [];
   let i = 0;
 
@@ -177,6 +195,39 @@ const parseContentToBlocks = (rawText) => {
         blocks.push({ type: 'divider' });
       }
       i++;
+      continue;
+    }
+
+    // 2.5 Cause Title Block: IN THE MATTER OF: ... VERSUS ...
+    const isMatterTrigger = /^(?:IN\s+THE\s+MATTER\s+OF\s*:?|CAUSE\s+TITLE\s*:?)$/i.test(trimmed.replace(/[#*_]/g, '').trim());
+    if (isMatterTrigger) {
+      i++;
+      const appellantLines = [];
+      while (i < lines.length && !/^(?:VS\.?|VERSUS|V\/S)$/i.test(lines[i].replace(/[#*_]/g, '').trim())) {
+        const cur = lines[i].trim();
+        if (cur && !/^(?:---|\*\*\*|___)$/.test(cur)) {
+          appellantLines.push(cur);
+        }
+        i++;
+      }
+      if (i < lines.length && /^(?:VS\.?|VERSUS|V\/S)$/i.test(lines[i].replace(/[#*_]/g, '').trim())) {
+        i++; // skip VERSUS line
+      }
+      const respondentLines = [];
+      while (i < lines.length) {
+        const cur = lines[i].trim();
+        if (!cur) { i++; continue; }
+        if (/^(?:---|\*\*\*|___)$/.test(cur) || /^#{1,6}\s+/.test(cur) || detectLegalHeading(cur).isHeading) {
+          break;
+        }
+        respondentLines.push(cur);
+        i++;
+      }
+      blocks.push({
+        type: 'cause_title_card',
+        appellant: appellantLines,
+        respondent: respondentLines
+      });
       continue;
     }
 
@@ -470,9 +521,9 @@ const LegalMarkdownRenderer = ({ text, onCopy }) => {
       )}
 
       {/* Styled Judicial Court Paper Sheet */}
-      <div className={`p-4 sm:p-6 space-y-3 font-serif text-[14px] sm:text-[15px] leading-relaxed text-slate-900 dark:text-slate-100 ${
+      <div className={`p-5 sm:p-8 space-y-4 font-serif text-[15px] sm:text-[16px] leading-loose text-slate-900 dark:text-slate-100 ${
         isPleading 
-          ? 'border border-amber-900/15 dark:border-amber-500/20 rounded-2xl bg-[#fdfcf9] dark:bg-[#11131a] shadow-xs' 
+          ? 'border border-amber-900/15 dark:border-amber-500/25 rounded-2xl bg-[#fffefb] dark:bg-[#11131a] shadow-xs' 
           : ''
       }`}>
         {renderParsedBlocks(blocks, 0, handleCopySection, copiedKey)}
@@ -490,28 +541,118 @@ function renderParsedBlocks(blocks, parentIdx, handleCopySection, copiedKey) {
 
     switch (block.type) {
       case 'spacer':
-        return <div key={key} className="h-1" />;
+        return <div key={key} className="h-1.5" />;
 
       case 'divider':
         return (
-          <div key={key} className="my-3 border-t border-slate-200 dark:border-slate-800" />
+          <div key={key} className="my-4 border-t border-slate-200 dark:border-slate-800" />
+        );
+
+      case 'cause_title_card':
+        return (
+          <div key={key} className="my-5 p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-amber-500/[0.04] via-transparent to-amber-500/[0.02] border border-amber-900/15 dark:border-amber-500/25 shadow-xs font-serif">
+            <div className="text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 font-sans mb-3 flex items-center gap-1.5">
+              <Scale className="w-3.5 h-3.5" />
+              <span>In the Matter Of:</span>
+            </div>
+            
+            {/* Appellant Details */}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 pb-3.5 border-b border-dashed border-slate-300 dark:border-slate-800">
+              <div className="space-y-1">
+                {block.appellant.map((line, lIdx) => {
+                  const cleanLine = line.replace(/^\*+|\*+$/g, '').trim();
+                  const isPartyTag = /^\(?\s*Appellant\s*\)?$/i.test(cleanLine);
+                  if (isPartyTag) return null;
+                  const isName = lIdx === 0;
+                  return (
+                    <div
+                      key={lIdx}
+                      className={isName 
+                        ? "text-base sm:text-lg font-bold text-slate-900 dark:text-white" 
+                        : "text-xs sm:text-sm text-slate-600 dark:text-slate-400"}
+                      dangerouslySetInnerHTML={{ __html: formatInlineText(line) }}
+                    />
+                  );
+                })}
+              </div>
+              <span className="self-start sm:self-center px-3 py-1 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 text-xs font-black uppercase tracking-wider font-sans border border-amber-500/30">
+                Appellant
+              </span>
+            </div>
+
+            {/* Versus Divider */}
+            <div className="flex items-center justify-center gap-3 my-3">
+              <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1 max-w-[100px]" />
+              <span className="text-xs font-black tracking-widest text-amber-700 dark:text-amber-400 font-mono uppercase px-2">
+                VERSUS
+              </span>
+              <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1 max-w-[100px]" />
+            </div>
+
+            {/* Respondent Details */}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 pt-1">
+              <div className="space-y-1">
+                {block.respondent.map((line, lIdx) => {
+                  const cleanLine = line.replace(/^\*+|\*+$/g, '').trim();
+                  const isPartyTag = /^\(?\s*Respondent\s*\)?$/i.test(cleanLine);
+                  if (isPartyTag) return null;
+                  const isName = lIdx === 0;
+                  return (
+                    <div
+                      key={lIdx}
+                      className={isName 
+                        ? "text-base sm:text-lg font-bold text-slate-900 dark:text-white" 
+                        : "text-xs sm:text-sm text-slate-600 dark:text-slate-400"}
+                      dangerouslySetInnerHTML={{ __html: formatInlineText(line) }}
+                    />
+                  );
+                })}
+              </div>
+              <span className="self-start sm:self-center px-3 py-1 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-black uppercase tracking-wider font-sans border border-slate-300 dark:border-slate-700">
+                Respondent
+              </span>
+            </div>
+          </div>
         );
 
       case 'heading': {
         const isCourtHeading = /^(?:HIGH\s+COURT|BEFORE\s+THE|APPELLATE\s+TRIBUNAL)\b/i.test(block.text);
+        const isPleadingTitle = /^(?:MEMORANDUM\s+OF\s+APPEAL|WRIT\s+PETITION|FORM\s+OF\s+APPEAL|STATUTORY\s+LEGAL\s+NOTICE)\b/i.test(block.text);
+        const isMissingDocs = /Missing Details/i.test(block.text);
         
         if (isCourtHeading) {
           return (
-            <div key={key} className="my-3 text-center pb-1.5 border-b border-amber-500/40">
-              <h2 className="text-base sm:text-lg font-black text-amber-700 dark:text-amber-400 tracking-wider uppercase font-serif">
+            <div key={key} className="my-5 text-center pb-2.5 border-b-2 border-amber-500/40">
+              <h2 className="text-base sm:text-xl font-black text-amber-700 dark:text-amber-400 tracking-wider uppercase font-serif">
                 {block.text}
               </h2>
             </div>
           );
         }
 
+        if (isPleadingTitle) {
+          return (
+            <div key={key} className="my-5 p-3.5 rounded-xl bg-amber-500/[0.08] dark:bg-amber-500/[0.12] border border-amber-500/30 text-center">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-wide uppercase font-serif">
+                {block.text}
+              </h3>
+            </div>
+          );
+        }
+
+        if (isMissingDocs) {
+          return (
+            <div key={key} className="pt-5 pb-2.5 mt-6 border-b-2 border-amber-500/40">
+              <h3 className="text-sm sm:text-base font-black text-amber-700 dark:text-amber-400 flex items-center gap-2 tracking-wide uppercase font-sans">
+                <span className="w-2 h-4 rounded-full bg-amber-500 inline-block" />
+                <span>{block.text}</span>
+              </h3>
+            </div>
+          );
+        }
+
         return (
-          <div key={key} className="pt-2 pb-1 mt-1 border-b border-amber-500/20">
+          <div key={key} className="pt-4 pb-2 mt-4 border-b border-amber-500/20">
             <h3 className="text-sm sm:text-base font-black text-amber-700 dark:text-amber-400 flex items-center gap-2 tracking-wide uppercase font-sans">
               <span className="w-1.5 h-3.5 rounded-full bg-amber-500 inline-block" />
               <span>{block.text}</span>
@@ -626,34 +767,59 @@ function renderParsedBlocks(blocks, parentIdx, handleCopySection, copiedKey) {
 
       case 'precedent_quote':
         return (
-          <div key={key} className="my-2.5 p-3.5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-l-4 border-amber-500 rounded-r-xl text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-serif leading-relaxed shadow-2xs">
-            <span className="font-bold uppercase tracking-wider text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5 not-italic mb-1 font-sans">
+          <div key={key} className="my-4 p-4 bg-amber-500/[0.06] dark:bg-amber-500/[0.08] border-l-4 border-amber-500 rounded-r-xl text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-serif leading-relaxed shadow-2xs">
+            <span className="font-bold uppercase tracking-wider text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1.5 not-italic mb-1.5 font-sans">
               <BookOpen className="w-3.5 h-3.5" />
               Judicial Ratio / Binding Precedent:
             </span>
-            <blockquote className="italic">
+            <blockquote className="italic leading-[1.75] pl-2">
               "{block.text}"
             </blockquote>
           </div>
         );
 
-      case 'legal_item':
+      case 'legal_item': {
+        const boldTitleMatch = block.content.match(/^(\*\*.*?\*\*)\s*([\s\S]*)$/);
+        const hasBoldTitle = !!boldTitleMatch;
+        const titlePart = hasBoldTitle ? boldTitleMatch[1] : '';
+        const bodyPart = hasBoldTitle ? boldTitleMatch[2] : block.content;
+
         return (
-          <div key={key} className="flex items-start gap-2.5 py-1 text-sm sm:text-base leading-relaxed">
-            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-xs shrink-0 select-none font-mono mt-0.5 border border-amber-500/20">
-              {block.prefix}
-            </span>
-            <div
-              className="flex-1 text-slate-800 dark:text-slate-200"
-              dangerouslySetInnerHTML={{ __html: formatInlineText(block.content) }}
-            />
+          <div key={key} className="my-3 sm:my-3.5 p-3.5 sm:p-4 rounded-xl bg-white/70 dark:bg-[#141724]/70 border border-slate-200/80 dark:border-slate-800/80 shadow-2xs hover:border-amber-500/30 transition-all">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-amber-500/15 dark:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold text-xs sm:text-sm shrink-0 select-none font-mono border border-amber-500/30 shadow-2xs mt-0.5">
+                {block.prefix}
+              </span>
+              <div className="flex-1 min-w-0">
+                {hasBoldTitle ? (
+                  <>
+                    <div 
+                      className="font-bold font-serif text-sm sm:text-base text-slate-900 dark:text-white leading-snug mb-1.5"
+                      dangerouslySetInnerHTML={{ __html: formatInlineText(titlePart) }}
+                    />
+                    {bodyPart && (
+                      <div 
+                        className="text-xs sm:text-[14.5px] leading-relaxed sm:leading-[1.8] text-slate-700 dark:text-slate-300 font-serif"
+                        dangerouslySetInnerHTML={{ __html: formatInlineText(bodyPart) }}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div
+                    className="text-xs sm:text-[14.5px] leading-relaxed sm:leading-[1.8] text-slate-800 dark:text-slate-200 font-serif"
+                    dangerouslySetInnerHTML={{ __html: formatInlineText(block.content) }}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         );
+      }
 
       case 'bullet_item':
         return (
-          <div key={key} className="flex items-start gap-2.5 py-0.5 text-sm sm:text-base leading-relaxed pl-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 mt-2 shrink-0" />
+          <div key={key} className="flex items-start gap-3 py-1.5 text-[14.5px] sm:text-[15.5px] leading-relaxed sm:leading-[1.85] pl-2 my-1 font-serif">
+            <span className="w-2 h-2 rounded-full bg-amber-500 mt-2.5 shrink-0" />
             <div
               className="flex-1 text-slate-800 dark:text-slate-200"
               dangerouslySetInnerHTML={{ __html: formatInlineText(block.content) }}
@@ -700,7 +866,7 @@ function renderParsedBlocks(blocks, parentIdx, handleCopySection, copiedKey) {
         return (
           <p
             key={key}
-            className="text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-200 my-1"
+            className="text-[14.5px] sm:text-[15.5px] leading-loose sm:leading-[1.9] text-slate-800 dark:text-slate-200 mb-4 sm:mb-5 font-serif"
             dangerouslySetInnerHTML={{ __html: formatInlineText(block.text) }}
           />
         );
