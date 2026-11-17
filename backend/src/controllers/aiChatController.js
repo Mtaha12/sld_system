@@ -4895,26 +4895,6 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
     return await handleGeneralAIQuery(rawClean, conversationHistory, requestingUser);
   }
 
-  // 0.05 DATABASE AVAILABILITY SAFEGUARD (Requirement 10 & Regression Scenario 14)
-  if (mongoose.connection.readyState !== 1) {
-    return {
-      text: "⚠️ **Legal Database Service Notice**\n\nThe SLD verified judicial database is currently unreachable. While general-purpose conversational queries remain available, authentic Pakistani case records, citations, and official statutory provisions cannot be retrieved at this time.\n\n*Please ensure MongoDB connectivity is active before retrying legal queries.*",
-      legalAnalysis: null,
-      model: 'sld-database-sentinel',
-      intent: 'database_unavailable',
-      followUpQuestions: [
-        'Explain general legal concepts in simple words',
-        'Write a sample legal notice or agreement'
-      ]
-    };
-  }
-
-  // SERVER-SIDE PERMISSION ENFORCEMENT
-  const isAdminOrSuper = requestingUser && (requestingUser.role === 'Administrator' || requestingUser.allowAllForms === true);
-  const canAccessCases = !requestingUser || isAdminOrSuper || requestingUser.displayCase !== false;
-  const canAccessStatutes = !requestingUser || isAdminOrSuper || requestingUser.displayStatute !== false;
-  const canAccessNotifications = !requestingUser || isAdminOrSuper || requestingUser.displayNotification !== false;
-
   // 0.1 LEGAL DRAFTING / PLEADING GENERATION DISPATCH (For explicit templates or format commands)
   if (checkIsLegalDraftingRequest(rawClean, attachments)) {
     try {
@@ -4925,6 +4905,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
           matchedCase: null,
           matchType: 'pleading_draft',
           formatType: draftingResult.formatType,
+          downloadDoc: draftingResult.downloadDoc,
           confidence: 100,
           sourcesFound: 1,
           activeReferences: ['statutes', 'headnotes', 'case_numbers', 'courts', 'judgments']
@@ -4955,6 +4936,26 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
       logger.error('Error in document correction review:', correctionErr);
     }
   }
+
+  // 0.05 DATABASE AVAILABILITY SAFEGUARD (Requirement 10 & Regression Scenario 14)
+  if (mongoose.connection.readyState !== 1) {
+    return {
+      text: "⚠️ **Legal Database Service Notice**\n\nThe SLD verified judicial database is currently unreachable. While general-purpose conversational queries remain available, authentic Pakistani case records, citations, and official statutory provisions cannot be retrieved at this time.\n\n*Please ensure MongoDB connectivity is active before retrying legal queries.*",
+      legalAnalysis: null,
+      model: 'sld-database-sentinel',
+      intent: 'database_unavailable',
+      followUpQuestions: [
+        'Explain general legal concepts in simple words',
+        'Write a sample legal notice or agreement'
+      ]
+    };
+  }
+
+  // SERVER-SIDE PERMISSION ENFORCEMENT
+  const isAdminOrSuper = requestingUser && (requestingUser.role === 'Administrator' || requestingUser.allowAllForms === true);
+  const canAccessCases = !requestingUser || isAdminOrSuper || requestingUser.displayCase !== false;
+  const canAccessStatutes = !requestingUser || isAdminOrSuper || requestingUser.displayStatute !== false;
+  const canAccessNotifications = !requestingUser || isAdminOrSuper || requestingUser.displayNotification !== false;
 
   // 0.25 ATTACHED DOCUMENT ANALYSIS, SUMMARY & LEGAL CRUX EXTRACTION DISPATCH
   // When an attachment is provided and the user asks a question, requests a summary, or asks for crux (e.g. "give 2 line crux of this judgemnt")

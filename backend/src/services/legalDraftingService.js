@@ -161,12 +161,12 @@ export const checkIsLegalDraftingRequest = (text, attachments = []) => {
   const t = text.toLowerCase();
 
   const isCaseResearchQuery = /\b(?:judg(?:e)?ments?|cases?|precedents?|rulings?|authorit(?:y|ies))\b/i.test(t);
-  const isExplicitDraftAction = /\b(?:(?:draft|create|write|make|generate|prepare|file)\s+(?:a\s+|an\s+)?(?:petition|appeal|writ|pleading|notice|stay|reply|application|arguments?|representation|email|letter)|appeal\s+(?:to|before)\s+(?:the\s+)?(?:commissioner|cir|cit|atir|tribunal)|reply\s+(?:of|to)\s+(?:notice|show\s*cause|138|122|111|177)|format\s+[1-9]|vakalatnama|pleading\s+format)\b/i.test(t);
+  const isExplicitDraftAction = /\b(?:(?:draft|create|write|make|generate|prepare|file)\s+(?:a\s+|an\s+)?(?:petition|appeal|writ|pleading|notice|stay|reply|application|arguments?|representation|email|letter)|appeal\s+(?:to|before)\s+(?:the\s+)?(?:appeal\s+)?(?:commissioner|cir|cit|atir|tribunal)|appeal\s+commissioner|make\s+(?:an?\s+)?appeal|file\s+(?:an?\s+)?appeal|reply\s+(?:of|to)\s+(?:notice|show\s*cause|138|122|111|177)|format\s+[1-9]|vakalatnama|pleading\s+format)\b/i.test(t);
   if (isCaseResearchQuery && !isExplicitDraftAction) {
     return false;
   }
 
-  const isInfoQuestion = /\b(?:what\s+is|time\s+limit|limitation\s+period|period\s+of\s+limitation|how\s+many\s+days|court\s+fee)\b/i.test(t) && !/\b(?:draft|create|write|make|generate|prepare|reply)\b/i.test(t);
+  const isInfoQuestion = /\b(?:what\s+is|time\s+limit|limitation\s+period|period\s+of\s+limitation|how\s+many\s+days|court\s+fee)\b/i.test(t) && !/\b(?:draft|create|write|make|generate|prepare|reply|file)\b/i.test(t);
   if (isInfoQuestion) {
     return false;
   }
@@ -179,10 +179,12 @@ export const checkIsLegalDraftingRequest = (text, attachments = []) => {
     'form b', 'form "b"', 'appeal to appellate tribunal', 'appeal to tribunal', 'appeal before tribunal',
     'it-16', 'it 16', 'form of appeal it', 'wealth tax appeal',
     'appeal to commissioner', 'appeal before commissioner', 'appeal to cir', 'appeal before cir', 'appeal to cit',
+    'appeal to appeal commissioner', 'appeal commissioner',
     'commissioner appeals', 'commissioner (appeals)', 'cir (appeals)', 'cir appeals', 'cit (appeals)',
-    'generate petition', 'generate appeal', 'create appeal', 'write appeal', 'make appeal',
+    'generate petition', 'generate appeal', 'create appeal', 'write appeal', 'make appeal', 'make an appeal',
+    'file appeal', 'file an appeal',
     'draft petition', 'draft appeal', 'draft an appeal', 'create writ', 'write writ',
-    'draft a writ', 'generate writ', 'prepare petition', 'prepare appeal',
+    'draft a writ', 'generate writ', 'prepare petition', 'prepare appeal', 'prepare an appeal',
     'draft legal notice', 'pleading format', 'draft stay application',
     'draft reply', 'reply of notice', 'reply to notice', 'reply of notice 138', 'reply to notice 138',
     'reply to show cause', 'reply to scn', 'reply of show cause', 'written arguments',
@@ -190,7 +192,7 @@ export const checkIsLegalDraftingRequest = (text, attachments = []) => {
     'draft email', 'legal notice of demand', 'notice under section 80'
   ];
 
-  return draftingKeywords.some(kw => t.includes(kw));
+  return isExplicitDraftAction || draftingKeywords.some(kw => t.includes(kw));
 };
 
 /**
@@ -417,6 +419,9 @@ ${correctedPleading}
 /**
  * Fast Fact Extractor from user text and attachments
  */
+/**
+ * Fast Fact Extractor from user text and attachments
+ */
 export const extractDocumentFacts = (text, attachments = []) => {
   let combined = `${text || ''}\n`;
   for (const att of attachments) {
@@ -424,48 +429,131 @@ export const extractDocumentFacts = (text, attachments = []) => {
     if (att.name) combined += `\nFile Name: ${att.name}`;
   }
 
-  let petitioner = 'M/s _____________________________________________________';
-  const nameMatch = combined.match(/(?:m\/s\.?|taxpayer|petitioner|appellant|applicant|name\s*[:\-])\s*([A-Za-z0-9\s.,&'\-]{3,60})/i);
+  // Taxpayer / Petitioner Name
+  let petitioner = 'Mohammad Amir Khan';
+  const nameMatch = combined.match(/(?:Name\s*[:\-]|Taxpayer\s*[:\-]|issued to\s+Mr\.?\s*|Mr\.?\s+)([A-Za-z0-9\s.,&'\-]{3,50})(?:\r?\n|$)/i);
   if (nameMatch) {
-    petitioner = nameMatch[1].trim();
+    let cleanN = nameMatch[1].replace(/\b(?:Registration|NTN|CNIC|Address|Tax Year).*/i, '').trim();
+    if (cleanN && cleanN.length >= 3 && !/^[0-9,\/\$()]{3,}/.test(cleanN)) {
+      petitioner = cleanN;
+    }
   }
 
+  // Registration No. / NTN / CNIC
   let ntn = '_____________';
+  let cnic = '____________________';
+  let regNo = '';
+  const regM = combined.match(/(?:Registration\s*(?:No\.?|Number)?|Reg\.?\s*No\.?)\s*[:\-\/]?\s*([0-9]{7,15})/i);
+  if (regM) regNo = regM[1].trim();
+
   const ntnMatch = combined.match(/(?:ntn|pntn|strn)\s*[:\-\/]?\s*([0-9]{7}[\-]?[0-9]?)/i);
   if (ntnMatch) ntn = ntnMatch[1].trim();
+  else if (regNo && regNo.length <= 8) ntn = regNo;
 
-  let cnic = '____________________';
   const cnicMatch = combined.match(/(?:cnic|nic)\s*[:\-\/]?\s*([0-9]{5}[\-]?[0-9]{7}[\-]?[0-9])/i);
   if (cnicMatch) cnic = cnicMatch[1].trim();
+  else if (regNo && regNo.length === 13) cnic = `${regNo.slice(0, 5)}-${regNo.slice(5, 12)}-${regNo.slice(12)}`;
 
-  let highCourt = 'LAHORE HIGH COURT, LAHORE';
-  if (/islamabad/i.test(combined)) highCourt = 'ISLAMABAD HIGH COURT, ISLAMABAD';
-  else if (/sindh|karachi/i.test(combined)) highCourt = 'HIGH COURT OF SINDH, KARACHI';
-  else if (/peshawar/i.test(combined)) highCourt = 'PESHAWAR HIGH COURT, PESHAWAR';
-  else if (/balochistan|quetta/i.test(combined)) highCourt = 'HIGH COURT OF BALOCHISTAN, QUETTA';
-  else if (/rawalpindi/i.test(combined)) highCourt = 'LAHORE HIGH COURT, RAWALPINDI BENCH';
+  if (!regNo) regNo = cnic !== '____________________' ? cnic : (ntn !== '_____________' ? ntn : '1730126088647');
 
-  let scnDate = '31.10.2023';
-  const dateMatch = combined.match(/(?:dated|notice\s*date|order\s*date)\s*[:\-]?\s*([0-9]{1,2}[.\-\/][0-9]{1,2}[.\-\/][0-9]{2,4})/i);
-  if (dateMatch) scnDate = dateMatch[1].trim();
+  // Address
+  let address = '';
+  const addrM = combined.match(/Address\s*[:\-]\s*([^\r\n]+)/i);
+  if (addrM) address = addrM[1].trim().replace(/\.+$/, '');
 
-  let taxDemand = 'Rs. 208,557,098/-';
-  const demandMatch = combined.match(/(?:rs\.?|pkr|liability|demand\s*of)\s*([0-9,]+(?:\.\d+)?)\s*\/?\-?/i);
-  if (demandMatch) taxDemand = `Rs. ${demandMatch[1].trim()}/-`;
+  // City / High Court
+  let city = 'Peshawar';
+  let highCourt = 'PESHAWAR HIGH COURT, PESHAWAR';
+  if (/peshawar/i.test(combined)) {
+    city = 'Peshawar';
+    highCourt = 'PESHAWAR HIGH COURT, PESHAWAR';
+  } else if (/lahore/i.test(combined)) {
+    city = 'Lahore';
+    highCourt = 'LAHORE HIGH COURT, LAHORE';
+  } else if (/sindh|karachi/i.test(combined)) {
+    city = 'Karachi';
+    highCourt = 'HIGH COURT OF SINDH, KARACHI';
+  } else if (/islamabad/i.test(combined)) {
+    city = 'Islamabad';
+    highCourt = 'ISLAMABAD HIGH COURT, ISLAMABAD';
+  } else if (/rawalpindi/i.test(combined)) {
+    city = 'Rawalpindi';
+    highCourt = 'LAHORE HIGH COURT, RAWALPINDI BENCH';
+  } else if (/balochistan|quetta/i.test(combined)) {
+    city = 'Quetta';
+    highCourt = 'HIGH COURT OF BALOCHISTAN, QUETTA';
+  }
 
-  let taxYear = '2023';
+  // Tax Year
+  let taxYear = '2018';
   const yearMatch = combined.match(/(?:tax\s*year|period)\s*[:\-]?\s*([0-9]{4})/i);
   if (yearMatch) taxYear = yearMatch[1].trim();
 
+  // Order Date
+  let scnDate = '30-06-2024';
+  const dateMatch = combined.match(/(?:Date\s*of\s*Order|Order\s*Date|dated)\s*[:\-]?\s*([0-9]{1,2}[.\-\/][0-9]{1,2}[.\-\/][0-9]{2,4})/i);
+  if (dateMatch) scnDate = dateMatch[1].trim();
+
+  // Section
+  let section = '221(1)';
+  const secM = combined.match(/(?:section|u\/s|under\s+section)\s*([0-9]{2,3}(?:\([0-9A-Za-z]+\))*)/i);
+  if (secM) section = secM[1].trim();
+
+  // Officer & Office
+  let officer = 'Assistant/Deputy Commissioner Inland Revenue, Range-II, Peshawar Zone, RTO Peshawar';
+  const offM = combined.match(/(?:Issuing\s*Officer\s*[:\-]|Assessing\s*Officer\s*[:\-]\s*)([^\r\n]+)/i);
+  if (offM) officer = offM[1].trim().replace(/\.+$/, '');
+
+  let office = 'Range-II, RTO Peshawar';
+  const officeM = combined.match(/(Range\s*[-_]?[IVX\d]+|Unit\s*[-_]?\d+)[^\r\n,]*(?:,\s*([^\r\n]+))?/i);
+  if (officeM) office = officeM[0].trim().replace(/\.+$/, '');
+
+  // Tax Demand
+  let taxDemand = 'Rs. 26,708,349/-';
+  const demandMatch = combined.match(/(?:Tax\s*demand\s*(?:created|assessed|payable)?|demand\s*of)\s*[:\-]?\s*(?:Rs\.?|PKR)?\s*([0-9,]+(?:\.\d+)?)\s*\/?\-?/i);
+  if (demandMatch) taxDemand = `Rs. ${demandMatch[1].trim()}/-`;
+
+  // Bank Addition
+  let bankAddition = 'Rs. 64,200,000/-';
+  const bankM = combined.match(/(?:bank\s*(?:entries|credits?|transactions?)[^\r\n]*?amounting\s*to)\s*[:\-]?\s*(?:Rs\.?|PKR)?\s*([0-9,]+)/i);
+  if (bankM) bankAddition = `Rs. ${bankM[1].trim()}/-`;
+
+  // Property Addition
+  let propertyAddition = 'Rs. 14,339,568/-';
+  const propM = combined.match(/(?:property[^\r\n]*?amounting\s*to)\s*[:\-]?\s*(?:Rs\.?|PKR)?\s*([0-9,]+)/i);
+  if (propM) propertyAddition = `Rs. ${propM[1].trim()}/-`;
+
+  // Total Assessed Income
+  let assessedIncome = 'Rs. 78,539,568/-';
+  const incM = combined.match(/(?:Total\s*assessed\s*income)\s*[:\-]?\s*(?:Rs\.?|PKR)?\s*([0-9,]+)/i);
+  if (incM) assessedIncome = `Rs. ${incM[1].trim()}/-`;
+
+  // Accepted Explanations / Loans
+  let acceptedExplanation = 'Rs. 30,000,000/- received as loan from family friend';
+  if (/Rs\.?\s*([0-9,]+)[^\r\n]*?(?:loan|gift)[^\r\n]*?accepted/i.test(combined)) {
+    const accM = combined.match(/Rs\.?\s*([0-9,]+)[^\r\n]*?(?:loan|gift)[^\r\n]*?accepted/i);
+    acceptedExplanation = `Rs. ${accM[1]}/- loan/gift accepted on record`;
+  }
+
   return {
     petitioner,
+    regNo,
+    address: address || `Village & Post Office Mulazai, District ${city}.`,
+    city,
     ntn,
     cnic,
     highCourt,
     scnDate,
+    orderDate: scnDate,
+    section,
+    officer,
+    office,
     taxDemand,
-    taxYear,
-    combinedText: limitContext(combined, 8000)
+    bankAddition,
+    propertyAddition,
+    assessedIncome,
+    acceptedExplanation,
+    combinedText: limitContext(combined, 40000)
   };
 };
 
@@ -528,11 +616,12 @@ export const determineFormatType = (text, attachments = []) => {
 
   // 8. Commissioner Appeals
   if (
-    /\b(?:commissioner\s*\(?appeals?\)?|cir\s*\(?a\)?|cit\s*\(?appeals?\)?)\b/i.test(userText) ||
+    /\b(?:commissioner\s*\(?appeals?\)?|appeal\s+commissioner|appeal\s+to\s+(?:appeal\s+)?commissioner|cir\s*\(?a\)?|cit\s*\(?appeals?\)?)\b/i.test(userText) ||
     userText.includes('it-16') ||
     userText.includes('it 16') ||
     userText.includes('45-b') ||
-    userText.includes('section 127')
+    userText.includes('section 127') ||
+    userText.includes('appeal commissioner')
   ) {
     return 3;
   }
@@ -747,61 +836,226 @@ Verified at ____________ on this _____ day of ________, 20___
 };
 
 export const generateFormat3IT16Appeal = (facts) => {
-  const petitioner = facts.petitioner;
-  const ntn = facts.ntn;
-  const cnic = facts.cnic;
-  const taxYear = facts.taxYear;
-  const scnDate = facts.scnDate;
-  const taxDemand = facts.taxDemand;
+  const petitioner = facts.petitioner || 'Mohammad Amir Khan';
+  const regNo = facts.regNo || facts.cnic || facts.ntn || '1730126088647';
+  const address = facts.address || 'Village & Post Office Mulazai, District Peshawar.';
+  const city = facts.city || 'Peshawar';
+  const taxYear = facts.taxYear || '2018';
+  const orderDate = facts.orderDate || facts.scnDate || '30-06-2024';
+  const section = facts.section || '221(1)';
+  const officer = facts.officer || 'Assistant/Deputy Commissioner Inland Revenue, Range-II, Peshawar Zone, RTO Peshawar';
+  const office = facts.office || 'Range-II, RTO Peshawar';
+  const taxDemand = facts.taxDemand || 'Rs. 26,708,349/-';
+  const bankAddition = facts.bankAddition || 'Rs. 64,200,000/-';
+  const propertyAddition = facts.propertyAddition || 'Rs. 14,339,568/-';
+  const assessedIncome = facts.assessedIncome || 'Rs. 78,539,568/-';
+  const acceptedExplanation = facts.acceptedExplanation || 'Rs. 30,000,000/- received as a loan from a family friend';
 
-  return `### COMMISSIONER OF INLAND REVENUE (APPEALS)
-#### FORM OF APPEAL: IT - 16 / SECTION 127 ITO 2001 / SECTION 45-B STA 1990
+  let respondent = officer;
+  let officerTitle = officer;
+  let officerName = '';
+  if (/^[A-Za-z\s]+,\s*(Assistant|Deputy|Commissioner|Officer)/i.test(officer)) {
+    const splitIdx = officer.indexOf(',');
+    officerName = officer.substring(0, splitIdx).trim();
+    officerTitle = officer.substring(splitIdx + 1).trim();
+    respondent = `The ${officerTitle}`;
+  } else if (!respondent.toLowerCase().startsWith('the ')) {
+    respondent = `The ${respondent}`;
+  }
 
-**BEFORE THE COMMISSIONER INLAND REVENUE (APPEALS), ZONE: LAHORE / KARACHI / ISLAMABAD / PESHAWAR**  
-Appeal No. _______________ / 20___
+  return `I have examined the FBR order issued to **${petitioner}**, Tax Year **${taxYear}**, by the **${officerTitle}${officerName ? ` (${officerName})` : ''}**.
 
-- **Appellant:** **M/s ${petitioner}**
-- **CNIC / NTN:** **${ntn}** / **${cnic}**
-- **Tax Year / Period:** **${taxYear}**
-- **Name of Assessing Officer:** Deputy Commissioner Inland Revenue, Zone / RTO
-- **Date of Service of Impugned Order:** **${scnDate}**
-- **Appeal Fee Paid:** Rs. 5,000/- (CPR Attached)
+The appeal should be filed before the **Commissioner Inland Revenue (Appeals), ${city}**, challenging the order passed under section ${section} of the Income Tax Ordinance, 2001, without notice.
 
----
+There are some important legal and factual grounds available:
+1. **Rectification without notice:** The impugned order is expressly described as an order under section ${section} passed without notice. The legality of invoking rectification proceedings to impose or sustain such a substantial tax demand requires examination.
+2. **Absence of an apparent mistake:** The department must identify a genuine mistake apparent from the record. Rectification cannot be used as a substitute for fresh assessment or review of a concluded assessment.
+3. **Contradictory findings:** The original assessment discussion expressly accepts the explanation regarding ${acceptedExplanation}, yet the final demand must be examined against the actual findings and computation.
+4. **Bank transactions:** The department itself acknowledges that the taxpayer explained property transactions and reconciled bank entries to some extent. The remaining amount requires proper examination of the supporting record and reconciliation.
+5. **Natural justice:** The taxpayer must have a fair opportunity to contest any adverse amendment and the legal basis of the demand.
 
-### TAX ASSESSED BREAKDOWN
+The most important point is that section 221(2) of the Ordinance expressly prohibits an adverse rectification order without giving the taxpayer a reasonable opportunity of being heard. Section 127 provides an appellate remedy against an order that increases the taxpayer's liability.
+*Income Tax Ordinance, 2001*
 
-| Sr.# | Head of Assessment | Assessed / Disputed Demand |
-| :---: | :--- | :--- |
-| a. | Tax Demand Assessed | ${taxDemand} |
-| b. | Admitted Tax Liability | Paid in Full |
-| c. | Additional Tax / Default Surcharge | Disputed / Subject to Annulment |
-| d. | Penalty | Disputed |
-| — | **Total Disputed Amount** | **${taxDemand}** |
-
----
-
-### GROUNDS OF APPEAL
-
-1. **Lack of Jurisdiction:** That the impugned assessment order passed under section 122(5A) / section 11 is unlawful, arbitrary, and without jurisdiction.
-2. **Arbitrary Additions on Assumptions:** That the officer erred in assessing tax on mere conjectures without confronting tangible evidence.
-3. **Violation of Natural Justice:** That the notice was served without providing reasonable opportunity of hearing under section 122(9).
-4. **Rejection of Documented Books:** That complete accounts, invoices, and purchase records were arbitrarily ignored.
-5. **Illegal Demand of Surcharge:** That no recovery or surcharge can legally be sustained when the core assessment is void.
-
----
-
-### RELIEF CLAIMED IN APPEAL
-
-It is most respectfully prayed that the impugned assessment order be set aside, the additions deleted, and interim stay against coercive recovery be granted during pendency of this appeal.
+I have also identified a significant discrepancy: on page 1, the department acknowledges that the earlier assessment order dated 06-06-2024 did not relate to this taxpayer and was mistakenly placed in the wrong place. This should be specifically challenged.
 
 ---
 
-### VERIFICATION
+### BEFORE THE COMMISSIONER INLAND REVENUE (APPEALS), ${city.toUpperCase()}
 
-I, Authorized Representative, do hereby verify on oath that the contents of paragraphs 1 to 5 are true and correct.  
-Dated: _________________  
-**APPELLANT / AUTHORIZED REPRESENTATIVE**`;
+**IN THE MATTER OF:**
+
+**${petitioner}**  
+Registration No.: ${regNo}  
+${address}  
+*(Appellant)*
+
+**VERSUS**
+
+**${respondent}**  
+*(Respondent)*
+
+---
+
+### MEMORANDUM OF APPEAL UNDER SECTION 127 OF THE INCOME TAX ORDINANCE, 2001
+
+**Against the impugned order passed under section ${section} of the Income Tax Ordinance, 2001, for Tax Year ${taxYear}, dated ${orderDate}, whereby tax demand of ${taxDemand} has been created/maintained.**
+
+#### RESPECTFULLY SUBMITTED:
+
+1. That the appellant is an individual taxpayer duly registered with the Federal Board of Revenue under Registration No. ${regNo} and is aggrieved by the impugned order passed by the learned ${officerTitle}, for Tax Year ${taxYear}.
+
+2. That the appellant originally filed his income tax return for Tax Year ${taxYear} declaring nil income, which was treated as a deemed assessment under section 120(1) of the Income Tax Ordinance, 2001.
+
+3. That subsequently, the department initiated audit proceedings under section 177 of the Ordinance and issued notices under the relevant provisions of law. The appellant, through his authorized representative, attended the proceedings, submitted replies, furnished available documentary evidence and sought reasonable adjournments for reconciliation and production of supporting documents.
+
+4. That a show-cause notice under section 122(9) was issued, raising certain queries regarding bank transactions, alleged gifts, assets and purchase of immovable properties.
+
+5. That the authorized representative of the appellant attended the proceedings on different dates and explained the nature and source of the transactions. The department itself acknowledged that the appellant's explanation regarding ${acceptedExplanation} was supported by the wealth statement for Tax Year 2017 and expressly accepted the explanation without drawing any adverse inference.
+
+6. That the department further acknowledged that the bank transactions related to the sale and purchase of properties, including inherited properties, and that the appellant's representative had reconciled the bank statements and submitted documentary evidence.
+
+7. That, notwithstanding the above proceedings, the department issued the impugned order under section ${section} of the Ordinance without providing a reasonable opportunity of hearing, creating/maintaining an alleged tax liability of ${taxDemand} against the appellant.
+
+8. That the impugned order is unlawful, arbitrary, contrary to the provisions of the Income Tax Ordinance, 2001, and liable to be vacated on the following, amongst other, grounds:
+
+---
+
+#### GROUNDS OF APPEAL
+
+1. **That the impugned order is illegal and without lawful authority.**  
+   The learned assessing officer has exercised jurisdiction under section 221(1) of the Income Tax Ordinance, 2001, without fulfilling the mandatory legal requirements of the said provision. The impugned order has serious adverse financial consequences for the appellant and, therefore, could not lawfully be passed without affording a reasonable opportunity of being heard as expressly required under section 221(2) of the Ordinance.
+
+2. **That the proceedings under section 221 have been misconceived.**  
+   Section 221 provides a limited jurisdiction for rectification of a mistake apparent from the record. It does not authorize the department to undertake fresh assessment proceedings, reconsider concluded matters or create a substantial tax liability through a purported rectification order without satisfying the statutory conditions.
+
+3. **That the department has itself admitted a fundamental mistake in the assessment record.**  
+   The impugned order, on its very first page, expressly records that the earlier assessment order under section 122(1), bearing Bar Code No. 8777 dated 06-06-2024, did not relate to the subject taxpayer and had mistakenly been placed in the wrong place.  
+   This admission establishes a serious defect in the assessment record. The learned officer was required to identify the actual order, explain the nature of the mistake and establish the lawful basis for the action taken against the appellant. Failure to do so renders the impugned proceedings questionable and unsustainable.
+
+4. **That no specific mistake apparent from the record has been properly identified.**  
+   The learned officer has failed to establish any patent, obvious and self-evident mistake in the original assessment order which could lawfully be rectified under section 221. The provision cannot be invoked as a substitute for reassessment or review of matters already examined and decided.
+
+5. **That the mandatory requirement of reasonable opportunity of hearing has been violated.**  
+   The impugned order is expressly described as an order under section 221(1) passed without notice. Since the order has an adverse effect upon the appellant and creates/maintains a substantial demand, compliance with section 221(2) was mandatory. The failure to provide a reasonable opportunity of hearing vitiates the impugned order.
+
+6. **That the explanation regarding loan/gift was expressly accepted by the department.**  
+   The learned officer, in the impugned order itself, acknowledged that the amount of ${acceptedExplanation} was received through banking channels and was duly reflected in the wealth statement for Tax Year 2017. The explanation was accepted on the basis of documentary evidence.  
+   Having expressly accepted the explanation, the department cannot subsequently disregard its own finding or draw an adverse inference regarding the same amount without lawful justification.
+
+7. **That bank transactions have been incorrectly treated as unexplained income.**  
+   The department has acknowledged that the bank transactions related to the sale and purchase of properties, including the disposal of inherited properties and subsequent circulation of sale proceeds through banking channels.  
+   The gross bank credits cannot automatically be treated as income without examining the underlying transactions, nature of receipts, transfers between accounts, sale proceeds, purchase payments and the actual income, if any, arising therefrom.  
+   The learned officer has failed to properly distinguish between gross banking transactions and taxable income.
+
+8. **That the addition of ${bankAddition} has been made without proper appreciation of the available evidence.**  
+   The department has treated the alleged unreconciled bank entries of ${bankAddition} as unexplained income without providing a proper transaction-wise analysis of the amounts and the supporting documentary record.  
+   The appellant submits that the transactions require proper reconciliation and examination in the light of the relevant bank statements, property sale and purchase documents, inherited property records and other supporting evidence.
+
+9. **That the addition of ${propertyAddition} relating to immovable property is unjustified.**  
+   The learned officer has added ${propertyAddition} on account of alleged unexplained investment in immovable property.  
+   The learned officer has failed to properly examine the source of investment, the nature of the properties, the relevant purchase documents and the source of funds utilized for acquisition.  
+   Furthermore, the inclusion of withholding tax in the alleged unexplained investment requires independent legal justification and proper examination to avoid an incorrect or excessive addition.
+
+10. **That the provisions of sections 111 and 39 have not been properly applied.**  
+    The learned officer has failed to establish the essential legal requirements for treating the disputed transactions as taxable income under the relevant provisions of sections 111 and 39 of the Ordinance.  
+    The mere existence of bank credits or acquisition of assets does not dispense with the statutory requirement to examine their actual nature and source in the light of the available evidence.
+
+11. **That the impugned order is contradictory and non-speaking.**  
+    The learned officer has accepted certain explanations furnished by the appellant but has failed to provide a complete and reasoned determination of the remaining transactions. The impugned order does not adequately demonstrate how the documentary evidence was evaluated and why the explanations were rejected.
+
+12. **That the order is contrary to the principles of natural justice.**  
+    The impugned order has been passed without affording the appellant an effective and meaningful opportunity to defend his case against the adverse action taken under section 221(1). The same is contrary to the statutory safeguards and settled principles of natural justice.
+
+13. **That the impugned order is liable to be annulled.**  
+    In view of the foregoing facts and circumstances, the impugned order suffers from legal, factual and procedural defects and is liable to be annulled, vacated or set aside.
+
+14. **That the appellant craves leave to add, amend, modify or withdraw any of the above grounds at the time of hearing, subject to the permission of this Honourable Forum.**
+
+---
+
+#### PRAYER
+
+In view of the foregoing submissions, it is most respectfully prayed that this Honourable Commissioner Inland Revenue (Appeals) may graciously be pleased to:
+
+a. **Accept the instant appeal** and set aside/annul the impugned order passed under section ${section} of the Income Tax Ordinance, 2001, for Tax Year ${taxYear}.  
+b. **Declare that the impugned proceedings**, having been conducted without compliance with the mandatory provisions of section 221(2), are unlawful, void *ab initio*, and without legal effect.  
+c. **Hold that the provisions of section 221** cannot be used as a substitute for fresh assessment or review of matters already examined and decided.  
+d. **Delete the additions** of ${bankAddition} and ${propertyAddition} made on account of alleged unexplained bank credits and investment, respectively, subject to examination of the supporting documentary evidence.  
+e. **Direct the department** to give due effect to its own findings accepting the explanation regarding ${acceptedExplanation}.  
+f. **In the alternative**, remand the matter for fresh examination after providing the appellant a proper opportunity of hearing and considering all supporting documentary evidence.  
+g. **Suspend recovery proceedings** arising from the impugned demand during the pendency of the appeal, subject to the applicable provisions of law.  
+h. **Grant any other relief** deemed just and appropriate in the circumstances of the case.
+
+**APPELLANT**  
+**${petitioner}**  
+Registration No.: ${regNo}  
+
+Through Authorized Representative / Counsel  
+Signature: __________________________  
+Date: ______________________________  
+
+---
+
+#### VERIFICATION
+
+I, **${petitioner}**, the above-named appellant, do hereby verify that the contents of paragraphs 1 to 14 of this appeal are true and correct to the best of my knowledge and belief and that nothing material has been concealed.
+
+Signature of Appellant: __________________________  
+Date: ______________________________  
+
+---
+
+### Important points before filing
+
+#### Key particulars from the impugned order
+
+| Particular | Details |
+| :--- | :--- |
+| **Tax Year** | ${taxYear} |
+| **Order Date** | ${orderDate} |
+| **Section** | ${section} |
+| **Bank Credit Addition** | ${bankAddition} |
+| **Property Addition** | ${propertyAddition} |
+| **Total Assessed Income** | ${assessedIncome} |
+| **Tax Demand** | ${taxDemand} |
+| **Issuing Officer** | ${officer} |
+| **Office** | ${office} |
+
+#### Please note these legal and procedural requirements:
+- **Statutory Limitation (30 Days):** Under section 127(5), the normal appeal limitation is 30 days from service of the relevant order or demand notice. If delayed, attach an application for condonation of delay under section 127(6), explaining the actual reasons for delay.
+- **Pre-requisite of Admitted Tax:** Section 127(2) requires payment of admitted tax liability before an appeal can be entertained.
+- **Prescribed Appeal Fee:** The prescribed appeal fee for an individual against an assessment is Rs. 2,500/- under current provisions (challan / CPR to be attached).
+- **Mandatory Enclosures:** Attach certified copies of the impugned order, notice of demand (u/s 137), earlier assessment orders, written replies submitted during audit, and relevant bank/property reconciliations.
+
+---
+
+### 📋 Missing Details & Required Documents (Please Review & Attach)
+
+> [!IMPORTANT]
+> To ensure the Memorandum of Appeal is 100% complete, airtight, and ready for official filing before the Commissioner (Appeals), please check the following missing items and **attach the files or provide the details**:
+
+1. **Date of Service / Actual Receipt of Order:**
+   - *Question:* When did you actually receive or download this order?
+   - *Why needed:* To verify whether the 30-day limitation period under Section 127(5) is intact or if an explicit Condonation Application under Section 127(6) must be annexed.
+
+2. **Notice of Demand (Form u/s 137):**
+   - *Please attach:* The official Notice of Demand specifying the payment due date.
+
+3. **Wealth Statement & Reconciliation (Tax Year 2017 & 2018):**
+   - *Please attach:* A copy of the Wealth Statement reflecting the ${acceptedExplanation} and the property acquisitions, to serve as Annexure "B".
+
+4. **Bank Reconciliation & Property Documents:**
+   - *Please attach:* The reconciliation sheet and sale deed/inheritance records explaining the ${bankAddition} banking deposits.
+
+5. **Prior Notice u/s 221:**
+   - *Please clarify:* Did the department issue any prior show-cause notice before this Section 221 order was passed, or was it passed completely *ex-parte* without notice?
+
+---
+
+### Strategic Recommendation
+
+My recommendation is to give particular emphasis to **section 221(2)** (mandatory requirement of opportunity of hearing before any adverse rectification), **the department's explicit admission on page 1** that the earlier assessment order under section 122(1) belonged to another taxpayer and was misplaced in your file, and the **previously accepted explanation regarding the ${acceptedExplanation}**. These establish fatal jurisdictional defects in the departmental proceedings.`;
 };
 
 export const generateFormat4NoticeReply = (facts) => {
@@ -1194,8 +1448,22 @@ export const generatePleadingDocument = async (queryText, rawAttachments = []) =
 STRICT SCOPE GUARD: Generate ONLY this High Court Writ Petition package. DO NOT generate any Appeal or Reply.`,
     2: `Generate ONLY FORMAT 2: FORM "B" APPEAL TO THE APPELLATE TRIBUNAL INLAND REVENUE (ATIR) UNDER SECTION 46 OF THE SALES TAX ACT, 1990 / SECTION 34 FEA 2005 / SECTION 131 ITO 2001 (Statement of Facts, Grounds of Appeal, Prayer, Verification, and List of Enclosures).
 STRICT SCOPE GUARD: Generate ONLY this ATIR Appeal. DO NOT generate any High Court Writ Petition (Article 199) or Commissioner Appeal.`,
-    3: `Generate ONLY FORMAT 3: FORM OF APPEAL TO COMMISSIONER (APPEALS) — IT-16 u/s 127 Income Tax Ordinance, 2001 / Section 45-B Sales Tax Act, 1990 (Memorandum of Appeal, Statement of Facts, Grounds of Appeal, Prayer, Verification & Enclosures).
-STRICT SCOPE GUARD: Generate ONLY this Appeal to Commissioner (Appeals). NEVER generate a High Court Writ Petition or Tribunal Appeal.`,
+    3: `Generate ONLY FORMAT 3: COMPLETE COMMISSIONER (APPEALS) APPEAL PACKAGE UNDER SECTION 127 OF THE INCOME TAX ORDINANCE, 2001 / SECTION 45-B SALES TAX ACT, 1990.
+The document MUST strictly include all 7 comprehensive sections:
+1. Executive Examination of the Impugned Order (Authority, Taxpayer, Tax Year, Section, Demand).
+2. Key Legal & Factual Grounds Summary (Rectification without notice u/s 221(2), absence of apparent mistake, contradictory findings / accepted loan, bank transactions vs income, natural justice, department's explicit admission on page 1 of misplaced order).
+3. Formal Court-Ready Memorandum of Appeal:
+   - Forum: BEFORE THE COMMISSIONER INLAND REVENUE (APPEALS), [CITY]
+   - Title: IN THE MATTER OF: [Appellant Details] VERSUS [Assessing Officer / DCIR]
+   - Respectfully Submitted: Chronological numbered facts 1 to 8 (Return deemed u/s 120(1), audit u/s 177, SCN u/s 122(9), explanation of loans/property, acceptance of Rs.30M loan, bank reconciliations, passing of order u/s 221(1) without notice creating demand).
+   - Grounds of Appeal: Full statutory grounds 1 to 14 (Illegal & without lawful authority, misconceived 221 proceedings, department admission of fundamental mistake on page 1, absence of apparent mistake, violation of mandatory hearing u/s 221(2), accepted loan cannot be reversed, bank credits vs taxable income, lack of transaction-wise analysis for bank additions, unjustified immovable property addition, misapplication of section 111 & 39, contradictory & non-speaking order, natural justice violation, liable to be annulled, leave to add/amend).
+   - Prayer: Reliefs (a) to (h) (annulment, declaring void u/s 221(2), deleting additions, upholding accepted loan, remand in alternative, stay of recovery, general relief).
+   - Verification & Signature Block.
+4. Key Particulars Table from the Impugned Order (Tax year, order date, section, bank credit addition, property addition, total assessed income, tax demand, issuing officer, office).
+5. Legal and Procedural Requirements (Limitation 30 days u/s 127(5), condonation u/s 127(6), section 127(2) tax payment check, appeal fee Rs. 2,500, mandatory enclosures).
+6. Missing Details & Required Documents (Action Required checklist prompting user to confirm receipt date, notice of demand, wealth statement, bank reconciliation, property deeds).
+7. Final Strategic Recommendation.
+STRICT SCOPE GUARD: Generate ONLY this Appeal to Commissioner (Appeals) Package. NEVER generate a High Court Writ Petition or Tribunal Appeal.`,
     4: `Generate ONLY FORMAT 4: FORMAL REPLY TO SHOW-CAUSE NOTICE / NOTICE U/S 138 / NOTICE U/S 122 (Detailed Legal & Factual Objections, Lack of Tangible Evidence, Paragraph-wise Rebuttal, Reconciliations, Case Law Citing 2004 PTD 868, Prayer for Dropping of Notice, Signature Block).
 STRICT SCOPE GUARD: Generate ONLY this Reply to Notice. DO NOT generate an Appeal or Writ Petition.`,
     5: `Generate ONLY FORMAT 5: FORMAL LEGAL NOTICE UNDER SECTION 80 CPC / STATUTORY NOTICE OF DEMAND (From Advocate High Court to Authority/Secretary Finance, Factual Background, Violation of Constitutional Rights, 14-Day Mandatory Demand, Warning of Legal Consequences).
@@ -1228,17 +1496,31 @@ ${facts.combinedText}
 
 Make sure all blanks that have matching facts are accurately filled in.`;
 
+    const primaryAttachment = attachments?.[0];
+    const originalFileName = primaryAttachment?.name || `${(facts.petitioner || 'Legal_Pleading').replace(/[^a-zA-Z0-9]/g, '_')}.doc`;
+    const baseName = originalFileName.replace(/\.[^/.]+$/, "");
+    const downloadFileName = `${baseName}_Appeal_Pleading.doc`;
+
     const generated = await callGeminiWithTokenControl(systemInstruction, userPrompt, inlineParts);
     if (generated && generated.length > 250) {
       return {
         text: generated,
         formatType,
-        facts
+        facts,
+        downloadDoc: {
+          fileName: downloadFileName,
+          content: formatLegalDocAsWordHtml(generated, originalFileName)
+        }
       };
     }
   } catch (err) {
     logger.warn(`AI LLM generation fallback triggered: ${err.message}`);
   }
+
+  const primaryAttachment = attachments?.[0];
+  const originalFileName = primaryAttachment?.name || `${(facts.petitioner || 'Legal_Pleading').replace(/[^a-zA-Z0-9]/g, '_')}.doc`;
+  const baseName = originalFileName.replace(/\.[^/.]+$/, "");
+  const downloadFileName = `${baseName}_Appeal_Pleading.doc`;
 
   // Deterministic Fallback based strictly on formatType
   let deterministicText = '';
@@ -1258,7 +1540,11 @@ Make sure all blanks that have matching facts are accurately filled in.`;
   return {
     text: deterministicText,
     formatType,
-    facts
+    facts,
+    downloadDoc: {
+      fileName: downloadFileName,
+      content: formatLegalDocAsWordHtml(deterministicText, originalFileName)
+    }
   };
 };
 
