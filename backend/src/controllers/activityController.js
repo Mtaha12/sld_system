@@ -151,22 +151,74 @@ const SAMPLE_ACTIVITIES = [
   }
 ];
 
+let hasCheckedActivitySeed = false;
+
+const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export const getActivities = async (req, res, next) => {
   try {
-    const { type = 'case', search, page = 1, limit = 50 } = req.query;
+    const {
+      type = 'case',
+      search,
+      page = 1,
+      limit = 50,
+      range = 'all',
+      fromDate,
+      toDate
+    } = req.query;
 
-    const count = await UserActivity.countDocuments();
-    if (count === 0) {
-      await UserActivity.insertMany(SAMPLE_ACTIVITIES);
+    if (!hasCheckedActivitySeed) {
+      hasCheckedActivitySeed = true;
+      const count = await UserActivity.estimatedDocumentCount();
+      if (count === 0) {
+        await UserActivity.insertMany(SAMPLE_ACTIVITIES);
+      }
     }
 
     const query = {};
     if (type) {
-      query.activityType = type.toLowerCase();
+      query.activityType = String(type).toLowerCase();
     }
 
-    if (search && search.trim()) {
-      const sRegex = new RegExp(search.trim(), 'i');
+    // Date range filtering: custom fromDate/toDate take precedence over preset range
+    const dateFilter = {};
+    if (fromDate || toDate) {
+      if (fromDate) {
+        const start = new Date(fromDate);
+        if (!isNaN(start.getTime())) {
+          start.setHours(0, 0, 0, 0);
+          dateFilter.$gte = start;
+        }
+      }
+      if (toDate) {
+        const end = new Date(toDate);
+        if (!isNaN(end.getTime())) {
+          end.setHours(23, 59, 59, 999);
+          dateFilter.$lte = end;
+        }
+      }
+    } else if (range && range !== 'all') {
+      const now = new Date();
+      const normalizedRange = String(range).toLowerCase();
+      if (normalizedRange === 'today') {
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0);
+        dateFilter.$gte = startOfDay;
+      } else if (normalizedRange === 'week' || normalizedRange === '7d') {
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        dateFilter.$gte = sevenDaysAgo;
+      } else if (normalizedRange === 'month' || normalizedRange === '30d') {
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        dateFilter.$gte = thirtyDaysAgo;
+      }
+    }
+
+    if (Object.keys(dateFilter).length > 0) {
+      query.dated = dateFilter;
+    }
+
+    if (search && String(search).trim()) {
+      const sRegex = new RegExp(escapeRegex(String(search).trim()), 'i');
       query.$or = [
         { loginId: sRegex },
         { fullName: sRegex },
@@ -178,17 +230,19 @@ export const getActivities = async (req, res, next) => {
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
 
     const [total, activities] = await Promise.all([
       UserActivity.countDocuments(query),
       UserActivity.find(query)
-        .sort({ dated: -1, createdAt: -1 })
+        .sort({ dated: -1 })
         .skip(skip)
         .limit(limitNum)
         .lean()
     ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / limitNum));
 
     return res.status(200).json({
       success: true,
@@ -198,7 +252,7 @@ export const getActivities = async (req, res, next) => {
         page: pageNum,
         limit: limitNum,
         totalItems: total,
-        totalPages: Math.ceil(total / limitNum)
+        totalPages
       }
     });
   } catch (error) {

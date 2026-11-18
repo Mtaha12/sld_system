@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Users, Search, RefreshCw, Eye, FileText, Bell, Scale, Calendar, Globe
+  Users, Search, RefreshCw, FileText, Bell, Scale, Calendar
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { activityService } from '../../../services/activityService';
 import AdminFooter from '../../dashboard/components/AdminFooter';
 import Modal from '../../../components/ui/Modal';
-import { useUser } from '../../../contexts/UserContext';
+import Pagination from '../../../components/ui/Pagination';
 
 const TABS = [
   { id: 'case', label: 'Law Cases Activity', path: '/activity/cases', icon: Scale, columnTitle: 'Case #' },
@@ -14,8 +14,14 @@ const TABS = [
   { id: 'statute', label: 'Statute Activity', path: '/activity/statutes', icon: FileText, columnTitle: 'Statute #' }
 ];
 
+const DATE_RANGES = [
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'Last 7 Days (1 Week)' },
+  { id: 'month', label: 'Last 30 Days' },
+  { id: 'all', label: 'All Time' }
+];
+
 const UserActivityView = ({ activeType = 'case' }) => {
-  const { user: currentUser, logout } = useUser();
   const navigate = useNavigate();
 
   const currentTab = TABS.find(t => t.id === activeType) || TABS[0];
@@ -23,28 +29,59 @@ const UserActivityView = ({ activeType = 'case' }) => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  // Filters: default to last 7 days (1 week)
   const [searchQuery, setSearchQuery] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [dateRange, setDateRange] = useState('week');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   // Inspection modal
   const [inspectModal, setInspectModal] = useState({ isOpen: false, data: null });
 
-  const fetchActivities = useCallback(async (params = {}) => {
+  // Reset to page 1 when switching activity category tab
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeType]);
+
+  const fetchActivities = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await activityService.getActivities({
+      const params = {
         type: activeType,
-        search: params.search !== undefined ? params.search : searchQuery,
-      });
+        page: currentPage,
+        limit: itemsPerPage,
+      };
+
+      if (appliedSearch.trim()) {
+        params.search = appliedSearch.trim();
+      }
+
+      if (fromDate || toDate) {
+        if (fromDate) params.fromDate = fromDate;
+        if (toDate) params.toDate = toDate;
+      } else {
+        params.range = dateRange;
+      }
+
+      const res = await activityService.getActivities(params);
       if (res && res.data) {
         setActivities(res.data);
-        setTotalRecords(res.pagination?.totalItems ?? res.data.length);
+        const total = res.pagination?.totalItems ?? res.data.length;
+        const pages = res.pagination?.totalPages ?? Math.max(1, Math.ceil(total / itemsPerPage));
+        setTotalRecords(total);
+        setTotalPages(Math.max(1, pages));
       }
     } catch (err) {
       console.error('Failed to load user activities:', err);
     } finally {
       setLoading(false);
     }
-  }, [activeType, searchQuery]);
+  }, [activeType, currentPage, itemsPerPage, appliedSearch, dateRange, fromDate, toDate]);
 
   useEffect(() => {
     fetchActivities();
@@ -52,13 +89,34 @@ const UserActivityView = ({ activeType = 'case' }) => {
 
   const handleSearch = (e) => {
     e?.preventDefault();
-    fetchActivities({ search: searchQuery });
+    setCurrentPage(1);
+    setAppliedSearch(searchQuery);
   };
 
-  const handleReset = () => {
+  const handleResetAll = () => {
     setSearchQuery('');
-    fetchActivities({ search: '' });
+    setAppliedSearch('');
+    setFromDate('');
+    setToDate('');
+    setDateRange('all');
+    setCurrentPage(1);
   };
+
+  const handleRangeChange = (rangeId) => {
+    setFromDate('');
+    setToDate('');
+    setDateRange(rangeId);
+    setCurrentPage(1);
+  };
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const activeRangeLabel = fromDate || toDate
+    ? `${fromDate || '...'} to ${toDate || '...'}`
+    : (DATE_RANGES.find(r => r.id === dateRange)?.label || 'Last 7 Days (1 Week)');
 
   const formatDate = (dateVal) => {
     if (!dateVal) return '—';
@@ -80,7 +138,7 @@ const UserActivityView = ({ activeType = 'case' }) => {
   return (
     <div className="min-h-screen bg-[#F0F2F5] dark:bg-theme-bg flex flex-col font-sans transition-colors">
       
-      {/* Top Banner Matching Screenshot 4 */}
+      {/* Top Banner */}
       <div className="bg-[#B91C1C] text-white px-6 py-2.5 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2">
           <Users className="w-5 h-5 text-white/90" />
@@ -113,45 +171,127 @@ const UserActivityView = ({ activeType = 'case' }) => {
           })}
         </div>
 
-        {/* Search Bar matching Screenshot 4 */}
-        <form onSubmit={handleSearch} className="bg-white dark:bg-theme-surface p-3 rounded-lg border border-theme-border shadow-sm flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="User Name"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 max-w-md px-3 py-1.5 text-xs bg-white dark:bg-theme-bg border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
-          />
-          <button
-            type="submit"
-            className="px-4 py-1.5 bg-[#00A8CC] hover:bg-[#0092b3] text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <span>Search User</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="px-4 py-1.5 bg-[#8E44AD] hover:bg-[#7D3C98] text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <span>All</span>
-          </button>
+        {/* Search & Date Range Filter Bar */}
+        <form onSubmit={handleSearch} className="bg-white dark:bg-theme-surface p-3 rounded-lg border border-theme-border shadow-sm space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search User Name, Login ID, Document #, Agency or IP..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 min-w-[220px] max-w-md px-3 py-1.5 text-xs bg-white dark:bg-theme-bg border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+            />
+            <button
+              type="submit"
+              className="px-4 py-1.5 bg-[#00A8CC] hover:bg-[#0092b3] text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>Search User</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleResetAll}
+              className="px-4 py-1.5 bg-[#8E44AD] hover:bg-[#7D3C98] text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 cursor-pointer"
+              title="Reset search and show all records"
+            >
+              <span>All</span>
+            </button>
+
+            {/* Quick Timeframe Pills */}
+            <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+              <Calendar className="w-3.5 h-3.5 text-theme-muted mr-0.5 hidden sm:inline" />
+              {DATE_RANGES.map((rng) => {
+                const isSelected = !fromDate && !toDate && dateRange === rng.id;
+                return (
+                  <button
+                    key={rng.id}
+                    type="button"
+                    onClick={() => handleRangeChange(rng.id)}
+                    className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer border ${
+                      isSelected
+                        ? 'bg-[#E67E22] text-white border-[#d35400] shadow-xs'
+                        : 'bg-gray-50 dark:bg-theme-bg text-theme-muted border-theme-border hover:bg-gray-100 dark:hover:bg-theme-surface-alt'
+                    }`}
+                  >
+                    {rng.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Optional Exact Date Filter Row */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-theme-border/60 text-xs">
+            <span className="text-[11px] font-semibold text-theme-muted">Custom Date Range:</span>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => {
+                setFromDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 text-[11px] bg-white dark:bg-theme-bg border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange"
+              aria-label="From Date"
+            />
+            <span className="text-[11px] text-theme-muted">to</span>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => {
+                setToDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 text-[11px] bg-white dark:bg-theme-bg border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange"
+              aria-label="To Date"
+            />
+            {(fromDate || toDate) && (
+              <button
+                type="button"
+                onClick={() => handleRangeChange('week')}
+                className="px-2.5 py-1 text-[11px] font-semibold text-brand-orange hover:underline cursor-pointer"
+              >
+                Reset to 1 Week
+              </button>
+            )}
+          </div>
         </form>
 
-        {/* Total Records Right Banner matching Screenshot 4 */}
-        <div className="px-2 flex justify-between items-center text-xs font-bold text-[#1E3A8A] dark:text-cyan-400">
-          <span className="text-gray-500 font-normal">
-            Real-time document access logs for <strong>{currentTab.label}</strong>
-          </span>
-          <span>Total Records: ({totalRecords.toLocaleString()})</span>
+        {/* Total Records & Per-Page Banner */}
+        <div className="px-2 flex flex-wrap justify-between items-center gap-2 text-xs font-bold text-[#1E3A8A] dark:text-cyan-400">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-gray-500 font-normal">
+              Real-time document access logs for <strong>{currentTab.label}</strong>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300 text-[11px] font-bold">
+              {activeRangeLabel}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-theme-muted font-normal">
+              <span>Show:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1 bg-white dark:bg-theme-surface border border-theme-border rounded text-xs font-semibold text-theme-main focus:outline-none focus:border-brand-orange"
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+            </div>
+            <span>Total Records: ({totalRecords.toLocaleString()})</span>
+          </div>
         </div>
 
-        {/* Activity Table matching Screenshot 4 */}
+        {/* Activity Table */}
         <div className="bg-white dark:bg-theme-surface rounded-lg border border-theme-border shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-[#E67E22] text-white text-xs font-bold uppercase tracking-wider">
-                  <th className="py-2.5 px-3 w-12 text-center border-r border-[#d35400]">Sr #</th>
+                  <th className="py-2.5 px-3 w-14 text-center border-r border-[#d35400]">Sr #</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400] w-36">Login ID/ Password</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400] w-28 text-center">{currentTab.columnTitle}</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400]">Full Name</th>
@@ -173,8 +313,17 @@ const UserActivityView = ({ activeType = 'case' }) => {
                   </tr>
                 ) : activities.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="py-10 text-center text-theme-muted">
-                      No user activity records found.
+                    <td colSpan="8" className="py-10 text-center text-theme-muted space-y-2">
+                      <div>No user activity records found for <strong>{activeRangeLabel}</strong>.</div>
+                      {(dateRange !== 'all' || fromDate || toDate || appliedSearch) && (
+                        <button
+                          type="button"
+                          onClick={handleResetAll}
+                          className="inline-flex items-center px-3 py-1.5 rounded bg-[#8E44AD] hover:bg-[#7D3C98] text-white text-xs font-bold cursor-pointer transition-colors"
+                        >
+                          Show All Time Activity
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -184,7 +333,7 @@ const UserActivityView = ({ activeType = 'case' }) => {
                       className="hover:bg-gray-50/70 dark:hover:bg-theme-surface-alt/30 transition-colors"
                     >
                       <td className="py-2.5 px-3 text-center text-theme-muted font-medium border-r border-theme-border/60">
-                        {idx + 1}
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
                       </td>
                       <td className="py-2.5 px-3 font-semibold text-theme-main border-r border-theme-border/60">
                         {item.loginId || '—'}
@@ -220,6 +369,17 @@ const UserActivityView = ({ activeType = 'case' }) => {
               </tbody>
             </table>
           </div>
+
+          {/* Bottom Pagination Controls */}
+          {!loading && totalRecords > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalRecords}
+              itemsPerPage={itemsPerPage}
+              onPageChange={handlePageChange}
+            />
+          )}
         </div>
 
       </div>
