@@ -25,16 +25,13 @@ const userSchema = new mongoose.Schema({
   username: {
     type: String,
     required: [true, 'Username is required'],
-    unique: true,
     trim: true,
-    index: true,
   },
   email: {
     type: String,
     required: [true, 'Email address is required'],
     lowercase: true,
     trim: true,
-    index: true,
   },
   password: {
     type: String,
@@ -252,6 +249,21 @@ userSchema.pre(/^find/, function () {
 });
 
 userSchema.index({ role: 1, isDeleted: 1, status: 1, createdAt: -1 });
+userSchema.index({ username: 1 }, { unique: true, partialFilterExpression: { isDeleted: false } });
+userSchema.index({ email: 1 });
 
 const User = mongoose.model('User', userSchema);
+
+// Ensure legacy unique email index is dropped and replaced with non-unique index
+User.init().then(async () => {
+  try {
+    const indexes = await User.collection.indexes();
+    const uniqueEmail = indexes.find(i => (i.name === 'email_1' || (i.key && i.key.email)) && i.unique);
+    if (uniqueEmail) {
+      await User.collection.dropIndex(uniqueEmail.name).catch(() => {});
+      await User.collection.createIndex({ email: 1 }, { background: true }).catch(() => {});
+    }
+  } catch (e) {}
+}).catch(() => {});
+
 export default User;

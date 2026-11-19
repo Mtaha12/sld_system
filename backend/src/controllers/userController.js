@@ -213,7 +213,21 @@ export const createUser = async (req, res, next) => {
       isVerified: true,
     });
 
-    await user.save();
+    try {
+      await user.save();
+    } catch (saveErr) {
+      if (saveErr.code === 11000 && (saveErr.keyPattern?.email || saveErr.message?.includes('email_1'))) {
+        try {
+          await User.collection.dropIndex('email_1');
+          await User.collection.createIndex({ email: 1 }, { background: true });
+          await user.save();
+        } catch (retryErr) {
+          throw retryErr;
+        }
+      } else {
+        throw saveErr;
+      }
+    }
     logger.info(`[User Created] Admin created user: ${user.username} (${user.email})`);
 
     const userObj = user.toObject();

@@ -148,7 +148,21 @@ export const register = async (req, res, next) => {
       activeDate: new Date()
     });
 
-    await user.save();
+    try {
+      await user.save();
+    } catch (saveErr) {
+      if (saveErr.code === 11000 && (saveErr.keyPattern?.email || saveErr.message?.includes('email_1'))) {
+        try {
+          await User.collection.dropIndex('email_1');
+          await User.collection.createIndex({ email: 1 }, { background: true });
+          await user.save();
+        } catch (retryErr) {
+          throw retryErr;
+        }
+      } else {
+        throw saveErr;
+      }
+    }
 
     // Dispatch email
     await sendOtpEmail(user.email, user.fullName, verificationCode, 'verification');

@@ -25,11 +25,19 @@ const errorHandler = (err, req, res, next) => {
   // Handle Mongoose Duplicate Key (Unique Constraint) Error
   if (err.code === 11000) {
     statusCode = 400;
-    const key = Object.keys(err.keyValue)[0];
+    const key = Object.keys(err.keyValue || err.keyPattern || {})[0] || 'field';
+    if (key === 'email') {
+      import('../models/User.js').then(({ default: User }) => {
+        User.collection?.dropIndex('email_1').catch(() => {});
+        User.collection?.createIndex({ email: 1 }, { background: true }).catch(() => {});
+      }).catch(() => {});
+    }
     message = `Duplicate value error: ${key} already exists.`;
     errors = [{
       field: key,
-      message: `The value for field '${key}' is already registered.`
+      message: key === 'email'
+        ? 'Database index synchronized. Please submit again.'
+        : `The value for field '${key}' is already registered.`
     }];
   }
 
