@@ -173,13 +173,12 @@ export const createUser = async (req, res, next) => {
     const existing = await User.findOne({
       $or: [
         { username: finalLogin },
-        { email: finalEmail },
         { loginId: finalLogin }
       ]
     });
 
     if (existing) {
-      return res.status(400).json({ success: false, message: 'A user with this Login ID or Email already exists.' });
+      return res.status(400).json({ success: false, message: 'A user with this Login ID already exists. Username/Login ID must be unique.' });
     }
 
     const user = new User({
@@ -280,11 +279,7 @@ export const updateUser = async (req, res, next) => {
 
     if (email !== undefined) {
       const newEmail = email.trim().toLowerCase();
-      if (newEmail && newEmail !== user.email) {
-        const exist = await User.findOne({ email: newEmail, _id: { $ne: id } });
-        if (exist) {
-          return res.status(400).json({ success: false, message: 'Email address already taken by another user.' });
-        }
+      if (newEmail) {
         user.email = newEmail;
       }
     }

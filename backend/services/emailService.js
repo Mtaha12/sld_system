@@ -702,3 +702,293 @@ SLD Administration Team
     throw new Error(`Failed to send payment rejection email via SMTP: ${error.message}`);
   }
 };
+
+const escapeHtml = (str) => {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
+/**
+ * Dispatches an asynchronous email to the Administrator whenever a user asks the AI Chatbot a question.
+ * Contains user identification, question text, attachment details, and AI response.
+ */
+export const sendAiChatNotificationToAdmin = async ({
+  user = {},
+  question = '',
+  attachments = [],
+  response = '',
+  ipAddress = '',
+  sessionId = ''
+}) => {
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.OWNER_EMAIL || 'haroonarafiq@gmail.com';
+  const fromName = process.env.EMAIL_FROM_NAME || 'SLD Legal AI Intelligence';
+  const fromAddress = process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER || 'support@sldsystem.com';
+
+  const userName = user?.fullName || user?.name || user?.username || 'Registered User';
+  const userLogin = user?.loginId || user?.username || 'N/A';
+  const userEmail = user?.email || 'N/A';
+  const userAgency = user?.agencyName || 'General';
+  const userCity = user?.city || 'N/A';
+  const userRole = user?.role || 'User';
+
+  const receivedAt = new Date().toLocaleString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short'
+  });
+
+  const transporter = createTransporter();
+
+  const emailSubject = `[SLD AI Chat] Query from ${userName} (${userLogin})`;
+
+  const safeQuestion = String(question || '').trim() || '(No text prompt - document attached)';
+  const safeResponse = String(response || '').trim() || '(No response text generated)';
+
+  const attachmentNames = Array.isArray(attachments) && attachments.length > 0
+    ? attachments.map(a => a?.name || 'attachment').join(', ')
+    : '';
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLD AI Chat Query Audit</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #1F2937;
+      background-color: #F3F4F6;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 680px;
+      margin: 20px auto;
+      background: #FFFFFF;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      border: 1px solid #E5E7EB;
+    }
+    .header {
+      background-color: #0B0C10;
+      color: #FFFFFF;
+      padding: 24px 32px;
+      border-bottom: 3px solid #E55C41;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+    .badge {
+      background-color: rgba(229, 92, 65, 0.15);
+      color: #E55C41;
+      border: 1px solid rgba(229, 92, 65, 0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .content {
+      padding: 28px 32px;
+    }
+    .details-card {
+      background-color: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+    .detail-row {
+      display: flex;
+      margin-bottom: 8px;
+      font-size: 13.5px;
+    }
+    .detail-row:last-child {
+      margin-bottom: 0;
+    }
+    .detail-label {
+      width: 140px;
+      font-weight: 600;
+      color: #6B7280;
+    }
+    .detail-value {
+      flex: 1;
+      color: #111827;
+      font-weight: 500;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #4B5563;
+      margin: 20px 0 8px 0;
+    }
+    .query-box {
+      background-color: #FFF7ED;
+      border: 1px solid #FFEDD5;
+      border-left: 4px solid #EA580C;
+      border-radius: 6px;
+      padding: 16px;
+      font-size: 14px;
+      color: #7C2D12;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.6;
+    }
+    .response-box {
+      background-color: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-left: 4px solid #0284C7;
+      border-radius: 6px;
+      padding: 18px;
+      font-size: 13.5px;
+      color: #0F172A;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.65;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .attachments-tag {
+      display: inline-block;
+      background: #E0E7FF;
+      color: #3730A3;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .footer {
+      background-color: #F9FAFB;
+      border-top: 1px solid #E5E7EB;
+      padding: 16px 32px;
+      text-align: center;
+      font-size: 12px;
+      color: #9CA3AF;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>SLD Legal AI Intelligence</h1>
+        <div style="font-size: 12px; color: #9CA3AF; margin-top: 2px;">Chatbot User Query & Response Log</div>
+      </div>
+      <span class="badge">AI Chat Log</span>
+    </div>
+
+    <div class="content">
+      <div class="details-card">
+        <div class="detail-row">
+          <span class="detail-label">User Name:</span>
+          <span class="detail-value"><strong>${escapeHtml(userName)}</strong></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Login ID:</span>
+          <span class="detail-value">${escapeHtml(userLogin)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Email:</span>
+          <span class="detail-value"><a href="mailto:${escapeHtml(userEmail)}" style="color: #E55C41; text-decoration: none;">${escapeHtml(userEmail)}</a></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Agency / City:</span>
+          <span class="detail-value">${escapeHtml(userAgency)} / ${escapeHtml(userCity)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Role:</span>
+          <span class="detail-value">${escapeHtml(userRole)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Timestamp:</span>
+          <span class="detail-value">${escapeHtml(receivedAt)}</span>
+        </div>
+        ${ipAddress ? `
+        <div class="detail-row">
+          <span class="detail-label">Client IP:</span>
+          <span class="detail-value">${escapeHtml(ipAddress)}</span>
+        </div>` : ''}
+        ${attachmentNames ? `
+        <div class="detail-row">
+          <span class="detail-label">Attached Files:</span>
+          <span class="detail-value"><span class="attachments-tag">📎 ${escapeHtml(attachmentNames)}</span></span>
+        </div>` : ''}
+      </div>
+
+      <div class="section-title">User's Question / Prompt:</div>
+      <div class="query-box">${escapeHtml(safeQuestion)}</div>
+
+      <div class="section-title">AI Assistant Response:</div>
+      <div class="response-box">${escapeHtml(safeResponse)}</div>
+    </div>
+
+    <div class="footer">
+      This is an automated prompt & response audit from SLD Legal AI Assistant.
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const textContent = `
+================================================================================
+                    SLD SYSTEM - AI CHATBOT AUDIT NOTIFICATION
+================================================================================
+User:       ${userName} (Login ID: ${userLogin})
+Email:      ${userEmail}
+Agency:     ${userAgency} | City: ${userCity} | Role: ${userRole}
+Time:       ${receivedAt}
+${ipAddress ? `IP:         ${ipAddress}\n` : ''}${attachmentNames ? `Attachment: ${attachmentNames}\n` : ''}--------------------------------------------------------------------------------
+USER QUESTION:
+${safeQuestion}
+--------------------------------------------------------------------------------
+AI RESPONSE:
+${safeResponse}
+================================================================================
+  `.trim();
+
+  if (!transporter) {
+    console.log(`[AI Chat Alert (Simulated)] Admin notification for ${userLogin} (${userEmail})`);
+    return { success: true, simulated: true };
+  }
+
+  const mailOptions = {
+    from: `"${fromName}" <${fromAddress}>`,
+    to: adminEmail,
+    replyTo: userEmail && userEmail.includes('@') ? `"${userName}" <${userEmail}>` : fromAddress,
+    subject: emailSubject,
+    text: textContent,
+    html: htmlContent
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, simulated: false, messageId: info.messageId };
+  } catch (error) {
+    console.error(`[AI Chat SMTP Error] Failed to send AI alert email to ${adminEmail}:`, error);
+    throw error;
+  }
+};

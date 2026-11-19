@@ -73,16 +73,14 @@ export const createAdmin = async (req, res, next) => {
     const existing = await User.findOne({
       $or: [
         { username: cleanLogin },
-        { loginId: cleanLogin },
-        { email: cleanEmail }
+        { loginId: cleanLogin }
       ]
     });
 
     if (existing) {
-      const matchType = existing.email === cleanEmail ? `Email address (${cleanEmail})` : `Login ID (${cleanLogin})`;
       return res.status(400).json({ 
         success: false, 
-        message: `An account with this ${matchType} is already registered in the system.` 
+        message: `An account with Login ID (${cleanLogin}) is already registered in the system.` 
       });
     }
 
@@ -144,13 +142,7 @@ export const updateAdmin = async (req, res, next) => {
     }
     if (email !== undefined && email.trim()) {
       const cleanEmail = email.trim().toLowerCase();
-      if (cleanEmail !== admin.email) {
-        const exist = await User.findOne({ email: cleanEmail, _id: { $ne: id } });
-        if (exist) {
-          return res.status(400).json({ success: false, message: 'Email address already taken.' });
-        }
-        admin.email = cleanEmail;
-      }
+      admin.email = cleanEmail;
     }
     if (password && password.trim()) {
       admin.password = password.trim();

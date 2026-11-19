@@ -29,6 +29,23 @@ const ensureOptimalIndexes = async () => {
     await Case.collection.createIndex({ isDeleted: 1, dated: -1, sldNumberInt: -1 }, { background: true });
     await Case.collection.createIndex({ isDeleted: 1, court: 1, sldNumberInt: -1 }, { background: true });
     await Case.collection.createIndex({ isDeleted: 1, caseNumber: 1 }, { background: true });
+
+    // Ensure email index on users allows multiple accounts with distinct usernames
+    try {
+      const User = (await import('../models/User.js')).default;
+      const userIndexes = await User.collection.indexes();
+      const uniqueEmailIndex = userIndexes.find(
+        (idx) => (idx.name === 'email_1' || (idx.key && idx.key.email)) && idx.unique
+      );
+      if (uniqueEmailIndex) {
+        console.log(`[SLD System Backend] Dropping legacy unique index '${uniqueEmailIndex.name}' on users collection...`);
+        await User.collection.dropIndex(uniqueEmailIndex.name);
+        console.log('[SLD System Backend] Dropped unique email index. Creating non-unique index on email...');
+        await User.collection.createIndex({ email: 1 }, { background: true });
+      }
+    } catch (uErr) {
+      // Collection may be empty or index already non-unique; non-fatal
+    }
   } catch (err) {
     console.warn('[Index Ensure Warning]:', err.message);
   }

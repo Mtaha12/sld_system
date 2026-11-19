@@ -108,16 +108,7 @@ export const register = async (req, res, next) => {
       });
     }
 
-    // Check unique criteria
-    const emailExist = await User.findOne({ email: email.toLowerCase() });
-    if (emailExist) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email address is already in use. Please check your credentials or use a different email.',
-        errors: [{ field: 'email', message: 'Email address is already in use. Please use a different email.' }]
-      });
-    }
-
+    // Ensure username is strictly unique across all accounts
     const usernameExist = await findExistingUserByUsername(User, username);
     if (usernameExist) {
       return res.status(400).json({
@@ -182,7 +173,7 @@ export const register = async (req, res, next) => {
 
 export const verifyEmail = async (req, res, next) => {
   try {
-    const { code, email } = req.body;
+    const { code, email, identifier, username } = req.body;
 
     if (!code) {
       return res.status(400).json({
@@ -192,8 +183,19 @@ export const verifyEmail = async (req, res, next) => {
     }
 
     let user;
-    if (email) {
-      user = await User.findOne({ email: email.toLowerCase() });
+    if (identifier || username) {
+      user = await findUserByIdentifier(User, identifier || username);
+    } else if (email && code) {
+      // Find the specific user account matching both this email and active OTP code
+      user = await User.findOne({ 
+        email: email.toLowerCase(),
+        verificationCode: code,
+        verificationCodeExpires: { $gt: new Date() }
+      });
+      if (!user) {
+        user = await User.findOne({ email: email.toLowerCase(), isVerified: false }).sort({ createdAt: -1 })
+          || await User.findOne({ email: email.toLowerCase() }).sort({ createdAt: -1 });
+      }
     } else {
       // Fallback search by active code if email wasn't passed (safety constraint)
       user = await User.findOne({ 
@@ -237,16 +239,24 @@ export const verifyEmail = async (req, res, next) => {
 
 export const resendVerificationCode = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const { email, identifier, username } = req.body;
+    const target = (email || identifier || username || '').trim();
 
-    if (!email) {
+    if (!target) {
       return res.status(400).json({
         success: false,
-        message: 'Email address is required.'
+        message: 'Email address or username is required.'
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    let user;
+    if (identifier || username) {
+      user = await findUserByIdentifier(User, identifier || username);
+    }
+    if (!user && email) {
+      user = await User.findOne({ email: email.toLowerCase(), isVerified: false }).sort({ createdAt: -1 })
+        || await User.findOne({ email: email.toLowerCase() }).sort({ createdAt: -1 });
+    }
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -291,7 +301,7 @@ export const login = async (req, res, next) => {
     }
 
     // Search by username, loginId, or email (case-insensitive); password remains strictly case-sensitive
-    const user = await findUserByIdentifier(User, rawIdentifier);
+    let user = await findUserByIdentifier(User, rawIdentifier);
 
     if (!user) {
       return res.status(401).json({
@@ -301,7 +311,24 @@ export const login = async (req, res, next) => {
     }
 
     // Check password
-    const isMatch = await user.comparePassword(password);
+    let isMatch = await user.comparePassword(password);
+
+    // If initial password match fails and multiple user accounts share this email address,
+    // evaluate candidate accounts associated with this email
+    if (!isMatch && (cleanId.includes('@') || (user.email && user.email.toLowerCase() === cleanId))) {
+      const candidateUsers = await User.find({ email: cleanId });
+      for (const candidate of candidateUsers) {
+        if (candidate._id.toString() !== user._id.toString()) {
+          const match = await candidate.comparePassword(password);
+          if (match) {
+            user = candidate;
+            isMatch = true;
+            break;
+          }
+        }
+      }
+    }
+
     if (!isMatch) {
       return res.status(401).json({
         success: false,

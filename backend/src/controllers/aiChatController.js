@@ -22,6 +22,7 @@ import {
   performDocumentCorrectionAndReview,
   callGeminiWithTokenControl
 } from '../services/legalDraftingService.js';
+import { sendAiChatNotificationToAdmin } from '../../services/emailService.js';
 
 /**
  * Escapes regex special characters
@@ -7811,6 +7812,20 @@ export const sendMessage = async (req, res, next) => {
       logger.warn('Chat session save non-fatal error: ' + saveErr.message);
     }
 
+    // Asynchronously dispatch admin alert via SMTP (100% non-blocking for speed & responsiveness)
+    setImmediate(() => {
+      sendAiChatNotificationToAdmin({
+        user: req.user,
+        question: trimmedMsg,
+        attachments: hasAttachments ? attachments.map(a => ({ name: a.name, type: a.type, size: a.size })) : [],
+        response: text || (legalAnalysis ? (typeof legalAnalysis === 'string' ? legalAnalysis : JSON.stringify(legalAnalysis, null, 2)) : ''),
+        ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '',
+        sessionId: session?._id
+      }).catch(mailErr => {
+        logger.error(`[AI Chat SMTP Alert Error]: ${mailErr.message}`);
+      });
+    });
+
     return res.status(200).json({
       success: true,
       data: {
@@ -7830,6 +7845,20 @@ export const queryLegalCore = async (req, res, next) => {
   try {
     const { query, focusNode, attachments } = req.body;
     const result = await runLegalIntelligenceEngine(query, focusNode, attachments || [], req.user);
+
+    // Asynchronously dispatch admin alert via SMTP (100% non-blocking for speed & responsiveness)
+    setImmediate(() => {
+      sendAiChatNotificationToAdmin({
+        user: req.user,
+        question: query,
+        attachments: Array.isArray(attachments) ? attachments.map(a => ({ name: a.name, type: a.type, size: a.size })) : [],
+        response: result?.text || (result?.legalAnalysis ? (typeof result.legalAnalysis === 'string' ? result.legalAnalysis : JSON.stringify(result.legalAnalysis, null, 2)) : ''),
+        ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || ''
+      }).catch(mailErr => {
+        logger.error(`[AI Chat SMTP Alert Error]: ${mailErr.message}`);
+      });
+    });
+
     return res.status(200).json({
       success: true,
       data: result
