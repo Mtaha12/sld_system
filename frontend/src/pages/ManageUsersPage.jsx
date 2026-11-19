@@ -22,14 +22,15 @@ const ManageUsersPage = () => {
   const [totalRecords, setTotalRecords] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [statusCounts, setStatusCounts] = useState({ all: 0, active: 0, inactive: 0 });
+  const [statusCounts, setStatusCounts] = useState({ all: 0, active: 0, inactive: 0, pending: 0 });
   const [cities, setCities] = useState([]);
   const PAGE_LIMIT = 100;
 
   // Search & Filter
   const [searchName, setSearchName] = useState('');
+  const [searchEmail, setSearchEmail] = useState('');
   const [filterSpammer, setFilterSpammer] = useState('all'); // 'all', 'yes', 'no'
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'active', 'inactive'
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'active', 'inactive', 'pending'
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,6 +88,28 @@ const ManageUsersPage = () => {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const formatDateTime = (dateVal) => {
+    if (!dateVal) return { date: '—', time: '' };
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return { date: String(dateVal), time: '' };
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      let hours = d.getHours();
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const seconds = String(d.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hour12 = hours % 12 || 12;
+      return {
+        date: `${year}-${month}-${day}`,
+        time: `${String(hour12).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`
+      };
+    } catch {
+      return { date: String(dateVal), time: '' };
+    }
+  };
+
   const fetchCities = async () => {
     try {
       const res = await settingService.getCities({ status: 'active', limit: 500 });
@@ -103,8 +126,12 @@ const ManageUsersPage = () => {
     try {
       const effectiveStatus = params.status !== undefined ? params.status : filterStatus;
       const effectivePage = params.page !== undefined ? params.page : currentPage;
+      const effectiveSearch = params.search !== undefined ? params.search : searchName;
+      const effectiveEmail = params.email !== undefined ? params.email : searchEmail;
+
       const queryParams = {
-        search: params.search !== undefined ? params.search : searchName,
+        search: effectiveSearch || undefined,
+        email: effectiveEmail || undefined,
         isSpammer: params.isSpammer !== undefined ? params.isSpammer : (filterSpammer === 'all' ? undefined : filterSpammer),
         status: effectiveStatus && effectiveStatus !== 'all' ? effectiveStatus : undefined,
         page: effectivePage,
@@ -125,7 +152,7 @@ const ManageUsersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchName, filterSpammer, filterStatus, currentPage]);
+  }, [searchName, searchEmail, filterSpammer, filterStatus, currentPage]);
 
   useEffect(() => {
     fetchUsers({ page: 1 });
@@ -135,15 +162,31 @@ const ManageUsersPage = () => {
   const handleSearch = (e) => {
     e?.preventDefault();
     setCurrentPage(1);
-    fetchUsers({ search: searchName, page: 1 });
+    fetchUsers({ search: searchName, email: searchEmail, page: 1 });
   };
 
   const handleResetAll = () => {
     setSearchName('');
+    setSearchEmail('');
     setFilterSpammer('all');
     setFilterStatus('all');
     setCurrentPage(1);
-    fetchUsers({ search: '', isSpammer: undefined, status: 'all', page: 1 });
+    fetchUsers({ search: '', email: '', isSpammer: undefined, status: 'all', page: 1 });
+  };
+
+  const handleQuickApprove = async (u) => {
+    try {
+      const res = await userService.updateUser(u._id, { status: 'Active' });
+      if (res && res.success !== false) {
+        showToast('success', `User ${u.username || u.loginId} approved and activated.`);
+        fetchUsers({ page: currentPage });
+      } else {
+        showToast('error', res?.message || 'Failed to approve user.');
+      }
+    } catch (err) {
+      console.error('Approve user error:', err);
+      showToast('error', err.response?.data?.message || 'Failed to approve user.');
+    }
   };
 
   const handleToggleSpammerFilter = () => {
@@ -210,7 +253,7 @@ const ManageUsersPage = () => {
       activeDate: u.activeDate ? String(u.activeDate).split('T')[0] : '',
       inactiveDate: u.inactiveDate ? String(u.inactiveDate).split('T')[0] : '',
       agencyName: u.agencyName || 'Haroon',
-      status: (u.status || 'Active').toLowerCase() === 'active' ? 'Active' : 'Inactive',
+      status: (u.status || 'Active').toLowerCase() === 'active' ? 'Active' : (String(u.status).toUpperCase() === 'PENDING_APPROVAL' ? 'PENDING_APPROVAL' : 'Inactive'),
       userType: u.userType || 'Special',
       aiAssistant: u.aiAssistant === false ? 'No' : 'Yes',
       alreadyLogin: u.alreadyLogin ? 'Yes' : 'No',
@@ -406,10 +449,17 @@ const ManageUsersPage = () => {
         <form onSubmit={handleSearch} className="bg-white dark:bg-theme-surface p-3.5 rounded-lg border border-theme-border shadow-sm flex flex-wrap items-center gap-2.5">
           <input
             type="text"
-            placeholder="User Name"
+            placeholder="User Name / Login ID"
             value={searchName}
             onChange={(e) => setSearchName(e.target.value)}
-            className="flex-1 min-w-[200px] max-w-md px-3 py-1.5 text-xs bg-white dark:bg-theme-bg border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+            className="flex-1 min-w-[170px] max-w-xs px-3 py-1.5 text-xs bg-white dark:bg-theme-bg border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
+          />
+          <input
+            type="text"
+            placeholder="Search by Email..."
+            value={searchEmail}
+            onChange={(e) => setSearchEmail(e.target.value)}
+            className="flex-1 min-w-[170px] max-w-xs px-3 py-1.5 text-xs bg-white dark:bg-theme-bg border border-theme-border rounded text-theme-main focus:outline-none focus:border-brand-orange shadow-inner"
           />
           <button
             type="submit"
@@ -499,6 +549,24 @@ const ManageUsersPage = () => {
                   {statusCounts.inactive}
                 </span>
               </button>
+              {Boolean(statusCounts.pending) && (
+                <button
+                  type="button"
+                  onClick={() => handleStatusTabChange('pending')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    filterStatus === 'pending'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                  }`}
+                >
+                  <span>Pending / Signups</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    filterStatus === 'pending' ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200'
+                  }`}>
+                    {statusCounts.pending}
+                  </span>
+                </button>
+              )}
             </div>
 
             <span>Total Records: ({totalRecords})</span>
@@ -511,10 +579,11 @@ const ManageUsersPage = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-[#E67E22] text-white text-xs font-bold uppercase tracking-wider">
-                  <th className="py-2.5 px-3 w-12 text-center border-r border-[#d35400]">Sr #</th>
+                  <th className="py-2.5 px-3 min-w-[65px] w-16 text-center border-r border-[#d35400]">Sr #</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400]">Login ID</th>
-                  <th className="py-2.5 px-3 border-r border-[#d35400] text-center w-36">Password</th>
-                  <th className="py-2.5 px-3 border-r border-[#d35400]">Full Name</th>
+                  <th className="py-2.5 px-3 border-r border-[#d35400] text-center w-32">Password</th>
+                  <th className="py-2.5 px-3 border-r border-[#d35400]">Full Name & Email</th>
+                  <th className="py-2.5 px-3 border-r border-[#d35400] text-center whitespace-nowrap w-36">Signup Date & Time</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400]">Agency</th>
                   <th className="py-2.5 px-3 border-r border-[#d35400]">City</th>
                   <th className="py-2.5 px-3 text-center border-r border-[#d35400]">Type</th>
@@ -527,26 +596,29 @@ const ManageUsersPage = () => {
               <tbody className="divide-y divide-theme-border">
                 {loading ? (
                   <tr>
-                    <td colSpan="11" className="py-12 text-center text-theme-muted">
+                    <td colSpan="12" className="py-12 text-center text-theme-muted">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-orange" />
                       <span>Loading Users...</span>
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan="11" className="py-10 text-center text-theme-muted">
+                    <td colSpan="12" className="py-10 text-center text-theme-muted">
                       No users found.
                     </td>
                   </tr>
                 ) : (
                   users.map((u, idx) => {
                     const isInactive = String(u.status).toUpperCase() === 'INACTIVE';
+                    const isPending = String(u.status).toUpperCase() === 'PENDING_APPROVAL';
                     return (
                       <tr 
                         key={u._id || idx}
                         className={`transition-colors ${
                           isInactive 
                             ? 'bg-red-50/80 dark:bg-red-950/40 border-l-4 border-l-red-500 hover:bg-red-100/70 dark:hover:bg-red-900/40 text-red-900 dark:text-red-200' 
+                            : isPending
+                            ? 'bg-amber-50/60 dark:bg-amber-950/20 border-l-4 border-l-amber-500 hover:bg-amber-100/50'
                             : u.isSpammer 
                             ? 'bg-red-50/40 dark:bg-red-950/20 hover:bg-gray-50/70' 
                             : 'hover:bg-gray-50/70 dark:hover:bg-theme-surface-alt/30'
@@ -563,8 +635,26 @@ const ManageUsersPage = () => {
                             {u.plainPassword || '—'}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-theme-main border-r border-theme-border/60">
-                          {u.fullName || u.name || '—'}
+                        <td className="py-2.5 px-3 border-r border-theme-border/60">
+                          <div className="font-semibold text-theme-main">{u.fullName || u.name || '—'}</div>
+                          {u.email && (
+                            <div className="text-[11px] text-theme-muted font-normal select-all flex items-center gap-1 mt-0.5" title="User Email Address">
+                              <span className="text-gray-400">✉</span> {u.email}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 border-r border-theme-border/60 text-center whitespace-nowrap">
+                          {(() => {
+                            const dt = formatDateTime(u.createdAt || u.activeDate);
+                            return (
+                              <div className="flex flex-col items-center justify-center">
+                                <span className="font-bold text-theme-main font-mono text-[11px]">{dt.date}</span>
+                                {dt.time && (
+                                  <span className="text-[10px] text-theme-muted font-mono">{dt.time}</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-2.5 px-3 text-theme-muted border-r border-theme-border/60">
                           {u.agencyName || 'Haroon'}
@@ -578,22 +668,36 @@ const ManageUsersPage = () => {
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-center border-r border-theme-border/60">
-                          <div className="flex flex-col items-center justify-center gap-0.5">
+                          <div className="flex flex-col items-center justify-center gap-1">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               isInactive
                                 ? 'bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-200 border border-red-300 dark:border-red-800'
+                                : isPending
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300 dark:border-amber-800'
                                 : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
                             }`}>
-                              {u.status || 'Active'}
+                              {isPending ? 'PENDING APPROVAL' : (u.status || 'Active')}
                             </span>
-                            {u.alreadyLogin ? (
-                              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5" title="User is currently logged in">
-                                ● Online
-                              </span>
-                            ) : (
-                              <span className="text-[9px] text-gray-400 dark:text-gray-500" title="User is logged out / offline">
-                                ○ Offline
-                              </span>
+                            {isPending && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickApprove(u)}
+                                className="px-2 py-0.5 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded shadow-2xs transition-colors cursor-pointer"
+                                title="Approve this new signup immediately"
+                              >
+                                ✓ Approve
+                              </button>
+                            )}
+                            {!isPending && (
+                              u.alreadyLogin ? (
+                                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5" title="User is currently logged in">
+                                  ● Online
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-gray-400 dark:text-gray-500" title="User is logged out / offline">
+                                  ○ Offline
+                                </span>
+                              )
                             )}
                           </div>
                         </td>
@@ -868,6 +972,7 @@ const ManageUsersPage = () => {
               >
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
+                <option value="PENDING_APPROVAL">Pending Approval</option>
               </select>
             </div>
             <div>

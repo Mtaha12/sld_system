@@ -906,9 +906,9 @@ const SearchCaseLawPage = () => {
               value={f.magazine ? String(f.magazine).toUpperCase() : ''} 
               onChange={(val) => setF(prev => ({ ...prev, magazine: String(val || '').toUpperCase() }))} 
               options={magazineOptions} 
-              placeholder="Select Magazine..."
-              allowCustom={false}
-              readOnly={true}
+              placeholder="Select or write Magazine..."
+              allowCustom={true}
+              readOnly={false}
             />
             <div className="flex justify-center">
               <div className="w-[85%]">

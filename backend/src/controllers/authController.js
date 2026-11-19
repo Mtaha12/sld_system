@@ -135,6 +135,7 @@ export const register = async (req, res, next) => {
     const user = new User({
       fullName,
       username,
+      loginId: username,
       email: email.toLowerCase(),
       password, // pre-save hook will hash it
       role: 'User', // Public signup CANNOT create admin accounts
@@ -150,7 +151,10 @@ export const register = async (req, res, next) => {
       verificationCode,
       verificationCodeExpires,
       isVerified: false,
-      status: 'PENDING_APPROVAL'
+      status: 'PENDING_APPROVAL',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      activeDate: new Date()
     });
 
     await user.save();

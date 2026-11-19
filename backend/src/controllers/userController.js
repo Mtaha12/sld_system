@@ -19,7 +19,7 @@ const escapeRegex = (string) => {
 
 export const getUsers = async (req, res, next) => {
   try {
-    const { search, status, isSpammer, page = 1, limit = 50 } = req.query;
+    const { search, email, status, isSpammer, page = 1, limit = 50 } = req.query;
 
     // Strictly query only standard users (exclude Administrators who belong to Manage Admins)
     const query = { 
@@ -41,6 +41,11 @@ export const getUsers = async (req, res, next) => {
       ];
     }
 
+    if (email && email.trim()) {
+      const eRegex = new RegExp(escapeRegex(email.trim()), 'i');
+      query.email = eRegex;
+    }
+
     if (isSpammer !== undefined && isSpammer !== 'all') {
       query.isSpammer = parseBoolean(isSpammer, false);
     }
@@ -53,6 +58,8 @@ export const getUsers = async (req, res, next) => {
         query.status = { $in: ['ACTIVE', 'active', 'Active'] };
       } else if (normalizedStatus === 'inactive') {
         query.status = { $in: ['INACTIVE', 'inactive', 'Inactive'] };
+      } else if (normalizedStatus === 'pending' || normalizedStatus === 'pending_approval') {
+        query.status = { $in: ['PENDING_APPROVAL', 'pending_approval', 'Pending_Approval'] };
       } else {
         query.status = { $regex: new RegExp(`^${escapeRegex(status.trim())}$`, 'i') };
       }
@@ -62,17 +69,18 @@ export const getUsers = async (req, res, next) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
 
-    const [total, rawUsers, allCount, activeCount, inactiveCount] = await Promise.all([
+    const [total, rawUsers, allCount, activeCount, inactiveCount, pendingCount] = await Promise.all([
       User.countDocuments(query),
       User.find(query)
         .select('-verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limitNum)
         .lean(),
       User.countDocuments(baseQuery),
       User.countDocuments({ ...baseQuery, status: { $in: ['ACTIVE', 'active', 'Active'] } }),
-      User.countDocuments({ ...baseQuery, status: { $in: ['INACTIVE', 'inactive', 'Inactive'] } })
+      User.countDocuments({ ...baseQuery, status: { $in: ['INACTIVE', 'inactive', 'Inactive'] } }),
+      User.countDocuments({ ...baseQuery, status: { $in: ['PENDING_APPROVAL', 'pending_approval', 'Pending_Approval'] } })
     ]);
 
     const users = rawUsers.map(u => ({
@@ -89,7 +97,8 @@ export const getUsers = async (req, res, next) => {
       counts: {
         all: allCount,
         active: activeCount,
-        inactive: inactiveCount
+        inactive: inactiveCount,
+        pending: pendingCount
       },
       pagination: {
         page: pageNum,
@@ -298,9 +307,14 @@ export const updateUser = async (req, res, next) => {
     if (inactiveDate !== undefined) user.inactiveDate = inactiveDate ? new Date(inactiveDate) : null;
     if (agencyName !== undefined) user.agencyName = agencyName.trim();
     if (status !== undefined) {
-      const newStatus = String(status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      const sUpper = String(status).toUpperCase();
+      let newStatus = 'ACTIVE';
+      if (sUpper === 'INACTIVE') newStatus = 'INACTIVE';
+      else if (sUpper === 'PENDING_APPROVAL') newStatus = 'PENDING_APPROVAL';
       user.status = newStatus;
-      if (newStatus === 'INACTIVE') {
+      if (newStatus === 'ACTIVE') {
+        user.isVerified = true;
+      } else if (newStatus === 'INACTIVE') {
         user.alreadyLogin = false;
         user.sessionVersion = (user.sessionVersion || 1) + 1;
         user.lastLogoutAt = new Date();
