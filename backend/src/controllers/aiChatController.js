@@ -2963,7 +2963,7 @@ export const extractExplicitCourtFromQuery = (text) => {
   if (!text || typeof text !== 'string') return null;
   const s = text.toLowerCase();
   if (/supreme\s*court(?:\s+of\s+pakistan)?\b|\bapex\s*court\b/i.test(s)) {
-    return { type: 'supreme', name: 'Supreme Court of Pakistan', regex: /supreme\s*court/i };
+    return { type: 'supreme', name: 'Supreme Court of Pakistan', regex: /supreme\s*court(?:\s+of\s+pakistan)?/i };
   }
   if (/federal\s*constitutional\s*court/i.test(s)) {
     return { type: 'constitutional', name: 'Federal Constitutional Court of Pakistan', regex: /federal\s*constitutional\s*court/i };
@@ -2980,11 +2980,18 @@ export const extractExplicitCourtFromQuery = (text) => {
   if (/islamabad\s*high\s*court\b|\bihc\b/i.test(s)) {
     return { type: 'ihc', name: 'Islamabad High Court', regex: /islamabad\s*high\s*court/i };
   }
-  if (/balochistan\s*high\s*court\b|\bbhc\b/i.test(s)) {
-    return { type: 'bhc', name: 'Balochistan High Court', regex: /balochistan\s*high\s*court/i };
+  if (/balochistan\s*high\s*court\b|high\s*court\s*of\s*balochistan\b|\bbhc\b/i.test(s)) {
+    return { type: 'bhc', name: 'Balochistan High Court', regex: /balochistan\s*high\s*court|high\s*court\s*of\s*balochistan/i };
   }
-  if (/appellate\s*tribunal(?:\s+inland\s+revenue)?\b|\batir\b/i.test(s)) {
-    return { type: 'tribunal', name: 'Appellate Tribunal Inland Revenue', regex: /appellate\s*tribunal|atir\b/i };
+  if (/appellate\s*tribunal(?:\s+inland\s+revenue)?\b|\batir\b|income\s*tax\s*appellate\s*tribunal/i.test(s)) {
+    return {
+      type: 'tribunal',
+      name: 'Appellate Tribunal Inland Revenue',
+      regex: /appellate\s*tribunal\s*(?:inland\s*revenue|\(inland\s*revenue\)|\(atir\))|atir\b|income\s*tax\s*appellate\s*tribunal|^appellate\s*tribunal\s*$/i
+    };
+  }
+  if (/customs\s*appellate\s*tribunal/i.test(s)) {
+    return { type: 'customs_tribunal', name: 'Customs Appellate Tribunal', regex: /customs\s*appellate\s*tribunal/i };
   }
   if (/federal\s*tax\s*ombudsman\b|\bfto\b/i.test(s)) {
     return { type: 'fto', name: 'Federal Tax Ombudsman', regex: /federal\s*tax\s*ombudsman|fto\b/i };
@@ -3650,10 +3657,24 @@ const validateLawyerKeywords = (c, query) => {
 };
 
 const validateCourtKeywords = (c, query) => {
-  const tokens = extractSearchTokens(query, 3);
+  if (!query || typeof query !== 'string') return true;
+  const cleanCourtQuery = query
+    .replace(/\b(?:orders?|judgm?ents?|decisions?|cases?|rulings?|precedents?|records?|latest|recent|authoritative|verified|official)\b/gi, '')
+    .trim();
+  const tokens = extractSearchTokens(cleanCourtQuery, 3);
   if (tokens.length === 0) return true;
   const courtStr = String(c.court || '').toLowerCase();
-  return tokens.every(token => courtStr.includes(token));
+
+  return tokens.every(token => {
+    if (token === 'atir') return courtStr.includes('atir') || courtStr.includes('appellate tribunal');
+    if (token === 'lhc') return courtStr.includes('lhc') || courtStr.includes('lahore');
+    if (token === 'shc') return courtStr.includes('shc') || courtStr.includes('sindh');
+    if (token === 'phc') return courtStr.includes('phc') || courtStr.includes('peshawar');
+    if (token === 'ihc') return courtStr.includes('ihc') || courtStr.includes('islamabad');
+    if (token === 'bhc') return courtStr.includes('bhc') || courtStr.includes('balochistan');
+    if (token === 'fto') return courtStr.includes('fto') || courtStr.includes('federal tax ombudsman');
+    return courtStr.includes(token);
+  });
 };
 
 const validateStatuteKeywords = (c, secNum) => {
@@ -4098,6 +4119,50 @@ ${casesSummary}
 };
 
 /**
+ * Robust Court, Forum & Judicial Tribunal Query Parser
+ * Extracts explicit Court designation and any optional legal subject/statute topic
+ */
+export const extractCourtQueryInfo = (rawQuery) => {
+  if (!rawQuery || typeof rawQuery !== 'string') return null;
+  let q = rawQuery.trim();
+
+  // If query is an exact case number, citation, or SRO query, don't hijack it as a court query
+  if (/^(?:ita|sta|c\.?p\.?|c\.?a\.?|w\.?p\.?|suit|appeal|petition|sro|s\.r\.o)\s*(?:no\.?|#)?\s*\d+/i.test(q)) {
+    return null;
+  }
+
+  // Strip leading conversational action prefixes
+  const actionPrefix = /^(?:(?:give|show|find|search|get|display|list|fetch)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?(?:authoritative\s+|verified\s+|official\s+|latest\s+)?(?:judgm?ents?|cases?|decisions?|orders?|rulings?)\s*(?:of|by|from|in|for|under)?\s*|(?:cases?|judgm?ents?|decisions?|orders?|rulings?)\s*(?:of|by|from|in|for|under)\s*)/i;
+  q = q.replace(actionPrefix, '').trim();
+
+  // Strip prefix like "court:", "forum:", "tribunal:"
+  q = q.replace(/^(?:court|forum|tribunal)\s*[:\-]?\s*/i, '').trim();
+
+  const explicitCourt = extractExplicitCourtFromQuery(q) || extractExplicitCourtFromQuery(rawQuery);
+  if (!explicitCourt) return null;
+
+  // Clean court name: strip trailing words like "orders", "judgments", "cases", "decisions", "rulings", "latest"
+  let cleanCourtName = q.replace(/\b(?:orders?|judgm?ents?|cases?|decisions?|rulings?|precedents?|records?|latest|recent)\b/gi, '').trim();
+  cleanCourtName = cleanCourtName.replace(/[?.!;,]+$/, '').trim();
+
+  let topic = '';
+  const topicMatch = cleanCourtName.match(/\b(?:on|regarding|about|for|under|involving)\s+(.+)$/i);
+  if (topicMatch) {
+    topic = topicMatch[1].trim();
+    cleanCourtName = cleanCourtName.slice(0, topicMatch.index).trim();
+  }
+
+  return {
+    explicitCourt,
+    courtName: explicitCourt.name,
+    courtRegex: explicitCourt.regex,
+    topic,
+    cleanCourtName: cleanCourtName || explicitCourt.name,
+    rawQuery
+  };
+};
+
+/**
  * Robust Lawyer, Advocate & Legal Counsel Query Parser
  * Extracts the lawyer's clean name and any associated substantive legal topic/statute terms
  */
@@ -4252,6 +4317,9 @@ export const isPakistaniLegalQuery = (queryText) => {
     return true;
   }
   if (extractLawyerQueryInfo(queryText)) {
+    return true;
+  }
+  if (extractCourtQueryInfo(queryText)) {
     return true;
   }
 
@@ -5757,14 +5825,19 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
 
     // Detect requested judicial forums/courts from query (strictly Pakistani courts)
     let requestedCourtFilter = null;
-    const isSupremeRequested = /\b(?:supreme\s*court|apex\s*court)\b/i.test(rawClean);
-    const isHighCourtRequested = /\b(?:high\s*court|lhc|shc|phc|ihc|bhc)\b/i.test(rawClean);
-    if (isSupremeRequested && !isHighCourtRequested) {
-      requestedCourtFilter = /^(?!.*(?:india|bangladesh|canada|cyprus|new\s*zealand|\buk\b|united\s*kingdom)).*supreme\s*(?:court|appellate)/i;
-    } else if (isHighCourtRequested && !isSupremeRequested) {
-      requestedCourtFilter = /^(?!.*(?:delhi|bombay|madras|calcutta|kerala|allahabad)).*high\s*court/i;
-    } else if (isSupremeRequested && isHighCourtRequested) {
-      requestedCourtFilter = /^(?!.*(?:india|bangladesh|canada|cyprus|new\s*zealand|\buk\b|united\s*kingdom|delhi|bombay|madras)).*(?:supreme\s*court|high\s*court)/i;
+    const explicitCourtInQuery = extractExplicitCourtFromQuery(rawClean) || extractExplicitCourtFromQuery(normalizedQuery);
+    if (explicitCourtInQuery) {
+      requestedCourtFilter = explicitCourtInQuery.regex;
+    } else {
+      const isSupremeRequested = /\b(?:supreme\s*court|apex\s*court)\b/i.test(rawClean);
+      const isHighCourtRequested = /\b(?:high\s*court|lhc|shc|phc|ihc|bhc)\b/i.test(rawClean);
+      if (isSupremeRequested && !isHighCourtRequested) {
+        requestedCourtFilter = /^(?!.*(?:india|bangladesh|canada|cyprus|new\s*zealand|\buk\b|united\s*kingdom)).*supreme\s*(?:court|appellate)/i;
+      } else if (isHighCourtRequested && !isSupremeRequested) {
+        requestedCourtFilter = /^(?!.*(?:delhi|bombay|madras|calcutta|kerala|allahabad)).*high\s*court/i;
+      } else if (isSupremeRequested && isHighCourtRequested) {
+        requestedCourtFilter = /^(?!.*(?:india|bangladesh|canada|cyprus|new\s*zealand|\buk\b|united\s*kingdom|delhi|bombay|madras)).*(?:supreme\s*court|high\s*court)/i;
+      }
     }
 
     // Instant Cache Check (< 1ms) with Authorization Scope & Binding Year Filter
@@ -6631,29 +6704,54 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
   }
 
   // PRIORITY 7: Court / Judicial Forum Search (Strict Entity Search Only)
-  // (e.g. "court: Peshawar High Court", "Supreme Court of Pakistan", "Appellate Tribunal Inland Revenue")
+  // (e.g. "court: Peshawar High Court", "Supreme Court of Pakistan", "Appellate Tribunal Inland Revenue orders", "ATIR cases")
   if (!targetCase) {
+    const courtInfo = extractCourtQueryInfo(rawClean) || extractCourtQueryInfo(cleanQuery) || extractCourtQueryInfo(normalizedQuery);
     const courtPrefixMatch = normalizedQuery.match(/^(?:court|forum|tribunal)\b\s*[:\-]?\s*(.+)$/i);
-    const isStrictCourtName = /^(?:the\s+)?(?:lahore\s*high\s*court|sindh\s*high\s*court|peshawar\s*high\s*court|islamabad\s*high\s*court|balochistan\s*high\s*court|supreme\s*court(?:\s+of\s+pakistan)?|appellate\s*tribunal(?:\s+inland\s+revenue)?|federal\s*tax\s*ombudsman)$/i.test(normalizedQuery.trim());
+    const isStrictCourtName = /^(?:the\s+)?(?:lahore\s*high\s*court|sindh\s*high\s*court|peshawar\s*high\s*court|islamabad\s*high\s*court|balochistan\s*high\s*court|supreme\s*court(?:\s+of\s+pakistan)?|appellate\s*tribunal(?:\s+inland\s+revenue)?|federal\s*tax\s*ombudsman)\b/i.test(normalizedQuery.trim());
 
-    if ((Boolean(courtPrefixMatch) || isStrictCourtName) && normalizedQuery.length >= 4) {
-      const courtQueryName = courtPrefixMatch ? courtPrefixMatch[1].trim() : normalizedQuery;
+    if ((Boolean(courtInfo) || Boolean(courtPrefixMatch) || isStrictCourtName) && normalizedQuery.length >= 4) {
+      const courtQueryName = courtInfo ? courtInfo.cleanCourtName : (courtPrefixMatch ? courtPrefixMatch[1].trim() : normalizedQuery);
+      const courtRegex = courtInfo ? courtInfo.courtRegex : makeFlexibleRegex(courtQueryName);
+
       try {
-        const courtRegex = makeFlexibleRegex(courtQueryName);
         if (courtRegex) {
-          const rawCourtCases = await Case.find({
+          const courtFilter = {
             court: courtRegex,
-            isDeleted: { $ne: true }
-          }).limit(15).maxTimeMS(2000).lean();
-          rawCourtCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
+            isDeleted: false
+          };
 
-          // STRICT VALIDATION: Filter out any cases not containing court keywords
-          matchingCourtCases = rawCourtCases.filter(c => validateCourtKeywords(c, courtQueryName));
+          // If a subtopic was requested (e.g. "Appellate Tribunal Inland Revenue orders on section 4c"), filter/rank by topic
+          let rawCourtCases = [];
+          if (courtInfo && courtInfo.topic) {
+            const topicEsc = escapeRegex(courtInfo.topic);
+            const topicRegex = new RegExp(`\\b${topicEsc}\\b`, 'i');
+            rawCourtCases = await Case.find({
+              ...courtFilter,
+              $or: [
+                { headNote: topicRegex },
+                { principleLaw: topicRegex },
+                { judgment: topicRegex },
+                { 'laws.section': new RegExp(`^${topicEsc}$`, 'i') }
+              ]
+            }).sort({ sldNumberInt: -1 }).limit(15).maxTimeMS(2500).lean();
+          }
+
+          if (rawCourtCases.length === 0) {
+            rawCourtCases = await Case.find(courtFilter)
+              .sort({ sldNumberInt: -1 })
+              .limit(15)
+              .maxTimeMS(2000)
+              .lean();
+          }
+
+          // STRICT VALIDATION: Filter out any cases not containing court keywords or foreign courts
+          matchingCourtCases = rawCourtCases.filter(c => !isForeignCourt(c.court) && validateCourtKeywords(c, courtInfo ? courtInfo.courtName : courtQueryName));
 
           if (matchingCourtCases.length > 0) {
             matchType = 'court_forum';
             targetCase = matchingCourtCases[0];
-            matchedFieldDisplay = courtQueryName;
+            matchedFieldDisplay = courtInfo ? courtInfo.courtName : courtQueryName;
             confidence = 95;
             activeReferences = ['courts', 'judges', 'citations', 'case_numbers'];
           }
@@ -7770,15 +7868,16 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     }
     // FORMAT E: Court / Forum Match
     else if (matchType === 'court_forum' && matchingCourtCases.length > 0) {
-      const countWord = matchingCourtCases.length === 1 ? 'One authoritative judgment was' :
-        matchingCourtCases.length === 2 ? 'Two authoritative judgments were' :
-        `${matchingCourtCases.length} authoritative judgments were`;
+      const displayCases = matchingCourtCases.slice(0, 10);
+      const countWord = displayCases.length === 1 ? 'One authoritative judgment was' :
+        displayCases.length === 2 ? 'Two authoritative judgments were' :
+        `${displayCases.length} authoritative judgments were`;
 
       responseText = `${countWord} found in the SLD database from **${matchedFieldDisplay || cleanQuery}**:\n\n`;
 
-      for (let i = 0; i < matchingCourtCases.length; i++) {
-        const c = matchingCourtCases[i];
-        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber[0] : 'N/A';
+      for (let i = 0; i < displayCases.length; i++) {
+        const c = displayCases[i];
+        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? (Array.isArray(c.caseNumber) ? c.caseNumber.join('; ') : String(c.caseNumber)) : 'N/A';
         const dateFormatted = formatDate(c);
         const benchClean = cleanBenchList(c.judges);
         const partiesClean = cleanParties(c.petitioners);
@@ -7794,7 +7893,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           `• Decision Date: ${dateFormatted}\n` +
           `• Bench: ${benchClean}\n` +
           (partiesClean !== 'N/A' ? `• Parties: ${partiesClean}\n` : '') +
-          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
+          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : (c.headNote ? `• Headnote Excerpt: ${c.headNote.trim().slice(0, 260)}...\n` : '')) +
           (attLinksMd ? `${attLinksMd}\n` : '') +
           `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
