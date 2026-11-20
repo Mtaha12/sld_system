@@ -34,10 +34,22 @@ const escapeRegex = (string) => {
 /**
  * Searches the 52,500+ Superior Courts / Other Case Laws database
  */
-export const searchOtherCaseLaws = async (queryText) => {
+export const searchOtherCaseLaws = async (queryText, explicitQInfo = null) => {
   if (!queryText || typeof queryText !== 'string') return [];
   const rawQ = queryText.trim();
   if (rawQ.length < 2) return [];
+
+  const qInfo = explicitQInfo || extractCaseNumberQueryInfo(rawQ);
+
+  // Helper to validate and sort OCL candidate docs
+  const filterAndSortOcl = (docs) => {
+    if (!docs || docs.length === 0) return [];
+    let valid = docs;
+    if (qInfo) {
+      valid = docs.filter(doc => validateCaseAgainstQuery(doc, qInfo));
+    }
+    return sortCasesLatestFirst(valid);
+  };
 
   // 1. Direct URL detection (e.g. user pasted https://caselaw.shc.gov.pk/...)
   const urlMatch = rawQ.match(/https?:\/\/[^\s)\]">]+/i);
@@ -52,7 +64,7 @@ export const searchOtherCaseLaws = async (queryText) => {
         ],
         isDeleted: { $ne: true }
       }).limit(5).maxTimeMS(1500).lean();
-      if (urlMatches && urlMatches.length > 0) return urlMatches;
+      if (urlMatches && urlMatches.length > 0) return sortCasesLatestFirst(urlMatches);
     } catch (uErr) {}
   }
 
@@ -68,7 +80,7 @@ export const searchOtherCaseLaws = async (queryText) => {
         ],
         isDeleted: { $ne: true }
       }).limit(5).maxTimeMS(800).lean();
-      if (idMatches && idMatches.length > 0) return idMatches;
+      if (idMatches && idMatches.length > 0) return sortCasesLatestFirst(idMatches);
     } catch (idErr) {}
   }
 
@@ -93,7 +105,8 @@ export const searchOtherCaseLaws = async (queryText) => {
         caseNo: exactRegex,
         isDeleted: { $ne: true }
       }).limit(5).maxTimeMS(800).lean();
-      if (exactMatches.length > 0) return exactMatches;
+      const validExact = filterAndSortOcl(exactMatches);
+      if (validExact.length > 0) return validExact;
     } catch (eErr) {}
   }
 
@@ -115,16 +128,18 @@ export const searchOtherCaseLaws = async (queryText) => {
         caseCond.caseNo = new RegExp(`\\b${escapeRegex(caseTypeMatch[1]).replace(/\\s+/g, '\\s*')}.*?\\b${cNum}\\b`, 'i');
       }
 
-      const numYearDocs = await OtherCaseLaw.find(caseCond).limit(5).maxTimeMS(1200).lean();
-      if (numYearDocs && numYearDocs.length > 0) return numYearDocs;
+      const numYearDocs = await OtherCaseLaw.find(caseCond).sort({ caseYear: -1, _id: -1 }).limit(10).maxTimeMS(1200).lean();
+      const validNumYear = filterAndSortOcl(numYearDocs);
+      if (validNumYear.length > 0) return validNumYear;
 
       // Fallback: search caseNo for combined number and year
       const fallbackNumDocs = await OtherCaseLaw.find({
         caseYear: cYr,
         caseNo: new RegExp(`\\b${cNum}\\b`, 'i'),
         isDeleted: false
-      }).limit(5).maxTimeMS(1200).lean();
-      if (fallbackNumDocs && fallbackNumDocs.length > 0) return fallbackNumDocs;
+      }).sort({ caseYear: -1, _id: -1 }).limit(10).maxTimeMS(1200).lean();
+      const validFallback = filterAndSortOcl(fallbackNumDocs);
+      if (validFallback.length > 0) return validFallback;
     } catch (nyErr) {}
   }
 
@@ -140,6 +155,11 @@ export const searchOtherCaseLaws = async (queryText) => {
     .split(/\s+/)
     .filter(w => w.length >= 2 && !stopWords.has(w.toLowerCase()));
 
+  // If a case number was explicitly parsed but no number/year match found above, do NOT run loose text/regex search that returns unrelated cases
+  if (qInfo && qInfo.caseNum) {
+    return [];
+  }
+
   // 6. Fast Text Index Search first (< 300ms)
   if (words.length >= 2) {
     try {
@@ -154,8 +174,9 @@ export const searchOtherCaseLaws = async (queryText) => {
           const fullText = `${item.parties || ''} ${item.caseTitle || ''} ${item.caseNo || ''} ${item.citation || ''} ${item.bench || ''}`.toLowerCase();
           return words.every(w => fullText.includes(w.toLowerCase()));
         });
-        if (strictMatches.length > 0) return strictMatches.slice(0, 5);
-        return textMatches.slice(0, 5);
+        const targetList = strictMatches.length > 0 ? strictMatches : textMatches;
+        const validTextMatches = filterAndSortOcl(targetList);
+        if (validTextMatches.length > 0) return validTextMatches.slice(0, 5);
       }
     } catch (txtErr) {}
   }
@@ -186,6 +207,7 @@ export const searchOtherCaseLaws = async (queryText) => {
       $or: orConditions,
       isDeleted: { $ne: true }
     })
+    .sort({ caseYear: -1, _id: -1 })
     .limit(10)
     .maxTimeMS(1800)
     .lean();
@@ -197,12 +219,12 @@ export const searchOtherCaseLaws = async (queryText) => {
         const fullText = `${item.parties || ''} ${item.caseTitle || ''} ${item.caseNo || ''} ${item.citation || ''} ${item.bench || ''}`.toLowerCase();
         return words.every(w => fullText.includes(w.toLowerCase()));
       });
-      if (strictMatches.length > 0) {
-        return strictMatches.slice(0, 5);
-      }
+      const validStrict = filterAndSortOcl(strictMatches.length > 0 ? strictMatches : rawMatches);
+      if (validStrict.length > 0) return validStrict.slice(0, 5);
     }
 
-    return rawMatches.slice(0, 5);
+    const validRaw = filterAndSortOcl(rawMatches);
+    return validRaw.slice(0, 5);
   } catch (rawErr) {
     return [];
   }
@@ -2783,6 +2805,339 @@ export const extractCaseNumberAndYear = (query) => {
 };
 
 /**
+ * Parses Pakistani decision date strings into UTC timestamps (milliseconds)
+ * Handles: DD.MM.YYYY, DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD,
+ * "decided on 7th May, 2026", "decision Dated: 13th June, 2021", "24 March 1970", etc.
+ */
+export const parsePakistaniDateTimestamp = (dateStr) => {
+  if (!dateStr) return 0;
+  if (dateStr instanceof Date && !isNaN(dateStr.getTime())) return dateStr.getTime();
+  if (typeof dateStr !== 'string') return 0;
+  const s = dateStr.trim();
+  if (!s) return 0;
+
+  // 1. DD[-./]MM[-./]YYYY or DD[-./]MM[-./]YY
+  const dmyMatch = s.match(/\b(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})\b/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    let year = parseInt(dmyMatch[3], 10);
+    if (year < 100) year += year < 50 ? 2000 : 1900;
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      const dt = new Date(Date.UTC(year, month, day));
+      if (!isNaN(dt.getTime())) return dt.getTime();
+    }
+  }
+
+  // 2. YYYY-MM-DD
+  const ymdMatch = s.match(/\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10) - 1;
+    const day = parseInt(ymdMatch[3], 10);
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      const dt = new Date(Date.UTC(year, month, day));
+      if (!isNaN(dt.getTime())) return dt.getTime();
+    }
+  }
+
+  // 3. DDth Month, YYYY or DD Month YYYY (e.g. 7th May, 2026 or 13th June, 2021)
+  const monthNames = {
+    jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
+    may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7, sep: 8, sept: 8,
+    september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11
+  };
+  const wordDateMatch = s.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([a-zA-Z]+),?\s+(\b(?:19|20)\d{2}\b)/i);
+  if (wordDateMatch) {
+    const day = parseInt(wordDateMatch[1], 10);
+    const mStr = wordDateMatch[2].toLowerCase();
+    const year = parseInt(wordDateMatch[3], 10);
+    if (monthNames[mStr] !== undefined && day >= 1 && day <= 31) {
+      const dt = new Date(Date.UTC(year, monthNames[mStr], day));
+      if (!isNaN(dt.getTime())) return dt.getTime();
+    }
+  }
+
+  // 4. Month DD, YYYY (e.g. May 7, 2026)
+  const revWordDateMatch = s.match(/\b([a-zA-Z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\b(?:19|20)\d{2}\b)/i);
+  if (revWordDateMatch) {
+    const mStr = revWordDateMatch[1].toLowerCase();
+    const day = parseInt(revWordDateMatch[2], 10);
+    const year = parseInt(revWordDateMatch[3], 10);
+    if (monthNames[mStr] !== undefined && day >= 1 && day <= 31) {
+      const dt = new Date(Date.UTC(year, monthNames[mStr], day));
+      if (!isNaN(dt.getTime())) return dt.getTime();
+    }
+  }
+
+  // Fallback to Date.parse
+  const parsed = Date.parse(s);
+  return (!isNaN(parsed) && parsed > 0) ? parsed : 0;
+};
+
+/**
+ * Extracts explicit Court designation from query
+ */
+export const extractExplicitCourtFromQuery = (text) => {
+  if (!text || typeof text !== 'string') return null;
+  const s = text.toLowerCase();
+  if (/supreme\s*court(?:\s+of\s+pakistan)?\b|\bapex\s*court\b/i.test(s)) {
+    return { type: 'supreme', name: 'Supreme Court of Pakistan', regex: /supreme\s*court/i };
+  }
+  if (/federal\s*constitutional\s*court/i.test(s)) {
+    return { type: 'constitutional', name: 'Federal Constitutional Court of Pakistan', regex: /federal\s*constitutional\s*court/i };
+  }
+  if (/lahore\s*high\s*court\b|\blhc\b/i.test(s)) {
+    return { type: 'lhc', name: 'Lahore High Court', regex: /lahore\s*high\s*court/i };
+  }
+  if (/sindh\s*high\s*court\b|\bshc\b|high\s*court\s*of\s*sindh\b/i.test(s)) {
+    return { type: 'shc', name: 'Sindh High Court', regex: /sindh\s*high\s*court|high\s*court\s*of\s*sindh/i };
+  }
+  if (/peshawar\s*high\s*court\b|\bphc\b/i.test(s)) {
+    return { type: 'phc', name: 'Peshawar High Court', regex: /peshawar\s*high\s*court/i };
+  }
+  if (/islamabad\s*high\s*court\b|\bihc\b/i.test(s)) {
+    return { type: 'ihc', name: 'Islamabad High Court', regex: /islamabad\s*high\s*court/i };
+  }
+  if (/balochistan\s*high\s*court\b|\bbhc\b/i.test(s)) {
+    return { type: 'bhc', name: 'Balochistan High Court', regex: /balochistan\s*high\s*court/i };
+  }
+  if (/appellate\s*tribunal(?:\s+inland\s+revenue)?\b|\batir\b/i.test(s)) {
+    return { type: 'tribunal', name: 'Appellate Tribunal Inland Revenue', regex: /appellate\s*tribunal|atir\b/i };
+  }
+  if (/federal\s*tax\s*ombudsman\b|\bfto\b/i.test(s)) {
+    return { type: 'fto', name: 'Federal Tax Ombudsman', regex: /federal\s*tax\s*ombudsman|fto\b/i };
+  }
+  return null;
+};
+
+/**
+ * Normalizes case types to canonical codes for exact conflict detection
+ */
+export const normalizeCaseType = (typeStr) => {
+  if (!typeStr || typeof typeStr !== 'string') return null;
+  const s = typeStr.toLowerCase().trim();
+
+  if (/\b(?:special\s+sales\s+tax\s+ref(?:erence)?(?:\s+app(?:lication)?)?|s\.?s\.?t\.?r\.?a\.?)\b/i.test(s)) return 'sstra';
+  if (/\b(?:special\s+sales\s+tax\s+appeal|s\.?s\.?t\.?a\.?)\b/i.test(s)) return 'ssta';
+  if (/\b(?:sales\s+tax\s+appeal|s\.?t\.?a\.?)\b/i.test(s)) return 'sta';
+  if (/\b(?:income\s+tax\s+appeal|i\.?t\.?a\.?)\b/i.test(s)) return 'ita';
+  if (/\b(?:customs?\s+tax\s+ref(?:erence)?|c\.?t\.?r\.?|tax\s+reference)\b/i.test(s)) return 'ctr';
+  if (/\b(?:income\s+tax\s+ref(?:erence)?(?:\s+app(?:lication)?)?|i\.?t\.?r\.?a\.?)\b/i.test(s)) return 'itra';
+  if (/\b(?:constitutional\s+petition|const\.?\s*p\.?)\b/i.test(s)) return 'const_p';
+  if (/\b(?:civil\s+petition|c\.?p\.?l\.?a\.?|c\.?p\.?)\b/i.test(s)) return 'cp';
+  if (/\b(?:civil\s+appeal|c\.?a\.?)\b/i.test(s)) return 'ca';
+  if (/\b(?:writ\s+petition|w\.?p\.?)\b/i.test(s)) return 'wp';
+  if (/\b(?:civil\s+revision|c\.?r\.?)\b/i.test(s)) return 'cr';
+  if (/\b(?:suits?)\b/i.test(s)) return 'suit';
+  if (/\b(?:high\s+court\s+appeal|h\.?c\.?a\.?)\b/i.test(s)) return 'hca';
+  if (/\b(?:regular\s+first\s+appeal|r\.?f\.?a\.?)\b/i.test(s)) return 'rfa';
+  if (/\b(?:execution\s+first\s+appeal|e\.?f\.?a\.?)\b/i.test(s)) return 'efa';
+  if (/\b(?:criminal\s+appeal|cr\.?\s*a\.?)\b/i.test(s)) return 'cra';
+  if (/\b(?:criminal\s+petition)\b/i.test(s)) return 'crp';
+  if (/\b(?:cr\.?\s*misc|criminal\s+miscell(?:aneous)?)\b/i.test(s)) return 'cr_misc';
+  if (/\b(?:cr\.?\s*bail|criminal\s*bail)\b/i.test(s)) return 'cr_bail';
+  if (/\b(?:civil\s+tran(?:sfer)?)\b/i.test(s)) return 'civil_tran';
+  if (/\b(?:cr\.?\s*tran(?:sfer)?)\b/i.test(s)) return 'cr_tran';
+
+  return s.replace(/[^a-z]/g, '');
+};
+
+/**
+ * Extracts normalized case type prefix from judgment caseNumber text
+ */
+export const extractCaseTypeFromCaseNumber = (text) => {
+  if (!text || typeof text !== 'string') return null;
+  const m = text.match(/(?:special\s+sales\s+tax\s+reference\s+application|s\.?s\.?t\.?r\.?a\.?|special\s+sales\s+tax\s+appeal|s\.?s\.?t\.?a\.?|sales\s+tax\s+appeal|income\s+tax\s+appeal|tax\s+appeal|customs?\s+appeal|tax\s+reference|customs?\s+reference|civil\s+appeal|writ\s+petition|constitutional\s+petition|const\.?\s*p\.?|civil\s+petition|c\.?p\.?l\.?a\.?|civil\s+revision|execution\s+first\s+appeal|regular\s+first\s+appeal|high\s+court\s+appeal|criminal\s+appeal|criminal\s+petition|criminal\s+miscellaneous|cr\.?\s*misc|cr\.?\s*bail|civil\s+tran(?:sfer)?|cr\.?\s*tran(?:sfer)?|i\.?t\.?r\.?a|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?p\.?|c\.?a\.?|w\.?p\.?|c\.?r\.?|r\.?f\.?a\.?|e\.?f\.?a\.?|h\.?c\.?a\.?|cr\.?\s*a\.?|suits?)/i);
+  return m ? normalizeCaseType(m[0]) : null;
+};
+
+/**
+ * Comprehensive parser for Case Number / Appeal / Petition queries
+ */
+export const extractCaseNumberQueryInfo = (rawQuery) => {
+  if (!rawQuery || typeof rawQuery !== 'string') return null;
+
+  const clean = rawQuery
+    .replace(/^(?:please\s+find|find|search\s+for|search|give\s+me|give|show\s+me|show|need|look\s+for|get\s+me|get)\b/gi, ' ')
+    .replace(/\b(?:judgment|judgments|decision|orders?|case\s+law|precedent)\b/gi, ' ')
+    .trim();
+
+  const courtInfo = extractExplicitCourtFromQuery(clean);
+
+  // Extract explicit date (e.g. dated 10.11.2026, dated: 15-07-2026, 10.11.2026)
+  const dateMatch = clean.match(/\b(?:dated|decision\s*date|dated:?)\s*[:\-]?\s*(\d{1,2}[-./]\d{1,2}[-./]\d{2,4})\b/i);
+  const requestedDate = dateMatch ? dateMatch[1].trim() : null;
+
+  // Extract bench/registry code (e.g. /LB/, /KB/, /PB/, /IB/, -L/, -K/, -P/, LB of)
+  const benchMatch = clean.match(/(?:\/|\-|\b)(LB|KB|PB|IB|L|K|P|I)(?:\/|\-|\s+of\b)/i);
+  const benchRegistry = benchMatch ? benchMatch[1].toUpperCase() : null;
+
+  // Pattern 1: Case Type + Case Number + Suffix/Registry + Year
+  // (e.g. "ITA NO.2966/LB/2026", "C.P. No.2272-L/2021", "W.P. No. 1038/2015", "Civil Tran 57/2026")
+  const p1 = /(?:(special\s+sales\s+tax\s+appeal|sales\s+tax\s+appeal|income\s+tax\s+appeal|tax\s+appeal|customs?\s+appeal|civil\s+appeal|writ\s+petition|constitutional\s+petition|const\.?\s*p\.?|civil\s+petition|civil\s+revision|execution\s+first\s+appeal|regular\s+first\s+appeal|high\s+court\s+appeal|criminal\s+appeal|criminal\s+miscellaneous|cr\.?\s*misc|cr\.?\s*bail|civil\s+tran(?:sfer)?|cr\.?\s*tran(?:sfer)?|i\.?t\.?r\.?a|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?p\.?|c\.?a\.?|w\.?p\.?|c\.?r\.?|r\.?f\.?a\.?|e\.?f\.?a\.?|h\.?c\.?a\.?|cr\.?\s*a\.?|suits?|case|appeal|petition)\s*(?:no\.?|nos\.?|#)?:?\s*)?(?:(?:case|appeal|petition)\s*(?:no\.?|nos\.?|#|number)?:?\s*)?(\d+)\s*(?:(to|-)\s*(\d+))?\s*(?:\/|\s+of\s+|\-)\s*([a-zA-Z0-9_\-\/]*\s*(?:of\s*)?)(\b(?:19|20)\d{2}\b)/i;
+  const m1 = clean.match(p1);
+  if (m1) {
+    const rawType = m1[1] ? m1[1].trim() : '';
+    return {
+      isCaseQuery: true,
+      caseType: normalizeCaseType(rawType),
+      rawCaseType: rawType,
+      caseNum: m1[2].trim(),
+      caseNumEnd: m1[4] ? m1[4].trim() : null,
+      benchRegistry,
+      extra: m1[5] ? m1[5].replace(/of/i, '').trim() : '',
+      year: m1[6].trim(),
+      requestedDate,
+      courtInfo,
+      rawMatched: m1[0].trim(),
+      displayQuery: clean
+    };
+  }
+
+  // Pattern 2: Case Type + Case Number range without year
+  // (e.g. "Special Sales Tax Appeal No.192 to 196", "W.P. No. 1038", "ITA No. 2966")
+  const p2 = /(?:(special\s+sales\s+tax\s+appeal|sales\s+tax\s+appeal|income\s+tax\s+appeal|tax\s+appeal|customs?\s+appeal|civil\s+appeal|writ\s+petition|constitutional\s+petition|const\.?\s*p\.?|civil\s+petition|civil\s+revision|execution\s+first\s+appeal|regular\s+first\s+appeal|high\s+court\s+appeal|criminal\s+appeal|criminal\s+miscellaneous|cr\.?\s*misc|cr\.?\s*bail|civil\s+tran(?:sfer)?|cr\.?\s*tran(?:sfer)?|i\.?t\.?r\.?a|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?p\.?|c\.?a\.?|w\.?p\.?|c\.?r\.?|r\.?f\.?a\.?|e\.?f\.?a\.?|h\.?c\.?a\.?|cr\.?\s*a\.?|suits?|case|appeal|petition)\s*(?:no\.?|nos\.?|#)?:?\s*)(\d+)\s*(?:(to|-)\s*(\d+))?/i;
+  const m2 = clean.match(p2);
+  if (m2 && (m2[1] || m2[3])) {
+    const rawType = m2[1] ? m2[1].trim() : '';
+    return {
+      isCaseQuery: true,
+      caseType: normalizeCaseType(rawType),
+      rawCaseType: rawType,
+      caseNum: m2[2].trim(),
+      caseNumEnd: m2[4] ? m2[4].trim() : null,
+      benchRegistry,
+      extra: '',
+      year: null,
+      requestedDate,
+      courtInfo,
+      rawMatched: m2[0].trim(),
+      displayQuery: clean
+    };
+  }
+
+  // Pattern 3: Simple "1038 of 2015" or "1038/2015"
+  const p3 = /\b(\d+)\s*(?:\/|\s+of\s+|\-)\s*(\b(?:19|20)\d{2}\b)/i;
+  const m3 = clean.match(p3);
+  if (m3) {
+    return {
+      isCaseQuery: true,
+      caseType: null,
+      rawCaseType: '',
+      caseNum: m3[1].trim(),
+      caseNumEnd: null,
+      benchRegistry,
+      extra: '',
+      year: m3[2].trim(),
+      requestedDate,
+      courtInfo,
+      rawMatched: m3[0].trim(),
+      displayQuery: clean
+    };
+  }
+
+  return null;
+};
+
+/**
+ * Validates a candidate case against parsed query parameters:
+ * Enforces court match, case type match, number match, year match, date match, and foreign court exclusion.
+ */
+export const validateCaseAgainstQuery = (c, qInfo) => {
+  if (!c || !qInfo) return false;
+
+  // 0. Foreign court rejection
+  if (isForeignCourt(c.court) || isForeignCase(c)) return false;
+
+  const cnArr = Array.isArray(c.caseNumber) ? c.caseNumber : (c.caseNumber ? [c.caseNumber] : (c.caseNo ? [c.caseNo] : []));
+  const fullCaseStr = cnArr.join(' ');
+  const courtStr = String(c.court || '');
+
+  // 1. Explicit Court validation
+  if (qInfo.courtInfo) {
+    const candidateCourtText = `${courtStr} ${fullCaseStr}`;
+    if (!qInfo.courtInfo.regex.test(candidateCourtText)) {
+      return false; // Candidate court does not match requested court
+    }
+  }
+
+  // 2. Case Type validation
+  if (qInfo.caseType && qInfo.caseType !== 'case' && qInfo.caseType !== 'appeal' && qInfo.caseType !== 'petition') {
+    const cType = extractCaseTypeFromCaseNumber(fullCaseStr);
+    if (cType && cType !== 'case' && cType !== 'appeal' && cType !== 'petition') {
+      const isStaCompatible = (qInfo.caseType === 'sta' && cType === 'ssta') || (qInfo.caseType === 'ssta' && cType === 'sta');
+      if (cType !== qInfo.caseType && !isStaCompatible) {
+        return false;
+      }
+    }
+  }
+
+  // 3. Bench / Registry validation (e.g. LB vs Karachi)
+  if (qInfo.benchRegistry === 'LB' || qInfo.benchRegistry === 'L') {
+    if (/sindh\s*high\s*court|karachi\b|\bshc\b/i.test(courtStr) && !/lahore\b|\blhc\b/i.test(courtStr)) {
+      return false;
+    }
+  }
+
+  // 4. Case Number word boundary matching
+  if (qInfo.caseNum) {
+    const numCheck = new RegExp(`\\b${qInfo.caseNum}\\b`, 'i');
+    if (!numCheck.test(fullCaseStr)) {
+      return false;
+    }
+    // If range was requested (e.g. 192 to 196), candidate case must also contain the end number or explicit range
+    if (qInfo.caseNumEnd) {
+      const endCheck = new RegExp(`\\b${qInfo.caseNumEnd}\\b`, 'i');
+      const rangeCheck = new RegExp(`\\b${qInfo.caseNum}\\s*(?:to|-)\\s*${qInfo.caseNumEnd}\\b`, 'i');
+      if (!rangeCheck.test(fullCaseStr) && !endCheck.test(fullCaseStr)) {
+        return false;
+      }
+    }
+  }
+
+  // 5. Year validation
+  if (qInfo.year) {
+    const reqYear = String(qInfo.year).trim();
+    // Check if case number explicitly pairs this number with a DIFFERENT year
+    const diffYearCheck = new RegExp(`\\b${qInfo.caseNum}\\b[^\n\r\\d]*?(?:of|\\/|-|\\()[^\\d\\n\\r]*?(\\b(?:19|20)\d{2}\b)`, 'i');
+    const diffM = fullCaseStr.match(diffYearCheck);
+    if (diffM && diffM[1] !== reqYear) {
+      return false;
+    }
+
+    const yearCheck = new RegExp(`\\b${reqYear}\\b`, 'i');
+    const dStr = `${c.dated || ''} ${c.decisionDate || ''} ${c.orderDate || ''} ${c.caseYear || ''}`;
+    let pubYears = '';
+    if (Array.isArray(c.publications)) {
+      pubYears = c.publications.map(p => p.year).join(' ');
+    }
+    if (!yearCheck.test(fullCaseStr) && !yearCheck.test(dStr) && !yearCheck.test(pubYears)) {
+      return false;
+    }
+  }
+
+  // 6. Date validation (if date requested, candidate must match date)
+  if (qInfo.requestedDate) {
+    const reqDateClean = qInfo.requestedDate.replace(/[-./]/g, '[-./]');
+    const dateRegex = new RegExp(reqDateClean, 'i');
+    const fullDateText = `${c.dated || ''} ${c.decisionDate || ''} ${c.orderDate || ''} ${fullCaseStr}`;
+    if (!dateRegex.test(fullDateText)) {
+      // Also try comparing parsed timestamps
+      const reqTs = parsePakistaniDateTimestamp(qInfo.requestedDate);
+      const candTs = parsePakistaniDateTimestamp(c.dated || c.decisionDate || c.orderDate) || parsePakistaniDateTimestamp(fullCaseStr);
+      if (reqTs > 0 && candTs > 0 && reqTs !== candTs) {
+        return false;
+      } else if (!dateRegex.test(fullDateText)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+};
+
+/**
  * Strips conversational intros from user queries
  */
 const cleanUserQuery = (raw) => {
@@ -3055,25 +3410,46 @@ export const getCaseYearAndDateScore = (c) => {
   let maxYear = 0;
   let parsedTimestamp = 0;
 
-  // 1. Check c.dated or c.decisionDate
-  const rawDate = c.dated || c.decisionDate;
+  // 1. Check c.dated, c.decisionDate, c.orderDate, c.judgmentDate, or c.date
+  const rawDate = c.dated || c.decisionDate || c.orderDate || c.judgmentDate || c.date;
   if (rawDate) {
-    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
-      parsedTimestamp = rawDate.getTime();
-      maxYear = Math.max(maxYear, rawDate.getFullYear());
+    parsedTimestamp = parsePakistaniDateTimestamp(rawDate);
+    if (parsedTimestamp > 0) {
+      maxYear = Math.max(maxYear, new Date(parsedTimestamp).getUTCFullYear());
     } else if (typeof rawDate === 'string') {
       const yMatch = rawDate.match(/\b(19\d\d|20\d\d)\b/);
       if (yMatch) {
         maxYear = Math.max(maxYear, parseInt(yMatch[1], 10));
       }
-      const t = Date.parse(rawDate);
-      if (!isNaN(t) && t > 0) {
-        parsedTimestamp = t;
+    }
+  }
+
+  // 2. Check c.caseYear
+  if (c.caseYear) {
+    const cy = parseInt(String(c.caseYear).replace(/\D/g, ''), 10);
+    if (cy >= 1900 && cy <= 2099) {
+      maxYear = Math.max(maxYear, cy);
+    }
+  }
+
+  // 3. Check caseNumber for inline date & year
+  const cnList = Array.isArray(c.caseNumber) ? c.caseNumber : (c.caseNumber ? [c.caseNumber] : (c.caseNo ? [c.caseNo] : []));
+  for (const cn of cnList) {
+    const sCn = String(cn);
+    const ym = sCn.match(/\b(19\d\d|20\d\d)\b/);
+    if (ym) {
+      maxYear = Math.max(maxYear, parseInt(ym[1], 10));
+    }
+    if (parsedTimestamp === 0) {
+      const ts = parsePakistaniDateTimestamp(sCn);
+      if (ts > 0) {
+        parsedTimestamp = ts;
+        maxYear = Math.max(maxYear, new Date(ts).getUTCFullYear());
       }
     }
   }
 
-  // 2. Check c.publications
+  // 4. Check c.publications
   if (Array.isArray(c.publications)) {
     for (const p of c.publications) {
       if (p && p.year) {
@@ -3085,7 +3461,7 @@ export const getCaseYearAndDateScore = (c) => {
     }
   }
 
-  // 3. Check c.mapYearPage citations
+  // 5. Check c.mapYearPage citations
   if (Array.isArray(c.mapYearPage)) {
     for (const str of c.mapYearPage) {
       const ym = String(str).match(/\b(19\d\d|20\d\d)\b/);
@@ -3095,16 +3471,7 @@ export const getCaseYearAndDateScore = (c) => {
     }
   }
 
-  // 4. Check caseNumber for year (e.g., of 2024, /2025)
-  const cnList = Array.isArray(c.caseNumber) ? c.caseNumber : (c.caseNumber ? [c.caseNumber] : []);
-  for (const cn of cnList) {
-    const ym = String(cn).match(/\b(19\d\d|20\d\d)\b/);
-    if (ym) {
-      maxYear = Math.max(maxYear, parseInt(ym[1], 10));
-    }
-  }
-
-  const sldNum = parseInt(c.sldNumber, 10) || 0;
+  const sldNum = parseInt(c.sldNumberInt || c.sldNumber, 10) || 0;
   return { maxYear, parsedTimestamp, sldNum };
 };
 
@@ -5712,17 +6079,18 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
   }
 
   // PRIORITY 3: Case Number / Appeal / Petition Search
-  // (e.g. "Case No. 1038 of 2015", "CASE NUMBER 1038/2000 PLEASE FIND JUDGMENT", "S.T.A. No.1903/LB of 2009", "1038/2000")
+  // (e.g. "ITA NO.2966/LB/2026 dated10.11.2026", "Special Sales Tax Appeal No.192 to 196", "C.P. No.2272-L/2021", "Case No. 1038 of 2015", "1038/2000")
   let exactCaseNumberSearched = false;
   if (!targetCase) {
-    const extractedCN = extractCaseNumberAndYear(normalizedQuery);
+    const caseQueryInfo = extractCaseNumberQueryInfo(normalizedQuery) ||
+                          extractCaseNumberQueryInfo(cleanQuery) ||
+                          extractCaseNumberQueryInfo(rawClean);
+
     const hasDigits = /\d/.test(normalizedQuery);
     const caseNoPrefixMatch = hasDigits ? normalizedQuery.match(/^(?:case|appeal|petition|writ\s*petition|suit|civil\s*revision|ptcl|c\.?\s*p\.?|c\.?\s*a\.?|w\.?\s*p\.?|i\.?\s*t\.?\s*a\.?|s\.?\s*t\.?\s*a\.?|c\.?\s*t\.?\s*r\.?)\s*(?:no\.?|#|nos\.?|[:\-])?\s*(\d.*)$/i) : null;
-    const coreCaseNo = extractedCN ? `${extractedCN.caseNum}/${extractedCN.year}` : (caseNoPrefixMatch ? caseNoPrefixMatch[1].trim() : normalizedQuery);
-
     const isOtherCaseLawType = /\b(?:civil\s*tran|cr\.?\s*tran|cr\.?\s*bail|const\.?\s*p\.?|criminal\s*miscelleneous|spl:sales|i\.?t\.?r\.?a|hca\b|sindh\s*high\s*court|\(s\.?b\.?\)|\(d\.?b\.?\))\b/i.test(normalizedQuery) || /caselaw\.shc\.gov\.pk/i.test(cleanQuery);
 
-    const isCaseNumberPattern = Boolean(extractedCN) || isOtherCaseLawType || (hasDigits && (
+    const isCaseNumberPattern = Boolean(caseQueryInfo) || isOtherCaseLawType || (hasDigits && (
       Boolean(caseNoPrefixMatch) || 
       /\b(?:of\s*\d{4}|\d+\s*\/\s*[a-zA-Z]+|\d+\s*\/\s*\d{4})\b/i.test(normalizedQuery) ||
       /\b(?:w\.?p\.?|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?a\.?|c\.?p\.?|civil\s*revision|writ\s*petition)\b/i.test(normalizedQuery)
@@ -5730,173 +6098,144 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
 
     if (isCaseNumberPattern) {
       exactCaseNumberSearched = true;
+      const qInfo = caseQueryInfo || {
+        isCaseQuery: true,
+        caseType: null,
+        rawCaseType: '',
+        caseNum: (normalizedQuery.match(/\b\d+\b/) || [''])[0],
+        caseNumEnd: null,
+        benchRegistry: null,
+        extra: '',
+        year: (normalizedQuery.match(/\b(?:19|20)\d{2}\b/) || [null])[0],
+        courtInfo: extractExplicitCourtFromQuery(normalizedQuery) || extractExplicitCourtFromQuery(cleanQuery),
+        requestedDate: (normalizedQuery.match(/\b(?:dated|decision\s*date|dated:?)\s*[:\-]?\s*(\d{1,2}[-./]\d{1,2}[-./]\d{2,4})\b/i) || [null, null])[1],
+        displayQuery: cleanQuery
+      };
+
       try {
-        // If query specifically references High Court / Superior Court case types (e.g. Civil Tran, Cr.Tran, Const. P.), search OtherCaseLaw first
-        if (isOtherCaseLawType) {
+        let matchingCases = [];
+
+        // 1. Search Case collection
+        if (qInfo.caseNum) {
+          if (qInfo.year) {
+            // Case number and Year present
+            const numYearPattern = new RegExp(`\\b${qInfo.caseNum}\\b.*\\b${qInfo.year}\\b`, 'i');
+            try {
+              const textCandidates = await Case.find({
+                $text: { $search: `"${qInfo.caseNum}" "${qInfo.year}"` },
+                isDeleted: { $ne: true }
+              }).sort({ sldNumberInt: -1 }).limit(50).maxTimeMS(2500).lean();
+
+              matchingCases = textCandidates.filter(c => validateCaseAgainstQuery(c, qInfo));
+            } catch (tErr) {
+              matchingCases = [];
+            }
+
+            if (matchingCases.length === 0) {
+              try {
+                const regexCandidates = await Case.find({
+                  isDeleted: { $ne: true },
+                  caseNumber: numYearPattern
+                }).sort({ sldNumberInt: -1 }).limit(30).maxTimeMS(3500).lean();
+
+                matchingCases = regexCandidates.filter(c => validateCaseAgainstQuery(c, qInfo));
+              } catch (rErr) {}
+            }
+          } else {
+            // Case number without year (e.g. "Special Sales Tax Appeal No.192 to 196", "W.P. No. 1038")
+            const numPattern = new RegExp(`\\b${qInfo.caseNum}\\b`, 'i');
+            try {
+              const numCandidates = await Case.find({
+                isDeleted: { $ne: true },
+                caseNumber: numPattern
+              }).sort({ sldNumberInt: -1 }).limit(50).maxTimeMS(3500).lean();
+
+              matchingCases = numCandidates.filter(c => validateCaseAgainstQuery(c, qInfo));
+            } catch (nErr) {}
+          }
+        }
+
+        // 2. If matching cases found in Case collection, sort latest first and assign
+        if (matchingCases.length > 0) {
+          matchingCaseNumberCases = sortCasesLatestFirst(matchingCases);
+          matchType = 'case_number';
+          targetCase = matchingCaseNumberCases[0];
+          matchedFieldDisplay = qInfo.displayQuery || `Case No. ${qInfo.caseNum}${qInfo.year ? ` of ${qInfo.year}` : ''}`;
+          confidence = 100;
+          activeReferences = ['case_numbers', 'courts', 'judges', 'citations', 'parties'];
+        } else {
+          // 3. Search OtherCaseLaw collection
           try {
-            const oclTypeMatches = await searchOtherCaseLaws(cleanQuery);
-            if (oclTypeMatches && oclTypeMatches.length > 0) {
-              const otherReplyText = formatOtherCasesResponse(oclTypeMatches, cleanQuery);
+            const oclMatches = await searchOtherCaseLaws(cleanQuery, qInfo);
+            if (oclMatches && oclMatches.length > 0) {
+              const sortedOcl = sortCasesLatestFirst(oclMatches);
+              const otherReplyText = formatOtherCasesResponse(sortedOcl, cleanQuery);
               const oclResult = {
                 text: otherReplyText,
                 legalAnalysis: {
-                  matchedCase: oclTypeMatches[0],
-                  matchedCases: oclTypeMatches,
+                  matchedCase: sortedOcl[0],
+                  matchedCases: sortedOcl,
                   matchType: 'superior_court_case',
                   confidence: 100,
                   activeReferences: ['case_numbers', 'courts', 'judges', 'citations', 'parties'],
-                  sourcesFound: oclTypeMatches.length
+                  sourcesFound: sortedOcl.length
                 }
               };
               setCachedAIResult(cacheKey, oclResult);
               return oclResult;
             }
-          } catch (oclTErr) {}
-        }
+          } catch (oclErr) {}
 
-        let rawCaseNumberCases = [];
-        if (extractedCN) {
-          // Exact Case Number & Year Matching (Strict year isolation, e.g. 1038 of 2015 never matches 2014, 2016, 2019)
-          const numYearPattern = new RegExp(`\\b${extractedCN.caseNum}\\b.*\\b${extractedCN.year}\\b`, 'i');
-          
-          // Fast index search via $text first (blazing fast, prevents multiplanner timeouts)
-          try {
-            const textCandidates = await Case.find({
-              $text: { $search: `"${extractedCN.caseNum}" "${extractedCN.year}"` },
-              isDeleted: { $ne: true }
-            }).limit(50).maxTimeMS(3000).lean();
+          // 4. Case was searched by Case/Appeal Number but NOT found in either database!
+          // Return NOT FOUND IMMEDIATELY with the exact required message:
+          // "Not found. Contact with SLD System management."
+          const queryLabel = qInfo.displayQuery || cleanQuery;
+          const notFoundText = `### ⚖️ SLD Judicial Case Search Status: Not Found\n\n` +
+            `No matching judgment was found in the SLD database for **${queryLabel}**.\n\n` +
+            `**Not found. Contact with SLD System management.**\n\n` +
+            `*Search Parameters Checked:*\n` +
+            (qInfo.caseType ? `• **Case / Appeal Type**: ${qInfo.rawCaseType || qInfo.caseType.toUpperCase()}\n` : '') +
+            (qInfo.caseNum ? `• **Case Number**: ${qInfo.caseNum}${qInfo.caseNumEnd ? ` to ${qInfo.caseNumEnd}` : ''}\n` : '') +
+            (qInfo.year ? `• **Year**: ${qInfo.year}\n` : '') +
+            (qInfo.courtInfo ? `• **Court**: ${qInfo.courtInfo.name}\n` : '') +
+            (qInfo.requestedDate ? `• **Decision Date**: ${qInfo.requestedDate}\n` : '') +
+            `\n*Tip: Please check the case number, appeal type, court, and year.*`;
 
-            rawCaseNumberCases = textCandidates.filter(c => {
-              const cnArr = Array.isArray(c.caseNumber) ? c.caseNumber : [c.caseNumber];
-              return cnArr.some(str => numYearPattern.test(String(str)));
-            });
-          } catch (tErr) {
-            rawCaseNumberCases = [];
-          }
-
-          // Fallback to regex find if text search didn't yield matches
-          if (rawCaseNumberCases.length === 0) {
-            try {
-              rawCaseNumberCases = await Case.find({
-                isDeleted: { $ne: true },
-                caseNumber: numYearPattern
-              }).hint({ isDeleted: 1, caseNumber: 1 }).limit(25).maxTimeMS(10000).lean();
-            } catch (hErr) {
-              rawCaseNumberCases = await Case.find({
-                isDeleted: { $ne: true },
-                caseNumber: numYearPattern
-              }).limit(25).maxTimeMS(10000).lean();
+          const notFoundResult = {
+            text: notFoundText,
+            legalAnalysis: {
+              matchedCase: null,
+              matchedCases: [],
+              sourcesFound: 0,
+              matchType: 'case_number_not_found',
+              confidence: 100,
+              activeReferences: ['case_numbers', 'database_verification']
             }
-          }
-
-          // STRICT VALIDATION: Candidate MUST genuinely pair both the number and the year in caseNumber,
-          // rejecting cases where the case number belongs to a different year (e.g. 917 of 2015 when 917 of 2003 was searched)
-          matchingCaseNumberCases = rawCaseNumberCases.filter(c => {
-            if (c.isDeleted) return false;
-            if (isForeignCourt(c.court) || isForeignCase(c)) return false;
-            return isStrictCaseNumAndYearMatch(c, extractedCN.caseNum, extractedCN.year);
-          });
-
-          if (matchingCaseNumberCases.length > 0) {
-            matchingCaseNumberCases = sortCasesLatestFirst(matchingCaseNumberCases);
-            matchType = 'case_number';
-            targetCase = matchingCaseNumberCases[0];
-            matchedFieldDisplay = `Case No. ${extractedCN.caseNum} of ${extractedCN.year}`;
-            confidence = 100;
-            activeReferences = ['case_numbers', 'courts', 'judges', 'citations', 'parties'];
-          } else {
-            // Check Superior Courts / OtherCaseLaw before declaring not found (< 200ms)
-            try {
-              const oclFallbackMatches = await searchOtherCaseLaws(cleanQuery);
-              if (oclFallbackMatches && oclFallbackMatches.length > 0) {
-                const otherReplyText = formatOtherCasesResponse(oclFallbackMatches, cleanQuery);
-                const oclResult = {
-                  text: otherReplyText,
-                  legalAnalysis: {
-                    matchedCase: oclFallbackMatches[0],
-                    matchedCases: oclFallbackMatches,
-                    matchType: 'superior_court_case',
-                    confidence: 100,
-                    activeReferences: ['case_numbers', 'courts', 'judges', 'citations', 'parties'],
-                    sourcesFound: oclFallbackMatches.length
-                  }
-                };
-                setCachedAIResult(cacheKey, oclResult);
-                return oclResult;
-              }
-            } catch (oclFBErr) {}
-
-            // Explicit Case Number & Year was requested but not found in either database.
-            // Do NOT fall through to loose word matching that returns wrong years!
-            matchType = 'case_number_not_found';
-            targetCase = {
-              notFound: true,
-              requestedCaseNum: extractedCN.caseNum,
-              requestedYear: extractedCN.year
-            };
-            confidence = 100;
-          }
-        } else if (coreCaseNo.length >= 2) {
-          const caseRegex = makeFlexibleRegex(coreCaseNo);
-          if (caseRegex) {
-            try {
-              rawCaseNumberCases = await Case.find({
-                isDeleted: { $ne: true },
-                caseNumber: caseRegex
-              }).hint({ isDeleted: 1, caseNumber: 1 }).limit(15).maxTimeMS(10000).lean();
-            } catch (hErr2) {
-              rawCaseNumberCases = await Case.find({
-                isDeleted: { $ne: true },
-                caseNumber: caseRegex
-              }).limit(15).maxTimeMS(10000).lean();
-            }
-            rawCaseNumberCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
-
-            // STRICT VALIDATION: Check that candidates contain all core search tokens
-            matchingCaseNumberCases = rawCaseNumberCases.filter(c => !isForeignCourt(c.court) && !isForeignCase(c) && validateCaseNumberKeywords(c, coreCaseNo));
-
-            if (matchingCaseNumberCases.length > 0) {
-              matchingCaseNumberCases = sortCasesLatestFirst(matchingCaseNumberCases);
-              matchType = 'case_number';
-              targetCase = matchingCaseNumberCases[0];
-              matchedFieldDisplay = coreCaseNo;
-              confidence = 98;
-              activeReferences = ['case_numbers', 'courts', 'judges', 'citations', 'parties'];
-            } else {
-              // Try OtherCaseLaw before falling through
-              try {
-                const oclCoreMatches = await searchOtherCaseLaws(cleanQuery);
-                if (oclCoreMatches && oclCoreMatches.length > 0) {
-                  const otherReplyText = formatOtherCasesResponse(oclCoreMatches, cleanQuery);
-                  const oclResult = {
-                    text: otherReplyText,
-                    legalAnalysis: {
-                      matchedCase: oclCoreMatches[0],
-                      matchedCases: oclCoreMatches,
-                      matchType: 'superior_court_case',
-                      confidence: 98,
-                      activeReferences: ['case_numbers', 'courts', 'judges', 'citations', 'parties'],
-                      sourcesFound: oclCoreMatches.length
-                    }
-                  };
-                  setCachedAIResult(cacheKey, oclResult);
-                  return oclResult;
-                }
-              } catch (oclCoreErr) {}
-            }
-          }
+          };
+          setCachedAIResult(cacheKey, notFoundResult);
+          return notFoundResult;
         }
       } catch (cnErr) {
         logger.warn('Case number query notice: ' + cnErr.message);
-        if (extractedCN) {
-          matchType = 'case_number_not_found';
-          targetCase = {
-            notFound: true,
-            requestedCaseNum: extractedCN.caseNum,
-            requestedYear: extractedCN.year
-          };
-          confidence = 100;
-        }
+        const queryLabel = qInfo.displayQuery || cleanQuery;
+        const errNotFoundText = `### ⚖️ SLD Judicial Case Search Status: Not Found\n\n` +
+          `No matching judgment was found in the SLD database for **${queryLabel}**.\n\n` +
+          `**Not found. Contact with SLD System management.**\n\n` +
+          `*Tip: Please check the case number, appeal type, court, and year.*`;
+
+        const errResult = {
+          text: errNotFoundText,
+          legalAnalysis: {
+            matchedCase: null,
+            matchedCases: [],
+            sourcesFound: 0,
+            matchType: 'case_number_not_found',
+            confidence: 100,
+            activeReferences: ['case_numbers', 'database_verification']
+          }
+        };
+        setCachedAIResult(cacheKey, errResult);
+        return errResult;
       }
     }
   }
@@ -6810,14 +7149,16 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
 
     // FORMAT: Case Number Explicitly Not Found
     if (matchType === 'case_number_not_found') {
-      const { requestedCaseNum, requestedYear } = targetCase;
-      responseText = `### ⚖️ Judicial Case Search Result: No Match Found\n\n` +
-        `No reported judgment was found in the SLD database for **Case No. ${requestedCaseNum} of ${requestedYear}** under Pakistani Superior Courts & Appellate Tribunals.\n\n` +
-        `**Search Parameters Verified:**\n` +
-        `• **Case Number**: ${requestedCaseNum}\n` +
-        `• **Year**: ${requestedYear}\n` +
+      const requestedCaseNum = targetCase?.requestedCaseNum || targetCase?.caseNum || '';
+      const requestedYear = targetCase?.requestedYear || targetCase?.year || '';
+      responseText = `### ⚖️ SLD Judicial Case Search Status: Not Found\n\n` +
+        `No matching judgment was found in the SLD database for **${matchedFieldDisplay || cleanQuery}**.\n\n` +
+        `**Not found. Contact with SLD System management.**\n\n` +
+        `*Search Parameters Checked:*\n` +
+        (requestedCaseNum ? `• **Case Number**: ${requestedCaseNum}\n` : '') +
+        (requestedYear ? `• **Year**: ${requestedYear}\n` : '') +
         `• **Jurisdiction**: Pakistan (Supreme Court, High Courts, ATIR, Tribunals)\n\n` +
-        `*Tip: Please verify the case number and year or try searching by Citation (e.g. "2015 SCMR ...") or Litigant / Party Name.*`;
+        `*Tip: Please check the case number, appeal type, court, and year.*`;
 
       const notFoundResult = {
         text: responseText,
