@@ -581,8 +581,9 @@ export const formatOtherCasesResponse = (results, queryText) => {
       (c.apexCourt ? `• **Apex Court**: ${c.apexCourt}\n` : '') +
       (c.apexStatus ? `• **Apex Status**: ${c.apexStatus}\n` : '') +
       (c.headNotes ? `\n#### 📜 Headnotes & Judicial Significance:\n${c.headNotes}\n\n` : '\n') +
+      (formatCaseAttachmentsMarkdown(c) ? `${formatCaseAttachmentsMarkdown(c)}\n` : '') +
       (canOpenViewer
-        ? `🔗 **Certified Judgment Document**: [View Certified Order in New Tab ↗](${inlineDocUrl})\n`
+        ? `🔗 **Certified Judgment Document**: [View Certified Order / PDF in New Tab ↗](${inlineDocUrl})\n`
         : `🔗 **Certified Judgment Document**: Record metadata only (no downloadable document attached)\n`) +
       (hasHttpDirect ? `• **Official Court Portal Link**: [Direct Court Order Link ↗](${inlineDocUrl || directLink})\n\n` : '\n');
   }
@@ -2481,6 +2482,65 @@ export const detectResponseIntent = (rawQuery) => {
   };
 };
 
+export const getCaseAttachmentLinks = (c) => {
+  if (!c) return [];
+  const links = [];
+  const seen = new Set();
+
+  const add = (rawUrl, defaultName) => {
+    if (!rawUrl || typeof rawUrl !== 'string') return;
+    const trimmed = rawUrl.trim();
+    if (!trimmed || trimmed === '#' || trimmed.toLowerCase() === 'nil' || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    links.push({
+      url: trimmed,
+      name: defaultName && String(defaultName).trim() ? String(defaultName).trim() : 'Official PDF Document'
+    });
+  };
+
+  if (Array.isArray(c.attachments)) {
+    for (let i = 0; i < c.attachments.length; i++) {
+      const att = c.attachments[i];
+      if (!att) continue;
+      const url = typeof att === 'string' ? att : (att.url || att.path);
+      const name = typeof att === 'object' ? (att.name || att.originalName || `Official Attachment ${i + 1}`) : `Official Attachment ${i + 1}`;
+      add(url, name);
+    }
+  }
+
+  if (Array.isArray(c.attachmentsData)) {
+    for (let i = 0; i < c.attachmentsData.length; i++) {
+      const att = c.attachmentsData[i];
+      if (!att) continue;
+      const url = typeof att === 'string' ? att : (att.url || att.path);
+      const name = typeof att === 'object' ? (att.name || att.originalName || `Attached Document ${i + 1}`) : `Attached Document ${i + 1}`;
+      add(url, name);
+    }
+  }
+
+  if (c.attachment) {
+    add(c.attachment, c.attachmentName || 'Official Attached Case Document (PDF)');
+  }
+  if (c.downloadLink) {
+    add(c.downloadLink, 'Official Court Certified PDF Document');
+  }
+  if (c.pdfUrl) {
+    add(c.pdfUrl, 'Official Judgment PDF Document');
+  }
+
+  return links;
+};
+
+export const formatCaseAttachmentsMarkdown = (c) => {
+  const links = getCaseAttachmentLinks(c);
+  if (!links || links.length === 0) return '';
+  if (links.length === 1) {
+    return `📄 **Attached Official PDF Document**: [${links[0].name} ↗](${links[0].url})`;
+  }
+  return `📄 **Attached Official PDF Documents**:\n` +
+    links.map(l => `• [${l.name} ↗](${l.url})`).join('\n');
+};
+
 const formatCaseExplanationResponse = (targetCase, citation) => {
   const citeHeader = citation || targetCase.mapYearPage?.join(' | ') || `SLD #${targetCase.sldNumber || targetCase.caseId}`;
   const judgmentText = String(targetCase.judgment || '').replace(/\s+/g, ' ').trim();
@@ -2497,6 +2557,7 @@ const formatCaseExplanationResponse = (targetCase, citation) => {
   const explanation = explanationSource
     ? explanationSource.slice(0, 1800)
     : 'The database record does not contain enough text to provide a reliable explanation. Please open the full judgment document.';
+  const attLinksMd = formatCaseAttachmentsMarkdown(targetCase);
 
   return `### ⚖️ Case Explanation: ${citeHeader}\n\n` +
     `This is the verified Pakistani judgment reported at **${citeHeader}**.\n\n` +
@@ -2507,25 +2568,26 @@ const formatCaseExplanationResponse = (targetCase, citation) => {
     `- **Court**: ${targetCase.court || 'Court of Record'}\n` +
     `- **Decision Date**: ${formatDate(targetCase)}\n` +
     `- **Bench / Coram**: ${cleanBenchList(targetCase.judges)}\n\n` +
+    (attLinksMd ? `${attLinksMd}\n\n` : '') +
     `[View Full Case Document ↗](/cases/view/${targetCase._id})`;
 };
 
 /**
  * Formats a pure judgment response (Type A)
- * Displays only authentic judgment text or document viewer link.
- * ZERO unrequested headnotes, summaries, or legal analysis essays.
+ * Displays authentic judgment text, authentic headnote, and attached document viewer links.
  */
 export const formatJudgmentResponse = (targetCase, requestedQuery) => {
   if (!targetCase) {
     return `### ⚖️ Judgment Document Status\n\nNo judgment document was found in the database records matching this request.`;
   }
 
-  const courtName = targetCase.court || 'Court of Record';
-  const citeLine = (targetCase.mapYearPage && targetCase.mapYearPage.length > 0) ? targetCase.mapYearPage.join(' | ') : `SLD #${targetCase.sldNumber || targetCase.caseId}`;
-  const caseNumStr = (targetCase.caseNumber && targetCase.caseNumber.length > 0) ? (Array.isArray(targetCase.caseNumber) ? targetCase.caseNumber.join('; ') : String(targetCase.caseNumber)) : 'N/A';
+  const courtName = targetCase.court || targetCase.apexCourt || 'Court of Record';
+  const citeLine = (targetCase.mapYearPage && targetCase.mapYearPage.length > 0) ? targetCase.mapYearPage.join(' | ') : (targetCase.citation || `SLD #${targetCase.sldNumber || targetCase.caseId || 'Record'}`);
+  const caseNumStr = (targetCase.caseNumber && targetCase.caseNumber.length > 0) ? (Array.isArray(targetCase.caseNumber) ? targetCase.caseNumber.join('; ') : String(targetCase.caseNumber)) : (targetCase.caseNo || 'N/A');
   const dateFormatted = formatDate(targetCase);
-  const benchClean = cleanBenchList(targetCase.judges);
-  const docLink = `/cases/view/${targetCase._id}`;
+  const benchClean = cleanBenchList(targetCase.judges || targetCase.bench);
+  const docLink = targetCase._id ? `/cases/view/${targetCase._id}` : (targetCase.downloadLink || '#');
+  const attachmentLinksMarkdown = formatCaseAttachmentsMarkdown(targetCase);
 
   let out = `### 📜 Verified Judgment: ${courtName}\n\n` +
     `• **Citation**: ${citeLine}\n` +
@@ -2533,26 +2595,45 @@ export const formatJudgmentResponse = (targetCase, requestedQuery) => {
     `• **Court**: ${courtName}\n` +
     `• **Decision Date**: ${dateFormatted}\n` +
     `• **Bench**: ${benchClean}\n` +
-    `• **Document Access**: [Open Full Judgment Document ↗](${docLink})\n\n` +
-    `---\n\n`;
+    (docLink !== '#' ? `• **Document Access**: [Open Full Judgment Document ↗](${docLink})\n` : '') +
+    (attachmentLinksMarkdown ? `${attachmentLinksMarkdown}\n` : '') +
+    `\n---\n\n`;
 
-  if (targetCase.judgment && targetCase.judgment.trim().length > 0) {
+  const hasJudgment = Boolean(targetCase.judgment && targetCase.judgment.trim().length > 0);
+  const hasHeadNote = Boolean((targetCase.headNote && targetCase.headNote.trim().length > 0) || (targetCase.headNotes && targetCase.headNotes.trim().length > 0));
+  const hnText = (targetCase.headNote || targetCase.headNotes || '').trim();
+  const hasPrinciple = Boolean(targetCase.principleLaw && targetCase.principleLaw.trim().length > 0);
+
+  if (hasJudgment) {
     const rawJudgment = targetCase.judgment.trim();
     if (rawJudgment.length > 3800) {
       out += `#### Original Judgment Text (Initial Record):\n\n` +
         rawJudgment.slice(0, 3600) +
         `\n\n*... [Full judgment text continues in document viewer. Click below to read the complete official document]*\n\n` +
-        `[Open Complete Judgment Document ↗](${docLink})\n`;
+        (docLink !== '#' ? `[Open Complete Judgment Document ↗](${docLink})\n` : '');
     } else {
       out += `#### Original Judgment Text:\n\n` +
         rawJudgment + `\n\n` +
-        `[Open Official Judgment Document ↗](${docLink})\n`;
+        (docLink !== '#' ? `[Open Official Judgment Document ↗](${docLink})\n` : '');
     }
+    if (hasHeadNote) {
+      out += `\n---\n\n#### Verified Legal Headnote & Construction:\n\n${hnText}\n`;
+    }
+  } else if (hasHeadNote) {
+    out += `#### Authentic Reported Headnote & Operative Legal Determination:\n\n` +
+      hnText + `\n\n` +
+      (hasPrinciple ? `**Principle of Law Established:**\n${targetCase.principleLaw.trim()}\n\n` : '') +
+      `*Note: The official judicial determination for this reported decision is preserved via the authentic law report headnote above and attached official records.* ` +
+      (docLink !== '#' ? `[Open Full Case Record ↗](${docLink})\n` : '\n');
   } else {
     out += `• **Document Type**: Judgment\n` +
       `• **Status**: [Judgment Transcript Pending Digital Transcription]\n\n` +
       `The official judgment transcript for this reported decision is preserved in the physical law reports and is pending digital transcription in the viewer archive.\n\n` +
-      `[Open Case Record ↗](${docLink})\n`;
+      (docLink !== '#' ? `[Open Case Record ↗](${docLink})\n` : '');
+  }
+
+  if (attachmentLinksMarkdown && !out.includes(attachmentLinksMarkdown)) {
+    out += `\n---\n${attachmentLinksMarkdown}\n`;
   }
 
   return out;
@@ -3558,7 +3639,13 @@ const validatePetitionerKeywords = (c, query) => {
 const validateLawyerKeywords = (c, query) => {
   const tokens = extractSearchTokens(query, 3);
   if (tokens.length === 0) return true;
-  const lawyersStr = (Array.isArray(c.lawyers) ? c.lawyers.join(' ') : String(c.lawyers || '')).toLowerCase();
+  const lawyersStr = (
+    (Array.isArray(c.lawyers) ? c.lawyers.join(' ') : String(c.lawyers || '')) + ' ' +
+    (c.parties || '') + ' ' +
+    (c.bench || '') + ' ' +
+    (c.caseTitle || '') + ' ' +
+    (c.notes || '')
+  ).toLowerCase();
   return tokens.every(token => lawyersStr.includes(token));
 };
 
@@ -4011,6 +4098,71 @@ ${casesSummary}
 };
 
 /**
+ * Robust Lawyer, Advocate & Legal Counsel Query Parser
+ * Extracts the lawyer's clean name and any associated substantive legal topic/statute terms
+ */
+export const extractLawyerQueryInfo = (rawQuery) => {
+  if (!rawQuery || typeof rawQuery !== 'string') return null;
+  let q = rawQuery.trim();
+
+  // If query is an exact case number, statute, SRO, or citation query, don't hijack it as a lawyer query
+  if (/^(?:ita|sta|c\.?p\.?|c\.?a\.?|w\.?p\.?|suit|appeal|petition|sro|s\.r\.o)\b/i.test(q)) {
+    return null;
+  }
+
+  // Strip leading conversational action prefixes
+  const actionPrefix = /^(?:(?:give|show|find|search|get|display)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?(?:authoritative\s+|verified\s+|official\s+)?(?:judgm?ents?|cases?|decisions?|orders?|rulings?)\s*(?:of|by|for|from|regarding)?\s*|(?:cases?|judgm?ents?|decisions?|orders?|rulings?)\s*(?:of|by|for|from|regarding)\s*)/i;
+  q = q.replace(actionPrefix, '').trim();
+
+  let lawyerCandidate = '';
+  let restTopic = '';
+
+  const prefixMatch = q.match(/^(?:lawyer|advocate|counsel|barrister|attorney|pleader)\s*[:\-]?\s*(.+)$/i);
+  if (prefixMatch) {
+    const rawRest = prefixMatch[1].trim();
+    const prepSplit = rawRest.match(/^(.+?)\s+\b(on|regarding|about|for|in|under|citing|against)\b\s+(.+)$/i);
+    if (prepSplit) {
+      lawyerCandidate = prepSplit[1].trim();
+      restTopic = prepSplit[3].trim();
+    } else {
+      const topicKeywordsRegex = /\b(super\s*tax|sales\s*tax|income\s*tax|customs|federal\s*excise|section\s*\d+[a-z]?|sec\s*\d+[a-z]?|\d+[a-z]?\s*cases?)\b/i;
+      const kwMatch = rawRest.match(topicKeywordsRegex);
+      if (kwMatch && kwMatch.index > 0) {
+        lawyerCandidate = rawRest.slice(0, kwMatch.index).trim();
+        restTopic = rawRest.slice(kwMatch.index).trim();
+      } else {
+        lawyerCandidate = rawRest;
+      }
+    }
+  } else {
+    // Suffix pattern: "Saeed Chaudhry advocate on income tax"
+    const suffixMatch = q.match(/^([a-z0-9\s.'’]+?)(?:,\s*|\s+)(?:lawyer|advocate|counsel|barrister|attorney|pleader)(?:\s+(?:on|regarding|about|for|in|under)\s+(.+))?$/i);
+    if (suffixMatch) {
+      lawyerCandidate = suffixMatch[1].trim();
+      restTopic = (suffixMatch[2] || '').trim();
+    }
+  }
+
+  // Clean lawyer candidate from unwanted prefixes/suffixes
+  if (lawyerCandidate) {
+    lawyerCandidate = lawyerCandidate.replace(/^(?:mr\.?|mrs\.?|ms\.?|dr\.?|ch\.?|mian|syed|malik|sardar)\s+/i, '').trim();
+    lawyerCandidate = lawyerCandidate.replace(/[?.!;,]+$/, '').trim();
+  }
+
+  if (lawyerCandidate && lawyerCandidate.length >= 3) {
+    if (/^(?:judgment|case|all|the|pakistan|law|supreme|high)$/i.test(lawyerCandidate)) {
+      return null;
+    }
+    return {
+      lawyerName: lawyerCandidate,
+      topic: restTopic,
+      rawQuery: rawQuery.trim()
+    };
+  }
+  return null;
+};
+
+/**
  * Lightweight, Deterministic Intent Router
  * Distinguishes between Pakistani legal research queries and general AI queries
  */
@@ -4091,6 +4243,15 @@ export const isPakistaniLegalQuery = (queryText) => {
       /\b(?:how\s*many|count|total|number\s*of)\s*(?:cases|judgments|statutes|notifications|records|orders)\b/i.test(q) ||
       /\b(?:meaning\s*of|definition\s*of|define|legal\s*meaning|dictionary)\b/i.test(q) ||
       /\b(?:tax\s*card|tax\s*rates?|tax\s*slabs?|salary\s*slab|withholding\s*tax\s*rates?|finance\s*act\s*rates?)\b/i.test(q)) {
+    return true;
+  }
+
+  // 9. Explicit Lawyer, Legal Counsel, Advocate & Judicial Bench Precedent Queries
+  if (/\b(?:lawyer|advocate|counsel|barrister|attorney|pleader|prosecutor|senior\s*counsel|legal\s*counsel)\b/i.test(q) ||
+      /\b(?:judge|justice|chief\s*justice|mr\.?\s*justice|hon['’]?ble\s*justice)\b/i.test(q)) {
+    return true;
+  }
+  if (extractLawyerQueryInfo(queryText)) {
     return true;
   }
 
@@ -6240,7 +6401,120 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     }
   }
 
-  // PRIORITY 4: Judge / Bench Name Search
+  // PRIORITY 4: Lawyer / Legal Counsel Search
+  // (e.g. "lawyer Saeed Chaudhry", "give me judgment of lawyer Saeed Chaudhry", "advocate Farogh Naseem", "Aitzaz Ahsan")
+  if (!targetCase) {
+    const lawyerInfo = extractLawyerQueryInfo(rawClean) || extractLawyerQueryInfo(cleanQuery) || extractLawyerQueryInfo(normalizedQuery);
+    const lawyerPrefixMatch = normalizedQuery.match(/^(?:lawyer|advocate|counsel|barrister|fca)\b\s*[:\-]?\s*(.+)$/i);
+    const isExplicitLawyer = Boolean(lawyerInfo) || Boolean(lawyerPrefixMatch) || /^(?:advocate|barrister)\b/i.test(normalizedQuery);
+
+    if (isExplicitLawyer && normalizedQuery.length >= 3) {
+      const lawyerQueryName = lawyerInfo?.lawyerName || (lawyerPrefixMatch ? lawyerPrefixMatch[1].trim() : normalizedQuery);
+      const topicTerms = lawyerInfo?.topic || '';
+
+      if (lawyerQueryName && lawyerQueryName.length >= 3) {
+        try {
+          const lawyerRegex = makeFlexibleRegex(lawyerQueryName);
+          if (lawyerRegex) {
+            // 1. Search in primary Case collection: High-speed text index first (< 150ms), fallback to flexible regex
+            let rawLawyerCases = [];
+            try {
+              const rawTextCases = await Case.find({
+                $text: { $search: `"${lawyerQueryName}"` },
+                isDeleted: false
+              }).limit(40).maxTimeMS(2500).lean();
+              rawLawyerCases = rawTextCases.filter(c => validateLawyerKeywords(c, lawyerQueryName));
+            } catch (tErr) {
+              logger.warn('Lawyer text index notice: ' + tErr.message);
+            }
+
+            if (rawLawyerCases.length === 0) {
+              try {
+                const rawRegexCases = await Case.find({
+                  isDeleted: false,
+                  lawyers: lawyerRegex
+                }).limit(30).maxTimeMS(4000).lean();
+                rawLawyerCases = rawRegexCases.filter(c => validateLawyerKeywords(c, lawyerQueryName));
+              } catch (rErr) {
+                logger.warn('Lawyer regex search notice: ' + rErr.message);
+              }
+            }
+
+            let validatedCases = rawLawyerCases;
+
+            // 3. Search OtherCaseLaw if fewer than 5 found
+            if (validatedCases.length < 5) {
+              try {
+                const oclLawyer = await OtherCaseLaw.find({
+                  isDeleted: false,
+                  $or: [
+                    { caseTitle: lawyerRegex },
+                    { parties: lawyerRegex },
+                    { headNotes: lawyerRegex },
+                    { bench: lawyerRegex },
+                    { notes: lawyerRegex }
+                  ]
+                }).limit(10).maxTimeMS(3000).lean();
+                if (oclLawyer && oclLawyer.length > 0) {
+                  validatedCases = validatedCases.concat(oclLawyer);
+                }
+              } catch (oclErr) {
+                logger.warn('OCL lawyer search notice: ' + oclErr.message);
+              }
+            }
+
+            if (validatedCases.length > 0) {
+              // 4. Rank candidates to provide the BEST ONE first:
+              // Balance: Topic relevance, Judgment content, Authentic Headnote, Attached PDF, and Recency
+              const topicRegex = topicTerms ? makeFlexibleRegex(topicTerms) : null;
+              validatedCases.sort((a, b) => {
+                let scoreA = 0;
+                let scoreB = 0;
+
+                if (topicRegex) {
+                  const textA = ((a.headNote || a.headNotes || '') + ' ' + (a.principleLaw || '') + ' ' + (a.judgment || '')).toLowerCase();
+                  const textB = ((b.headNote || b.headNotes || '') + ' ' + (b.principleLaw || '') + ' ' + (b.judgment || '')).toLowerCase();
+                  if (topicRegex.test(textA)) scoreA += 500;
+                  if (topicRegex.test(textB)) scoreB += 500;
+                }
+
+                // Substantive text bonuses (both headnote and judgment evaluated)
+                if (a.judgment && a.judgment.trim().length > 100) scoreA += 100;
+                if (b.judgment && b.judgment.trim().length > 100) scoreB += 100;
+
+                if ((a.headNote && a.headNote.trim().length > 50) || (a.headNotes && a.headNotes.trim().length > 50)) scoreA += 80;
+                if ((b.headNote && b.headNote.trim().length > 50) || (b.headNotes && b.headNotes.trim().length > 50)) scoreB += 80;
+
+                const aAtts = getCaseAttachmentLinks(a);
+                const bAtts = getCaseAttachmentLinks(b);
+                if (aAtts.length > 0) scoreA += 60;
+                if (bAtts.length > 0) scoreB += 60;
+
+                // Recency bonus
+                const timeA = parsePakistaniDateTimestamp(a);
+                const timeB = parsePakistaniDateTimestamp(b);
+                scoreA += (timeA / 1e11);
+                scoreB += (timeB / 1e11);
+
+                return scoreB - scoreA;
+              });
+
+              matchingLawyerCases = validatedCases;
+              matchType = 'lawyer_counsel';
+              targetCase = matchingLawyerCases[0];
+              matchedFieldDisplay = topicTerms ? `${lawyerQueryName} (${topicTerms})` : lawyerQueryName;
+              confidence = 96;
+              activeReferences = ['parties', 'courts', 'judges', 'citations', 'lawyers'];
+            }
+          }
+        } catch (lErr) {
+          logger.warn('Lawyer query notice: ' + lErr.message);
+        }
+      }
+    }
+  }
+
+  // PRIORITY 5: Judge / Bench Name Search
   // (e.g. "judge Yahya Afridi", "Justice Ejaz Afzal Khan", "Shahid Jamil Khan", "Jawwad S Khawaja", "Mian Saqib Nisar")
   if (!targetCase) {
     const judgePrefixMatch = normalizedQuery.match(/^(?:judge|justice|chief\s*justice|mr\.?\s*justice|hon['’]?ble\s*justice|bench|author)\b\s*[:\-]?\s*(.+)$/i);
@@ -6351,42 +6625,6 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           }
         } catch (pErr) {
           logger.warn('Party query notice: ' + pErr.message);
-        }
-      }
-    }
-  }
-
-  // PRIORITY 6: Lawyer / Legal Counsel Search
-  // (e.g. "lawyer Saeed Chaudhry", "Aitzaz Ahsan", "Malik Muhammad Qayyum")
-  if (!targetCase) {
-    const lawyerPrefixMatch = normalizedQuery.match(/^(?:lawyer|advocate|counsel|barrister|fca)\b\s*[:\-]?\s*(.+)$/i);
-    const isExplicitLawyer = Boolean(lawyerPrefixMatch) || /^(?:advocate|barrister)\b/i.test(normalizedQuery);
-
-    if (isExplicitLawyer && normalizedQuery.length >= 3) {
-      const lawyerQueryName = lawyerPrefixMatch ? lawyerPrefixMatch[1].trim() : normalizedQuery;
-      if (lawyerQueryName.length >= 3) {
-        try {
-          const lawyerRegex = makeFlexibleRegex(lawyerQueryName);
-          if (lawyerRegex) {
-            const rawLawyerCases = await Case.find({
-              lawyers: lawyerRegex,
-              isDeleted: { $ne: true }
-            }).limit(15).maxTimeMS(2000).lean();
-            rawLawyerCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
-
-            // STRICT VALIDATION: Filter out any cases not containing lawyer keywords
-            matchingLawyerCases = rawLawyerCases.filter(c => validateLawyerKeywords(c, lawyerQueryName));
-
-            if (matchingLawyerCases.length > 0) {
-              matchType = 'lawyer_counsel';
-              targetCase = matchingLawyerCases[0];
-              matchedFieldDisplay = lawyerQueryName;
-              confidence = 96;
-              activeReferences = ['parties', 'courts', 'judges', 'citations'];
-            }
-          }
-        } catch (lErr) {
-          logger.warn('Lawyer query notice: ' + lErr.message);
         }
       }
     }
@@ -7286,7 +7524,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
       targetCase = matchingPartyCases[0];
     }
     if (matchingLawyerCases && matchingLawyerCases.length > 0) {
-      matchingLawyerCases = sortCasesLatestFirst(matchingLawyerCases);
+      if (matchType !== 'lawyer_counsel') {
+        matchingLawyerCases = sortCasesLatestFirst(matchingLawyerCases);
+      }
       targetCase = matchingLawyerCases[0];
     }
     if (matchingCourtCases && matchingCourtCases.length > 0) {
@@ -7357,6 +7597,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     // FORMAT 0: Direct Case ID Match or Single Citation Match
     else if (matchType === 'case_id' || matchType === 'citation_single') {
       const citeHeader = (citationDetails && citationDetails.formatted) ? citationDetails.formatted : ((targetCase.mapYearPage && targetCase.mapYearPage.length > 0) ? targetCase.mapYearPage.join(' = ') : cleanQuery.trim());
+      const attLinksMd = formatCaseAttachmentsMarkdown(targetCase);
       responseText = isExplicitExplanationRequest
         ? formatCaseExplanationResponse(targetCase, citeHeader)
         : `### ⚖️ Judicial Precedent Record: ${citeHeader}\n\n` +
@@ -7370,6 +7611,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         (caseNumbers ? `• **Case / Appeal Number**: ${caseNumbers}\n` : '') +
         (targetCase.principleLaw && targetCase.principleLaw.trim() ? `\n#### Principle of Law Established:\n${targetCase.principleLaw.trim()}\n` : '') +
         (lawsList ? `\n• **Statutory Provisions**: ${lawsList}\n` : '') +
+        (attLinksMd ? `\n${attLinksMd}\n` : '') +
         `\n[View Full Case Document ↗](/cases/view/${targetCase._id})\n`;
     }
     // FORMAT A: Case Number Match
@@ -7388,6 +7630,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         const partiesClean = cleanParties(c.petitioners);
         const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
         const lawyersClean = cleanLawyers(c.lawyers);
+        const attLinksMd = formatCaseAttachmentsMarkdown(c);
 
         responseText += `---\n\n` +
           `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
@@ -7400,6 +7643,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           `• Parties: ${partiesClean}\n` +
           (lawyersClean !== 'N/A' ? `• Counsel: ${lawyersClean}\n` : '') +
           (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
+          (attLinksMd ? `${attLinksMd}\n` : '') +
           `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
     }
@@ -7418,6 +7662,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         const benchClean = cleanBenchList(c.judges);
         const partiesClean = cleanParties(c.petitioners);
         const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+        const attLinksMd = formatCaseAttachmentsMarkdown(c);
 
         responseText += `---\n\n` +
           `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
@@ -7429,6 +7674,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           `• Bench: ${benchClean}\n` +
           (partiesClean !== 'N/A' ? `• Parties: ${partiesClean}\n` : '') +
           (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
+          (attLinksMd ? `${attLinksMd}\n` : '') +
           `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
     }
@@ -7447,6 +7693,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         const benchClean = cleanBenchList(c.judges);
         const partiesClean = cleanParties(c.petitioners);
         const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+        const attLinksMd = formatCaseAttachmentsMarkdown(c);
 
         responseText += `---\n\n` +
           `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
@@ -7458,6 +7705,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           `• Decision Date: ${dateFormatted}\n` +
           `• Bench: ${benchClean}\n` +
           (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
+          (attLinksMd ? `${attLinksMd}\n` : '') +
           `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
     }
@@ -7469,27 +7717,55 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
 
       responseText = `${countWord} found in the SLD database where **${matchedFieldDisplay || cleanQuery}** represented appearing parties:\n\n`;
 
-      for (let i = 0; i < matchingLawyerCases.length; i++) {
-        const c = matchingLawyerCases[i];
-        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? c.caseNumber[0] : 'N/A';
+      const topCases = matchingLawyerCases.slice(0, 10);
+      for (let i = 0; i < topCases.length; i++) {
+        const c = topCases[i];
+        const caseNumStr = (c.caseNumber && c.caseNumber.length > 0) ? (Array.isArray(c.caseNumber) ? c.caseNumber.join('; ') : String(c.caseNumber)) : (c.caseNo || 'N/A');
         const dateFormatted = formatDate(c);
-        const benchClean = cleanBenchList(c.judges);
-        const partiesClean = cleanParties(c.petitioners);
+        const benchClean = cleanBenchList(c.judges || c.bench);
+        const partiesClean = cleanParties(c.petitioners || c.parties);
         const lawyersClean = cleanLawyers(c.lawyers);
-        const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+        const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : (c.citation || `SLD #${c.sldNumber || c.srNumber || i + 1}`);
+        const attLinksMd = formatCaseAttachmentsMarkdown(c);
+        const hasJdg = Boolean(c.judgment && c.judgment.trim().length > 0);
+        const hasHn = Boolean((c.headNote && c.headNote.trim().length > 0) || (c.headNotes && c.headNotes.trim().length > 0));
+        const hnText = (c.headNote || c.headNotes || '').trim();
 
         responseText += `---\n\n` +
-          `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
+          `### Case ${i + 1}: ${c.court || c.apexCourt || 'High Court of Record'}\n` +
           `Key Case Details:\n` +
           `• Citation: ${citeLine}\n` +
           `• Counsel: ${lawyersClean}\n` +
           `• Parties: ${partiesClean}\n` +
-          `• Court: ${c.court || 'High Court of Record'}\n` +
+          `• Court: ${c.court || c.apexCourt || 'High Court of Record'}\n` +
           `• Case Number: ${caseNumStr}\n` +
           `• Decision Date: ${dateFormatted}\n` +
           `• Bench: ${benchClean}\n` +
-          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
-          `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '');
+
+        if (attLinksMd) {
+          responseText += `${attLinksMd}\n`;
+        }
+
+        if (hasHn) {
+          const hnSnippet = hnText.length > 700 ? hnText.slice(0, 700) + '...' : hnText;
+          responseText += `\n**Authentic Legal Headnote & Principles:**\n${hnSnippet}\n`;
+        }
+
+        if (hasJdg) {
+          const rawJdg = c.judgment.trim();
+          const jdgSnippet = rawJdg.length > 600 ? rawJdg.slice(0, 600) + '...' : rawJdg;
+          responseText += `\n**Substantive Judgment Excerpt:**\n${jdgSnippet}\n`;
+        } else if (!hasHn && !attLinksMd) {
+          responseText += `\n*Note: Verbatim judgment transcript pending digital transcription in archive.*\n`;
+        }
+
+        const caseLink = c._id ? `/cases/view/${c._id}` : (c.downloadLink || '#');
+        if (caseLink !== '#') {
+          responseText += `\n[View Full Case Document ↗](${caseLink})\n\n`;
+        } else {
+          responseText += `\n\n`;
+        }
       }
     }
     // FORMAT E: Court / Forum Match
@@ -7507,6 +7783,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         const benchClean = cleanBenchList(c.judges);
         const partiesClean = cleanParties(c.petitioners);
         const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+        const attLinksMd = formatCaseAttachmentsMarkdown(c);
 
         responseText += `---\n\n` +
           `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
@@ -7518,6 +7795,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           `• Bench: ${benchClean}\n` +
           (partiesClean !== 'N/A' ? `• Parties: ${partiesClean}\n` : '') +
           (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
+          (attLinksMd ? `${attLinksMd}\n` : '') +
           `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
     }
@@ -7582,8 +7860,12 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           `• Decision Date: ${dateFormatted}\n` +
           `• Bench: ${benchClean}\n` +
           (contextSnippet ? `\n> "${contextSnippet}"\n\n` : '\n') +
-          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
-          `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '');
+        const attLinksMd = formatCaseAttachmentsMarkdown(c);
+        if (attLinksMd) {
+          responseText += `${attLinksMd}\n`;
+        }
+        responseText += `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
     }
     // FORMAT H: Citation Multi-case
@@ -7601,6 +7883,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         const dateFormatted = formatDate(c);
         const benchClean = cleanBenchList(c.judges);
         const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+        const attLinksMd = formatCaseAttachmentsMarkdown(c);
 
         responseText += `---\n\n` +
           `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
@@ -7610,8 +7893,11 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           `• Case Number: ${caseNumStr}\n` +
           `• Decision Date: ${dateFormatted}\n` +
           `• Bench: ${benchClean}\n` +
-          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
-          `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '');
+        if (attLinksMd) {
+          responseText += `${attLinksMd}\n`;
+        }
+        responseText += `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
     }
     // FORMAT I: General Topic Multi-case
@@ -7631,6 +7917,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         const dateFormatted = formatDate(c);
         const benchClean = cleanBenchList(c.judges);
         const citeLine = (c.mapYearPage && c.mapYearPage.length > 0) ? c.mapYearPage.join(' | ') : `SLD #${c.sldNumber}`;
+        const attLinksMd = formatCaseAttachmentsMarkdown(c);
 
         responseText += `---\n\n` +
           `### Case ${i + 1}: ${c.court || 'High Court of Record'}\n` +
@@ -7641,18 +7928,23 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           `• Decision Date: ${dateFormatted}\n` +
           `• Bench: ${benchClean}\n` +
           `• Match Status: [Related Legal Precedent]\n` +
-          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '') +
-          `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
+          (c.principleLaw ? `• Principle of Law: ${c.principleLaw.trim()}\n` : '');
+        if (attLinksMd) {
+          responseText += `${attLinksMd}\n`;
+        }
+        responseText += `\n[View Full Case Document ↗](/cases/view/${c._id})\n\n`;
       }
     }
     // FORMAT J: Default Single Case Overview
     else {
+      const attLinksMd = formatCaseAttachmentsMarkdown(targetCase);
       responseText = `### Legal Precedent & Ruling Breakdown\n\n` +
         `The governing legal precedent on this issue is **SLD #${targetCase.sldNumber}** (*${citationsStr}*).\n\n` +
         `**Court**: ${courtName} | **Bench**: ${benchStr}  \n` +
         (partiesStr !== 'N/A' ? `**Parties**: ${partiesStr}  \n\n` : '\n') +
         (targetCase.principleLaw ? `**Principle of Law Established:**\n${targetCase.principleLaw.trim()}\n\n` : '') +
         `**Relevant Statutory Provisions**: ${lawsList}\n\n` +
+        (attLinksMd ? `${attLinksMd}\n\n` : '') +
         `[View Full Case Document ↗](/cases/view/${targetCase._id})\n`;
     }
 
