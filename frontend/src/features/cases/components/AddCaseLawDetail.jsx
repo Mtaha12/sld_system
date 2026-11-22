@@ -25,6 +25,7 @@ import { courtService, magazineService } from '../../../services/adminSettingsSe
 import CourtCombobox from './CourtCombobox';
 import SearchableCombobox from './SearchableCombobox';
 import { sortLawsWithPriority, sortMagazinesWithPriority } from '../../../utils/priorityOrdering';
+import { formatWordDocumentDisplay } from '../../../utils/wordFormatter';
 
 const safeDate = (val) => {
   if (!val) return null;
@@ -152,7 +153,7 @@ const getInitialValues = (data = null) => {
     references: String(data.references || ''),
     principleLaw: String(data.principleLaw || ''),
     legalMaxim: String(data.legalMaxim || ''),
-    judgment: String(data.judgment || ''),
+    judgment: formatWordDocumentDisplay(String(data.judgment || '')),
     publications: pubs,
     laws: laws,
     attachments: Array.isArray(data.attachments)

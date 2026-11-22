@@ -349,7 +349,7 @@ const RichTextEditor = ({
           evt.editor.on('paste', (pasteEvt) => {
             let html = pasteEvt.data?.dataValue;
             if (typeof html === 'string') {
-              pasteEvt.data.dataValue = cleanWordPasteHtml(html);
+              pasteEvt.data.dataValue = formatWordDocumentDisplay(html);
             }
           });
           applyThemeToIframe(evt.editor);

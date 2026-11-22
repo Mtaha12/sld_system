@@ -6,6 +6,8 @@
  * proper typography, paragraphs, line breaks, and metadata headers.
  */
 
+import { segmentLegalParagraphs } from './wordFormatter';
+
 export const decodeHtmlEntities = (rawText) => {
   if (!rawText || typeof rawText !== 'string') return '';
   
@@ -77,6 +79,7 @@ export const htmlToCleanPlainText = (html) => {
 
   // Normalize line endings and collapse 3+ consecutive newlines into 2
   str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  str = segmentLegalParagraphs(str);
   str = str.replace(/\n{3,}/g, '\n\n');
 
   // Clean horizontal spaces per line while preserving paragraph breaks

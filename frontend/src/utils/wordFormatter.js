@@ -44,6 +44,49 @@ export const fixMojibake = (str) => {
   return out;
 };
 
+/**
+ * Intelligent legal document paragraph segmenter.
+ * Detects judicial order prefixes, member/bench signatures, and numbered points
+ * (e.g., "ORDER:", "2. Facts...", "3. Being aggrieved...", "(1)", "[2]")
+ * even when collapsed into a single line or paragraph, separating them with double newlines.
+ */
+export const segmentLegalParagraphs = (text) => {
+  if (!text || typeof text !== 'string') return '';
+  let str = text;
+
+  // 1. Separate leading judicial headings like ORDER:, JUDGMENT:, ORDER SHEET:, BEFORE:, PRESENT:, HELD:, etc.
+  str = str.replace(/^\s*(ORDER\s*:|JUDGMENT\s*:|ORDER\s+SHEET\s*:|BEFORE\s*:|PRESENT\s*:|HELD\s*:|OPERATIVE\s+ORDER\s*:)/i, '$1\n\n');
+  str = str.replace(/([.:;?!’”"])\s+(ORDER\s*:|JUDGMENT\s*:|ORDER\s+SHEET\s*:|BEFORE\s*:|PRESENT\s*:|HELD\s*:|OPERATIVE\s+ORDER\s*:)/gi, '$1\n\n$2\n\n');
+
+  // 2. Separate judicial bench / author declarations:
+  // e.g. "ORDER: RAO M. NASIR JAMIL, MEMBER:---.--- Titled appeal" -> "ORDER:\n\nRAO M. NASIR JAMIL, MEMBER:---.---\n\nTitled appeal"
+  str = str.replace(/(ORDER\s*:|JUDGMENT\s*:)\s*([A-Z\s.,]+(?:MEMBER|JUDGE|JUSTICE|CJ|CHIEF JUSTICE)\s*:[^\n]*?)([-–—.]*)\s+([A-Z])/gi, '$1\n\n$2$3\n\n$4');
+  
+  // Standalone bench signature line followed by text
+  str = str.replace(/([A-Z\s.,]+(?:MEMBER|JUDGE|JUSTICE|CJ|CHIEF JUSTICE)\s*:[^\n]*?)([-–—.]*)\s+([A-Z][a-z])/gi, '$1$2\n\n$3');
+
+  // 3. Separate numbered legal paragraphs:
+  // e.g. "2013. 2. Facts of the case" -> "2013.\n\n2. Facts of the case"
+  // Match punctuation, quotes, or 4-digit years followed by a numbered paragraph marker:
+  str = str.replace(/([.:;?!’”"]|\b(?:19|20)\d{2}\b)\s+(\d{1,3}\.\s+[A-Z])/g, '$1\n\n$2');
+  str = str.replace(/([.:;?!’”"]|\b(?:19|20)\d{2}\b)\s+(\(\d{1,3}\)\s+[A-Z])/g, '$1\n\n$2');
+  str = str.replace(/([.:;?!’”"]|\b(?:19|20)\d{2}\b)\s+(\[\d{1,3}\]\s+[A-Z])/g, '$1\n\n$2');
+
+  // Roman numerals e.g. "(i) ", "(ii) ", "(iii) " after punctuation
+  str = str.replace(/([.:;?!’”"])\s+(\([ivx]+\)\s+[A-Z])/gi, '$1\n\n$2');
+
+  // Also handle numbered paragraphs at the start of a single-newline line
+  str = str.replace(/\n\s*(\d{1,3}\.\s+[A-Z])/g, '\n\n$1');
+  str = str.replace(/\n\s*(\(\d{1,3}\)\s+[A-Z])/g, '\n\n$1');
+  str = str.replace(/\n\s*(\[\d{1,3}\]\s+[A-Z])/g, '\n\n$1');
+  str = str.replace(/\n\s*(\([ivx]+\)\s+[A-Z])/gi, '\n\n$1');
+
+  // Normalize multiple newlines
+  str = str.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+
+  return str;
+};
+
 const stripDangerousAndBoilerplateMarkup = (input) => {
   let text = fixMojibake(input);
 
@@ -97,7 +140,8 @@ const sanitizeStyleAttribute = (styleBody, tagName = '') => {
 };
 
 const plainTextToParagraphHtml = (plain) => {
-  const cleaned = plain
+  const segmented = segmentLegalParagraphs(plain);
+  const cleaned = segmented
     .replace(/\u00a0/g, ' ')
     .replace(/\r\n?/g, '\n')
     .replace(BLOCK_DIVIDER_TAG_REGEX, '\n')
@@ -193,6 +237,19 @@ export const formatWordDocumentDisplay = (rawContent) => {
     // Unwrap pure <div> wrappers that hold inner <p>/<table> blocks cleanly
     clean = clean.replace(/(?:<div\s*>)+/gi, '').replace(/(?:<\/div>)+/gi, '');
     clean = clean.replace(/(?:<p[^>]*>(?:&nbsp;|\s|<br\s*\/?>)*<\/p>\s*){2,}/gi, '<p>&nbsp;</p>');
+
+    // Segment any <p> blocks that contain collapsed numbered legal paragraphs
+    clean = clean.replace(/<p\b([^>]*)>([\s\S]*?)<\/p>/gi, (match, attrs, inner) => {
+      if (/<(?:table|img|ul|ol)\b/i.test(inner)) return match;
+      const segmented = segmentLegalParagraphs(inner);
+      if (!segmented.includes('\n\n')) {
+        return match;
+      }
+      const pieces = segmented.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+      const attrStr = attrs ? ` ${attrs.trim()}` : '';
+      return pieces.map(p => `<p${attrStr}>${p.replace(/\n/g, '<br/>')}</p>`).join('');
+    });
+
     return clean.trim();
   }
 
@@ -217,6 +274,7 @@ export const formatWordDocumentDisplay = (rawContent) => {
 
 export default {
   fixMojibake,
+  segmentLegalParagraphs,
   cleanWordPasteHtml,
   formatWordDocumentDisplay,
 };

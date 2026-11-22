@@ -347,6 +347,32 @@ export const getStatuteById = async (req, res, next) => {
   }
 };
 
+const extractStatuteDate = (doc) => {
+  if (!doc) return '';
+  const firstBlock = Array.isArray(doc.blocks) && doc.blocks.length > 0 ? doc.blocks[0] : null;
+  if (firstBlock?.fromDate) {
+    const d = new Date(firstBlock.fromDate);
+    if (!isNaN(d.getTime())) {
+      return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
+    }
+    return String(firstBlock.fromDate);
+  }
+  if (firstBlock?.toDate) {
+    const d = new Date(firstBlock.toDate);
+    if (!isNaN(d.getTime())) {
+      return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
+    }
+    return String(firstBlock.toDate);
+  }
+  if (doc.createdAt) {
+    const d = new Date(doc.createdAt);
+    if (!isNaN(d.getTime())) {
+      return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
+    }
+  }
+  return '';
+};
+
 /**
  * GET /api/statutes/next-sr
  * Returns the highest existing Statute SR # and the next sequential SR #.
@@ -362,19 +388,19 @@ export const getNextStatuteSr = async (req, res, next) => {
         law: new RegExp('^' + escapeRegex(targetLaw.trim()) + '$', 'i')
       })
         .sort({ srNumberInt: -1, _id: -1 })
-        .select('srNumber srNumberInt law chapter heading department section blocks')
+        .select('srNumber srNumberInt law chapter heading department section blocks createdAt updatedAt')
         .lean();
     }
 
     let topStatute = await Statute.findOne({ isDeleted: { $ne: true } })
       .sort({ srNumberInt: -1, _id: -1 })
-      .select('srNumber srNumberInt law chapter heading department section blocks')
+      .select('srNumber srNumberInt law chapter heading department section blocks createdAt updatedAt')
       .lean();
 
     if (!topStatute) {
       topStatute = await Statute.findOne({ isDeleted: { $ne: true } })
         .sort({ _id: -1 })
-        .select('srNumber srNumberInt law chapter heading department section blocks')
+        .select('srNumber srNumberInt law chapter heading department section blocks createdAt updatedAt')
         .lean();
     }
 
@@ -507,6 +533,11 @@ export const getNextStatuteSr = async (req, res, next) => {
       }
     }
 
+    const activeDoc = lawStatute || topStatute;
+    const lastEntryDate = extractStatuteDate(activeDoc) || extractStatuteDate(topStatute);
+    const fromDate = activeDoc?.blocks?.[0]?.fromDate || topStatute?.blocks?.[0]?.fromDate || '';
+    const toDate = activeDoc?.blocks?.[0]?.toDate || topStatute?.blocks?.[0]?.toDate || '';
+
     return res.status(200).json({
       success: true,
       latestSr,
@@ -515,7 +546,10 @@ export const getNextStatuteSr = async (req, res, next) => {
         law,
         chapter,
         heading,
-        department
+        department,
+        lastEntryDate,
+        fromDate,
+        toDate
       }
     });
   } catch (error) {
@@ -846,12 +880,14 @@ export const getLatestStatuteMeta = async (req, res, next) => {
       }
     }
 
+    const lastEntryDate = extractStatuteDate(lawStatute) || extractStatuteDate(latestGlobal);
     const payload = {
       law,
       chapter,
       heading,
       department,
-      srNumber: lawStatute?.srNumber || ''
+      srNumber: lawStatute?.srNumber || '',
+      lastEntryDate
     };
 
     if (cacheKey) {

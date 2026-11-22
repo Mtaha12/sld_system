@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye , AlertTriangle } from 'lucide-react';
+import { X, CheckCircle2, Paperclip, ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Plus, Trash2, Eye, AlertTriangle, Calendar } from 'lucide-react';
 
 import Input from '../../../components/ui/Input';
 import RichTextEditor from '../../../components/ui/RichTextEditor';
@@ -235,6 +235,7 @@ const AddStatuteForm = () => {
     }
     return '';
   });
+  const [lastEntryDate, setLastEntryDate] = useState('');
   const [loadingStatute, setLoadingStatute] = useState(false);
   const [loadFeedback, setLoadFeedback] = useState(null);
   const isSaveAndNextRef = useRef(false);
@@ -334,6 +335,14 @@ const AddStatuteForm = () => {
             const prevNum = parseInt(prev || '0', 10);
             return (isNaN(prevNum) || prevNum <= curSrNum) ? String(curSrNum + 1) : prev;
           });
+        }
+
+        if (data?.dated) {
+          setLastEntryDate(data.dated);
+        } else if (data?.blocks?.[0]?.fromDate) {
+          setLastEntryDate(formatDateForInput(data.blocks[0].fromDate));
+        } else if (data?.blocks?.[0]?.toDate) {
+          setLastEntryDate(formatDateForInput(data.blocks[0].toDate));
         }
 
         try {
@@ -441,6 +450,9 @@ const AddStatuteForm = () => {
             }
           }
         }
+        if (res?.lastEntry?.lastEntryDate) {
+          setLastEntryDate(res.lastEntry.lastEntryDate);
+        }
       })
       .catch(err => {
         console.warn('Could not auto-fetch next Statute SR #:', err);
@@ -538,15 +550,21 @@ const AddStatuteForm = () => {
         let foundChapter = nextData?.lastEntry?.chapter || metaData?.chapter || '';
         let foundHeading = nextData?.lastEntry?.heading || metaData?.heading || '';
         let foundDept = nextData?.lastEntry?.department || metaData?.department || 'tax';
+        let foundDate = nextData?.lastEntry?.lastEntryDate || metaData?.lastEntryDate || '';
 
         // Fallback to recent statutes list if any field remains blank
-        if ((!foundLaw || !foundChapter || !foundHeading) && listData.length > 0) {
+        if ((!foundDate || !foundLaw || !foundChapter || !foundHeading) && listData.length > 0) {
           for (const item of listData) {
+            if (!foundDate && item.dated) foundDate = item.dated;
+            if (!foundDate && item.blocks?.[0]?.fromDate) foundDate = formatDateForInput(item.blocks[0].fromDate);
             if (!foundLaw && item.law) foundLaw = item.law;
             if (!foundChapter && item.chapter) foundChapter = item.chapter;
             if (!foundHeading && (item.heading || item.sectionHeading)) foundHeading = item.heading || item.sectionHeading;
             if (!foundDept && item.department) foundDept = item.department;
           }
+        }
+        if (foundDate) {
+          setLastEntryDate(foundDate);
         }
 
         // Fallback to specific previous SR record if known
@@ -772,6 +790,12 @@ const AddStatuteForm = () => {
             </button>
             <span className="font-bold text-theme-main text-sm">{isEdit ? 'Edit Statute Record' : 'Add New Statute Record'}</span>
             {watchedSr && <span className="text-brand-orange font-semibold">SR #{watchedSr}</span>}
+            {lastEntryDate && (
+              <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 ml-1">
+                <Calendar className="w-3 h-3 text-blue-500" />
+                <span>Date of Last Entry: <strong>{lastEntryDate}</strong></span>
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {isEdit && (
@@ -833,7 +857,7 @@ const AddStatuteForm = () => {
           {/* Record Information */}
           <FormSection compact>
 
-            {/* Top row: Auto New SR # · Load SR # · Chapter · Department */}
+            {/* Top row: Auto New SR # · Date of Last Entry · Load SR # · Chapter · Department */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end mb-3">
               
               {/* Auto New SR # (Non-editable) Generate Block */}
@@ -853,8 +877,27 @@ const AddStatuteForm = () => {
                 </FormField>
               </div>
 
+              {/* Date of Last Entry (Read-only / Reference) */}
+              <div className="sm:col-span-2 col-span-12">
+                <FormField label="Date of Last Entry">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={lastEntryDate || '—'}
+                      className="w-full h-[38px] px-3 pr-8 rounded-lg border border-theme-border/80 bg-theme-surface-alt/70 text-theme-main font-mono font-medium text-xs select-all cursor-default focus:outline-none shadow-inner"
+                      placeholder="mm/dd/yyyy"
+                      title="Date of the last entered statute record"
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-theme-muted">
+                      <Calendar className="w-3.5 h-3.5 text-theme-muted/70" />
+                    </div>
+                  </div>
+                </FormField>
+              </div>
+
               {/* Reduced size Load SR # Block */}
-              <div className="sm:col-span-4 col-span-12">
+              <div className="sm:col-span-3 col-span-12">
                 <FormField label="Load SR #" required>
                   <div className="flex items-center gap-1">
                     <div className="relative flex-1">
@@ -950,7 +993,7 @@ const AddStatuteForm = () => {
               </div>
 
               {/* Department */}
-              <div className="sm:col-span-3 col-span-12">
+              <div className="sm:col-span-2 col-span-12">
                 <FormField label="Department">
                   <Controller
                     control={control}

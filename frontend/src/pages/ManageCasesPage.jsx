@@ -21,6 +21,7 @@ import Input from '../components/ui/Input';
 import FormField from '../components/ui/FormField';
 import { caseService } from '../features/cases/services/caseService';
 import { getCitationSortKey } from '../utils/citationFormatter';
+import { formatWordDocumentDisplay, segmentLegalParagraphs } from '../utils/wordFormatter';
 
 // Helper function to generate and download file bundles
 const downloadCaseExport = (caseItems, format = 'pdf', customTitle = '', customOptions = {}) => {
@@ -401,20 +402,35 @@ const downloadWordDocument = (caseItems, type = 'headnotes', customTitle = '') =
 
   const formatParagraphs = (rawText) => {
     if (!rawText || !rawText.trim()) {
-      return '<p style="margin: 0 0 12pt 0; font-size: 11.5pt; line-height: 1.5; font-family: Calibri, Times New Roman, serif;">N/A</p>';
-    }
-    const paras = rawText
-      .split(/\r?\n+/)
-      .map(p => p.trim())
-      .filter(Boolean);
-    
-    if (paras.length === 0) {
-      return '<p style="margin: 0 0 12pt 0; font-size: 11.5pt; line-height: 1.5; font-family: Calibri, Times New Roman, serif;">N/A</p>';
+      return '<p style="margin: 0 0 4.5pt 0; font-size: 11pt; line-height: 1.25; font-family: Calibri, Times New Roman, serif;">N/A</p>';
     }
 
-    return paras
-      .map(p => `<p style="margin: 0 0 12pt 0; font-size: 11.5pt; line-height: 1.5; text-align: justify; font-family: Calibri, Times New Roman, serif;">${p}</p>`)
-      .join('\n');
+    const hasHtml = /<(?:p|br|div|table|h[1-6]|ul|ol|li)\b/i.test(rawText);
+    let htmlContent = '';
+
+    if (hasHtml) {
+      htmlContent = formatWordDocumentDisplay(rawText);
+      // Ensure all <p> tags have tight, professional legal spacing for Word
+      htmlContent = htmlContent.replace(/<p\b([^>]*)>/gi, () => {
+        return `<p style="margin: 0 0 4.5pt 0; line-height: 1.25; font-size: 11pt; text-align: justify; text-justify: inter-word; font-family: Calibri, 'Times New Roman', serif;">`;
+      });
+    } else {
+      const segmented = segmentLegalParagraphs(rawText);
+      const paras = segmented
+        .split(/\n\s*\n/)
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      if (paras.length === 0) {
+        return '<p style="margin: 0 0 4.5pt 0; font-size: 11pt; line-height: 1.25; font-family: Calibri, Times New Roman, serif;">N/A</p>';
+      }
+
+      htmlContent = paras
+        .map(p => `<p style="margin: 0 0 4.5pt 0; line-height: 1.25; font-size: 11pt; text-align: justify; text-justify: inter-word; font-family: Calibri, 'Times New Roman', serif;">${p.replace(/\n/g, '<br/>')}</p>`)
+        .join('\n');
+    }
+
+    return htmlContent;
   };
 
   let html = `
@@ -436,14 +452,26 @@ const downloadWordDocument = (caseItems, type = 'headnotes', customTitle = '') =
   <style>
     body {
       font-family: 'Calibri', 'Times New Roman', serif;
-      font-size: 11.5pt;
-      line-height: 1.5;
+      font-size: 11pt;
+      line-height: 1.25;
       color: #000000;
       margin: 1in;
     }
     p {
-      margin: 0 0 12pt 0;
-      line-height: 1.5;
+      margin: 0 0 4.5pt 0;
+      line-height: 1.25;
+      text-align: justify;
+      text-justify: inter-word;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 6pt 0;
+    }
+    th, td {
+      border: 1px solid #999999;
+      padding: 4pt 6pt;
+      font-size: 10.5pt;
     }
   </style>
 </head>
@@ -455,8 +483,8 @@ const downloadWordDocument = (caseItems, type = 'headnotes', customTitle = '') =
     const mainText = isHeadNotes ? (c.headNote || '') : (c.judgment || '');
 
     html += `
-  <div style="margin-bottom: 24pt; ${count > 1 ? 'page-break-after: always; mso-break-type: section-break;' : ''}">
-    <p style="font-weight: bold; font-size: 13pt; margin: 0 0 12pt 0; color: #000000; font-family: Calibri, Times New Roman, serif;">SLD # ${sldNum}</p>
+  <div style="margin-bottom: 16pt; ${count > 1 ? 'page-break-after: always; mso-break-type: section-break;' : ''}">
+    <p style="font-weight: bold; font-size: 12.5pt; margin: 0 0 6pt 0; color: #111827; font-family: Calibri, Times New Roman, serif;">SLD # ${sldNum}</p>
     ${formatParagraphs(mainText)}
   </div>
 `;
