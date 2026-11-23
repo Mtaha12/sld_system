@@ -2442,19 +2442,25 @@ export const searchCases = async (req, res, next) => {
 
       // 3. Fallback regex on mapYearPage (if needed for non-standard whitespace)
       if (cases.length === 0 && citationYv && citationMg && citationPg) {
-        const volRx = new RegExp(`(?:^|\\D)${escapeRegex(citationYv)}\\s+${escapeRegex(citationMg)}\\s+0*${escapeRegex(citationPg)}(?:$|\\b)`, 'i');
-        const mapRegexQuery = {
-          isDeleted: false,
-          mapYearPage: { $regex: volRx }
-        };
-        if (otherConditions.length > 0) {
-          mapRegexQuery.$and = otherConditions;
+        try {
+          const volRx = new RegExp(`(?:^|\\D)${escapeRegex(citationYv)}\\s+${escapeRegex(citationMg)}\\s+0*${escapeRegex(citationPg)}(?:$|\\b)`, 'i');
+          const mapRegexQuery = {
+            isDeleted: false,
+            'publications.page': { $in: pageCandidates },
+            mapYearPage: { $regex: volRx }
+          };
+          if (otherConditions.length > 0) {
+            mapRegexQuery.$and = otherConditions;
+          }
+          cases = await Case.find(mapRegexQuery)
+            .select(selectFields)
+            .limit(searchLimit)
+            .maxTimeMS(2500)
+            .lean();
+        } catch (fallbackErr) {
+          // Gracefully swallow fallback timeout / multiplanner errors so user sees 0 records instead of 500
+          cases = [];
         }
-        cases = await Case.find(mapRegexQuery)
-          .select(selectFields)
-          .limit(searchLimit)
-          .maxTimeMS(3000)
-          .lean();
       }
     } else if (selectedHint) {
       try {
