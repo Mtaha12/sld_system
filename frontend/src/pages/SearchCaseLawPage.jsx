@@ -709,9 +709,13 @@ const SearchCaseLawPage = () => {
 
       // If exact 3-block citation search was requested, guarantee only the exact match is displayed
       if (b1 && b2 && b3 && Array.isArray(data)) {
-        const yv = String(activeForm.yearVolume).trim().toLowerCase();
+        const rawYv = String(activeForm.yearVolume).trim().toLowerCase();
         const mg = String(activeForm.magazine).trim().toLowerCase();
         const pg = String(activeForm.page).trim().toLowerCase();
+
+        const compound = rawYv.match(/^\(?(\d{4})\)?\s+(\d{1,4})$/);
+        const matchYear = compound ? compound[1] : (/^\d{4}$/.test(rawYv) ? rawYv : null);
+        const matchVol = compound ? compound[2] : (!/^\d{4}$/.test(rawYv) ? rawYv.replace(/\D/g, '') : null);
 
         const filteredExact = data.filter(c => {
           const pubs = c.publications || [];
@@ -722,7 +726,17 @@ const SearchCaseLawPage = () => {
             const pVol = String(p.vol || '').trim().toLowerCase();
             const magMatches = pMag === mg || (!pMag && mg === 'sld') || pMag.replace(/[^a-z0-9]/g, '') === mg.replace(/[^a-z0-9]/g, '');
             const pageMatches = pPage === pg || (Number(pPage) > 0 && Number(pPage) === Number(pg));
-            const yearMatches = pYear === yv || pVol === yv || (Number(pYear) > 0 && Number(pYear) === Number(yv)) || (Number(pVol) > 0 && Number(pVol) === Number(yv));
+
+            let yearMatches = false;
+            if (matchYear && matchVol) {
+              yearMatches = (pYear === matchYear) && (pVol === matchVol);
+            } else if (matchVol) {
+              yearMatches = pVol === matchVol || pYear === matchVol;
+            } else if (matchYear) {
+              yearMatches = pYear === matchYear;
+            } else {
+              yearMatches = pYear === rawYv || pVol === rawYv;
+            }
             return magMatches && pageMatches && yearMatches;
           });
           if (hasExactPub) return true;
@@ -730,11 +744,21 @@ const SearchCaseLawPage = () => {
           const mapEntries = Array.isArray(c.mapYearPage) ? c.mapYearPage : (c.mapYearPage ? [c.mapYearPage] : []);
           return mapEntries.some(m => {
             const low = String(m).toLowerCase();
-            const yearRegex = new RegExp(`(?:^|\\D)${yv}(?:\\D|$)`, 'i');
             const pageRegex = new RegExp(`(?:^|\\D)0*${pg}(?:\\D|$)`, 'i');
             const magClean = mg.replace(/[^a-z0-9]/g, '');
             const magMatches = low.includes(mg) || (magClean && low.replace(/[^a-z0-9]/g, '').includes(magClean)) || mg === 'sld';
-            return yearRegex.test(low) && pageRegex.test(low) && magMatches;
+
+            let yearRegexMatch = false;
+            if (matchYear && matchVol) {
+              yearRegexMatch = low.includes(matchYear) && low.includes(matchVol);
+            } else if (matchVol) {
+              yearRegexMatch = new RegExp(`(?:^|\\D)${matchVol}(?:\\D|$)`, 'i').test(low);
+            } else if (matchYear) {
+              yearRegexMatch = new RegExp(`(?:^|\\D)${matchYear}(?:\\D|$)`, 'i').test(low);
+            } else {
+              yearRegexMatch = new RegExp(`(?:^|\\D)${rawYv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\D|$)`, 'i').test(low);
+            }
+            return yearRegexMatch && pageRegex.test(low) && magMatches;
           });
         });
 
@@ -875,30 +899,29 @@ const SearchCaseLawPage = () => {
                   placeholder="Year / Vol" 
                   value={f.yearVolume} 
                   type="text"
-                  inputMode="numeric"
-                  maxLength={4}
+                  maxLength={12}
                   onInput={(e) => {
-                    const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    const cleanVal = e.target.value.replace(/[^\d\s()]/g, '').slice(0, 12);
                     e.target.value = cleanVal;
                     setF(prev => ({ ...prev, yearVolume: cleanVal }));
                   }}
                   onKeyDown={(e) => {
-                    if (['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'].includes(e.key)) return;
+                    if (['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', ' ', '(', ')'].includes(e.key)) return;
                     if (!/^\d$/.test(e.key)) {
                       e.preventDefault();
                     }
                   }}
                   onPaste={(e) => {
                     e.preventDefault();
-                    const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 4);
+                    const text = (e.clipboardData?.getData('text') || '').replace(/[^\d\s()]/g, '').slice(0, 12);
                     e.target.value = text;
                     setF(prev => ({ ...prev, yearVolume: text }));
                   }}
                   onChange={(e) => {
-                    const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    const cleanVal = e.target.value.replace(/[^\d\s()]/g, '').slice(0, 12);
                     setF(prev => ({ ...prev, yearVolume: cleanVal }));
                   }} 
-                  title="First Block: Enter 4-digit Year or Volume (e.g. 2026)"
+                  title="First Block: Enter Year or Volume (e.g. 133, 2025, or (2025) 132)"
                 />
               </div>
             </div>

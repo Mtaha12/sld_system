@@ -493,8 +493,10 @@ const buildMapYearPage = (publications = []) => {
 
     // Format: Year Mag Page e.g. "2026 SLD 8325" or "(2005) 92 TAX 141"
     let citation = '';
-    if (pub.vol) {
+    if (pub.vol && yearStr) {
       citation = `(${yearStr}) ${volStr}${magStr} ${pageStr}`.trim();
+    } else if (pub.vol) {
+      citation = `${volStr}${magStr} ${pageStr}`.trim();
     } else if (yearStr) {
       citation = `${yearStr} ${magStr} ${pageStr}`.trim();
     } else {
@@ -1903,6 +1905,9 @@ export const searchCases = async (req, res, next) => {
     let magVariants = [];
     let pageCandidates = [];
     let yearCandidates = [];
+    let citationYv = '';
+    let citationMg = '';
+    let citationPg = '';
 
     // First 3 blocks validation: Year/Vol, Magazine, and Page
     const b1 = Boolean(filters.yearVolume && String(filters.yearVolume).trim());
@@ -1963,6 +1968,9 @@ export const searchCases = async (req, res, next) => {
       const yv = String(filters.yearVolume).trim();
       const mg = String(filters.magazine).trim();
       const pg = String(filters.page).trim();
+      citationYv = yv;
+      citationMg = mg;
+      citationPg = pg;
       const magAliases = expandMagazineSearchAliases(mg);
       magVariants = [...new Set(
         magAliases.flatMap(alias => [
@@ -1979,17 +1987,43 @@ export const searchCases = async (req, res, next) => {
         `${yv} ${alias}. ${pg}`,
         `${yv} ${alias} 0${pg}`,
         `(${yv}) ${alias} 0${pg}`,
-        `${alias} ${yv} ${pg}`,
-        `(${yv}) ${alias} ${pg}`
+        `${alias} ${yv} ${pg}`
       ]);
+
+      const compoundMatch = yv.match(/^\(?(\d{4})\)?\s+(\d{1,4})$/);
+      if (compoundMatch) {
+        const cYear = compoundMatch[1];
+        const cVol = compoundMatch[2];
+        const cYearNum = parseInt(cYear, 10);
+        const cVolNum = parseInt(cVol, 10);
+        for (const alias of magVariants) {
+          exactCitationCandidates.push(`(${cYear}) ${cVol} ${alias} ${pg}`);
+          exactCitationCandidates.push(`(${cYear}) ${cVol} ${alias} 0${pg}`);
+          exactCitationCandidates.push(`${cYear} ${cVol} ${alias} ${pg}`);
+        }
+        yearCandidates.push(cYear, cVol);
+        if (!isNaN(cYearNum)) yearCandidates.push(cYearNum);
+        if (!isNaN(cVolNum)) yearCandidates.push(cVolNum);
+      } else if (!/^\d{4}$/.test(yv)) {
+        // Volume-only search (e.g. 131, 132, 133): generate year-prefixed candidates e.g. (2025) 132 TAX 1
+        for (let yr = 1950; yr <= 2030; yr++) {
+          for (const alias of magVariants) {
+            exactCitationCandidates.push(`(${yr}) ${yv} ${alias} ${pg}`);
+            exactCitationCandidates.push(`(${yr}) ${yv} ${alias} 0${pg}`);
+            exactCitationCandidates.push(`${yr} ${yv} ${alias} ${pg}`);
+          }
+        }
+      }
 
       const pgNum = parseInt(pg, 10);
       pageCandidates = [pg];
       if (!isNaN(pgNum)) pageCandidates.push(pgNum);
 
       const yvNum = parseInt(yv, 10);
-      yearCandidates = [yv];
-      if (!isNaN(yvNum)) yearCandidates.push(yvNum);
+      if (!compoundMatch) {
+        yearCandidates = [yv];
+        if (!isNaN(yvNum)) yearCandidates.push(yvNum);
+      }
 
       andConditions.push({
         $or: [
@@ -2377,9 +2411,21 @@ export const searchCases = async (req, res, next) => {
           isDeleted: false,
           publications: {
             $elemMatch: {
-              mag: { $in: magVariants },
-              page: { $in: pageCandidates },
-              year: { $in: yearCandidates }
+              $and: [
+                {
+                  $or: [
+                    { mag: { $in: magVariants } },
+                    { magazine: { $in: magVariants } }
+                  ]
+                },
+                { page: { $in: pageCandidates } },
+                {
+                  $or: [
+                    { year: { $in: yearCandidates } },
+                    { vol: { $in: yearCandidates } }
+                  ]
+                }
+              ]
             }
           }
         };
@@ -2391,6 +2437,23 @@ export const searchCases = async (req, res, next) => {
           .select(selectFields)
           .limit(searchLimit)
           .maxTimeMS(4000)
+          .lean();
+      }
+
+      // 3. Fallback regex on mapYearPage (if needed for non-standard whitespace)
+      if (cases.length === 0 && citationYv && citationMg && citationPg) {
+        const volRx = new RegExp(`(?:^|\\D)${escapeRegex(citationYv)}\\s+${escapeRegex(citationMg)}\\s+0*${escapeRegex(citationPg)}(?:$|\\b)`, 'i');
+        const mapRegexQuery = {
+          isDeleted: false,
+          mapYearPage: { $regex: volRx }
+        };
+        if (otherConditions.length > 0) {
+          mapRegexQuery.$and = otherConditions;
+        }
+        cases = await Case.find(mapRegexQuery)
+          .select(selectFields)
+          .limit(searchLimit)
+          .maxTimeMS(3000)
           .lean();
       }
     } else if (selectedHint) {
