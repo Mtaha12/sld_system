@@ -23,6 +23,47 @@ const escapeRegex = (string) => {
   return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
+export const buildCaseNumberRegex = (raw) => {
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+
+  const tokens = trimmed.split(/[\s\/\-_\.,#]+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  const regexParts = tokens.map(tok => {
+    if (/^[a-zA-Z]{2,5}$/.test(tok)) {
+      return tok.split('').map(c => escapeRegex(c) + '\\.?').join('\\s*');
+    }
+    return escapeRegex(tok);
+  });
+
+  const body = regexParts.join('(?:[\\s\\/\\-_\\.,]+|(?:[\\s\\/\\-_\\.,]+(?:No|Nos|Number|Case|Appeal)[\\.\\s\\/\\-_]+))');
+
+  const firstChar = trimmed[0];
+  const lastChar = trimmed[trimmed.length - 1];
+
+  let prefix = '';
+  if (/\d/.test(firstChar)) {
+    prefix = '(?:^|[^\\d])';
+  } else if (/[a-zA-Z]/.test(firstChar)) {
+    prefix = '(?:^|[^a-zA-Z])';
+  } else {
+    prefix = '(?:^|\\b)';
+  }
+
+  let suffix = '';
+  if (/\d/.test(lastChar)) {
+    suffix = '(?:[^\\d]|$)';
+  } else if (/[a-zA-Z]/.test(lastChar)) {
+    suffix = '(?:[^a-zA-Z]|$)';
+  } else {
+    suffix = '(?:\\b|$)';
+  }
+
+  return new RegExp(`${prefix}${body}${suffix}`, 'i');
+};
+
 export const buildSectionExactRegex = (needle) => {
   let clean = String(needle || '').trim();
   clean = clean.replace(/^(?:sec(?:tion)?\.?\s*)/i, '').trim();
@@ -2158,19 +2199,18 @@ export const searchCases = async (req, res, next) => {
     }
 
     let caseNumberSearchRaw = null;
+    let caseNumberRegex = null;
+    let caseNumberTokens = [];
     if (filters.caseNumber) {
       const rawCn = String(filters.caseNumber).trim();
       caseNumberSearchRaw = rawCn;
-      const cnVariants = [...new Set([
-        rawCn,
-        rawCn.toUpperCase(),
-        rawCn.toLowerCase(),
-        rawCn.replace(/\s+/g, ' '),
-        rawCn.replace(/\s+/g, ''),
-        rawCn.replace(/[-_]/g, ' '),
-        rawCn.replace(/\s+/g, '-')
-      ])].filter(Boolean);
-      andConditions.push({ caseNumber: { $in: cnVariants } });
+      caseNumberRegex = buildCaseNumberRegex(rawCn);
+      caseNumberTokens = rawCn.replace(/[^a-zA-Z0-9\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+      if (caseNumberRegex) {
+        andConditions.push({ caseNumber: caseNumberRegex });
+      } else {
+        andConditions.push({ caseNumber: { $regex: escapeRegex(rawCn), $options: 'i' } });
+      }
     }
 
     if (filters.date) {
@@ -2216,19 +2256,24 @@ export const searchCases = async (req, res, next) => {
 
     const kw1 = filters.keywords || filters.text;
     const kw2 = filters.keywords2 || filters.text2;
-    const kwTokens = [];
+    const userKwTokens = [];
     if (filters.phrase && String(filters.phrase).trim()) {
-      kwTokens.push(`"${String(filters.phrase).replace(/"/g, '').trim()}"`);
+      userKwTokens.push(`"${String(filters.phrase).replace(/"/g, '').trim()}"`);
     }
     if (kw1 && String(kw1).trim()) {
-      kwTokens.push(String(kw1).trim());
+      userKwTokens.push(String(kw1).trim());
     }
     if (kw2 && String(kw2).trim()) {
-      kwTokens.push(String(kw2).trim());
+      userKwTokens.push(String(kw2).trim());
     }
 
-    if (kwTokens.length > 0) {
-      const combinedText = kwTokens.join(' ').trim();
+    const allTextTokens = [...userKwTokens];
+    if (caseNumberTokens.length > 0) {
+      allTextTokens.push(...caseNumberTokens);
+    }
+
+    if (allTextTokens.length > 0) {
+      const combinedText = allTextTokens.join(' ').trim();
       andConditions.push({ $text: { $search: combinedText } });
     }
 
@@ -2265,7 +2310,8 @@ export const searchCases = async (req, res, next) => {
 
     const requestedLimit = parseInt(filters.limit, 10);
     const searchLimit = requestedLimit > 0 ? requestedLimit : 1500;
-    const hasTextSearch = kwTokens.length > 0;
+    const hasUserKeywords = userKwTokens.length > 0;
+    const hasTextSearch = allTextTokens.length > 0;
     const includeJudgment = filters.includeJudgment === true || req.query?.includeJudgment === 'true';
     const includeAttachments = filters.includeAttachments === true || req.query?.includeAttachments === 'true';
     const baseFields = 'caseId case_id sldNumber dated date decisionDate judgmentDate court caseNumber judges lawyers petitioners mapYearPage publications laws department headNote principleLaw legalMaxim createdAt';
@@ -2358,54 +2404,27 @@ export const searchCases = async (req, res, next) => {
     }
 
     if (cases.length === 0 && caseNumberSearchRaw) {
-      const cleanTokens = caseNumberSearchRaw.replace(/[^a-zA-Z0-9\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
-      const searchPhrase = cleanTokens.length > 0 ? `"${cleanTokens.join(' ')}"` : '';
-      let foundFallback = false;
-      if (searchPhrase) {
-        try {
-          const fallbackConditions = andConditions.filter(cond => !cond.caseNumber);
-          const fallbackQuery = {
-            isDeleted: false,
-            $text: { $search: searchPhrase }
-          };
-          if (fallbackConditions.length > 0) {
-            fallbackQuery.$and = fallbackConditions;
-          }
-          const textMatchedCases = await Case.find(fallbackQuery)
-            .select(selectFields)
-            .limit(searchLimit)
-            .maxTimeMS(3500)
-            .lean();
-          if (textMatchedCases && textMatchedCases.length > 0) {
-            cases = textMatchedCases;
-            foundFallback = true;
-          }
-        } catch (textErr) {
-          // ignore text search fallback errors
+      try {
+        const cnRegex = buildCaseNumberRegex(caseNumberSearchRaw) || new RegExp(escapeRegex(caseNumberSearchRaw), 'i');
+        const fallbackConditions = andConditions.filter(cond => !cond.caseNumber && !cond.$text);
+        const regexQuery = {
+          isDeleted: false,
+          caseNumber: cnRegex
+        };
+        if (fallbackConditions.length > 0) {
+          regexQuery.$and = fallbackConditions;
         }
-      }
-
-      if (!foundFallback) {
-        try {
-          const fallbackConditions = andConditions.filter(cond => !cond.caseNumber);
-          const regexQuery = {
-            isDeleted: false,
-            caseNumber: { $regex: escapeRegex(caseNumberSearchRaw), $options: 'i' }
-          };
-          if (fallbackConditions.length > 0) {
-            regexQuery.$and = fallbackConditions;
-          }
-          const regMatchedCases = await Case.find(regexQuery)
-            .select(selectFields)
-            .limit(searchLimit)
-            .maxTimeMS(3000)
-            .lean();
-          if (regMatchedCases && regMatchedCases.length > 0) {
-            cases = regMatchedCases;
-          }
-        } catch (regErr) {
-          // ignore regex fallback timeout errors
+        const regMatchedCases = await Case.find(regexQuery)
+          .select(selectFields)
+          .sort({ sldNumberInt: -1 })
+          .limit(searchLimit)
+          .maxTimeMS(2000)
+          .lean();
+        if (regMatchedCases && regMatchedCases.length > 0) {
+          cases = regMatchedCases;
         }
+      } catch (regErr) {
+        // ignore regex fallback timeout errors safely
       }
     }
 
@@ -2497,10 +2516,11 @@ export const searchCases = async (req, res, next) => {
     }
 
     if (filters.caseNumber && cases.length > 0) {
+      const cnRx = buildCaseNumberRegex(filters.caseNumber);
       const rawCn = String(filters.caseNumber).trim().toLowerCase();
       cases = cases.filter(c => {
         const cNum = (Array.isArray(c.caseNumber) ? c.caseNumber.join(' ') : String(c.caseNumber || '')).toLowerCase();
-        return cNum.includes(rawCn);
+        return (cnRx ? cnRx.test(cNum) : false) || cNum.includes(rawCn);
       });
     }
 
@@ -2546,7 +2566,7 @@ export const searchCases = async (req, res, next) => {
     const searchTerms = [kw1, kw2, filters.phrase].filter(Boolean);
     let formattedCases = cases.map(c => {
       const formatted = formatCaseForFrontend(c, { skipAttachments: !includeAttachments });
-      if (hasTextSearch) {
+      if (hasUserKeywords && searchTerms.length > 0) {
         formatted.relevantParagraph = includeJudgment
           ? extractRelevantParagraph(c.judgment, c.headNote, searchTerms)
           : (formatted.headNote ? (formatted.headNote.length > 600 ? formatted.headNote.slice(0, 600) + '...' : formatted.headNote) : null);
