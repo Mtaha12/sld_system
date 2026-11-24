@@ -478,13 +478,35 @@ const downloadWordDocument = (caseItems, type = 'headnotes', customTitle = '') =
 <body>
 `;
 
-  caseItems.forEach((c) => {
+  caseItems.forEach((c, idx) => {
     const sldNum = c.sldNumber || c.id || '1';
     const mainText = isHeadNotes ? (c.headNote || '') : (c.judgment || '');
+    const caseNumberStr = Array.isArray(c.caseNumber) && c.caseNumber.length > 0
+      ? c.caseNumber.join(', ')
+      : (c.caseNumber || 'N/A');
+    const judgesStr = Array.isArray(c.judges) && c.judges.length > 0
+      ? c.judges.join(' • ')
+      : (c.authorJudge || (typeof c.judges === 'string' ? c.judges : '') || 'N/A');
+    const courtStr = c.court || '';
+    const datedStr = c.dated || c.date || c.decisionDate || '';
 
     html += `
+  ${idx > 0 ? `
+  <!-- Solid Divider Line Between 2 Cases -->
+  <hr style="border: 0; border-top: 2.5pt solid #111827; margin: 26pt 0 20pt 0;" />
+  ` : ''}
   <div style="margin-bottom: 16pt; ${count > 1 ? 'page-break-after: always; mso-break-type: section-break;' : ''}">
-    <p style="font-weight: bold; font-size: 12.5pt; margin: 0 0 6pt 0; color: #111827; font-family: Calibri, Times New Roman, serif;">SLD # ${sldNum}</p>
+    <div style="background-color: #f8fafc; border: 1pt solid #cbd5e1; border-left: 4.5pt solid #e55c41; padding: 6pt 10pt; margin-bottom: 10pt;">
+      <p style="font-weight: bold; font-size: 13pt; margin: 0 0 3pt 0; color: #111827; font-family: Calibri, 'Times New Roman', serif;">
+        SLD # ${sldNum}${courtStr ? ` &nbsp;•&nbsp; <span style="font-size: 11pt; font-weight: normal; color: #4b5563;">${courtStr}</span>` : ''}${datedStr ? ` &nbsp;•&nbsp; <span style="font-size: 11pt; font-weight: normal; color: #4b5563;">Dated: ${datedStr}</span>` : ''}
+      </p>
+      <p style="font-size: 11pt; margin: 0 0 2pt 0; color: #1f2937; font-family: Calibri, 'Times New Roman', serif;">
+        <span style="font-weight: bold; color: #111827;">Case Number:</span> ${caseNumberStr}
+      </p>
+      <p style="font-size: 11pt; margin: 0; color: #1f2937; font-family: Calibri, 'Times New Roman', serif;">
+        <span style="font-weight: bold; color: #111827;">Judge Name:</span> ${judgesStr}
+      </p>
+    </div>
     ${formatParagraphs(mainText)}
   </div>
 `;
@@ -782,6 +804,11 @@ const ManageCasesPage = () => {
       const maxNum = Math.max(fromNum, toNum);
       const rangeCount = maxNum - minNum + 1;
 
+      if (rangeCount > 2000) {
+        setExportError('Maximum range limit is 2000 cases per export.');
+        return;
+      }
+
       setIsExportingModal(true);
       try {
         const response = await caseService.getCases({
@@ -983,8 +1010,8 @@ const ManageCasesPage = () => {
     const maxNum = Math.max(fromNum, toNum);
     const rangeCount = maxNum - minNum + 1;
 
-    if (rangeCount > 500) {
-      setActionError('To ensure optimal speed, maximum range limit is 500 cases per export.');
+    if (rangeCount > 2000) {
+      setActionError('To ensure optimal speed, maximum range limit is 2000 cases per export.');
       return;
     }
 
@@ -1014,16 +1041,16 @@ const ManageCasesPage = () => {
       }
 
       if (actionModal === 'judgment') {
-        // Ensure judgment text is loaded for all cases
-        rangeCases = await Promise.all(rangeCases.map(async (c) => {
-          if (!c.judgment || c.judgment.trim().length === 0) {
+        // Ensure judgment text is loaded for any cases missing judgment from the projection
+        const missingJudgmentCases = rangeCases.filter(c => c.judgment === undefined);
+        if (missingJudgmentCases.length > 0 && missingJudgmentCases.length <= 50) {
+          await Promise.all(missingJudgmentCases.map(async (c) => {
             try {
               const fullCase = await caseService.getCaseById(c.id || c.sldNumber);
-              if (fullCase?.judgment) return { ...c, judgment: fullCase.judgment };
+              if (fullCase?.judgment) c.judgment = fullCase.judgment;
             } catch (e) {}
-          }
-          return c;
-        }));
+          }));
+        }
       }
 
       downloadWordDocument(rangeCases, actionModal === 'headNotes' ? 'headnotes' : 'judgment');
@@ -1188,10 +1215,10 @@ const ManageCasesPage = () => {
                 <span className="text-[11px] text-theme-muted font-medium block mb-1.5">Quick Range Suggestions:</span>
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    { from: '1', to: '50' },
                     { from: '1', to: '100' },
-                    { from: '101', to: '200' },
-                    { from: '165200', to: '165281' }
+                    { from: '101', to: '500' },
+                    { from: '501', to: '1000' },
+                    { from: '1', to: '2000' }
                   ].map((r, i) => (
                     <button
                       key={i}
@@ -1413,7 +1440,7 @@ const ManageCasesPage = () => {
                   Microsoft Word (.doc) Extraction
                 </span>
                 <p className="mt-1 text-theme-muted leading-relaxed">
-                  Enter the start and end SLD / Case serial range. The system will extract {actionModal === 'headNotes' ? 'Head Notes, Principles of Law and Citations' : 'Full Operative Judgment Orders'} and download a formatted Word document (.doc).
+                  Enter the start and end SLD / Case serial range (up to 2,000 cases). The system will extract {actionModal === 'headNotes' ? 'Head Notes, Principles of Law and Citations' : 'Full Operative Judgment Orders'} with Judge Names and Case Numbers, and download a formatted Word document (.doc) with lines separating each case.
                 </p>
               </div>
 
@@ -1426,7 +1453,7 @@ const ManageCasesPage = () => {
                       setActionFromNo(e.target.value);
                       if (actionError) setActionError('');
                     }}
-                    placeholder="e.g. 100"
+                    placeholder="e.g. 1"
                     required
                     autoFocus
                   />
@@ -1440,7 +1467,7 @@ const ManageCasesPage = () => {
                       setActionToNo(e.target.value);
                       if (actionError) setActionError('');
                     }}
-                    placeholder="e.g. 110"
+                    placeholder="e.g. 500"
                     required
                   />
                 </FormField>
@@ -1453,11 +1480,11 @@ const ManageCasesPage = () => {
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    { from: '1', to: '25' },
-                    { from: '26', to: '50' },
-                    { from: '51', to: '100' },
-                    { from: '101', to: '150' },
-                    { from: '500', to: '520' }
+                    { from: '1', to: '100' },
+                    { from: '101', to: '500' },
+                    { from: '501', to: '1000' },
+                    { from: '1001', to: '1500' },
+                    { from: '1', to: '2000' }
                   ].map((range, idx) => (
                     <button
                       key={idx}

@@ -942,8 +942,8 @@ export const getCases = async (req, res, next) => {
 
     // Pagination (allow up to 2000 for magazine search or range extractions)
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const rangeSpan = (minSld !== null && maxSld !== null) ? Math.max(1, maxSld - minSld + 1) : 500;
-    const maxLimitAllowed = (magazine && magazine.trim()) ? 2000 : (isRangeSearch ? 1000 : 100);
+    const rangeSpan = (minSld !== null && maxSld !== null) ? Math.max(1, maxSld - minSld + 1) : 2000;
+    const maxLimitAllowed = (magazine && magazine.trim() || isRangeSearch || req.query.includeJudgment === 'true') ? 2000 : 100;
     const defaultLimit = (magazine && magazine.trim()) ? 500 : (isRangeSearch ? rangeSpan : 25);
     const limitNum = Math.min(maxLimitAllowed, Math.max(1, parseInt(limit, 10) || defaultLimit));
     const skip = (pageNum - 1) * limitNum;
@@ -1010,7 +1010,7 @@ export const getCases = async (req, res, next) => {
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
-        .maxTimeMS(10000);
+        .maxTimeMS(25000);
       if (hintSpec) {
         q = q.hint(hintSpec);
       }
