@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Eye, Bell, AlertCircle, RotateCcw, FileText, Calendar, History, Trash2, Clock, 
@@ -106,6 +106,17 @@ const NotificationSearchPage = () => {
   const [loading, setLoading]                         = useState(false);
   const [error, setError]                             = useState(null);
   const [viewNotification, setViewNotification]       = useState(null);
+  const resultsRef                                    = useRef(null);
+
+  // Automatically scroll to extracted results list upon search completion
+  useEffect(() => {
+    if (notificationResults !== null && resultsRef.current) {
+      const timer = setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [notificationResults]);
 
   // Search History from localStorage
   const [history, setHistory] = useState(() => {
@@ -434,7 +445,7 @@ const NotificationSearchPage = () => {
 
       {/* ── Search Results Area ─────────────────────────────────────────── */}
       {notificationResults !== null && (
-        <div className="mt-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
+        <div ref={resultsRef} className="mt-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in scroll-mt-6">
           
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 gap-3">

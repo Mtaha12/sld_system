@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Eye, RotateCcw, Search as SearchIcon, History, Trash2, Calendar, FileText, Gavel, Scale, Clock } from 'lucide-react';
 import { caseService } from '../features/cases/services/caseService';
@@ -427,6 +427,17 @@ const SearchCaseLawPage = () => {
   const [currentPage, setCurrentPage]   = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(100);
   const searchAbortRef          = React.useRef(null);
+  const resultsRef              = useRef(null);
+
+  // Automatically scroll to extracted results list upon search completion or pagination
+  useEffect(() => {
+    if (results !== null && resultsRef.current) {
+      const timer = setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [results, currentPage]);
 
   // Search History from localStorage
   const [history, setHistory]   = useState(() => {
@@ -1141,7 +1152,7 @@ const SearchCaseLawPage = () => {
 
       {/* ── Results Table Area with Dynamic Columns & Yellow Highlighting ── */}
       {results !== null && (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
+        <div ref={resultsRef} className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in scroll-mt-6">
           
           <div className="flex flex-wrap items-center justify-between px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50 gap-2">
             <div className="flex items-center gap-3">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Eye, BookOpen, AlertCircle, RotateCcw, X, Search as SearchIcon, FileText, Paperclip, History, Trash2, Clock } from 'lucide-react';
 import { statuteService } from '../features/statutes/services/statuteService';
@@ -83,6 +83,17 @@ const StatuteSearchPage = () => {
   const [viewStatute, setViewStatute]       = useState(null);
   const [currentPage, setCurrentPage]       = useState(1);
   const [itemsPerPage, setItemsPerPage]     = useState(100);
+  const resultsRef                          = useRef(null);
+
+  // Automatically scroll to extracted results list upon search completion or pagination
+  useEffect(() => {
+    if (statuteResults !== null && resultsRef.current) {
+      const timer = setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [statuteResults, currentPage]);
 
   // Search History from localStorage
   const [history, setHistory] = useState(() => {
@@ -683,7 +694,7 @@ const StatuteSearchPage = () => {
 
       {/* ── Search Results Area ─────────────────────────────────────────── */}
       {statuteResults !== null && (
-        <div className="mt-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
+        <div ref={resultsRef} className="mt-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in scroll-mt-6">
           
           {/* Results Header */}
           <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 gap-3">
