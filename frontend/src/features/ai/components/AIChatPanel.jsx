@@ -227,6 +227,10 @@ const AIChatPanel = ({
         bodyHtml.push('<hr style="border:0; border-top:1.5px solid #444444; margin:16pt 0;"/>');
         continue;
       }
+      if (/^(?:VS\.?|VERSUS|V\/S)$/i.test(trimmed.replace(/[*_]/g, '').trim())) {
+        bodyHtml.push('<p style="margin:12pt 0; text-align:center; font-family:\'Times New Roman\',serif; font-size:12pt; font-weight:bold; letter-spacing:2px;">VERSUS</p>');
+        continue;
+      }
       if (trimmed.startsWith('#### ')) {
         bodyHtml.push(`<h4 style="font-family:'Times New Roman',serif; font-size:12pt; font-weight:bold; margin:10pt 0 4pt 0;">${trimmed.slice(5).replace(/\*\*/g, '')}</h4>`);
         continue;

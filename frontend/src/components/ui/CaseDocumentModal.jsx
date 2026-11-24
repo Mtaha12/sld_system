@@ -201,9 +201,9 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
               </header>
 
               {/* Litigants & Parties */}
-              <section className="p-4 sm:p-5 rounded-xl bg-stone-100/70 border border-stone-200">
+              <section className="p-4 sm:p-5 rounded-xl bg-stone-100/70 border border-stone-200 print:bg-stone-50 print:border-stone-300">
                 {causeList.isSplit ? (
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-4 text-center md:text-left">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] print:grid-cols-[1fr_auto_1fr] items-center gap-4 text-center md:text-left print:text-left">
                     <div className="space-y-1">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full inline-block">
                         Petitioner / Appellant
@@ -214,12 +214,17 @@ const CaseDocumentModal = ({ caseId, onClose }) => {
                     </div>
 
                     <div className="flex flex-col items-center justify-center px-2">
-                      <span className="text-xs font-black italic text-stone-700 bg-stone-200 px-2.5 py-1 rounded-full">
-                        VS
+                      <div className="w-8 h-8 rounded-full bg-stone-200 border border-stone-300 flex items-center justify-center shadow-2xs">
+                        <span className="text-xs font-serif font-black italic text-stone-700">
+                          VS
+                        </span>
+                      </div>
+                      <span className="text-[9px] font-sans font-black tracking-widest text-stone-400 uppercase mt-1">
+                        VERSUS
                       </span>
                     </div>
 
-                    <div className="space-y-1 md:text-right">
+                    <div className="space-y-1 md:text-right print:text-right">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full inline-block">
                         Respondent(s)
                       </span>

@@ -224,6 +224,22 @@ export const normalizeLegalPleadingFormatting = (rawText) => {
   s = s.replace(/([^\n])\s+(\*?\(?Appellant\)?\*?)/gi, '$1\n\n$2');
   s = s.replace(/([^\n])\s+(\*?\(?Respondent\)?\*?)/gi, '$1\n\n$2');
 
+  // Ensure VERSUS is present between Appellant/Petitioner and Respondent if missing
+  if (
+    /(?:Appellant|Petitioner|Applicant)\b/i.test(s) &&
+    /(?:Respondent|Respondents)\b/i.test(s) &&
+    !/\b(?:VERSUS|VS\.?|V\/S)\b/i.test(s)
+  ) {
+    const respondentRegex = /(\n\s*(?:[-*•]\s*)?(?:\*\*)?(?:RESPONDENTS?|RESPONDENT\(S\))(?:\*\*)?:?|\n\s*(?:[-*•]\s*)?1\.\s+(?:\*\*)?The\s+Commissioner|\n\s*(?:\*\*)?(?:\*?\(?RESPONDENTS?\(?S\)?\)?\*?))/i;
+    const match = s.match(respondentRegex);
+    if (match && match.index !== undefined) {
+      const prefix = s.slice(0, match.index);
+      if (/(?:Appellant|Petitioner|Applicant)\b/i.test(prefix)) {
+        s = prefix.trimEnd() + '\n\n**VERSUS**\n\n' + s.slice(match.index).trimStart();
+      }
+    }
+  }
+
   // 6. Ensure Markdown headings (###) have clean double newlines before and after
   s = s.replace(/([^\n])\n(#{1,4}\s+[^\n]+)/g, '$1\n\n$2');
   s = s.replace(/(#{1,4}\s+[^\n]+)\n([^\n#])/g, '$1\n\n$2');
@@ -815,12 +831,20 @@ export const generateFormat2ATIRAppeal = (facts) => {
 **BEFORE THE APPELLATE TRIBUNAL INLAND REVENUE, BENCH AT LAHORE / KARACHI / ISLAMABAD**  
 Appeal No. ________________________ / 20___
 
-- **Appellant:** **M/s ${petitioner}** | NTN: **${ntn}**
-- **Address:** Industrial / Commercial Area, Pakistan
+**IN THE MATTER OF:**
+
+**M/s ${petitioner}**  
+NTN: ${ntn}  
+Industrial / Commercial Area, Pakistan  
+*(APPELLANT)*
+
+**VERSUS**
+
+1. **The Commissioner Inland Revenue (Appeals)**, Zone / RTO / LTO.  
+2. **The Officer Inland Revenue**, Audit / Enforcement Zone.  
+*(RESPONDENTS)*
+
 - **Advocate / Representative:** Advocate High Court / Tax Consultant
-- **Respondents:**
-  1. The Commissioner Inland Revenue (Appeals), Zone / RTO / LTO.
-  2. The Officer Inland Revenue, Audit / Enforcement Zone.
 - **Tax Year / Period:** **${taxYear}**
 - **Impugned Order Date & Service:** Order dated **${scnDate}**
 - **Disputed Assessment Demand:** **${taxDemand}**
@@ -1486,7 +1510,7 @@ export const generatePleadingDocument = async (queryText, rawAttachments = []) =
   const formatSpecifications = {
     1: `Generate ONLY FORMAT 1: HIGH COURT WRIT PETITION UNDER ARTICLE 199 OF THE CONSTITUTION (Includes Court Heading, W.P. No., Index with 8 items, Main Petition with paras citing Al-Hilal Motors 2004 PTD 868 and Nishat Hotels WP 16217/2020 on Section 39 "in the prescribed manner", Grounds, Prayer, Certificate, Affidavit, C.M Stay u/s 151 CPC + Affidavit, Exemption Application u/s 151 CPC + Affidavit, Vakalatnama).
 STRICT SCOPE GUARD: Generate ONLY this High Court Writ Petition package. DO NOT generate any Appeal or Reply.`,
-    2: `Generate ONLY FORMAT 2: FORM "B" APPEAL TO THE APPELLATE TRIBUNAL INLAND REVENUE (ATIR) UNDER SECTION 46 OF THE SALES TAX ACT, 1990 / SECTION 34 FEA 2005 / SECTION 131 ITO 2001 (Statement of Facts, Grounds of Appeal, Prayer, Verification, and List of Enclosures).
+    2: `Generate ONLY FORMAT 2: FORM "B" APPEAL TO THE APPELLATE TRIBUNAL INLAND REVENUE (ATIR) UNDER SECTION 46 OF THE SALES TAX ACT, 1990 / SECTION 34 FEA 2005 / SECTION 131 ITO 2001 (Cause Title MUST include Appellant details, **VERSUS** on its own centered line, and Respondent details; Statement of Facts, Grounds of Appeal, Prayer, Verification, and List of Enclosures).
 STRICT SCOPE GUARD: Generate ONLY this ATIR Appeal. DO NOT generate any High Court Writ Petition (Article 199) or Commissioner Appeal.`,
     3: `Generate ONLY FORMAT 3: COMPLETE COMMISSIONER (APPEALS) APPEAL PACKAGE UNDER SECTION 127 OF THE INCOME TAX ORDINANCE, 2001 / SECTION 45-B SALES TAX ACT, 1990.
 The document MUST strictly include all 7 comprehensive sections:

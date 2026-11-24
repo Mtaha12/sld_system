@@ -347,6 +347,20 @@ const parseContentToBlocks = (rawText) => {
       continue;
     }
 
+    // 6.5 Auto-insert Versus Divider if Appellant/Petitioner was seen and now Respondent begins without VS
+    const cleanNoPunct = trimmed.replace(/[*_#:]/g, '').trim();
+    const isRespondentTrigger = /^(?:[-*•]\s*)?(?:Respondents?|Respondent\(s\)|1\.\s+The\s+Commissioner)/i.test(cleanNoPunct);
+    if (isRespondentTrigger) {
+      const hasAppellantBefore = blocks.some(b => 
+        ((b.type === 'paragraph' || b.type === 'heading') && /(?:Appellant|Petitioner|Applicant)\b/i.test(b.text)) ||
+        (b.type === 'party_badge' && /(?:Appellant|Petitioner|Applicant)\b/i.test(b.text))
+      );
+      const hasVersusAlready = blocks.some(b => b.type === 'versus_divider');
+      if (hasAppellantBefore && !hasVersusAlready) {
+        blocks.push({ type: 'versus_divider' });
+      }
+    }
+
     // 7. Versus Divider (e.g. "VS.", "VERSUS", "V/S")
     if (/^(?:VS\.?|VERSUS|V\/S)$/i.test(trimmed.replace(/[*_]/g, '').trim())) {
       blocks.push({ type: 'versus_divider' });
@@ -581,12 +595,17 @@ function renderParsedBlocks(blocks, parentIdx, handleCopySection, copiedKey) {
             </div>
 
             {/* Versus Divider */}
-            <div className="flex items-center justify-center gap-3 my-3">
-              <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1 max-w-[100px]" />
-              <span className="text-xs font-black tracking-widest text-amber-700 dark:text-amber-400 font-mono uppercase px-2">
+            <div className="flex items-center justify-center gap-2.5 my-3">
+              <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1 max-w-[80px]" />
+              <div className="w-7 h-7 rounded-full bg-stone-200 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 flex items-center justify-center shadow-2xs">
+                <span className="text-[10px] font-serif font-black italic text-stone-700 dark:text-stone-300">
+                  VS
+                </span>
+              </div>
+              <span className="text-[10px] font-sans font-black tracking-widest text-amber-700 dark:text-amber-400 font-mono uppercase px-1">
                 VERSUS
               </span>
-              <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1 max-w-[100px]" />
+              <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1 max-w-[80px]" />
             </div>
 
             {/* Respondent Details */}
@@ -663,11 +682,16 @@ function renderParsedBlocks(blocks, parentIdx, handleCopySection, copiedKey) {
 
       case 'versus_divider':
         return (
-          <div key={key} className="my-2 text-center versus-print-hide print:!hidden" data-print-hide="true">
-            <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black tracking-widest text-amber-600 dark:text-amber-400 font-mono versus-print-hide print:!hidden">
-              <span>—</span>
-              <span>VERSUS</span>
-              <span>—</span>
+          <div key={key} className="my-3 text-center">
+            <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1 rounded-full bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 shadow-2xs">
+              <div className="w-5 h-5 rounded-full bg-stone-200 dark:bg-stone-700 flex items-center justify-center">
+                <span className="text-[9.5px] font-serif font-black italic text-stone-800 dark:text-stone-200">
+                  VS
+                </span>
+              </div>
+              <span className="text-[10px] font-sans font-black tracking-widest text-amber-700 dark:text-amber-400 uppercase">
+                VERSUS
+              </span>
             </div>
           </div>
         );
