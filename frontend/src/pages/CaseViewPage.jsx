@@ -249,12 +249,10 @@ const CaseViewPage = () => {
       <style>{`
         ${buildUniformPrintCss(pageSize)}
         @media print {
-          .versus-print-hide, 
           .footer-print-hide, 
           footer, 
           .print-hidden, 
-          [data-print-hide="true"],
-          .versus-divider {
+          [data-print-hide="true"] {
             display: none !important;
             visibility: hidden !important;
             height: 0 !important;
@@ -262,6 +260,137 @@ const CaseViewPage = () => {
             margin: 0 !important;
             padding: 0 !important;
             overflow: hidden !important;
+          }
+
+          /* Match on-screen Print View with VS badge in Print to PDF */
+          .cause-title-section {
+            display: block !important;
+            border: 1.5px solid #d6d3d1 !important;
+            border-radius: 1rem !important;
+            background: #fafaf9 !important;
+            background-color: #fafaf9 !important;
+            padding: 1.25rem 1.5rem !important;
+            margin-top: 1rem !important;
+            margin-bottom: 1rem !important;
+            box-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .cause-title-grid {
+            display: grid !important;
+            grid-template-columns: 1fr auto 1fr !important;
+            align-items: center !important;
+            gap: 1.25rem !important;
+          }
+          .cause-title-petitioner-col {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            text-align: left !important;
+          }
+          .cause-title-respondent-col {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-end !important;
+            text-align: right !important;
+          }
+          .cause-title-versus-col {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+            visibility: visible !important;
+          }
+          .cause-title-versus-circle {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 2.5rem !important;
+            height: 2.5rem !important;
+            border-radius: 9999px !important;
+            background-color: #e7e5e4 !important;
+            border: 2px solid #d6d3d1 !important;
+            box-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .cause-title-versus-text {
+            font-size: 0.75rem !important;
+            font-family: serif !important;
+            font-weight: 900 !important;
+            font-style: italic !important;
+            color: #44403c !important;
+            line-height: 1 !important;
+          }
+          .cause-title-versus-sub {
+            display: block !important;
+            font-size: 9px !important;
+            font-family: sans-serif !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.1em !important;
+            text-transform: uppercase !important;
+            color: #a8a29e !important;
+            margin-top: 0.25rem !important;
+            line-height: 1 !important;
+          }
+          .cause-title-badge-petitioner {
+            display: inline-block !important;
+            font-size: 10px !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            color: #92400e !important;
+            background-color: #fef3c7 !important;
+            border: 1px solid #fcd34d !important;
+            border-radius: 9999px !important;
+            padding: 2px 10px !important;
+            line-height: 1.2 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .cause-title-badge-respondent {
+            display: inline-block !important;
+            font-size: 10px !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            color: #065f46 !important;
+            background-color: #d1fae5 !important;
+            border: 1px solid #6ee7b7 !important;
+            border-radius: 9999px !important;
+            padding: 2px 10px !important;
+            line-height: 1.2 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .cause-title-party-name {
+            font-size: 1.05rem !important;
+            font-weight: 700 !important;
+            font-family: serif !important;
+            line-height: 1.35 !important;
+            color: #1c1917 !important;
+            margin-top: 0.25rem !important;
+          }
+          .cause-title-counsel-bar {
+            margin-top: 1rem !important;
+            padding-top: 0.75rem !important;
+            border-top: 1px solid #e7e5e4 !important;
+            font-size: 0.75rem !important;
+            color: #57534e !important;
+            font-family: serif !important;
+            display: flex !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.5rem 1rem !important;
+            font-style: italic !important;
+          }
+          .cause-title-counsel-bar * {
+            font-size: 0.75rem !important;
           }
         }
       `}</style>
@@ -469,39 +598,39 @@ const CaseViewPage = () => {
 
           </header>
 
-          {/* 3. CAUSE TITLE: ALIGNED PETITIONER VS RESPONDENT (Label removed) */}
-          <section className="my-6 p-5 sm:p-7 rounded-2xl bg-gradient-to-b from-stone-50 via-stone-50/60 to-transparent dark:from-stone-900/40 dark:to-transparent border border-stone-200/90 dark:border-stone-800/80 shadow-xs print:my-2 print:p-2 print:border-none print:shadow-none">
+          {/* 3. CAUSE TITLE: ALIGNED PETITIONER VS RESPONDENT */}
+          <section className="cause-title-section my-6 p-5 sm:p-7 rounded-2xl bg-gradient-to-b from-stone-50 via-stone-50/60 to-transparent dark:from-stone-900/40 dark:to-transparent border border-stone-200/90 dark:border-stone-800/80 shadow-xs print:my-3 print:p-5 print:border print:border-stone-300 print:rounded-2xl print:bg-stone-50/60 print:shadow-none">
             {causeList.isSplit ? (
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-5 sm:gap-6 print:gap-2">
+              <div className="cause-title-grid grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] print:grid-cols-[1fr_auto_1fr] items-center gap-5 sm:gap-6 print:gap-4">
                 
                 {/* Petitioner / Appellant Block */}
-                <div className="flex flex-col items-center md:items-start text-center md:text-left space-y-1.5">
-                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-800 px-3 py-0.5 rounded-full shadow-2xs print:border-none print:p-0">
+                <div className="cause-title-petitioner-col flex flex-col items-center md:items-start print:items-start text-center md:text-left print:text-left space-y-1.5">
+                  <span className="cause-title-badge-petitioner text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-800 px-3 py-0.5 rounded-full shadow-2xs">
                     Petitioner / Appellant
                   </span>
-                  <div className="text-base sm:text-lg font-serif font-bold text-stone-900 dark:text-stone-100 leading-snug whitespace-pre-line">
+                  <div className="cause-title-party-name text-base sm:text-lg font-serif font-bold text-stone-900 dark:text-stone-100 leading-snug whitespace-pre-line">
                     {causeList.petitioner}
                   </div>
                 </div>
 
-                {/* Classical Versus Center Divider (Hidden in print) */}
-                <div className="flex flex-col items-center justify-center px-4 py-1 versus-print-hide print:!hidden" data-print-hide="true">
-                  <div className="w-10 h-10 rounded-full bg-stone-200/90 dark:bg-stone-800 border-2 border-stone-300 dark:border-stone-700 flex items-center justify-center shadow-xs versus-print-hide print:!hidden">
-                    <span className="text-xs font-serif font-black italic text-stone-700 dark:text-stone-200 versus-print-hide print:!hidden">
+                {/* Classical Versus Center Divider */}
+                <div className="cause-title-versus-col flex flex-col items-center justify-center px-4 py-1 print:px-3">
+                  <div className="cause-title-versus-circle w-10 h-10 rounded-full bg-stone-200/90 dark:bg-stone-800 border-2 border-stone-300 dark:border-stone-700 flex items-center justify-center shadow-xs">
+                    <span className="cause-title-versus-text text-xs font-serif font-black italic text-stone-700 dark:text-stone-200">
                       VS
                     </span>
                   </div>
-                  <span className="text-[9px] font-sans font-black tracking-widest text-stone-400 dark:text-stone-500 uppercase mt-1 versus-print-hide print:!hidden">
+                  <span className="cause-title-versus-sub text-[9px] font-sans font-black tracking-widest text-stone-400 dark:text-stone-500 uppercase mt-1">
                     VERSUS
                   </span>
                 </div>
 
                 {/* Respondent Block */}
-                <div className="flex flex-col items-center md:items-end text-center md:text-right space-y-1.5">
-                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 px-3 py-0.5 rounded-full shadow-2xs print:border-none print:p-0">
+                <div className="cause-title-respondent-col flex flex-col items-center md:items-end print:items-end text-center md:text-right print:text-right space-y-1.5">
+                  <span className="cause-title-badge-respondent text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 px-3 py-0.5 rounded-full shadow-2xs">
                     Respondent(s)
                   </span>
-                  <div className="text-base sm:text-lg font-serif font-bold text-stone-900 dark:text-stone-100 leading-snug whitespace-pre-line">
+                  <div className="cause-title-party-name text-base sm:text-lg font-serif font-bold text-stone-900 dark:text-stone-100 leading-snug whitespace-pre-line text-right">
                     {causeList.respondent}
                   </div>
                 </div>
@@ -517,7 +646,7 @@ const CaseViewPage = () => {
 
             {/* Legal Representation / Advocates Bar */}
             {caseData.lawyers && caseData.lawyers.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-stone-200/80 dark:border-stone-800/80 text-xs text-stone-600 dark:text-stone-400 font-serif flex flex-wrap items-center justify-center gap-x-6 gap-y-1.5 italic">
+              <div className="cause-title-counsel-bar mt-5 pt-4 border-t border-stone-200/80 dark:border-stone-800/80 text-xs text-stone-600 dark:text-stone-400 font-serif flex flex-wrap items-center justify-center gap-x-6 gap-y-1.5 italic">
                 <span className="font-sans font-bold uppercase tracking-wider text-[10px] text-stone-400 dark:text-stone-500 not-italic">
                   Legal Counsel Appearing:
                 </span>

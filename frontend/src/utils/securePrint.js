@@ -127,6 +127,8 @@ export const buildUniformPrintCss = (pageSize = 'auto') => `
       transform: none !important;
       -webkit-text-size-adjust: none !important;
       text-size-adjust: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .print-document,
     .print-sheet,
@@ -152,6 +154,8 @@ export const buildUniformPrintCss = (pageSize = 'auto') => `
       word-break: break-word !important;
       -webkit-text-size-adjust: none !important;
       text-size-adjust: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .print-document h1,
     .print-container h1 {
