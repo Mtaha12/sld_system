@@ -1402,17 +1402,17 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
   const {
     temperature = 0.2,
     maxOutputTokens = 3500,
-    timeoutMs = 35000
+    timeoutMs = 45000
   } = config;
 
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   const models = [
     primaryModel,
-    'gemini-flash-lite-latest',
     'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
     'gemini-3.1-flash-lite',
     'gemini-3.5-flash',
-    'gemini-3.6-flash'
+    'gemini-flash-latest'
   ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
   let lastError = null;
@@ -1431,10 +1431,13 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
         }
       ];
 
+      // Give each model up to 15s so we can seamlessly failover to the next model quickly if one stalls or is throttled
+      const perModelTimeout = Math.min(timeoutMs, 15000);
+
       let res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(perModelTimeout),
         body: JSON.stringify({
           contents,
           generationConfig: {

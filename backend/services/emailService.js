@@ -7,14 +7,28 @@ dotenv.config({ override: true });
  * Creates and configures the Nodemailer SMTP Transporter
  */
 const createTransporter = () => {
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const host = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-  const user = process.env.SMTP_USER || '';
-  const pass = process.env.SMTP_PASS || '';
+  const user = (process.env.SMTP_USER || '').trim();
+  const pass = (process.env.SMTP_PASS || '').trim().replace(/\s+/g, '');
 
   if (!user || !pass) {
     return null;
+  }
+
+  // Optimize transport for Gmail if host is gmail
+  if (host.includes('gmail.com')) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user,
+        pass
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 25000
+    });
   }
 
   return nodemailer.createTransport({
@@ -27,7 +41,10 @@ const createTransporter = () => {
     },
     tls: {
       rejectUnauthorized: process.env.NODE_ENV === 'production'
-    }
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 25000
   });
 };
 
@@ -986,9 +1003,14 @@ ${safeResponse}
 
   try {
     const info = await transporter.sendMail(mailOptions);
+    console.log(`[AI Chat SMTP Success] Dispatched AI chat alert to ${adminEmail} (MsgID: ${info.messageId})`);
     return { success: true, simulated: false, messageId: info.messageId };
   } catch (error) {
-    console.error(`[AI Chat SMTP Error] Failed to send AI alert email to ${adminEmail}:`, error);
-    throw error;
+    if (error.code === 'EAUTH' || (error.message && error.message.includes('BadCredentials'))) {
+      console.warn(`[AI Chat SMTP Auth Notice] Google SMTP authentication failed for ${adminEmail}. Please generate a new App Password at https://myaccount.google.com/apppasswords and update SMTP_PASS in backend/.env.`);
+    } else {
+      console.error(`[AI Chat SMTP Error] Failed to send AI alert email to ${adminEmail}:`, error.message);
+    }
+    return { success: false, error: error.message };
   }
 };

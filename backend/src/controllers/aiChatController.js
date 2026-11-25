@@ -2221,7 +2221,11 @@ export const resolveOfficialPortalQuery = async (queryText, matchedPortals = [])
 
   if (apiKey) {
     try {
+      const queryLang = detectQueryLanguage(cleanQ);
+      const langDirective = getLanguageDirective(queryLang);
+
       const sysPrompt = `You are the Senior Judicial & Regulatory AI Legal Counsel for Pakistan, with specialized knowledge across Pakistani Superior Courts (Supreme Court of Pakistan, Lahore High Court, Sindh High Court, Islamabad High Court, Balochistan High Court), Corporate Regulators (SECP), Tax Authorities (FBR), and Appellate Tribunals (ATPRA, SRB, EBRA).
+${langDirective}
 
 CRITICAL DIRECTIVES:
 1. Provide a comprehensive, authoritative, and direct answer to the user's specific query.
@@ -2238,8 +2242,8 @@ OFFICIAL GOVERNMENT & JUDICIAL PORTALS REGISTRY:
 ${portalContext}`;
 
       const aiReply = await Promise.race([
-        callGeminiWithTokenControl(sysPrompt, userPrompt),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Portal synthesis timeout 12000ms')), 12000))
+        callGeminiWithTokenControl(sysPrompt, userPrompt, [], { timeoutMs: 30000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Portal synthesis timeout 30000ms')), 30000))
       ]);
 
       if (aiReply && aiReply.trim().length > 50) {
@@ -3784,6 +3788,12 @@ const cleanUserQuery = (raw) => {
   // Strip conversational wrappers
   q = q.replace(/^(?:show\s+me\s+this\s+case\s+document|show\s+me\s+case\s+document|show\s+me\s+this\s+case|show\s+me\s+case|show\s+case\s+document|show\s+me|give\s+me\s+this\s+case\s+document|give\s+me\s+case\s+document|give\s+me\s+this\s+case|give\s+me\s+case\s+of|give\s+me\s+document\s+(?:of|for)?|give\s+me\s+this\s+document|give\s+me\s+document|give\s+me|find\s+case\s+document|find\s+case\s+of|find\s+case|find|search\s+for|search\s+case\s+document|search\s+case|search|lookup|look\s+up|tell\s+me\s+about|get\s+case\s+document|get\s+case|get\s+me|what\s+is\s+the\s+case|who\s+was\s+judge\s+in|kindly\s+provide(?:\s+me)?|please\s+provide(?:\s+me)?|provide(?:\s+me)?|please\s+give\s+me|please\s+show|counsel\s+briefing|case\s+document\s+(?:for|of)?)\s+(?:all\s+)?(?:the\s+)?/gi, '');
   q = q.replace(/^(?:cases?\s+(?:by|of|for|on|in|regarding)|judgments?\s+(?:by|of|for|on|in|that|regarding)|judgements?\s+(?:by|of|for|on|in|that|regarding)|documents?\s+(?:by|of|for|on|in|that))\s+(?:the\s+)?/gi, '');
+
+  // Strip Roman Urdu and Urdu conversational wrappers
+  q = q.replace(/^(?:esa|aisa|aisi|aise|wesa|waisa)\s+(?:case\s*law|faisla|decision|case|qanoon)?\s*(?:do|batao|batayein|dikhayein|dikhao|chahiye)?\s*(?:jis\s+me|jisme)?\s*/gi, '');
+  q = q.replace(/^(?:mujh\s*ko|mujhe|humein|humay|hamain)\s+(?:batao|batayein|dikhayein|dikhao|chahiye|chahye)\s*/gi, '');
+  q = q.replace(/^(?:kya\s+ap\s+bata\s+sakte\s+hain|kya\s+yeh\s+faisla\s+hai|kya\s+faisla\s+hai)\s*/gi, '');
+  q = q.replace(/^(?:ایسا\s+کیس\s+بتائیں|کیس\s+لا\s+دیں|مجھے\s+بتائیں|کیا\s+آپ\s+بتا\s+سکتے\s+ہیں)\s*/gi, '');
   return normalizeLegalTypos(q).trim();
 };
 
@@ -4607,7 +4617,11 @@ const synthesizeLegalAIAnswer = async (userQuery, matchedCases, targetCase, conv
 
     const precedentsHeader = topCases.length === 1 ? 'Governing Judicial Precedent (1 Verified Authority)' : `Governing Judicial Precedents (${topCases.length} Verified Authorities)`;
 
+    const queryLang = detectQueryLanguage(userQuery);
+    const langDirective = getLanguageDirective(queryLang);
+
     const systemInstruction = `You are the Senior Judicial AI Research Counsel for the SLD System of Pakistan, with direct access to the database of 162,865 reported judicial judgments from the Supreme Court, High Courts, and Appellate Tribunals.
+${langDirective}
 
 CRITICAL INSTRUCTIONS & PROMPT INJECTION DEFENSE:
 1. Provide a direct, articulate, and lawyer-grade answer to the user's specific query. Begin with a clear executive answer to the question before providing detailed analysis.
@@ -4646,8 +4660,8 @@ ${casesSummary}
 </retrieved_evidence>`;
 
     const geminiText = await Promise.race([
-      callGeminiWithTokenControl(systemInstruction, userPrompt, [], { temperature: 0.2, maxOutputTokens: 2500, timeoutMs: 35000 }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini synthesis timeout 35000ms')), 35000))
+      callGeminiWithTokenControl(systemInstruction, userPrompt, [], { temperature: 0.2, maxOutputTokens: 2500, timeoutMs: 45000 }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini synthesis timeout 45000ms')), 45000))
     ]);
 
     if (geminiText && geminiText.trim().length > 50) {
@@ -4786,6 +4800,65 @@ export const extractLawyerQueryInfo = (rawQuery) => {
     };
   }
   return null;
+};
+
+/**
+ * Detects whether the user query is in English, Roman Urdu (Urdu written in Latin letters), or native Urdu script
+ */
+export const detectQueryLanguage = (text) => {
+  if (!text || typeof text !== 'string') return 'english';
+
+  // 1. Native Urdu script check (Unicode range \u0600-\u06FF)
+  const urduCharMatch = text.match(/[\u0600-\u06FF]/g);
+  if (urduCharMatch && urduCharMatch.length >= 3) {
+    return 'urdu';
+  }
+
+  // 2. Roman Urdu detection (Urdu written in Latin letters)
+  const t = text.toLowerCase();
+  const romanUrduPatterns = [
+    /\b(?:kya|kyun|kaise|kahan|kab|kis|kisko|kiska|kiske|kiski|kitna|kitni|kitne)\b/i,
+    /\b(?:esa|aisa|aise|aisi|wesa|waisa|waise|waisi)\b/i,
+    /\b(?:jis|jisme|jisne|jisko|jiska|jiske|jiski|jin|jinhe|jahan)\b/i,
+    /\b(?:me|mein|se|pe|par|ko|ka|ke|ki|k)\b/i,
+    /\b(?:aur|or|bhi|hi|to|toh)\b/i,
+    /\b(?:hai|hain|ho|hoga|hogi|hoge|hone|hona|tha|thi|the|hun|hoon)\b/i,
+    /\b(?:nahi|nhn|mat|nhi|na)\b/i,
+    /\b(?:ye|yeh|wo|woh|yehi|wohi|inka|unka|inhe|unhe)\b/i,
+    /\b(?:ap|aap|tum|mera|meri|mere|mujhe|mujh|humein|hum|apka|apki|apke)\b/i,
+    /\b(?:do|karo|karein|batao|batayein|dikhayein|dikhao|samjhao|likho|bhejo|bhejein)\b/i,
+    /\b(?:chahiye|chahye|sakta|sakti|sakte|wala|wali|wale)\b/i,
+    /\b(?:faisla|faislay|qanoon|khilaf|haq|mutalliq|baray|baare)\b/i
+  ];
+
+  let matches = 0;
+  for (const pat of romanUrduPatterns) {
+    if (pat.test(t)) matches++;
+  }
+
+  if (matches >= 2) return 'roman_urdu';
+  return 'english';
+};
+
+/**
+ * Returns dynamic language and script directives for Gemini prompt instructions
+ */
+export const getLanguageDirective = (queryLang) => {
+  if (queryLang === 'roman_urdu') {
+    return `\n\nLANGUAGE & SCRIPT DIRECTIVE (STRICT REQUIREMENT - USER INQUIRED IN ROMAN URDU):
+- The user asked their question in ROMAN URDU (e.g. "esa case law do jis me...", "mujh ko batao...").
+- You MUST answer completely in natural, professional, fluent ROMAN URDU (respectful, conversational Pakistani legal style).
+- Keep official legal citations, statutory section numbers, case titles, court names, and technical statutory terms in their standard English legal citation format (e.g., "Sales Tax Act, 1990", "Section 122(5A)", "Lahore High Court", "PTD", "Toll Manufacturing", "Supply of Goods").
+- Explain the legal principles, judicial ratio, conclusions, and procedural guidance completely in clear, professional ROMAN URDU.`;
+  }
+  if (queryLang === 'urdu') {
+    return `\n\nLANGUAGE & SCRIPT DIRECTIVE (STRICT REQUIREMENT - USER INQUIRED IN URDU):
+- The user asked their question in URDU (اردو زبان میں).
+- You MUST answer completely in authentic, professional URDU (اردو رسم الخط میں).
+- Keep citations, statute names, and section references accurate alongside Urdu legal explanations.`;
+  }
+  return `\n\nLANGUAGE & SCRIPT DIRECTIVE:
+- Respond in authoritative, polished professional legal English.`;
 };
 
 /**
@@ -5397,9 +5470,13 @@ export const handleFollowUpQuery = async (queryText, conversationHistory = [], r
       const headnoteSnippet = (caseToUse.headNote || '').slice(0, 500);
       const principle = caseToUse.principleLaw || '';
 
+      const queryLang = detectQueryLanguage(cleanQ);
+      const langDirective = getLanguageDirective(queryLang);
+
       const sysPrompt = `You are the Senior Judicial AI Research Counsel for the SLD System of Pakistan.
 The user is continuing a conversation about the verified Pakistani case law: ${citeHeader}.
 Their current request is: "${userIntentLabel}"
+${langDirective}
 
 ${priorContextSnippet ? `CONVERSATION HISTORY (last 6 turns — stay on this topic, do NOT switch to a different case or legal topic):\n${priorContextSnippet}\n` : ''}
 Case Metadata (100% Verified Database Record):
@@ -5416,7 +5493,7 @@ CRITICAL INSTRUCTIONS:
 1. TOPIC LOCK: You MUST stay strictly on the case ${citeHeader} and the conversation above. Do NOT switch topics, introduce new cases, or answer unrelated queries.
 2. If the user said "yes", "more", "continue", or "clarify" — continue the analysis of ${citeHeader} exactly where the last assistant response left off.
 3. If the user quoted a line or word from the judgment — explain THAT specific line/word in plain English, then show which part of the judgment it came from.
-4. Explain in clean, accessible plain English that both a legal practitioner and a business professional can immediately grasp.
+4. Explain in clean, accessible language that both a legal practitioner and a business professional can immediately grasp.
 5. Structure your response:
    - ### ⚖️ ${isContinuationAffirmation ? 'Further Analysis' : isQuotedTextExplanation ? 'Judgment Passage Explained' : 'Case Explanation'}: ${citeHeader}
    - #### ${isContinuationAffirmation ? 'Continuing from Previous Analysis' : isQuotedTextExplanation ? 'What This Passage Means' : 'What Happened (The Dispute in Simple Terms)'}
@@ -5426,8 +5503,8 @@ CRITICAL INSTRUCTIONS:
 7. Strictly focus on PAKISTANI law. Never substitute Indian or foreign legal principles.`;
 
       explanationText = await Promise.race([
-        callGeminiWithTokenControl(sysPrompt, `USER FOLLOW-UP: "${cleanQ}"`, [], { temperature: 0.15, maxOutputTokens: 2200, timeoutMs: 35000 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Follow-up Gemini timeout')), 35000))
+        callGeminiWithTokenControl(sysPrompt, `USER FOLLOW-UP: "${cleanQ}"`, [], { temperature: 0.15, maxOutputTokens: 2200, timeoutMs: 45000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Follow-up Gemini timeout')), 45000))
       ]);
     } catch (fErr) {
       logger.warn('Gemini follow-up synthesis notice: ' + fErr.message);
@@ -5498,6 +5575,8 @@ export const handleGeneralAIQuery = async (queryText, conversationHistory = [], 
   }
 
   const cleanQuery = queryText.trim();
+  const queryLang = detectQueryLanguage(cleanQuery);
+  const langDirective = getLanguageDirective(queryLang);
   const cacheKey = `gen_${cleanQuery.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 80)}`;
   const cached = getCachedAIResult(cacheKey);
   if (cached && (!conversationHistory || conversationHistory.length === 0)) {
@@ -5512,6 +5591,7 @@ You provide clear, articulate, helpful, and natural assistance across all fields
 - Professional Writing & Business: Drafting professional emails, proposals, memos, letters, cover letters, resume suggestions, meeting notes, business strategy, and career advice.
 - General Education & Humanities: History, philosophy, literature, geography, economics, and general knowledge.
 - Clear Explanations & Everyday Queries: Step-by-step guides, summaries, translations, formatting, and everyday problem-solving.
+${langDirective}
 
 LEGAL & JURISDICTION GUIDELINES:
 - Whenever the user inquires about law, statutes, or legal concepts, focus authoritatively on PAKISTANI LAW (Supreme Court of Pakistan, High Courts of Pakistan, the Constitution of Pakistan, and Pakistani enactments such as the Income Tax Ordinance 2001, Sales Tax Act 1990, Companies Act 2017, CPC, CrPC, PPC, etc.).
@@ -5539,50 +5619,44 @@ RESPONSE GUIDELINES:
   const prompt = `${contextSnippet ? contextSnippet + "\n\n" : ""}CURRENT USER QUESTION: ${cleanQuery}`;
 
   let replyText = null;
-  let modelUsed = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+  let modelUsed = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
   try {
     replyText = await callGeminiWithTokenControl(
       systemPrompt,
       prompt,
       [],
-      { temperature: 0.3, maxOutputTokens: 2500, timeoutMs: 35000 }
+      { temperature: 0.3, maxOutputTokens: 2500, timeoutMs: 45000 }
     );
   } catch (err) {
-    logger.warn('General AI Gemini query error: ' + err.message);
-    const isHighDemandOrQuota = err.message && (
-      err.message.includes('quota') ||
-      err.message.includes('429') ||
-      err.message.includes('RESOURCE_EXHAUSTED') ||
-      err.message.includes('high demand') ||
-      err.message.includes('spikes in demand') ||
-      err.message.includes('temporar') ||
-      err.message.includes('503')
-    );
+    logger.warn('General AI Gemini query notice: ' + err.message);
 
-    // If query has legal/tax keywords (like petroleum, further tax, tax, ordinance, act), attempt local multi-channel lookup
-    if (/\b(?:tax|statute|act|ordinance|petroleum|sro|notification|levy|duty|customs|fbr|inland\s*revenue)\b/i.test(cleanQuery)) {
-      try {
-        const [localNotifs, localStatutes] = await Promise.all([
-          searchNotifications(cleanQuery),
-          searchStatutes(cleanQuery)
-        ]);
-        if (localNotifs && localNotifs.length > 0) {
-          replyText = formatNotificationsResponse(localNotifs, cleanQuery);
-        } else if (localStatutes && localStatutes.length > 0) {
-          replyText = formatStatutesResponse(localStatutes, cleanQuery);
-        }
-      } catch (localErr) {}
+    // Multi-channel local database fallback: cases, statutes, notifications, dictionary
+    try {
+      const [localCases, localStatutes, localNotifs, localDict] = await Promise.all([
+        searchOtherCaseLaws(cleanQuery),
+        searchStatutes(cleanQuery),
+        searchNotifications(cleanQuery),
+        searchDictionary(cleanQuery)
+      ]);
+
+      if (localCases && localCases.length > 0) {
+        replyText = formatOtherCasesResponse(localCases, cleanQuery);
+      } else if (localStatutes && localStatutes.length > 0) {
+        replyText = formatStatutesResponse(localStatutes, cleanQuery);
+      } else if (localNotifs && localNotifs.length > 0) {
+        replyText = formatNotificationsResponse(localNotifs, cleanQuery);
+      } else if (localDict && localDict.length > 0) {
+        const d = localDict[0];
+        replyText = `### 📖 Legal Definition & Doctrine: ${d.word || cleanQuery}\n\n**Definition / Principle:**\n${d.meaning || d.definition}\n\n*(Verified in SLD Legal Reference Dictionary)*`;
+      }
+    } catch (localErr) {
+      logger.warn('Local database fallback notice: ' + localErr.message);
     }
 
+    // If local lookup didn't match specific entities, build an authoritative legal research briefing with portal links
     if (!replyText) {
-      if (isHighDemandOrQuota) {
-        replyText = "⚠️ **High Demand Notice**: The AI assistant service is currently experiencing peak demand. Please retry your question in a moment.\n\n*(Note: For Pakistani legal research, all case citations, case numbers, statutes, and judicial archives remain directly accessible in the database.)*";
-      } else if (err.message && err.message.includes('timeout')) {
-        replyText = "⚠️ **Request Timeout**: The request to the AI model timed out. Please try asking again with a more concise prompt.";
-      } else {
-        replyText = "⚠️ **Temporary Service Notice**: The AI service is currently unavailable. Please try your question again in a moment.";
-      }
+      replyText = buildOfficialPortalFallbackReport(cleanQuery);
     }
   }
 
@@ -5807,8 +5881,12 @@ ${matchedDbCase.judgment ? `Authoritative Judgment Excerpt:\n${matchedDbCase.jud
   }
 
   // System Instructions for Senior Judicial Counsel
+  const queryLang = detectQueryLanguage(cleanQ);
+  const langDirective = getLanguageDirective(queryLang);
+
   const systemInstruction = `You are a Senior Judicial Research Counsel for the SLD System (Super Law Data System) of Pakistan.
 The user has attached a legal document ("${fileName}") and asked a specific query: "${cleanQ || 'Provide a comprehensive case summary and analysis.'}".
+${langDirective}
 
 CRITICAL INSTRUCTIONS:
 1. Faithfully, accurately, and authoritatively answer the user's specific request using the attached document and any verified judicial database records provided.
@@ -5836,7 +5914,7 @@ ${limitContext(combinedDocText || `[Attached file: ${fileName}]`, 40000)}${dbEnr
       responseText = await callGeminiWithTokenControl(systemInstruction, userPrompt, inlineParts, {
         temperature: 0.15,
         maxOutputTokens: isCruxOnly ? 600 : 3500,
-        timeoutMs: 35000
+        timeoutMs: 45000
       });
     } catch (geminiErr) {
       logger?.warn?.('Document Analysis Gemini error: ' + geminiErr.message);
@@ -6208,6 +6286,7 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
   try {
     // 1. Clean conversational wrappers and normalize leading zeros on 4-digit years
     const cleanQuery = cleanUserQuery(rawClean);
+    const queryLang = detectQueryLanguage(rawClean);
     const normalizedQuery = cleanQuery.replace(/\b0+(\d{4})\b/g, '$1').trim();
 
     // 1.0 CLARIFICATION INTERVIEW PROTOCOL (Section 9)
@@ -6570,8 +6649,12 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
 
       if (process.env.GEMINI_API_KEY) {
         try {
+          const queryLang = detectQueryLanguage(rawClean);
+          const langDirective = getLanguageDirective(queryLang);
+
           const sysPrompt = `You are the Senior Judicial AI Research Counsel for the SLD System of Pakistan.
 The user is inquiring about Pakistani judgments and the legal position regarding the taxation, tax concessions, or exemptions for disabled persons under the Income Tax Ordinance, 2001.
+${langDirective}
 
 CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUTES):
 1. STATUTORY FOUNDATION (INCOME TAX ORDINANCE, 2001):
@@ -8621,7 +8704,13 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           matchingCaseNumberCases.length === 2 ? 'Two matching judgments were' :
           `${matchingCaseNumberCases.length} matching judgments were`;
 
-        responseText = `${countWord} found in the SLD database matching Case / Appeal Number **${matchedFieldDisplay || cleanQuery}**:\n\n`;
+        let headerText = `${countWord} found in the SLD database matching Case / Appeal Number **${matchedFieldDisplay || cleanQuery}**:\n\n`;
+        if (queryLang === 'roman_urdu') {
+          headerText = `SLD database mein Case / Appeal Number **${matchedFieldDisplay || cleanQuery}** ke mutalliq **${countWord}** verified faisla mila:\n\n`;
+        } else if (queryLang === 'urdu') {
+          headerText = `SLD ڈیٹا بیس میں کیس نمبر **${matchedFieldDisplay || cleanQuery}** کے متعلق **${countWord}** مصدقہ عدالتی فیصلہ ملا:\n\n`;
+        }
+        responseText = headerText;
 
         for (let i = 0; i < matchingCaseNumberCases.length; i++) {
           const c = matchingCaseNumberCases[i];
@@ -8687,7 +8776,13 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
         `${matchingPartyCases.length} cases were`;
 
       const headerNotice = partySectionNotice ? `${partySectionNotice}\n\n` : '';
-      responseText = `${headerNotice}${countWord} found in the SLD database involving party / litigant **"${matchedFieldDisplay || cleanQuery}"**:\n\n`;
+      let partyHeader = `${headerNotice}${countWord} found in the SLD database involving party / litigant **"${matchedFieldDisplay || cleanQuery}"**:\n\n`;
+      if (queryLang === 'roman_urdu') {
+        partyHeader = `${headerNotice}SLD database mein party / litigant **"${matchedFieldDisplay || cleanQuery}"** ke mutalliq **${countWord}** verified faislay (cases) daryaft huway:\n\n`;
+      } else if (queryLang === 'urdu') {
+        partyHeader = `${headerNotice}SLD ڈیٹا بیس میں فریق **"${matchedFieldDisplay || cleanQuery}"** کے متعلق **${countWord}** مصدقہ عدالتی فیصلے دستیاب ہیں:\n\n`;
+      }
+      responseText = partyHeader;
 
       const topCases = matchingPartyCases.slice(0, 10);
       for (let i = 0; i < topCases.length; i++) {
@@ -8914,7 +9009,13 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
 
       const topDisplayCases = matchingTopicCases.slice(0, 5);
 
-      responseText = `${countWord} found in the SLD database related to: "${cleanQuery.trim()}".\n\n`;
+      if (queryLang === 'roman_urdu') {
+        responseText = `SLD database mein **"${cleanQuery.trim()}"** ke mutalliq **${countWord}** verified judgments (faislay) daryaft huway:\n\n`;
+      } else if (queryLang === 'urdu') {
+        responseText = `SLD ڈیٹا بیس میں **"${cleanQuery.trim()}"** کے متعلق **${countWord}** مصدقہ عدالتی فیصلے دستیاب ہیں:\n\n`;
+      } else {
+        responseText = `${countWord} found in the SLD database related to: "${cleanQuery.trim()}".\n\n`;
+      }
 
       for (let i = 0; i < topDisplayCases.length; i++) {
         const c = topDisplayCases[i];
@@ -9251,6 +9352,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
 
   if (process.env.GEMINI_API_KEY && cleanQuery.length >= 3) {
     try {
+      const queryLang = detectQueryLanguage(cleanQuery);
+      const langDirective = getLanguageDirective(queryLang);
+
       const portalGuideText = relevantPortalsForPrompt
         .map(p => `• [${p.name} ↗](${p.url}) - ${p.description}`)
         .join('\n');
@@ -9258,6 +9362,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
       const sysPrompt = `You are the Senior Legal AI Assistant for the SLD System of Pakistan.
 The user asked a general legal doctrine, statutory procedural, or jurisprudential question outside of the database records.
 Provide an informative, authoritative, and lawyer-grade overview adhering strictly to these directives:
+${langDirective}
 
 LEGAL & JURISDICTION GUIDELINES:
 1. Address and analyze the legal position authoritatively within PAKISTAN (Pakistani Constitution, Supreme Court of Pakistan rulings, High Courts, Income Tax Ordinance 2001, Sales Tax Act 1990, Companies Act 2017, CPC, CrPC, PPC, etc.).
@@ -9272,8 +9377,8 @@ ${portalGuideText}
 Use the exact syntax: [<Portal Name> ↗](<url>).`;
       
       const aiReply = await Promise.race([
-        callGeminiWithTokenControl(sysPrompt, `USER QUERY: "${cleanQuery}"`, [], { temperature: 0.2, maxOutputTokens: 2500, timeoutMs: 35000 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback Gemini timeout')), 35000))
+        callGeminiWithTokenControl(sysPrompt, `USER QUERY: "${cleanQuery}"`, [], { temperature: 0.2, maxOutputTokens: 2500, timeoutMs: 45000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback Gemini timeout')), 45000))
       ]);
       if (aiReply && aiReply.trim().length > 40) {
         fallbackText = aiReply.trim();
