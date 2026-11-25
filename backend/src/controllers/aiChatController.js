@@ -4508,9 +4508,15 @@ export const extractSroIdentifier = (queryText, conversationHistory = []) => {
   if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
     const convCtx = extractConversationContext(conversationHistory);
     if (convCtx.lastSro) {
-      if (isAnaphoric ||
-          /\b(?:give|show|find|get|provide|search|display)\s+(?:me\s+)?(?:the\s+)?(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?)\b/i.test(cleanQ) ||
-          /^(?:cases?|case\s*law|judgments?|precedents?)\??$/i.test(cleanQ)) {
+      // Check if current query specifies a NEW independent subject (e.g. party name, company, case name, statute section, citation, etc.)
+      const hasIndependentSubject =
+        /\b(?:of|for|on|about|regarding|involving|against|between)\s+(?!(?:this|that|it|the\s+same|above|required|said)\b)[a-z0-9]/i.test(cleanQ) ||
+        /\b(?:taj\s*international|section|sec\.?|art\.?|article|sld\s*#?\d+|\d{4}\s+(?:sld|ptd|scmr|pld|tax))\b/i.test(cleanQ);
+
+      if (!hasIndependentSubject && (
+          isAnaphoric ||
+          /^(?:give|show|find|get|provide|search|display|kindly\s+provide|please\s+provide)?\s*(?:me\s+)?(?:the\s+)?(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?)\??$/i.test(cleanQ)
+      )) {
         return {
           ...convCtx.lastSro,
           source: 'conversation_history'
@@ -6271,10 +6277,23 @@ export const runLegalIntelligenceEngine = async (userQuery, focusNode = null, ra
     const sroIdent = extractSroIdentifier(rawClean, conversationHistory);
     const isCaseRequested = /\b(?:cases?|case\s*law|judgm?ents?|precedents?|rulings?|decisions?|petitions?|appeals?|authorit(?:y|ies)|orders?|holdings?)\b/i.test(rawClean) ||
       /\b(?:which|what)\s+case\b/i.test(rawClean);
+
+    const hasExplicitIndependentSubject =
+      /\b(?:of|for|on|about|regarding|involving|against|between)\s+(?!(?:this|that|it|the\s+same|above|required|said)\b)[a-zA-Z0-9]/i.test(rawClean) ||
+      /\b(?:taj\s*international|section|sec\.?|art\.?|article)\b/i.test(rawClean);
+
     const isCaseOnSroQuery = Boolean(sroIdent) && (
-      isCaseRequested ||
-      /\b(?:with|on|under|for|citing|regarding|used|applied|referring\s+to|governed\s+by)\s+(?:this|that|the|same|required|given|needed)?\s*s\.?r\.?o\.?\b/i.test(rawClean) ||
-      /\b(?:which|what)\s+case\s*laws?\s+(?:used|applied|cited|mentioned|referred)\b/i.test(rawClean)
+      (sroIdent.source === 'query') ? (
+        isCaseRequested ||
+        /\b(?:with|on|under|for|citing|regarding|used|applied|referring\s+to|governed\s+by)\s+(?:this|that|the|same|required|given|needed)?\s*s\.?r\.?o\.?\b/i.test(rawClean) ||
+        /\b(?:which|what)\s+case\s*laws?\s+(?:used|applied|cited|mentioned|referred)\b/i.test(rawClean)
+      ) : (
+        !hasExplicitIndependentSubject && (
+          isCaseRequested ||
+          /\b(?:with|on|under|for|citing|regarding|used|applied|referring\s+to|governed\s+by)\s+(?:this|that|the|same|required|given|needed)?\s*s\.?r\.?o\.?\b/i.test(rawClean) ||
+          /\b(?:which|what)\s+case\s*laws?\s+(?:used|applied|cited|mentioned|referred)\b/i.test(rawClean)
+        )
+      )
     );
 
     if (isCaseOnSroQuery) {
