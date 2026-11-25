@@ -19,6 +19,7 @@ import SquareLoader from '../components/ui/SquareLoader';
 import AdminFooter from '../features/dashboard/components/AdminFooter';
 import {
   formatNewsletterDate,
+  parseNewsletterDateToTimestamp,
   detectTopicBadge,
   getNewsletterLinkRows,
   openNewsletterLink
@@ -68,13 +69,19 @@ const ClientEmailsPage = () => {
     };
   }, []);
 
-  // Pre-extract structured link rows once cleanly per dataset
+  // Pre-extract structured link rows once cleanly per dataset and sort strictly date-wise descending (latest date on top)
   const enrichedDigests = useMemo(() => {
-    return newsletters.map((nl) => ({
+    const list = newsletters.map((nl) => ({
       ...nl,
       _linkRows: getNewsletterLinkRows(nl),
-      _displayDate: formatNewsletterDate(nl.date)
+      _displayDate: formatNewsletterDate(nl.date),
+      _timestamp: parseNewsletterDateToTimestamp(nl.date)
     }));
+
+    return list.sort((a, b) => {
+      if (b._timestamp !== a._timestamp) return b._timestamp - a._timestamp;
+      return (Number(b.srNumber) || 0) - (Number(a.srNumber) || 0);
+    });
   }, [newsletters]);
 
   // Aggregate live stats

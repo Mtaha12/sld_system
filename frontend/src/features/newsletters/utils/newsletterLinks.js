@@ -14,6 +14,37 @@ export const formatNewsletterDate = (dateStr) => {
 };
 
 /**
+ * Parses any date format (DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, ISO) into numeric timestamp
+ * for accurate chronological sorting (latest date first).
+ */
+export const parseNewsletterDateToTimestamp = (dateStr) => {
+  if (!dateStr) return 0;
+  const s = String(dateStr).trim();
+  if (!s) return 0;
+
+  const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmy) {
+    const day = parseInt(dmy[1], 10);
+    const month = parseInt(dmy[2], 10) - 1;
+    const year = parseInt(dmy[3], 10);
+    const dt = new Date(year, month, day);
+    if (!isNaN(dt.getTime())) return dt.getTime();
+  }
+
+  const ymd = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (ymd) {
+    const year = parseInt(ymd[1], 10);
+    const month = parseInt(ymd[2], 10) - 1;
+    const day = parseInt(ymd[3], 10);
+    const dt = new Date(year, month, day);
+    if (!isNaN(dt.getTime())) return dt.getTime();
+  }
+
+  const parsed = Date.parse(s);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+/**
  * Returns a clean practice-area topic badge for color-coding client Email Digest rows.
  */
 export const detectTopicBadge = (heading = '') => {

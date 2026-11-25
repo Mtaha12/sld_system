@@ -117,6 +117,39 @@ const buildAttachmentsFromLinkItems = (linkItems = [], existingAttachments = [])
   return Array.isArray(existingAttachments) ? existingAttachments : [];
 };
 
+/**
+ * Parses any common legal newsletter date string into a comparable numeric timestamp
+ * Supports DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, YYYY/MM/DD, ISO, and standard date formats.
+ */
+export const parseNewsletterDateToTimestamp = (dateStr) => {
+  if (!dateStr) return 0;
+  const s = String(dateStr).trim();
+  if (!s) return 0;
+
+  // DD/MM/YYYY or DD-MM-YYYY (e.g. 29/10/2026, 17/06/2026)
+  const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    const year = parseInt(dmyMatch[3], 10);
+    const dt = new Date(year, month, day);
+    if (!isNaN(dt.getTime())) return dt.getTime();
+  }
+
+  // YYYY-MM-DD or YYYY/MM/DD (e.g. 2026-06-17)
+  const ymdMatch = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10) - 1;
+    const day = parseInt(ymdMatch[3], 10);
+    const dt = new Date(year, month, day);
+    if (!isNaN(dt.getTime())) return dt.getTime();
+  }
+
+  const parsed = Date.parse(s);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 const formatItem = (d) => {
   const linkItems = extractNewsletterLinkItems(d);
 
@@ -195,6 +228,14 @@ export const getNewsletters = async (req, res, next) => {
 
     const items = await Newsletter.find(filter).sort({ srNumber: -1, createdAt: -1 }).lean();
     const data = items.map(formatItem);
+
+    // Sort strictly date-wise descending (latest date on top) with srNumber descending as tiebreaker
+    data.sort((a, b) => {
+      const tsA = parseNewsletterDateToTimestamp(a.date);
+      const tsB = parseNewsletterDateToTimestamp(b.date);
+      if (tsB !== tsA) return tsB - tsA;
+      return (Number(b.srNumber) || 0) - (Number(a.srNumber) || 0);
+    });
 
     const payload = {
       success: true,

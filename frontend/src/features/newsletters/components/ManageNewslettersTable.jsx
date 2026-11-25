@@ -30,6 +30,7 @@ import { newsletterService } from '../services/newsletterService';
 import NewsletterMessageViewer from './NewsletterMessageViewer';
 import {
   formatNewsletterDate,
+  parseNewsletterDateToTimestamp,
   getNewsletterLinkRows,
   openNewsletterLink
 } from '../utils/newsletterLinks';
@@ -80,7 +81,7 @@ const ManageNewslettersTable = ({
   const [deleteError, setDeleteError] = useState('');
 
   const [displayMode, setDisplayMode] = useState('links'); // 'links' (SR# | DATED | HEADING | LINK | ATTACHMENT) | 'classic'
-  const [sortConfig, setSortConfig] = useState({ key: 'srNumber', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
@@ -116,9 +117,28 @@ const ManageNewslettersTable = ({
 
   const sortedList = useMemo(() => {
     if (!newsletters || !newsletters.length) return [];
-    if (!sortConfig.key || !sortConfig.direction) return newsletters;
+    if (!sortConfig.key || !sortConfig.direction) {
+      // Default to date descending (latest date on top)
+      return [...newsletters].sort((a, b) => {
+        const tsA = parseNewsletterDateToTimestamp(a.date);
+        const tsB = parseNewsletterDateToTimestamp(b.date);
+        if (tsB !== tsA) return tsB - tsA;
+        return (Number(b.srNumber) || 0) - (Number(a.srNumber) || 0);
+      });
+    }
 
     return [...newsletters].sort((a, b) => {
+      if (sortConfig.key === 'date') {
+        const tsA = parseNewsletterDateToTimestamp(a.date);
+        const tsB = parseNewsletterDateToTimestamp(b.date);
+        if (tsA !== tsB) {
+          return sortConfig.direction === 'asc' ? tsA - tsB : tsB - tsA;
+        }
+        return sortConfig.direction === 'asc'
+          ? (Number(a.srNumber) || 0) - (Number(b.srNumber) || 0)
+          : (Number(b.srNumber) || 0) - (Number(a.srNumber) || 0);
+      }
+
       let valA = a[sortConfig.key];
       let valB = b[sortConfig.key];
 
