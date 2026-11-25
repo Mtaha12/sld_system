@@ -46,6 +46,7 @@ const PRELOAD_MAP = {
   '/manage-invoices': () => import('../../../pages/ManageInvoicesPage'),
   '/manage-newsletters': () => import('../../../pages/ManageNewslettersPage'),
   '/manage-emails': () => import('../../../pages/ManageNewslettersPage'),
+  '/manage-ai-chats': () => import('../../../pages/ManageAiChatsPage'),
   '/emails': () => import('../../../pages/ClientEmailsPage'),
   '/newsletters': () => import('../../../pages/ClientEmailsPage'),
   '/other-caselaws': () => import('../../../pages/OtherCaseLawsPage'),

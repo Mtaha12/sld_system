@@ -86,6 +86,7 @@ export const FOLDER_GROUPS = [
       { label: 'Manage Notification', path: '/manage-notifications', icon: Bell },
       { label: 'Manage Statute', path: '/manage-statutes', icon: FileText },
       { label: 'Manage Other Case Law', path: '/other-caselaws', icon: Scale },
+      { label: 'AI Chat Queries', path: '/manage-ai-chats', icon: Sparkles },
     ]
   },
   {

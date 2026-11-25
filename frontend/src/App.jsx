@@ -74,6 +74,7 @@ const ReplacementPage = lazy(() => import('./pages/ReplacementPage'))
 const ManageAdminsPage = lazy(() => import('./pages/ManageAdminsPage'))
 const ManageTaxCardsPage = lazy(() => import('./pages/ManageTaxCardsPage'))
 const ManageDictionaryPage = lazy(() => import('./pages/ManageDictionaryPage'))
+const ManageAiChatsPage = lazy(() => import('./pages/ManageAiChatsPage'))
 import ErrorBoundary from './components/common/ErrorBoundary'
 
 const ManageNewslettersPage = lazy(() => import('./pages/ManageNewslettersPage'))
@@ -216,6 +217,10 @@ function App() {
                 <Route path="/tax-cards" element={<Navigate to="/manage-tax-cards" replace />} />
                 <Route path="/manage-dictionary" element={<ManageDictionaryPage />} />
                 <Route path="/dictionary" element={<Navigate to="/manage-dictionary" replace />} />
+                <Route path="/manage-ai-chats" element={<ManageAiChatsPage />} />
+                <Route path="/manage-ai-queries" element={<Navigate to="/manage-ai-chats" replace />} />
+                <Route path="/manage-ai-chat" element={<Navigate to="/manage-ai-chats" replace />} />
+                <Route path="/ai-chats" element={<Navigate to="/manage-ai-chats" replace />} />
                 <Route path="/manage-newsletters" element={<ManageNewslettersPage />} />
                 <Route path="/newsletters" element={<ClientEmailsPage />} />
                 <Route path="/manage-emails" element={<ManageNewslettersPage />} />

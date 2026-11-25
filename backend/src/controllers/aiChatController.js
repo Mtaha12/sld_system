@@ -8,6 +8,7 @@ import TaxCard from '../models/TaxCard.js';
 import LegalMaxim from '../models/LegalMaxim.js';
 import PrincipleOfLaw from '../models/PrincipleOfLaw.js';
 import ChatSession from '../models/ChatSession.js';
+import AiChatLog from '../models/AiChatLog.js';
 import logger from '../utils/logger.js';
 import { PRIORITY_LAW_RANK } from '../utils/priorityOrdering.js';
 import { parseAllAIAttachments } from '../utils/aiAttachmentParser.js';
@@ -23,7 +24,6 @@ import {
   performDocumentCorrectionAndReview,
   callGeminiWithTokenControl
 } from '../services/legalDraftingService.js';
-import { sendAiChatNotificationToAdmin } from '../../services/emailService.js';
 
 /**
  * Escapes regex special characters
@@ -9555,18 +9555,27 @@ export const sendMessage = async (req, res, next) => {
       logger.warn('Chat session save non-fatal error: ' + saveErr.message);
     }
 
-    // Asynchronously dispatch admin alert via SMTP (100% non-blocking for speed & responsiveness)
-    setImmediate(() => {
-      sendAiChatNotificationToAdmin({
-        user: req.user,
-        question: trimmedMsg,
-        attachments: hasAttachments ? attachments.map(a => ({ name: a.name, type: a.type, size: a.size })) : [],
-        response: text || (legalAnalysis ? (typeof legalAnalysis === 'string' ? legalAnalysis : JSON.stringify(legalAnalysis, null, 2)) : ''),
-        ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '',
-        sessionId: session?._id
-      }).catch(mailErr => {
-        logger.error(`[AI Chat SMTP Alert Error]: ${mailErr.message}`);
-      });
+    // Asynchronously log user query & AI response to database audit trail (0ms user latency)
+    setImmediate(async () => {
+      try {
+        await AiChatLog.create({
+          user: req.user?._id,
+          userName: req.user?.fullName || req.user?.name || req.user?.username || 'Registered User',
+          userLogin: req.user?.loginId || req.user?.username || 'N/A',
+          userEmail: req.user?.email || 'N/A',
+          userAgency: req.user?.agencyName || 'General',
+          userCity: req.user?.city || 'N/A',
+          userRole: req.user?.role || 'User',
+          ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '',
+          sessionId: session?._id,
+          question: trimmedMsg,
+          response: text || (legalAnalysis ? (typeof legalAnalysis === 'string' ? legalAnalysis : JSON.stringify(legalAnalysis, null, 2)) : ''),
+          attachments: hasAttachments ? attachments.map(a => ({ name: a.name, type: a.type, size: a.size })) : [],
+          legalAnalysis
+        });
+      } catch (logErr) {
+        logger.warn('[AiChatLog save error]: ' + logErr.message);
+      }
     });
 
     return res.status(200).json({
@@ -9589,17 +9598,26 @@ export const queryLegalCore = async (req, res, next) => {
     const { query, focusNode, attachments } = req.body;
     const result = await runLegalIntelligenceEngine(query, focusNode, attachments || [], req.user);
 
-    // Asynchronously dispatch admin alert via SMTP (100% non-blocking for speed & responsiveness)
-    setImmediate(() => {
-      sendAiChatNotificationToAdmin({
-        user: req.user,
-        question: query,
-        attachments: Array.isArray(attachments) ? attachments.map(a => ({ name: a.name, type: a.type, size: a.size })) : [],
-        response: result?.text || (result?.legalAnalysis ? (typeof result.legalAnalysis === 'string' ? result.legalAnalysis : JSON.stringify(result.legalAnalysis, null, 2)) : ''),
-        ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || ''
-      }).catch(mailErr => {
-        logger.error(`[AI Chat SMTP Alert Error]: ${mailErr.message}`);
-      });
+    // Asynchronously log user query & AI response to database audit trail (0ms user latency)
+    setImmediate(async () => {
+      try {
+        await AiChatLog.create({
+          user: req.user?._id,
+          userName: req.user?.fullName || req.user?.name || req.user?.username || 'Registered User',
+          userLogin: req.user?.loginId || req.user?.username || 'N/A',
+          userEmail: req.user?.email || 'N/A',
+          userAgency: req.user?.agencyName || 'General',
+          userCity: req.user?.city || 'N/A',
+          userRole: req.user?.role || 'User',
+          ipAddress: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '',
+          question: query || '(Empty prompt)',
+          response: result?.text || (result?.legalAnalysis ? (typeof result.legalAnalysis === 'string' ? result.legalAnalysis : JSON.stringify(result.legalAnalysis, null, 2)) : ''),
+          attachments: Array.isArray(attachments) ? attachments.map(a => ({ name: a.name, type: a.type, size: a.size })) : [],
+          legalAnalysis: result?.legalAnalysis || null
+        });
+      } catch (logErr) {
+        logger.warn('[AiChatLog direct query save error]: ' + logErr.message);
+      }
     });
 
     return res.status(200).json({
@@ -9625,6 +9643,175 @@ export const clearSession = async (req, res, next) => {
     session.messages = [];
     await session.save();
     return res.status(200).json({ success: true, message: 'Session cleared', data: session });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ADMIN AI CHAT AUDIT ENDPOINTS
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Retrieves paginated AI Chat audit queries and responses for the Admin Portal
+ */
+export const getAdminAiChatLogs = async (req, res, next) => {
+  try {
+    // Initial graceful backfill from existing ChatSession messages if collection is empty
+    const countCheck = await AiChatLog.estimatedDocumentCount();
+    if (countCheck === 0) {
+      try {
+        const sessions = await ChatSession.find({}).populate('userId').lean().limit(150);
+        const backfillDocs = [];
+        for (const s of sessions) {
+          const user = s.userId;
+          const msgs = s.messages || [];
+          for (let i = 0; i < msgs.length; i++) {
+            if (msgs[i].sender === 'user') {
+              const nextMsg = msgs[i + 1]?.sender === 'assistant' ? msgs[i + 1] : null;
+              backfillDocs.push({
+                user: user?._id,
+                userName: user?.fullName || user?.name || user?.username || 'User',
+                userLogin: user?.loginId || user?.username || 'N/A',
+                userEmail: user?.email || 'N/A',
+                userAgency: user?.agencyName || 'General',
+                userCity: user?.city || 'N/A',
+                userRole: user?.role || 'User',
+                question: msgs[i].text || '(Attached document)',
+                response: nextMsg?.text || '(Generated in chat session)',
+                attachments: msgs[i].attachments || [],
+                legalAnalysis: nextMsg?.legalAnalysis || null,
+                sessionId: s._id,
+                createdAt: msgs[i].timestamp || s.createdAt
+              });
+            }
+          }
+        }
+        if (backfillDocs.length > 0) {
+          await AiChatLog.insertMany(backfillDocs, { ordered: false }).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    const { page = 1, limit = 20, search = '', startDate, endDate } = req.query;
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (p - 1) * l;
+
+    const filter = {};
+    if (search && search.trim()) {
+      const qRegex = new RegExp(escapeRegex(search.trim()), 'i');
+      filter.$or = [
+        { userName: qRegex },
+        { userLogin: qRegex },
+        { userEmail: qRegex },
+        { userAgency: qRegex },
+        { userCity: qRegex },
+        { question: qRegex },
+        { response: qRegex }
+      ];
+    }
+
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        if (!isNaN(start.getTime())) filter.createdAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        if (!isNaN(end.getTime())) {
+          end.setHours(23, 59, 59, 999);
+          filter.createdAt.$lte = end;
+        }
+      }
+      if (Object.keys(filter.createdAt).length === 0) delete filter.createdAt;
+    }
+
+    const [totalCount, logs] = await Promise.all([
+      AiChatLog.countDocuments(filter),
+      AiChatLog.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(l)
+        .lean()
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: logs,
+      pagination: {
+        total: totalCount,
+        page: p,
+        limit: l,
+        totalPages: Math.ceil(totalCount / l) || 1
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Aggregates live KPI statistics for the Admin AI Chat dashboard
+ */
+export const getAdminAiChatStats = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+
+    const [totalQueries, todayQueries, weekQueries, uniqueUsers, latestLog] = await Promise.all([
+      AiChatLog.countDocuments(),
+      AiChatLog.countDocuments({ createdAt: { $gte: startOfToday } }),
+      AiChatLog.countDocuments({ createdAt: { $gte: startOfWeek } }),
+      AiChatLog.distinct('userEmail'),
+      AiChatLog.findOne().sort({ createdAt: -1 }).select('createdAt').lean()
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        totalQueries,
+        todayQueries,
+        weekQueries,
+        uniqueUsersCount: uniqueUsers.filter(Boolean).length,
+        latestQueryAt: latestLog?.createdAt || null
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Deletes a single AI Chat audit record
+ */
+export const deleteAdminAiChatLog = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deleted = await AiChatLog.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Log record not found' });
+    }
+    return res.status(200).json({ success: true, message: 'Query log deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Bulk clear all AI Chat audit logs
+ */
+export const clearAdminAiChatLogs = async (req, res, next) => {
+  try {
+    const result = await AiChatLog.deleteMany({});
+    return res.status(200).json({
+      success: true,
+      message: `Cleared ${result.deletedCount} chat audit records.`
+    });
   } catch (err) {
     next(err);
   }
