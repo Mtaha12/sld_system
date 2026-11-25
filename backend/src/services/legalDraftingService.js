@@ -1397,7 +1397,9 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
     primaryModel,
     'gemini-flash-lite-latest',
     'gemini-3.5-flash-lite',
-    'gemini-3.8-flash'
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3.6-flash'
   ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
   let lastError = null;
@@ -1458,10 +1460,13 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
       }
 
       if (data.error) {
-        logger.warn(`Gemini model ${model} returned error: ${data.error.message || data.error.code}`);
-        lastError = new Error(data.error.message || `API error ${data.error.code}`);
-        if (data.error.code === 429 || (data.error.message && data.error.message.includes('quota'))) {
-          await new Promise(r => setTimeout(r, 200));
+        const errMsg = data.error.message || `API error ${data.error.code}`;
+        logger.warn(`Gemini model ${model} returned error: ${errMsg}`);
+        lastError = new Error(errMsg);
+        const isTransientOrQuota = data.error.code === 429 || data.error.code === 503 ||
+          errMsg.includes('quota') || errMsg.includes('high demand') || errMsg.includes('temporary') || errMsg.includes('RESOURCE_EXHAUSTED');
+        if (isTransientOrQuota) {
+          await new Promise(r => setTimeout(r, 150));
         }
       }
     } catch (err) {
