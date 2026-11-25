@@ -166,14 +166,27 @@ export const checkIsLegalDraftingRequest = (text, attachments = []) => {
     return false;
   }
 
+  // Any query referencing an existing case proceeding, case number, or inquiring about status/appeal/challenge is RESEARCH, NOT drafting
+  const isCaseNumberOrInquiry = /\b(?:(?:writ\s*petition|w\.?p\.?|c\.?p\.?|c\.?a\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?t\.?r\.?|case|appeal)\s*(?:no\.?|#|number|nos\.?)?:?\s*\d+|\d+\s*(?:to|-)\s*\d+|\d+\s*(?:\/|\s+of\s+)\s*\d{4})\b/i.test(t) ||
+    /\b(?:challenged|appealed|assailed|overruled|upheld|affirmed|pending|status\s+of|decision\s+date[d]?|decided\s+on|dates?\s+of\s+hearing|what\s+happened|is\s+there\s+any\s+appeal|appeal\s+filed|challenged\s+in|ica\s+or\s+supreme\s*court)\b/i.test(t);
+  if (isCaseNumberOrInquiry && !isExplicitDraftAction) {
+    return false;
+  }
+
   const isInfoQuestion = /\b(?:what\s+is|time\s+limit|limitation\s+period|period\s+of\s+limitation|how\s+many\s+days|court\s+fee)\b/i.test(t) && !/\b(?:draft|create|write|make|generate|prepare|reply|file)\b/i.test(t);
   if (isInfoQuestion) {
     return false;
   }
 
+  // Exact standalone format triggers
+  const exactShortcuts = ['format 1', 'format 2', 'format 3', 'format 4', 'format 5', 'format 6', 'format 7', 'format 8', 'format 9', 'writ petition', 'article 199', 'vakalatnama', 'vakalat nama'];
+  if (exactShortcuts.includes(t.trim())) {
+    return true;
+  }
+
   const draftingKeywords = [
     'format 1', 'format 2', 'format 3', 'format 4', 'format 5', 'format 6', 'format 7', 'format 8', 'format 9',
-    'writ petition', 'article 199', 'petition under article 199',
+    'draft writ petition', 'file writ petition', 'prepare writ petition', 'petition under article 199',
     'stay petition', 'stay application', 'cm stay', 'c.m stay', 'c.m. stay', 'interim stay',
     'exemption petition', 'application for exemption', 'vakalatnama', 'vakalat nama',
     'form b', 'form "b"', 'appeal to appellate tribunal', 'appeal to tribunal', 'appeal before tribunal',
