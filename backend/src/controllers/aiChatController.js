@@ -252,10 +252,35 @@ export const searchStatutes = async (queryText) => {
 
     // 3. Extract Law / Statute name if present
     // e.g. "Income Tax Ordinance", "Sales Tax Act", "Customs Act", "Companies Act"
-    const lawMatch = cleanQ.match(/(?:of\s+the\s+|in\s+the\s+|under\s+)?([a-zA-Z\s]+(?:ordinance|act|statute|rules?|code|constitution)(?:\s*,?\s*\d{4})?)/i);
-    let lawName = lawMatch ? lawMatch[1].trim() : '';
+    let lawName = '';
+    const lawMatch = cleanQ.match(/(?:of\s+(?:the\s+)?|in\s+(?:the\s+)?|under\s+(?:the\s+)?|for\s+(?:the\s+)?)([a-zA-Z\s]+(?:ordinance|act|statute|rules?|code|constitution)(?:\s*,?\s*\d{4})?)/i) ||
+                     cleanQ.match(/([a-zA-Z\s]+(?:ordinance|act|statute|rules?|code|constitution)(?:\s*,?\s*\d{4})?)/i);
+    if (lawMatch) {
+      lawName = lawMatch[1].replace(/^(?:of\s+(?:the\s+)?|in\s+(?:the\s+)?|under\s+(?:the\s+)?|for\s+(?:the\s+)?)/i, '').trim();
+    }
     if (secMatch && lawName) {
       lawName = lawName.replace(/(?:sec(?:tion)?|art(?:icle)?)\.?\s*\d+[a-z0-9()]*/i, '').trim();
+    }
+
+    // Explicit detection for primary Pakistani tax & commercial enactments
+    let detectedLawPattern = null;
+    if (/\bsales\s*tax\b/i.test(rawQ)) {
+      detectedLawPattern = /sales\s*tax/i;
+      if (!lawName) lawName = 'Sales Tax Act, 1990';
+    } else if (/\bincome\s*tax\b/i.test(rawQ)) {
+      detectedLawPattern = /income\s*tax/i;
+      if (!lawName) lawName = 'Income Tax Ordinance, 2001';
+    } else if (/\bcustoms\b/i.test(rawQ)) {
+      detectedLawPattern = /customs/i;
+      if (!lawName) lawName = 'Customs Act, 1969';
+    } else if (/\bfederal\s*excise\b/i.test(rawQ)) {
+      detectedLawPattern = /federal\s*excise/i;
+      if (!lawName) lawName = 'Federal Excise Act, 2005';
+    } else if (/\bcompanies\b/i.test(rawQ)) {
+      detectedLawPattern = /companies/i;
+      if (!lawName) lawName = 'Companies Act, 2017';
+    } else if (lawName && lawName.length > 2) {
+      detectedLawPattern = new RegExp(escapeRegex(lawName), 'i');
     }
 
     // Fallback: If section was not found via "section X", check for number directly following an Act/Ordinance
@@ -266,89 +291,163 @@ export const searchStatutes = async (queryText) => {
       }
     }
 
+    // Compute base main section if a sub-section was specified (e.g. "122(5A)" -> base "122")
+    const baseSecNum = secNum ? secNum.replace(/\(.*$/, '').trim() : null;
+
     // A. Priority 1: Search Statute collection by Section
     if (secNum) {
-      const secRegex = new RegExp(`^${escapeRegex(secNum)}$`, 'i');
-      const secWordRegex = new RegExp(`\\b${escapeRegex(secNum)}\\b`, 'i');
+      const secRegexList = [
+        new RegExp(`^${escapeRegex(secNum)}$`, 'i'),
+        new RegExp(`\\b${escapeRegex(secNum)}\\b`, 'i')
+      ];
+      if (baseSecNum && baseSecNum !== secNum) {
+        secRegexList.push(
+          new RegExp(`^${escapeRegex(baseSecNum)}$`, 'i'),
+          new RegExp(`\\b${escapeRegex(baseSecNum)}\\b`, 'i')
+        );
+      }
 
       const statuteQuery = { isDeleted: false };
-      if (lawName && lawName.length > 2) {
+      if (detectedLawPattern) {
+        statuteQuery.law = detectedLawPattern;
+      } else if (lawName && lawName.length > 2) {
         statuteQuery.law = new RegExp(escapeRegex(lawName), 'i');
       }
 
-      statuteQuery.$or = [
-        { section: secRegex },
-        { section: secWordRegex },
-        { heading: secWordRegex },
-        { 'blocks.sectionHeading': secWordRegex }
-      ];
+      const secConditions = [];
+      secRegexList.forEach(rx => {
+        secConditions.push(
+          { section: rx },
+          { heading: rx },
+          { 'blocks.sectionHeading': rx }
+        );
+      });
+      statuteQuery.$or = secConditions;
 
-      let results = await Statute.find(statuteQuery).limit(10).lean();
+      let results = await Statute.find(statuteQuery).limit(15).lean();
 
       // If not found with law filter, relax law filter and search across all statutes for this section
-      if ((!results || results.length === 0) && lawName) {
+      if ((!results || results.length === 0) && (detectedLawPattern || (lawName && lawName.length > 2))) {
         delete statuteQuery.law;
-        results = await Statute.find(statuteQuery).limit(10).lean();
+        results = await Statute.find(statuteQuery).limit(15).lean();
       }
 
       if (results && results.length > 0) {
         results.sort((a, b) => {
-          if (lawName) {
-            const aLaw = String(a.law || '').toLowerCase().includes(lawName.toLowerCase());
-            const bLaw = String(b.law || '').toLowerCase().includes(lawName.toLowerCase());
-            if (aLaw !== bLaw) return bLaw ? 1 : -1;
+          // 1. Strict Law match priority (e.g. Sales Tax Act before Income Tax Rules when sales tax is queried)
+          if (detectedLawPattern) {
+            const aLawMatch = detectedLawPattern.test(String(a.law || ''));
+            const bLawMatch = detectedLawPattern.test(String(b.law || ''));
+            if (aLawMatch !== bLawMatch) return bLawMatch ? 1 : -1;
           }
+
+          // 2. Exact requested Section match priority (e.g. Section 122(5A) or base Section 122 before unrelated sections)
+          const aSecExact = String(a.section || '').trim().toLowerCase() === secNum.toLowerCase();
+          const bSecExact = String(b.section || '').trim().toLowerCase() === secNum.toLowerCase();
+          if (aSecExact !== bSecExact) return bSecExact ? 1 : -1;
+
+          const aBaseExact = Boolean(baseSecNum && String(a.section || '').trim().toLowerCase() === baseSecNum.toLowerCase());
+          const bBaseExact = Boolean(baseSecNum && String(b.section || '').trim().toLowerCase() === baseSecNum.toLowerCase());
+          if (aBaseExact !== bBaseExact) return bBaseExact ? 1 : -1;
+
           return (b.srNumberInt || 0) - (a.srNumberInt || 0);
         });
-        return results;
+
+        // If a specific section was searched, filter out totally unrelated sections
+        const strictlyRelevant = results.filter(s => {
+          const sSec = String(s.section || '').toLowerCase();
+          return sSec === secNum.toLowerCase() || (baseSecNum && (sSec === baseSecNum.toLowerCase() || sSec.startsWith(baseSecNum)));
+        });
+        if (strictlyRelevant.length > 0) {
+          results = strictlyRelevant;
+        }
+
+        return results.slice(0, 5);
       }
     }
 
     // B. Priority 2: Text index search on Statute collection
     const searchRegex = new RegExp(escapeRegex(cleanQ), 'i');
     try {
-      const textMatches = await Statute.find({
-        $text: { $search: cleanQ.replace(/[^a-zA-Z0-9\s]/g, ' ').trim() },
-        isDeleted: false
-      }).limit(5).lean();
-      if (textMatches && textMatches.length > 0) return textMatches;
+      const textQuery = { isDeleted: false, $text: { $search: cleanQ.replace(/[^a-zA-Z0-9\s]/g, ' ').trim() } };
+      if (detectedLawPattern) textQuery.law = detectedLawPattern;
+      let textMatches = await Statute.find(textQuery).limit(10).lean();
+      if ((!textMatches || textMatches.length === 0) && detectedLawPattern) {
+        delete textQuery.law;
+        textMatches = await Statute.find(textQuery).limit(10).lean();
+      }
+      if (textMatches && textMatches.length > 0) {
+        if (detectedLawPattern) {
+          textMatches.sort((a, b) => {
+            const aLaw = detectedLawPattern.test(String(a.law || ''));
+            const bLaw = detectedLawPattern.test(String(b.law || ''));
+            if (aLaw !== bLaw) return bLaw ? 1 : -1;
+            return 0;
+          });
+        }
+        return textMatches.slice(0, 5);
+      }
     } catch (sTextErr) {}
 
     // C. Priority 3: Fallback search on Statute metadata fields
+    const metaConditions = [
+      { law: searchRegex },
+      { section: searchRegex },
+      { heading: searchRegex }
+    ];
     const metaMatches = await Statute.find({
       isDeleted: false,
-      $or: [
-        { law: searchRegex },
-        { section: searchRegex },
-        { heading: searchRegex }
-      ]
+      $or: metaConditions
     }).limit(5).lean();
 
-    if (metaMatches && metaMatches.length > 0) return metaMatches;
+    if (metaMatches && metaMatches.length > 0) {
+      if (detectedLawPattern) {
+        metaMatches.sort((a, b) => {
+          const aLaw = detectedLawPattern.test(String(a.law || ''));
+          const bLaw = detectedLawPattern.test(String(b.law || ''));
+          if (aLaw !== bLaw) return bLaw ? 1 : -1;
+          return 0;
+        });
+      }
+      return metaMatches;
+    }
 
     // D. Priority 4: Search authoritative Case Law records decided on this Section
     if (secNum) {
+      const secRegexList = [
+        new RegExp(`^${escapeRegex(secNum)}$`, 'i'),
+        new RegExp(`\\b${escapeRegex(secNum)}\\b`, 'i')
+      ];
+      if (baseSecNum && baseSecNum !== secNum) {
+        secRegexList.push(
+          new RegExp(`^${escapeRegex(baseSecNum)}$`, 'i'),
+          new RegExp(`\\b${escapeRegex(baseSecNum)}\\b`, 'i')
+        );
+      }
+
       const caseCond = {
         isDeleted: false,
-        'laws.section': new RegExp(`^${escapeRegex(secNum)}$`, 'i'),
+        'laws.section': { $in: secRegexList },
         court: { $not: /India|Supreme Court of India/i }
       };
-      if (lawName && lawName.length > 2) {
+      if (detectedLawPattern) {
+        caseCond['laws.lawStatute'] = detectedLawPattern;
+      } else if (lawName && lawName.length > 2) {
         caseCond['laws.lawStatute'] = new RegExp(escapeRegex(lawName), 'i');
       }
 
       let matchedCases = await Case.find(caseCond)
         .select('sldNumber citation caseTitle caseNumber court judges dated judgmentDate decisionDate headNote laws principleLaw mapYearPage')
         .sort({ sldNumberInt: -1, createdAt: -1 })
-        .limit(5)
+        .limit(10)
         .lean();
 
-      if ((!matchedCases || matchedCases.length === 0) && lawName) {
+      if ((!matchedCases || matchedCases.length === 0) && (detectedLawPattern || lawName)) {
         delete caseCond['laws.lawStatute'];
         matchedCases = await Case.find(caseCond)
           .select('sldNumber citation caseTitle caseNumber court judges dated judgmentDate decisionDate headNote laws principleLaw mapYearPage')
           .sort({ sldNumberInt: -1, createdAt: -1 })
-          .limit(5)
+          .limit(10)
           .lean();
       }
 
@@ -357,8 +456,8 @@ export const searchStatutes = async (queryText) => {
           ...c,
           isJudicialPrecedent: true,
           searchedSection: secNum,
-          searchedLaw: lawName || (c.laws?.find(l => String(l.section).toLowerCase() === secNum.toLowerCase())?.lawStatute) || 'Statutory Enactment'
-        }));
+          searchedLaw: lawName || (c.laws?.find(l => String(l.section).toLowerCase() === secNum.toLowerCase() || (baseSecNum && String(l.section).toLowerCase() === baseSecNum.toLowerCase()))?.lawStatute) || 'Statutory Enactment'
+        })).slice(0, 5);
       }
     }
 
@@ -699,9 +798,15 @@ export const formatStatutesResponse = (results, queryText) => {
 
       if (currentBlock && (currentBlock.detail || currentBlock.sectionHeading)) {
         const fromD = currentBlock.fromDate ? new Date(currentBlock.fromDate).toLocaleDateString() : 'Current Applicable Law';
-        text += `\n#### 🏛️ Current Applicable Statutory Text (Effective: ${fromD}):\n` +
+        const rawDetail = (currentBlock.detail || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const conciseDetail = rawDetail.length > 500
+          ? rawDetail.slice(0, 480).trim() + '...'
+          : rawDetail;
+
+        text += `\n#### 🏛️ Statutory Provision Summary (Effective: ${fromD}):\n` +
           (currentBlock.sectionHeading ? `**${currentBlock.sectionHeading}**\n` : '') +
-          `${(currentBlock.detail || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()}\n\n`;
+          (conciseDetail ? `${conciseDetail}\n\n` : '') +
+          (sldLink ? `🔗 **Official Statute Provision**: ${sldLink}\n\n` : '\n');
       }
     }
   }
@@ -2443,9 +2548,9 @@ export const detectResponseIntent = (rawQuery) => {
 
   // Type A: Judgment Request (Specific document inspection)
   const isJudgmentRequest = !isParagraphRequest && !isBroadSearch && (
-    /\b(?:show|give\s*me|view|read|open|display|get)\s*(?:the\s*)?(?:full\s*|complete\s*|original\s*)?judgm?ents?\b/i.test(q) ||
+    /\b(?:show|give\s*me|view|read|open|display|get|provide|kindly\s+provide|please\s+provide)\s*(?:me\s+)?(?:the\s*)?(?:full\s*|complete\s*|original\s*)?judgm?ents?\b/i.test(q) ||
     /\b(?:full|complete|original)\s*judgm?ents?\b/i.test(q) ||
-    /\bfind\s*(?:the\s*)?judgm?ent\s*(?:in|of|for)\b/i.test(q) ||
+    /\b(?:find|get|provide)\s*(?:the\s*)?judgm?ent\s*(?:in|of|for|regarding)\b/i.test(q) ||
     /\bopen\s*(?:the\s*)?judgm?ent\b/i.test(q)
   );
 
@@ -3009,7 +3114,7 @@ export const normalizeCaseType = (typeStr) => {
   if (/\b(?:special\s+sales\s+tax\s+ref(?:erence)?(?:\s+app(?:lication)?)?|s\.?s\.?t\.?r\.?a\.?)\b/i.test(s)) return 'sstra';
   if (/\b(?:special\s+sales\s+tax\s+appeal|s\.?s\.?t\.?a\.?)\b/i.test(s)) return 'ssta';
   if (/\b(?:sales\s+tax\s+appeal|s\.?t\.?a\.?)\b/i.test(s)) return 'sta';
-  if (/\b(?:income\s+tax\s+appeal|i\.?t\.?a\.?)\b/i.test(s)) return 'ita';
+  if (/\b(?:income[\s-]*tax\s+appeal|i\.?t\.?a\.?)\b/i.test(s)) return 'ita';
   if (/\b(?:customs?\s+tax\s+ref(?:erence)?|c\.?t\.?r\.?|tax\s+reference)\b/i.test(s)) return 'ctr';
   if (/\b(?:income\s+tax\s+ref(?:erence)?(?:\s+app(?:lication)?)?|i\.?t\.?r\.?a\.?)\b/i.test(s)) return 'itra';
   if (/\b(?:constitutional\s+petition|const\.?\s*p\.?)\b/i.test(s)) return 'const_p';
@@ -3032,12 +3137,29 @@ export const normalizeCaseType = (typeStr) => {
 };
 
 /**
- * Extracts normalized case type prefix from judgment caseNumber text
+ * Extracts all distinct normalized case type prefixes from judgment caseNumber text
+ */
+export const extractAllCaseTypesFromCaseNumber = (text) => {
+  if (!text || typeof text !== 'string') return [];
+  const regex = /\b(special\s+sales\s+tax\s+reference\s+application|s\.?s\.?t\.?r\.?a\.?|special\s+sales\s+tax\s+appeal|s\.?s\.?t\.?a\.?|sales\s+tax\s+appeal|income[\s-]*tax\s+appeal|customs?\s+tax\s+appeal|tax\s+appeal|customs?\s+appeal|tax\s+reference|customs?\s+reference|civil\s+appeal|writ\s+petition|constitutional\s+petition|const\.?\s*p\.?|civil\s+petition|c\.?p\.?l\.?a\.?|civil\s+revision|execution\s+first\s+appeal|regular\s+first\s+appeal|high\s+court\s+appeal|criminal\s+appeal|criminal\s+petition|criminal\s+miscellaneous|cr\.?\s*misc|cr\.?\s*bail|civil\s+tran(?:sfer)?|cr\.?\s*tran(?:sfer)?|i\.?t\.?r\.?a\.?|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?p\.?|c\.?a\.?|w\.?p\.?|c\.?r\.?|r\.?f\.?a\.?|e\.?f\.?a\.?|h\.?c\.?a\.?|cr\.?\s*a\.?|suits?)\b/gi;
+  const matches = [];
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    const code = normalizeCaseType(m[1]);
+    if (code && !matches.includes(code)) {
+      matches.push(code);
+    }
+  }
+  return matches;
+};
+
+/**
+ * Extracts primary normalized case type prefix from judgment caseNumber text
  */
 export const extractCaseTypeFromCaseNumber = (text) => {
   if (!text || typeof text !== 'string') return null;
-  const m = text.match(/(?:special\s+sales\s+tax\s+reference\s+application|s\.?s\.?t\.?r\.?a\.?|special\s+sales\s+tax\s+appeal|s\.?s\.?t\.?a\.?|sales\s+tax\s+appeal|income\s+tax\s+appeal|tax\s+appeal|customs?\s+appeal|tax\s+reference|customs?\s+reference|civil\s+appeal|writ\s+petition|constitutional\s+petition|const\.?\s*p\.?|civil\s+petition|c\.?p\.?l\.?a\.?|civil\s+revision|execution\s+first\s+appeal|regular\s+first\s+appeal|high\s+court\s+appeal|criminal\s+appeal|criminal\s+petition|criminal\s+miscellaneous|cr\.?\s*misc|cr\.?\s*bail|civil\s+tran(?:sfer)?|cr\.?\s*tran(?:sfer)?|i\.?t\.?r\.?a|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?p\.?|c\.?a\.?|w\.?p\.?|c\.?r\.?|r\.?f\.?a\.?|e\.?f\.?a\.?|h\.?c\.?a\.?|cr\.?\s*a\.?|suits?)/i);
-  return m ? normalizeCaseType(m[0]) : null;
+  const all = extractAllCaseTypesFromCaseNumber(text);
+  return all.length > 0 ? all[0] : null;
 };
 
 /**
@@ -3084,7 +3206,7 @@ export const extractCaseNumberQueryInfo = (rawQuery) => {
   }
 
   // Pattern 2: Case Type + Case Number range without year
-  // (e.g. "Special Sales Tax Appeal No.192 to 196", "W.P. No. 1038", "ITA No. 2966")
+  // (e.g. "Special Sales Tax Appeal No.192 to 196", "W.P. No. 1038", "ITA No. 2966", "ita 1590")
   const p2 = /(?:(special\s+sales\s+tax\s+appeal|sales\s+tax\s+appeal|income\s+tax\s+appeal|tax\s+appeal|customs?\s+appeal|civil\s+appeal|writ\s+petition|constitutional\s+petition|const\.?\s*p\.?|civil\s+petition|civil\s+revision|execution\s+first\s+appeal|regular\s+first\s+appeal|high\s+court\s+appeal|criminal\s+appeal|criminal\s+miscellaneous|cr\.?\s*misc|cr\.?\s*bail|civil\s+tran(?:sfer)?|cr\.?\s*tran(?:sfer)?|i\.?t\.?r\.?a|c\.?t\.?r\.?|i\.?t\.?a\.?|s\.?t\.?a\.?|c\.?p\.?|c\.?a\.?|w\.?p\.?|c\.?r\.?|r\.?f\.?a\.?|e\.?f\.?a\.?|h\.?c\.?a\.?|cr\.?\s*a\.?|suits?|case|appeal|petition)\s*(?:no\.?|nos\.?|#)?:?\s*)(\d+)\s*(?:(to|-)\s*(\d+))?/i;
   const m2 = clean.match(p2);
   if (m2 && (m2[1] || m2[3])) {
@@ -3125,6 +3247,26 @@ export const extractCaseNumberQueryInfo = (rawQuery) => {
     };
   }
 
+  // Pattern 4: Case Number + Registry/Bench without year (e.g. "556/IB", "1590/LB", "2966/KB", "1038/PB")
+  const p4 = /\b(\d+)\s*\/\s*(LB|KB|PB|IB|L|K|P|I)\b/i;
+  const m4 = clean.match(p4);
+  if (m4) {
+    return {
+      isCaseQuery: true,
+      caseType: null,
+      rawCaseType: '',
+      caseNum: m4[1].trim(),
+      caseNumEnd: null,
+      benchRegistry: m4[2].toUpperCase(),
+      extra: '',
+      year: null,
+      requestedDate,
+      courtInfo,
+      rawMatched: m4[0].trim(),
+      displayQuery: clean
+    };
+  }
+
   return null;
 };
 
@@ -3152,19 +3294,63 @@ export const validateCaseAgainstQuery = (c, qInfo) => {
 
   // 2. Case Type validation
   if (qInfo.caseType && qInfo.caseType !== 'case' && qInfo.caseType !== 'appeal' && qInfo.caseType !== 'petition') {
-    const cType = extractCaseTypeFromCaseNumber(fullCaseStr);
-    if (cType && cType !== 'case' && cType !== 'appeal' && cType !== 'petition') {
-      const isStaCompatible = (qInfo.caseType === 'sta' && cType === 'ssta') || (qInfo.caseType === 'ssta' && cType === 'sta');
-      if (cType !== qInfo.caseType && !isStaCompatible) {
+    const allTypes = extractAllCaseTypesFromCaseNumber(fullCaseStr);
+    if (allTypes.length > 0) {
+      const isMatch = allTypes.some(cType => {
+        if (cType === qInfo.caseType) return true;
+        const isStaCompatible = (qInfo.caseType === 'sta' && cType === 'ssta') || (qInfo.caseType === 'ssta' && cType === 'sta');
+        if (isStaCompatible) return true;
+        return false;
+      });
+      if (!isMatch) {
+        return false;
+      }
+    } else {
+      // Direct string fallback check for abbreviations
+      if (qInfo.caseType === 'ita' && !/\b(?:i\.?t\.?a\.?|income[\s-]*tax\s+appeal)\b/i.test(fullCaseStr)) {
+        return false;
+      }
+      if (qInfo.caseType === 'sta' && !/\b(?:s\.?t\.?a\.?|s\.?s\.?t\.?a\.?|sales\s+tax\s+appeal)\b/i.test(fullCaseStr)) {
         return false;
       }
     }
   }
 
-  // 3. Bench / Registry validation (e.g. LB vs Karachi)
-  if (qInfo.benchRegistry === 'LB' || qInfo.benchRegistry === 'L') {
-    if (/sindh\s*high\s*court|karachi\b|\bshc\b/i.test(courtStr) && !/lahore\b|\blhc\b/i.test(courtStr)) {
-      return false;
+  // 3. Bench / Registry validation (e.g. LB, IB, KB, PB, L, K, P, I)
+  if (qInfo.benchRegistry) {
+    const bCode = qInfo.benchRegistry.toUpperCase();
+    if (bCode === 'LB' || bCode === 'L') {
+      if (/sindh\s*high\s*court|karachi\b|\bshc\b/i.test(courtStr) && !/lahore\b|\blhc\b/i.test(courtStr)) {
+        return false;
+      }
+      if (bCode === 'LB' && !/\b(?:lb|lahore|lhc)\b/i.test(fullCaseStr) && !/\b(?:lahore|lhc)\b/i.test(courtStr)) {
+        return false;
+      }
+    } else if (bCode === 'KB' || bCode === 'K') {
+      if (/lahore\s*high\s*court|lhc\b/i.test(courtStr) && !/sindh\b|\bshc\b/i.test(courtStr)) {
+        return false;
+      }
+      if (bCode === 'KB' && !/\b(?:kb|karachi|shc|sindh)\b/i.test(fullCaseStr) && !/\b(?:sindh|karachi|shc)\b/i.test(courtStr)) {
+        return false;
+      }
+    } else if (bCode === 'IB' || bCode === 'I') {
+      if (!/\b(?:ib|islamabad)\b/i.test(fullCaseStr) && !/\b(?:islamabad|ihc)\b/i.test(courtStr)) {
+        return false;
+      }
+    } else if (bCode === 'PB' || bCode === 'P') {
+      if (!/\b(?:pb|peshawar)\b/i.test(fullCaseStr) && !/\b(?:peshawar|phc)\b/i.test(courtStr)) {
+        return false;
+      }
+    }
+
+    // If the candidate case number contains an explicit bench suffix or code, verify consistency
+    const benchSuffixMatch = fullCaseStr.match(/[\/\-\s](LB|KB|PB|IB|L|K|P|I)(?:[\/\-\s]|$)/i);
+    if (benchSuffixMatch) {
+      const candBench = benchSuffixMatch[1].toUpperCase();
+      const normalizeBench = (b) => (b === 'L' ? 'LB' : b === 'K' ? 'KB' : b === 'P' ? 'PB' : b === 'I' ? 'IB' : b);
+      if (normalizeBench(candBench) !== normalizeBench(bCode)) {
+        return false;
+      }
     }
   }
 
@@ -3241,8 +3427,8 @@ const cleanUserQuery = (raw) => {
   q = q.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 
   // Strip conversational wrappers
-  q = q.replace(/^(?:show\s+me\s+this\s+case\s+document|show\s+me\s+case\s+document|show\s+me\s+this\s+case|show\s+me\s+case|show\s+case\s+document|show\s+me|give\s+me\s+this\s+case\s+document|give\s+me\s+case\s+document|give\s+me\s+this\s+case|give\s+me\s+case\s+of|give\s+me\s+document\s+(?:of|for)?|give\s+me\s+this\s+document|give\s+me\s+document|give\s+me|find\s+case\s+document|find\s+case\s+of|find\s+case|find|search\s+for|search\s+case\s+document|search\s+case|search|lookup|look\s+up|tell\s+me\s+about|get\s+case\s+document|get\s+case|get\s+me|what\s+is\s+the\s+case|who\s+was\s+judge\s+in|please\s+provide|please\s+give\s+me|please\s+show|counsel\s+briefing|case\s+document\s+(?:for|of)?)\s+(?:all\s+)?(?:the\s+)?/gi, '');
-  q = q.replace(/^(?:cases?\s+(?:by|of|for|on)|judgments?\s+(?:by|of|for|on|that)|judgements?\s+(?:by|of|for|on|that)|documents?\s+(?:by|of|for|on|that))\s+/gi, '');
+  q = q.replace(/^(?:show\s+me\s+this\s+case\s+document|show\s+me\s+case\s+document|show\s+me\s+this\s+case|show\s+me\s+case|show\s+case\s+document|show\s+me|give\s+me\s+this\s+case\s+document|give\s+me\s+case\s+document|give\s+me\s+this\s+case|give\s+me\s+case\s+of|give\s+me\s+document\s+(?:of|for)?|give\s+me\s+this\s+document|give\s+me\s+document|give\s+me|find\s+case\s+document|find\s+case\s+of|find\s+case|find|search\s+for|search\s+case\s+document|search\s+case|search|lookup|look\s+up|tell\s+me\s+about|get\s+case\s+document|get\s+case|get\s+me|what\s+is\s+the\s+case|who\s+was\s+judge\s+in|kindly\s+provide(?:\s+me)?|please\s+provide(?:\s+me)?|provide(?:\s+me)?|please\s+give\s+me|please\s+show|counsel\s+briefing|case\s+document\s+(?:for|of)?)\s+(?:all\s+)?(?:the\s+)?/gi, '');
+  q = q.replace(/^(?:cases?\s+(?:by|of|for|on|in|regarding)|judgments?\s+(?:by|of|for|on|in|that|regarding)|judgements?\s+(?:by|of|for|on|in|that|regarding)|documents?\s+(?:by|of|for|on|in|that))\s+(?:the\s+)?/gi, '');
   return normalizeLegalTypos(q).trim();
 };
 
@@ -3639,8 +3825,12 @@ const validateJudgeKeywords = (c, query) => {
 const validatePetitionerKeywords = (c, query) => {
   const tokens = extractSearchTokens(query, 3);
   if (tokens.length === 0) return true;
-  const petitionersStr = (Array.isArray(c.petitioners) ? c.petitioners.join(' ') : String(c.petitioners || '')).toLowerCase();
-  return tokens.every(token => petitionersStr.includes(token));
+  const partyStr = (
+    (Array.isArray(c.petitioners) ? c.petitioners.join(' ') : String(c.petitioners || '')) + ' ' +
+    (c.parties || '') + ' ' +
+    (c.caseTitle || '')
+  ).toLowerCase();
+  return tokens.every(token => partyStr.includes(token));
 };
 
 const validateLawyerKeywords = (c, query) => {
@@ -4256,10 +4446,10 @@ export const isPakistaniLegalQuery = (queryText) => {
   if (/\b(?:case|appeal|petition|writ\s*petition|suit|civil\s*revision|ptcl|c\.?\s*p\.?|c\.?\s*a\.?|w\.?\s*p\.?|i\.?\s*t\.?\s*a\.?|s\.?\s*t\.?\s*a\.?|c\.?\s*t\.?\s*r\.?)\s*(?:no\.?|#|nos\.?|[:\-])?\s*\d+/i.test(q)) {
     return true;
   }
-  if (/\b\d+\s*\/\s*(?:lb|khi|isb|pesh|qta|\d{4})\b/i.test(q)) {
+  if (/\b\d+\s*\/\s*(?:lb|kb|pb|ib|khi|isb|pesh|qta|l|k|p|i|\d{4})\b/i.test(q)) {
     return true;
   }
-  if (extractCaseNumberAndYear(queryText)) {
+  if (extractCaseNumberQueryInfo(queryText) || extractCaseNumberAndYear(queryText)) {
     return true;
   }
 
@@ -4282,10 +4472,12 @@ export const isPakistaniLegalQuery = (queryText) => {
   }
 
   // 5. Explicit Case Law, Judgment & Headnote Retrieval Commands & Quoted Phrase Searches
-  if (/\b(?:(?:find|show|get|display|view)\s+(?:the\s+)?(?:full\s+)?judgm?ents?|judgm?ents?\s+(?:containing|discussing)|give\s+(?:me\s+)?case\s*law|case\s*law\s*on|show\s+(?:the\s+)?(?:authentic\s+)?head\s*notes?|authentic\s*head\s*notes?|search\s+cases?|ratio\s*decidendi|legal\s*maxim|principle\s*of\s*law|pleading\s*draft|writ\s*petition|vakalatnama|appellate\s*bench)\b/i.test(q)) {
+  if (/\b(?:(?:find|show|get|display|view|provide|kindly\s+provide|please\s+provide)\s+(?:me\s+)?(?:the\s+)?(?:full\s+)?judgm?ents?|judgm?ents?\s+(?:containing|discussing|of|in|for|regarding)|give\s+(?:me\s+)?case\s*law|case\s*law\s*on|show\s+(?:the\s+)?(?:authentic\s+)?head\s*notes?|authentic\s*head\s*notes?|search\s+cases?|ratio\s*decidendi|legal\s*maxim|principle\s*of\s*law|pleading\s*draft|writ\s*petition|vakalatnama|appellate\s*bench)\b/i.test(q)) {
     return true;
   }
-  if (/\b(?:give|show|find|search|get)\s+(?:me\s+)?(?:cases?|case\s*law|judgm?ents?)\s+(?:with|on|for|under|citing|regarding)\b/i.test(q) ||
+  if (/\b(?:give|show|find|search|get|provide|kindly\s+provide|please\s+provide)\s+(?:me\s+)?(?:cases?|case\s*law|judgm?ents?|decisions?|orders?)\s+(?:with|on|for|under|citing|regarding|of|in)\b/i.test(q) ||
+      /\b(?:cases?|judgm?ents?|orders?)\s+of\s+[a-z0-9]/i.test(q) ||
+      /\b(?:taj\s*international)\b/i.test(q) ||
       /\bcases?\s+(?:with|on|under|citing|for)\s+(?:this|that|the|same)?\s*s\.?r\.?o\.?\b/i.test(q)) {
     return true;
   }
@@ -6376,16 +6568,29 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
               } catch (rErr) {}
             }
           } else {
-            // Case number without year (e.g. "Special Sales Tax Appeal No.192 to 196", "W.P. No. 1038")
+            // Case number without year (e.g. "Special Sales Tax Appeal No.192 to 196", "W.P. No. 1038", "ita 1590", "556/IB")
             const numPattern = new RegExp(`\\b${qInfo.caseNum}\\b`, 'i');
             try {
-              const numCandidates = await Case.find({
-                isDeleted: { $ne: true },
-                caseNumber: numPattern
-              }).sort({ sldNumberInt: -1 }).limit(50).maxTimeMS(3500).lean();
+              // 1. Ultra-fast text index lookup first (< 60ms)
+              const textCandidates = await Case.find({
+                $text: { $search: `"${qInfo.caseNum}"` },
+                isDeleted: { $ne: true }
+              }).limit(100).maxTimeMS(2000).lean();
 
-              matchingCases = numCandidates.filter(c => validateCaseAgainstQuery(c, qInfo));
-            } catch (nErr) {}
+              matchingCases = textCandidates.filter(c => validateCaseAgainstQuery(c, qInfo));
+            } catch (tErr) {}
+
+            // 2. Targeted regex fallback without sort contention to eliminate Mongo multiplanner timeout
+            if (matchingCases.length === 0) {
+              try {
+                const numCandidates = await Case.find({
+                  isDeleted: { $ne: true },
+                  caseNumber: numPattern
+                }).limit(50).maxTimeMS(3500).lean();
+
+                matchingCases = numCandidates.filter(c => validateCaseAgainstQuery(c, qInfo));
+              } catch (nErr) {}
+            }
           }
         }
 
@@ -6625,9 +6830,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
   }
 
   // PRIORITY 5: Petitioner / Litigant / Party Search
-  // (e.g. "petitioner Delta CNG", "Sui Northern Gas", "Sargroh Oil", "Al Karam CNG", "Prosperity Weaving Mills", "need case of Major (R) Muhammad Salahuddin")
+  // (e.g. "petitioner Delta CNG", "Sui Northern Gas", "Sargroh Oil", "Al Karam CNG", "Prosperity Weaving Mills", "need case of Major (R) Muhammad Salahuddin", "judgment of Taj International")
   if (!targetCase) {
-    const partyPrefixMatch = normalizedQuery.match(/^(?:need\s+case\s+of|give\s+me\s+case\s+of|find\s+case\s+of|show\s+case\s+of|case\s+of|petitioner|respondent|party|parties|applicant|litigant)\b\s*[:\-]?\s*(.+)$/i);
+    const partyPrefixMatch = normalizedQuery.match(/^(?:need\s+case\s+of|give\s+me\s+case\s+of|find\s+case\s+of|show\s+case\s+of|case\s+of|cases\s+of|judgment\s+of|judgments\s+of|decision\s+of|order\s+of|orders\s+of|petitioner|respondent|party|parties|applicant|litigant|kindly\s+provide(?:\s+me)?\s+(?:the\s+)?judgm?ents?\s+of|provide(?:\s+me)?\s+(?:the\s+)?judgm?ents?\s+of)\b\s*[:\-]?\s*(.+)$/i);
     const hasVs = /\b(?:vs\.?|v\.?|versus)\b/i.test(normalizedQuery);
     const hasMajorOrTitle = /\b(?:major|m\/s|capt|col|brig|gen|dr\.?)\b/i.test(normalizedQuery);
     const hasDoctrineKeywords = /\b(?:tax|sales|surcharge|income|refund|statute|act|section|order|writ|appeal|maintainable|sustainable|rule|rules|penalty)\b/i.test(normalizedQuery);
@@ -6676,16 +6881,20 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
             }
           }
 
-          // 2. Next, search Main Cases database for matching petitioners
+          // 2. Next, search Main Cases database for matching petitioners / parties / caseTitle
           const partyRegex = makeFlexibleRegex(partyQueryName);
           if (partyRegex) {
             const rawPartyCases = await Case.find({
-              petitioners: partyRegex,
-              isDeleted: { $ne: true }
-            }).limit(15).maxTimeMS(2000).lean();
+              isDeleted: { $ne: true },
+              $or: [
+                { petitioners: partyRegex },
+                { parties: partyRegex },
+                { caseTitle: partyRegex }
+              ]
+            }).limit(20).maxTimeMS(2500).lean();
             rawPartyCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
 
-            // STRICT VALIDATION: Check that candidate cases genuinely contain all petitioner search tokens
+            // STRICT VALIDATION: Check that candidate cases genuinely contain all party search tokens
             matchingPartyCases = rawPartyCases.filter(c => validatePetitionerKeywords(c, partyQueryName));
 
             if (matchingPartyCases.length > 0) {
