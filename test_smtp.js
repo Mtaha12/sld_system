@@ -22,7 +22,9 @@ function resolveModule(moduleName) {
   const candidatePaths = [
     moduleName,
     path.resolve(__dirname, 'node_modules', moduleName),
-    path.resolve(__dirname, 'backend', 'node_modules', moduleName)
+    path.resolve(__dirname, '..', 'node_modules', moduleName),
+    path.resolve(__dirname, 'backend', 'node_modules', moduleName),
+    path.resolve(__dirname, '..', 'backend', 'node_modules', moduleName)
   ];
   for (const p of candidatePaths) {
     try {
@@ -37,8 +39,10 @@ const nodemailer = resolveModule('nodemailer');
 
 // Load environment variables
 const envPaths = [
+  path.resolve(__dirname, '.env'),
   path.resolve(__dirname, 'backend', '.env'),
-  path.resolve(__dirname, '.env')
+  path.resolve(__dirname, '..', '.env'),
+  path.resolve(__dirname, '..', 'backend', '.env')
 ];
 for (const envPath of envPaths) {
   if (fs.existsSync(envPath)) {
