@@ -797,7 +797,11 @@ const SearchCaseLawPage = () => {
       }
       const apiMsg = err?.response?.data?.message;
       if (apiMsg) {
-        setError(apiMsg);
+        if (/multiplanner|time\s*limit|exceeded|timed?\s*out/i.test(apiMsg)) {
+          setError('Search timed out on the database server. Please refine your criteria or search by citation/case number.');
+        } else {
+          setError(apiMsg);
+        }
       } else if (err?.response?.status === 504 || err?.code === 'ECONNABORTED') {
         setError('Search timed out on the database server. Please refine your criteria or search by citation/case number.');
       } else {

@@ -1389,7 +1389,7 @@ export const callGeminiWithTokenControl = async (systemInstruction, userPrompt, 
   const {
     temperature = 0.2,
     maxOutputTokens = 3500,
-    timeoutMs = 7000
+    timeoutMs = 35000
   } = config;
 
   const primaryModel = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';

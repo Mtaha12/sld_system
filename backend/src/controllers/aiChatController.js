@@ -4161,7 +4161,14 @@ const validateJudgeKeywords = (c, query) => {
 };
 
 const validatePetitionerKeywords = (c, query) => {
-  const tokens = extractSearchTokens(query, 3);
+  const STOP_TOKENS = new Set([
+    'case', 'cases', 'judgment', 'judgments', 'decision', 'decisions',
+    'order', 'orders', 'appeal', 'appeals', 'petitioner', 'petitioners',
+    'respondent', 'respondents', 'appellant', 'appellants', 'versus', 'vs',
+    'court', 'tribunal', 'appellate', 'inland', 'revenue', 'high', 'supreme',
+    'from', 'in', 'of', 'before', 'at', 'the', 'and', 'for', 'with', 'by'
+  ]);
+  const tokens = extractSearchTokens(query, 3).filter(t => !STOP_TOKENS.has(t.toLowerCase()));
   if (tokens.length === 0) return true;
   const partyStr = (
     (Array.isArray(c.petitioners) ? c.petitioners.join(' ') : String(c.petitioners || '')) + ' ' +
@@ -4619,8 +4626,8 @@ ${casesSummary}
 </retrieved_evidence>`;
 
     const geminiText = await Promise.race([
-      callGeminiWithTokenControl(systemInstruction, userPrompt, [], { temperature: 0.2, maxOutputTokens: 2500, timeoutMs: 12000 }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini synthesis timeout 12000ms')), 12000))
+      callGeminiWithTokenControl(systemInstruction, userPrompt, [], { temperature: 0.2, maxOutputTokens: 2500, timeoutMs: 35000 }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini synthesis timeout 35000ms')), 35000))
     ]);
 
     if (geminiText && geminiText.trim().length > 50) {
@@ -4822,7 +4829,8 @@ export const isPakistaniLegalQuery = (queryText) => {
   }
   if (/\b(?:give|show|find|search|get|provide|kindly\s+provide|please\s+provide)\s+(?:me\s+)?(?:cases?|case\s*law|judgm?ents?|decisions?|orders?)\s+(?:with|on|for|under|citing|regarding|of|in)\b/i.test(q) ||
       /\b(?:cases?|judgm?ents?|orders?)\s+of\s+[a-z0-9]/i.test(q) ||
-      /\b(?:taj\s*international)\b/i.test(q) ||
+      /\b[a-z0-9\s]{2,40}\s+(?:cases?|judgm?ents?|orders?|precedents?)\b/i.test(q) ||
+      /\b(?:taj\s*international|dha\s*dolmen)\b/i.test(q) ||
       /\bcases?\s+(?:with|on|under|citing|for)\s+(?:this|that|the|same)?\s*s\.?r\.?o\.?\b/i.test(q)) {
     return true;
   }
@@ -5396,8 +5404,8 @@ CRITICAL INSTRUCTIONS:
 7. Strictly focus on PAKISTANI law. Never substitute Indian or foreign legal principles.`;
 
       explanationText = await Promise.race([
-        callGeminiWithTokenControl(sysPrompt, `USER FOLLOW-UP: "${cleanQ}"`, [], { temperature: 0.15, maxOutputTokens: 2200, timeoutMs: 12000 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Follow-up Gemini timeout')), 12000))
+        callGeminiWithTokenControl(sysPrompt, `USER FOLLOW-UP: "${cleanQ}"`, [], { temperature: 0.15, maxOutputTokens: 2200, timeoutMs: 35000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Follow-up Gemini timeout')), 35000))
       ]);
     } catch (fErr) {
       logger.warn('Gemini follow-up synthesis notice: ' + fErr.message);
@@ -5516,7 +5524,7 @@ RESPONSE GUIDELINES:
       systemPrompt,
       prompt,
       [],
-      { temperature: 0.3, maxOutputTokens: 2500, timeoutMs: 12000 }
+      { temperature: 0.3, maxOutputTokens: 2500, timeoutMs: 35000 }
     );
   } catch (err) {
     logger.warn('General AI Gemini query error: ' + err.message);
@@ -5806,7 +5814,7 @@ ${limitContext(combinedDocText || `[Attached file: ${fileName}]`, 40000)}${dbEnr
       responseText = await callGeminiWithTokenControl(systemInstruction, userPrompt, inlineParts, {
         temperature: 0.15,
         maxOutputTokens: isCruxOnly ? 600 : 3500,
-        timeoutMs: 8500
+        timeoutMs: 35000
       });
     } catch (geminiErr) {
       logger?.warn?.('Document Analysis Gemini error: ' + geminiErr.message);
@@ -7185,17 +7193,27 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     const judgePrefixMatch = normalizedQuery.match(/^(?:judge|justice|chief\s*justice|mr\.?\s*justice|hon['’]?ble\s*justice|bench|author)\b\s*[:\-]?\s*(.+)$/i);
     const isExplicitJudge = Boolean(judgePrefixMatch) || /^(?:mr\.?\s*)?justice\b/i.test(normalizedQuery);
     const hasDoctrineKeywords = /\b(?:tax|sales|surcharge|income|refund|statute|act|section|order|writ|appeal|maintainable|sustainable|rule|rules|penalty|capital|gains?|exemption|assets?|assessment|notice|guarantee|opportunity|disability|disabled|concession|rebate|tariff|customs|excise|revenue)\b/i.test(normalizedQuery);
+    const hasCompanyKeywords = /\b(?:ltd|pvt|cng|oil|gas|mills|steel|enterprises|dha|dolmen|sugar|textile|industries|corp|corporation)\b/i.test(normalizedQuery);
+    const hasCaseWord = /\b(?:cases?|judgm?ents?|decisions?)\b/i.test(normalizedQuery);
 
-    if ((isExplicitJudge || (!hasDoctrineKeywords && normalizedQuery.length <= 25)) && normalizedQuery.length >= 3) {
+    if ((isExplicitJudge || (!hasDoctrineKeywords && !hasCompanyKeywords && !hasCaseWord && normalizedQuery.length <= 25)) && normalizedQuery.length >= 3) {
       const judgeQueryName = judgePrefixMatch ? judgePrefixMatch[1].trim() : normalizedQuery;
       if (judgeQueryName.length >= 3 && !hasDoctrineKeywords) {
         try {
           const judgeRegex = makeFlexibleRegex(judgeQueryName);
           if (judgeRegex) {
-            const rawJudgeCases = await Case.find({
-              judges: judgeRegex,
-              isDeleted: { $ne: true }
-            }).limit(15).maxTimeMS(2000).lean();
+            let rawJudgeCases = [];
+            try {
+              rawJudgeCases = await Case.find({
+                judges: judgeRegex,
+                isDeleted: false
+              }).hint({ isDeleted: 1, judges: 1, sldNumberInt: -1 }).limit(15).maxTimeMS(3500).lean();
+            } catch (hErr) {
+              rawJudgeCases = await Case.find({
+                judges: judgeRegex,
+                isDeleted: { $ne: true }
+              }).limit(15).maxTimeMS(3500).lean();
+            }
             rawJudgeCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
 
             // STRICT VALIDATION: Filter out any cases that do not contain the judge's key name tokens
@@ -7217,37 +7235,153 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
   }
 
   // PRIORITY 5: Petitioner / Litigant / Party Search
-  // (e.g. "petitioner Delta CNG", "Sui Northern Gas", "Sargroh Oil", "Al Karam CNG", "Prosperity Weaving Mills", "need case of Major (R) Muhammad Salahuddin", "judgment of Taj International")
+  // (e.g. "petitioner Delta CNG", "Sui Northern Gas", "Sargroh Oil", "Al Karam CNG", "Prosperity Weaving Mills", "need case of Major (R) Muhammad Salahuddin", "judgment of Taj International", "judgment of dha dolmen lahore from appellate tribunal inland revenue", "dha dolmen cases")
   if (!targetCase) {
     const partyPrefixMatch = normalizedQuery.match(/^(?:need\s+case\s+of|give\s+me\s+case\s+of|find\s+case\s+of|show\s+case\s+of|case\s+of|cases\s+of|judgment\s+of|judgments\s+of|decision\s+of|order\s+of|orders\s+of|petitioner|respondent|party|parties|applicant|litigant|kindly\s+provide(?:\s+me)?\s+(?:the\s+)?judgm?ents?\s+of|provide(?:\s+me)?\s+(?:the\s+)?judgm?ents?\s+of)\b\s*[:\-]?\s*(.+)$/i);
+    const partySuffixMatch = normalizedQuery.match(/^(.+?)\s+(?:cases?|judgm?ents?|decisions?|orders?|appeals?)$/i);
     const hasVs = /\b(?:vs\.?|v\.?|versus)\b/i.test(normalizedQuery);
     const hasMajorOrTitle = /\b(?:major|m\/s|capt|col|brig|gen|dr\.?)\b/i.test(normalizedQuery);
     const hasDoctrineKeywords = /\b(?:tax|sales|surcharge|income|refund|statute|act|section|order|writ|appeal|maintainable|sustainable|rule|rules|penalty)\b/i.test(normalizedQuery);
-    const isExplicitParty = Boolean(partyPrefixMatch) || hasVs || hasMajorOrTitle;
+    const isExplicitParty = Boolean(partyPrefixMatch) || Boolean(partySuffixMatch) || hasVs || hasMajorOrTitle;
     const isQuotedQuery = Boolean(rawClean.match(/"([^"]{3,60})"/));
     const isCaseLawOrPhraseQuery = isQuotedQuery || isCaseLawRequest || /^(?:give\s*(?:me)?\s*case\s*law|find\s*case\s*law|case\s*law\s*on|which\s+judgments?\s+discuss)\b/i.test(rawClean);
-    const isReasonablePartyLength = normalizedQuery.length <= 60 && normalizedQuery.split(/\s+/).length <= 6;
 
-    if (!isCaseLawOrPhraseQuery && isReasonablePartyLength && (isExplicitParty || (!hasDoctrineKeywords && normalizedQuery.length <= 50)) && normalizedQuery.length >= 3) {
-      const partyQueryName = partyPrefixMatch ? partyPrefixMatch[1].trim() : normalizedQuery;
+    let rawPartyName = partyPrefixMatch ? partyPrefixMatch[1].trim() : (partySuffixMatch ? partySuffixMatch[1].trim() : normalizedQuery);
+
+    // Extract any trailing/embedded court clause (e.g. "from appellate tribunal inland revenue", "in lahore high court")
+    let extractedCourtFromParty = null;
+    const courtClauseMatch = rawPartyName.match(/\s+(?:from|in|of|before|at)\s+(?:the\s+)?(appellate\s*tribunal(?:\s+inland\s+revenue)?|lahore\s*high\s*court|sindh\s*high\s*court|peshawar\s*high\s*court|islamabad\s*high\s*court|balochistan\s*high\s*court|supreme\s*court(?:\s+of\s+pakistan)?|atir|pra|fbr|high\s*court)\b.*$/i);
+    if (courtClauseMatch) {
+      const courtStr = courtClauseMatch[1];
+      if (/atir|appellate\s*tribunal/i.test(courtStr)) {
+        extractedCourtFromParty = /appellate\s*tribunal\s*inland\s*revenue/i;
+      } else if (/supreme/i.test(courtStr)) {
+        extractedCourtFromParty = /supreme\s*court/i;
+      } else if (/lahore/i.test(courtStr)) {
+        extractedCourtFromParty = /lahore\s*high\s*court/i;
+      } else if (/sindh/i.test(courtStr)) {
+        extractedCourtFromParty = /sindh\s*high\s*court/i;
+      } else if (/peshawar/i.test(courtStr)) {
+        extractedCourtFromParty = /peshawar\s*high\s*court/i;
+      } else if (/islamabad/i.test(courtStr)) {
+        extractedCourtFromParty = /islamabad\s*high\s*court/i;
+      } else if (/pra/i.test(courtStr)) {
+        extractedCourtFromParty = /punjab\s*revenue\s*authority/i;
+      }
+      rawPartyName = rawPartyName.replace(courtClauseMatch[0], '').trim();
+      if (extractedCourtFromParty && !requestedCourtFilter) {
+        requestedCourtFilter = extractedCourtFromParty;
+      }
+    }
+
+    // Strip trailing noise suffixes like "cases", "judgment" if still present
+    rawPartyName = rawPartyName.replace(/\s+(?:cases?|judgm?ents?|decisions?|orders?|appeals?)$/i, '').trim();
+    const partyQueryName = rawPartyName;
+    const isReasonablePartyLength = partyQueryName.length <= 60 && partyQueryName.split(/\s+/).length <= 7;
+
+    if (!isCaseLawOrPhraseQuery && isReasonablePartyLength && (isExplicitParty || (!hasDoctrineKeywords && partyQueryName.length <= 50)) && partyQueryName.length >= 3) {
       if (partyQueryName.length >= 3) {
-        try {
-          // 1. First, search Superior Courts / OtherCaseLaw for matching party name
-          const oclPartyTokens = extractSearchTokens(partyQueryName, 2).filter(t => !/^(need|case|of|the|and|for|in|on|at|to|r)$/i.test(t));
-          if (oclPartyTokens.length >= 2) {
-            const oclPartyRegex = new RegExp(oclPartyTokens.map(escapeRegex).join('.*'), 'i');
-            const rawOcl = await OtherCaseLaw.find({
-              $or: [
-                { parties: oclPartyRegex },
-                { caseTitle: oclPartyRegex }
-              ],
-              isDeleted: { $ne: true }
-            }).limit(10).maxTimeMS(2000).lean();
+        const partyTokens = extractSearchTokens(partyQueryName, 2).filter(t => !/^(need|case|of|the|and|for|in|on|at|to|r|cases|judgment|judgments|appellate|tribunal|court)$/i.test(t));
+        const courtToFilter = requestedCourtFilter || extractedCourtFromParty;
+
+        // 1. First, search Main Cases database using high-speed MongoDB $text index (< 30ms)
+        let rawPartyCases = [];
+        if (partyTokens.length >= 2) {
+          try {
+            const textSearchQuery = partyTokens.map(t => `"${t}"`).join(' ');
+            const textPartyCond = {
+              $text: { $search: textSearchQuery },
+              isDeleted: false
+            };
+            if (courtToFilter) {
+              textPartyCond.court = courtToFilter;
+            }
+            const textCases = await Case.find(textPartyCond).limit(30).maxTimeMS(4000).lean();
+            if (textCases && textCases.length > 0) {
+              rawPartyCases = textCases;
+            }
+          } catch (tErr) {}
+        }
+
+        // Fallback to flexible regex search on Main Cases database if text index yielded no results
+        if (rawPartyCases.length === 0) {
+          const partyRegex = makeFlexibleRegex(partyQueryName);
+          if (partyRegex) {
+            const partyConditions = [
+              { isDeleted: { $ne: true } },
+              {
+                $or: [
+                  { petitioners: partyRegex },
+                  { parties: partyRegex },
+                  { caseTitle: partyRegex }
+                ]
+              }
+            ];
+            if (courtToFilter) {
+              partyConditions.push({ court: courtToFilter });
+            }
+            try {
+              rawPartyCases = await Case.find({ $and: partyConditions }).limit(25).maxTimeMS(6000).lean();
+            } catch (pRegErr) {
+              try {
+                rawPartyCases = await Case.find({
+                  isDeleted: { $ne: true },
+                  $or: [
+                    { petitioners: partyRegex },
+                    { parties: partyRegex },
+                    { caseTitle: partyRegex }
+                  ]
+                }).limit(25).maxTimeMS(4000).lean();
+              } catch (pFallbackErr) {}
+            }
+          }
+        }
+
+        if (rawPartyCases.length > 0) {
+          rawPartyCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
+          // STRICT VALIDATION: Check that candidate cases genuinely contain all party search tokens
+          matchingPartyCases = rawPartyCases.filter(c => validatePetitionerKeywords(c, partyQueryName));
+
+          if (matchingPartyCases.length > 0) {
+            matchType = 'petitioner_party';
+            targetCase = matchingPartyCases[0];
+            matchedFieldDisplay = partyQueryName;
+            confidence = 98;
+            activeReferences = ['parties', 'courts', 'citations', 'judgments'];
+          }
+        }
+
+        // 2. Search Superior Courts / OtherCaseLaw if not matched in Main Cases
+        if (!targetCase && partyTokens.length >= 2) {
+          try {
+            const oclPartyRegex = new RegExp(partyTokens.map(escapeRegex).join('.*'), 'i');
+            const oclConditions = [
+              { isDeleted: { $ne: true } },
+              {
+                $or: [
+                  { parties: oclPartyRegex },
+                  { caseTitle: oclPartyRegex }
+                ]
+              }
+            ];
+            if (courtToFilter) {
+              oclConditions.push({ court: courtToFilter });
+            }
+            let rawOcl = await OtherCaseLaw.find({ $and: oclConditions }).limit(10).maxTimeMS(2500).lean();
+            if (rawOcl.length === 0 && courtToFilter) {
+              rawOcl = await OtherCaseLaw.find({
+                $or: [
+                  { parties: oclPartyRegex },
+                  { caseTitle: oclPartyRegex }
+                ],
+                isDeleted: { $ne: true }
+              }).limit(10).maxTimeMS(2500).lean();
+            }
 
             // STRICT VALIDATION: Ensure ALL tokens exist in the parties/caseTitle string
             const matchingOcl = rawOcl.filter(item => {
               const pStr = `${item.parties || ''} ${item.caseTitle || ''}`.toLowerCase();
-              return oclPartyTokens.every(tok => pStr.includes(tok));
+              return partyTokens.every(tok => pStr.includes(tok));
             });
 
             if (matchingOcl.length > 0) {
@@ -7266,34 +7400,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
               setCachedAIResult(cacheKey, oclPartyResult);
               return oclPartyResult;
             }
+          } catch (oclErr) {
+            logger.warn('OtherCaseLaw query notice: ' + oclErr.message);
           }
-
-          // 2. Next, search Main Cases database for matching petitioners / parties / caseTitle
-          const partyRegex = makeFlexibleRegex(partyQueryName);
-          if (partyRegex) {
-            const rawPartyCases = await Case.find({
-              isDeleted: { $ne: true },
-              $or: [
-                { petitioners: partyRegex },
-                { parties: partyRegex },
-                { caseTitle: partyRegex }
-              ]
-            }).limit(20).maxTimeMS(2500).lean();
-            rawPartyCases.sort((a, b) => (parseInt(b.sldNumber, 10) || 0) - (parseInt(a.sldNumber, 10) || 0));
-
-            // STRICT VALIDATION: Check that candidate cases genuinely contain all party search tokens
-            matchingPartyCases = rawPartyCases.filter(c => validatePetitionerKeywords(c, partyQueryName));
-
-            if (matchingPartyCases.length > 0) {
-              matchType = 'petitioner_party';
-              targetCase = matchingPartyCases[0];
-              matchedFieldDisplay = partyQueryName;
-              confidence = 98;
-              activeReferences = ['parties', 'courts', 'citations', 'judgments'];
-            }
-          }
-        } catch (pErr) {
-          logger.warn('Party query notice: ' + pErr.message);
         }
       }
     }
@@ -7302,9 +7411,10 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
   // PRIORITY 7: Court / Judicial Forum Search (Strict Entity Search Only)
   // (e.g. "court: Peshawar High Court", "Supreme Court of Pakistan", "Appellate Tribunal Inland Revenue orders", "ATIR cases")
   if (!targetCase) {
-    const courtInfo = extractCourtQueryInfo(rawClean) || extractCourtQueryInfo(cleanQuery) || extractCourtQueryInfo(normalizedQuery);
+    const hasJudgmentOfPrefix = /^(?:need\s+case\s+of|give\s+me\s+case\s+of|find\s+case\s+of|case\s+of|cases\s+of|judgment\s+of|judgments\s+of)\b/i.test(normalizedQuery);
+    const courtInfo = !hasJudgmentOfPrefix ? (extractCourtQueryInfo(rawClean) || extractCourtQueryInfo(cleanQuery) || extractCourtQueryInfo(normalizedQuery)) : null;
     const courtPrefixMatch = normalizedQuery.match(/^(?:court|forum|tribunal)\b\s*[:\-]?\s*(.+)$/i);
-    const isStrictCourtName = /^(?:the\s+)?(?:lahore\s*high\s*court|sindh\s*high\s*court|peshawar\s*high\s*court|islamabad\s*high\s*court|balochistan\s*high\s*court|supreme\s*court(?:\s+of\s+pakistan)?|appellate\s*tribunal(?:\s+inland\s+revenue)?|federal\s*tax\s*ombudsman)\b/i.test(normalizedQuery.trim());
+    const isStrictCourtName = !hasJudgmentOfPrefix && /^(?:the\s+)?(?:lahore\s*high\s*court|sindh\s*high\s*court|peshawar\s*high\s*court|islamabad\s*high\s*court|balochistan\s*high\s*court|supreme\s*court(?:\s+of\s+pakistan)?|appellate\s*tribunal(?:\s+inland\s+revenue)?|federal\s*tax\s*ombudsman)\b/i.test(normalizedQuery.trim());
 
     if ((Boolean(courtInfo) || Boolean(courtPrefixMatch) || isStrictCourtName) && normalizedQuery.length >= 4) {
       const courtQueryName = courtInfo ? courtInfo.cleanCourtName : (courtPrefixMatch ? courtPrefixMatch[1].trim() : normalizedQuery);
@@ -7358,12 +7468,12 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
     }
   }
 
-  // PRIORITY 8: Section or Statute Search
-  // (e.g. "section 170", "sec 7e", "section 4c", "236g", "236h", "236g and 236h cases", "sales tax act")
+  // PRIORITY 8: Section or Statute Search & Multi-Condition Query Resolution
+  // (e.g. "u/s 148", "section 170", "sec 7e", "section 4c", "advance tax u/s 148 being minimum tax in tax year 2021")
   if (!targetCase) {
     try {
-      // 1. Extract all section tokens mentioned in query (e.g. 236g, 236h, 7e, 122(5a), 170, 65d, etc.)
-      const explicitSecMatches = [...normalizedQuery.matchAll(/\b(?:section|sec\.?|s\.)\s*([0-9]+[a-z]{0,3}(?:\([0-9a-z]+\))?|[a-z]{1,2}\d+)/gi)].map(m => m[1]);
+      // 1. Extract all section tokens mentioned in query (including u/s, under section, s., sec.)
+      const explicitSecMatches = [...normalizedQuery.matchAll(/\b(?:u\/s|u\.s\.?|under\s+section|section|sec\.?|s\.)\s*([0-9]+[a-z]{0,3}(?:\([0-9a-z]+\))?|[a-z]{1,2}\d+)/gi)].map(m => m[1]);
       const standaloneSecMatches = [...normalizedQuery.matchAll(/\b(\d+[a-z]{1,3}|\d{1,4}[a-z]?(?:\([0-9a-z]+\)))\b/gi)].map(m => m[1]);
       const allSecCandidates = Array.from(new Set([...explicitSecMatches, ...standaloneSecMatches]))
         .filter(s => s && s.length >= 2 && !/^\d{4}$/.test(s)); // exclude 4-digit years like 2026
@@ -7376,8 +7486,86 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           s
         ]);
 
+        // Check if query is a Multi-Condition Query (combines section + doctrine keywords + tax year)
+        const knownConcepts = [
+          'minimum tax', 'advance tax', 'withholding tax', 'sales tax refund', 'input tax credit',
+          'capital gains', 'tax exemption', 'exemption', 'show cause notice', 'best judgment',
+          'time bar', 'time barred', 'curable defects', 'audit', 'recovery', 'concession', 'surcharge'
+        ];
+        const matchedConcepts = knownConcepts.filter(kc => new RegExp(`\\b${escapeRegex(kc)}\\b`, 'i').test(normalizedQuery));
+        const yearMatch = normalizedQuery.match(/\b(?:tax\s*year\s*)?(19\d{2}|20\d{2})\b/i);
+        const targetYear = yearMatch ? yearMatch[1] : null;
+
         let statuteCases = [];
-        if (allSecCandidates.some(s => /^4-?c$/i.test(s))) {
+
+        // If specific concepts or year are mentioned alongside section, perform Multi-Condition Search
+        if (matchedConcepts.length > 0 || targetYear) {
+          const secQuery = {
+            'laws.section': { $in: Array.from(new Set(secTokens)) },
+            isDeleted: false,
+            court: { $nin: FOREIGN_COURT_NAMES }
+          };
+          if (requestedCourtFilter) {
+            secQuery.court = requestedCourtFilter;
+          }
+          let candidatePool = await Case.find(secQuery)
+            .select('sldNumber dated court mapYearPage laws headNote principleLaw judgment')
+            .sort({ sldNumberInt: -1 })
+            .limit(300)
+            .maxTimeMS(4000)
+            .lean();
+
+          if (candidatePool.length === 0) {
+            const textQuery = allSecCandidates.map(s => `"${s}"`).join(' ');
+            const textCond = [
+              { $text: { $search: textQuery } },
+              { isDeleted: false },
+              { court: { $nin: FOREIGN_COURT_NAMES } }
+            ];
+            if (requestedCourtFilter) textCond.push({ court: requestedCourtFilter });
+            candidatePool = await Case.find({ $and: textCond })
+              .select('sldNumber dated court mapYearPage laws headNote principleLaw judgment')
+              .limit(150)
+              .maxTimeMS(3500)
+              .lean();
+          }
+
+          if (candidatePool.length > 0) {
+            const scoredPool = candidatePool.map(c => {
+              const text = `${c.headNote || ''} ${c.principleLaw || ''} ${c.judgment || ''}`.toLowerCase();
+              let score = 0;
+              for (const kw of matchedConcepts) {
+                if (text.includes(kw.toLowerCase())) {
+                  score += 15;
+                  if ((c.headNote || '').toLowerCase().includes(kw.toLowerCase())) score += 10;
+                }
+              }
+              if (targetYear) {
+                const hasYearInText = text.includes(targetYear);
+                const hasYearInDated = String(c.dated || '').includes(targetYear);
+                const hasYearInPub = (c.mapYearPage || []).some(m => m.includes(targetYear));
+                if (hasYearInText || hasYearInDated || hasYearInPub) {
+                  score += 20;
+                  if (text.includes(`tax year ${targetYear}`) || text.includes(`tax year, ${targetYear}`)) {
+                    score += 15;
+                  }
+                }
+              }
+              return { caseDoc: c, score };
+            });
+
+            const multiMatches = scoredPool
+              .filter(sc => matchedConcepts.length > 0 ? sc.score >= 15 : sc.score > 0)
+              .sort((a, b) => b.score - a.score || (parseInt(b.caseDoc.sldNumber, 10) || 0) - (parseInt(a.caseDoc.sldNumber, 10) || 0))
+              .map(sc => sc.caseDoc);
+
+            if (multiMatches.length > 0) {
+              statuteCases = multiMatches;
+            }
+          }
+        }
+
+        if (statuteCases.length === 0 && allSecCandidates.some(s => /^4-?c$/i.test(s))) {
           // Dedicated high-performance 4C / Super Tax query
           const sc4cConditions = [
             { isDeleted: false },
@@ -7439,7 +7627,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
           matchingTopicCases = statuteCases;
           targetCase = statuteCases[0];
           matchType = statuteCases.length === 1 ? 'statute' : 'topic_multi';
-          matchedFieldDisplay = allSecCandidates.join(' & ');
+          const kwNote = matchedConcepts && matchedConcepts.length > 0 ? ` on ${matchedConcepts.join(' & ')}` : '';
+          const yrNote = targetYear ? ` (Tax Year ${targetYear})` : '';
+          matchedFieldDisplay = `Section ${allSecCandidates.join(' & ')}${kwNote}${yrNote}`;
           confidence = 96;
           activeReferences = ['statutes', 'headnotes', 'citations', 'judgments'];
         }
@@ -7625,7 +7815,24 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
 
         // 4.1 Strict Year-Aware Filter: Requested year/range is a BINDING constraint (Section 4)
         if (queryYearConstraint && cleanPhraseCases.length > 0) {
-          cleanPhraseCases = cleanPhraseCases.filter(c => caseMatchesYearConstraint(c, queryYearConstraint));
+          const yearMatched = cleanPhraseCases.filter(c => caseMatchesYearConstraint(c, queryYearConstraint));
+          if (yearMatched.length > 0) {
+            cleanPhraseCases = yearMatched;
+          } else if (queryYearConstraint.singleYear) {
+            // Also allow matching tax year within judgment text or headNote if decision date alone did not match
+            const sy = String(queryYearConstraint.singleYear);
+            const textYearMatched = cleanPhraseCases.filter(c => {
+              const text = `${c.headNote || ''} ${c.judgment || ''}`.toLowerCase();
+              return text.includes(`tax year ${sy}`) || text.includes(`tax year, ${sy}`) || text.includes(sy);
+            });
+            if (textYearMatched.length > 0) {
+              cleanPhraseCases = textYearMatched;
+            } else {
+              cleanPhraseCases = [];
+            }
+          } else {
+            cleanPhraseCases = [];
+          }
         }
 
         if (cleanPhraseCases.length > 0) {
@@ -7666,7 +7873,7 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
             .replace(/\b(?:decided\s*in|actual\s*decisions?\s*in|dated|decided|between|inclusive)\b/gi, ' ')
             .replace(/\b(19\d{2}|20\d{2})\b/g, ' ');
 
-          const extraTerms = extractSearchTokens(queryWithoutPhraseAndDates, 3);
+          const extraTerms = extractSearchTokens(queryWithoutPhraseAndDates, 3).filter(t => !/^(?:need|judgment|judgments|case|cases|decision|decisions|find|give|show|what|being|with|under|section|sec)$/i.test(t));
           if (extraTerms.length > 0) {
             const allMatched = cleanPhraseCases.filter(c => {
               const hnLower = (c.headNote || '').toLowerCase();
@@ -7676,7 +7883,9 @@ CRITICAL LEGAL & FACTUAL GUIDELINES FOR YOUR ANALYSIS (VERIFIED PAKISTANI STATUT
                 return hnLower.includes(t) || jdgLower.includes(t);
               });
             });
-            cleanPhraseCases = allMatched;
+            if (allMatched.length > 0) {
+              cleanPhraseCases = allMatched;
+            }
           }
 
           // Prioritize cases that contain the exact phrase in the actual judgment text
@@ -8962,8 +9171,8 @@ ${portalGuideText}
 Use the exact syntax: [<Portal Name> ↗](<url>).`;
       
       const aiReply = await Promise.race([
-        callGeminiWithTokenControl(sysPrompt, `USER QUERY: "${cleanQuery}"`, [], { temperature: 0.2, maxOutputTokens: 2500, timeoutMs: 12000 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback Gemini timeout')), 12000))
+        callGeminiWithTokenControl(sysPrompt, `USER QUERY: "${cleanQuery}"`, [], { temperature: 0.2, maxOutputTokens: 2500, timeoutMs: 35000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback Gemini timeout')), 35000))
       ]);
       if (aiReply && aiReply.trim().length > 40) {
         fallbackText = aiReply.trim();

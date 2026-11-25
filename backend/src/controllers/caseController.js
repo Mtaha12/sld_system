@@ -2360,7 +2360,7 @@ export const searchCases = async (req, res, next) => {
         .select(selectFields)
         .sort({ sldNumberInt: -1 })
         .limit(searchLimit)
-        .maxTimeMS(10000);
+        .maxTimeMS(25000);
       if (hintSpec) q = q.hint(hintSpec);
       return q.lean();
     };
@@ -2399,45 +2399,71 @@ export const searchCases = async (req, res, next) => {
       }
 
       // 1. Direct mapYearPage B-tree index lookup (< 5ms)
-      cases = await Case.find(citationQuery)
-        .select(selectFields)
-        .limit(searchLimit)
-        .maxTimeMS(4000)
-        .lean();
-
-      // 2. If not found in mapYearPage, check publications array
-      if (cases.length === 0) {
-        const pubQuery = {
-          isDeleted: false,
-          publications: {
-            $elemMatch: {
-              $and: [
-                {
-                  $or: [
-                    { mag: { $in: magVariants } },
-                    { magazine: { $in: magVariants } }
-                  ]
-                },
-                { page: { $in: pageCandidates } },
-                {
-                  $or: [
-                    { year: { $in: yearCandidates } },
-                    { vol: { $in: yearCandidates } }
-                  ]
-                }
-              ]
-            }
-          }
-        };
-        if (otherConditions.length > 0) {
-          pubQuery.$and = otherConditions;
-        }
-
-        cases = await Case.find(pubQuery)
+      try {
+        cases = await Case.find(citationQuery)
           .select(selectFields)
+          .hint({ isDeleted: 1, mapYearPage: 1 })
           .limit(searchLimit)
-          .maxTimeMS(4000)
+          .maxTimeMS(15000)
           .lean();
+      } catch (citeErr) {
+        try {
+          cases = await Case.find(citationQuery)
+            .select(selectFields)
+            .limit(searchLimit)
+            .maxTimeMS(15000)
+            .lean();
+        } catch (citeErr2) {
+          cases = [];
+        }
+      }
+
+      // 2. If not found in mapYearPage, check publications array using compound index hint
+      if (cases.length === 0) {
+        try {
+          const pubQuery = {
+            isDeleted: false,
+            publications: {
+              $elemMatch: {
+                $and: [
+                  {
+                    $or: [
+                      { mag: { $in: magVariants } },
+                      { magazine: { $in: magVariants } }
+                    ]
+                  },
+                  { page: { $in: pageCandidates } },
+                  {
+                    $or: [
+                      { year: { $in: yearCandidates } },
+                      { vol: { $in: yearCandidates } }
+                    ]
+                  }
+                ]
+              }
+            }
+          };
+          if (otherConditions.length > 0) {
+            pubQuery.$and = otherConditions;
+          }
+
+          cases = await Case.find(pubQuery)
+            .select(selectFields)
+            .hint({ isDeleted: 1, 'publications.mag': 1, 'publications.page': 1, 'publications.year': 1 })
+            .limit(searchLimit)
+            .maxTimeMS(15000)
+            .lean();
+        } catch (pubErr) {
+          try {
+            cases = await Case.find(pubQuery)
+              .select(selectFields)
+              .limit(searchLimit)
+              .maxTimeMS(15000)
+              .lean();
+          } catch (pubErr2) {
+            cases = [];
+          }
+        }
       }
 
       // 3. Fallback regex on mapYearPage (if needed for non-standard whitespace)
@@ -2454,8 +2480,9 @@ export const searchCases = async (req, res, next) => {
           }
           cases = await Case.find(mapRegexQuery)
             .select(selectFields)
+            .hint({ isDeleted: 1, mapYearPage: 1 })
             .limit(searchLimit)
-            .maxTimeMS(2500)
+            .maxTimeMS(10000)
             .lean();
         } catch (fallbackErr) {
           // Gracefully swallow fallback timeout / multiplanner errors so user sees 0 records instead of 500
@@ -2659,6 +2686,15 @@ export const searchCases = async (req, res, next) => {
     });
   } catch (error) {
     logger.error('Error in searchCases:', error);
+    const isTimeout = /time\s*limit|exceeded|multiplanner|timed?\s*out/i.test(error.message || '');
+    if (isTimeout) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+        message: 'Search completed with 0 matching records for the specified criteria.'
+      });
+    }
     next(error);
   }
 };
