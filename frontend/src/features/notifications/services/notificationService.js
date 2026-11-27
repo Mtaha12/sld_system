@@ -1,24 +1,58 @@
 import api from '../../../services/api.js';
 
+const NOTIFICATION_CACHE_TTL_MS = 3 * 60 * 1000;
+const NOTIFICATION_CACHE_MAX = 100;
+const notificationQueryCache = new Map();
+
+const attachMeta = (rows, meta) => {
+  const arr = Array.isArray(rows) ? [...rows] : [];
+  arr.total = meta.total;
+  arr.dashboardTotal = meta.dashboardTotal;
+  arr.totalPages = meta.totalPages;
+  arr.currentPage = meta.currentPage;
+  arr.pagination = {
+    total: meta.total,
+    totalPages: meta.totalPages,
+    currentPage: meta.currentPage
+  };
+  return arr;
+};
+
+export const clearNotificationClientCache = () => {
+  notificationQueryCache.clear();
+};
+
 export const notificationService = {
   /**
-   * Fetches all notifications from backend
+   * Fetches all notifications from backend with client-side caching & abort signal
    * @returns {Promise<Array>}
    */
-  getNotifications: async (params = {}) => {
+  getNotifications: async (params = {}, options = {}) => {
     const queryParams = typeof params === 'string' ? (params ? { query: params } : {}) : (params || {});
-    const response = await api.get('/api/notifications', { params: queryParams });
+    const cacheKey = JSON.stringify(queryParams);
+    const cached = notificationQueryCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < NOTIFICATION_CACHE_TTL_MS) {
+      notificationQueryCache.delete(cacheKey);
+      notificationQueryCache.set(cacheKey, cached);
+      return attachMeta(cached.data, cached.meta);
+    }
+
+    const response = await api.get('/api/notifications', { params: queryParams, ...options });
     const data = response.data?.data || [];
-    data.total = response.data?.total ?? data.length;
-    data.dashboardTotal = response.data?.dashboardTotal;
-    data.totalPages = response.data?.totalPages ?? 1;
-    data.currentPage = response.data?.currentPage ?? 1;
-    data.pagination = {
-      total: data.total,
-      totalPages: data.totalPages,
-      currentPage: data.currentPage
+    const meta = {
+      total: response.data?.total ?? data.length,
+      dashboardTotal: response.data?.dashboardTotal,
+      totalPages: response.data?.totalPages ?? 1,
+      currentPage: response.data?.currentPage ?? 1
     };
-    return data;
+
+    if (notificationQueryCache.size >= NOTIFICATION_CACHE_MAX) {
+      const oldest = notificationQueryCache.keys().next().value;
+      notificationQueryCache.delete(oldest);
+    }
+    notificationQueryCache.set(cacheKey, { ts: Date.now(), data, meta });
+
+    return attachMeta(data, meta);
   },
 
   /**
@@ -51,11 +85,6 @@ export const notificationService = {
   },
 
   /**
-   * Creates a new notification entry
-   * @param {Object} newNotif 
-   * @returns {Promise<Object>}
-   */
-  /**
    * Upload single attachment document for a notification
    */
   uploadAttachment: async (file) => {
@@ -70,6 +99,7 @@ export const notificationService = {
   },
 
   createNotification: async (newNotif) => {
+    clearNotificationClientCache();
     const response = await api.post('/api/notifications', newNotif);
     return response.data;
   },
@@ -81,6 +111,7 @@ export const notificationService = {
    * @returns {Promise<Object>}
    */
   updateNotification: async (id, updatedFields) => {
+    clearNotificationClientCache();
     const response = await api.put(`/api/notifications/${id}`, updatedFields);
     return response.data;
   },
@@ -91,6 +122,7 @@ export const notificationService = {
    * @returns {Promise<Object>}
    */
   deleteNotification: async (id) => {
+    clearNotificationClientCache();
     const response = await api.delete(`/api/notifications/${id}`);
     return response.data;
   }

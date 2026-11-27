@@ -70,12 +70,33 @@ const escapeRegex = (str) => {
 /**
  * Notification APIs Controllers
  */
+
+const NOTIFICATION_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const NOTIFICATION_SEARCH_CACHE_MAX = 250;
+const notificationSearchCache = new Map();
+
+const invalidateNotificationCaches = () => {
+  notificationSearchCache.clear();
+  invalidateBoardCountsCache();
+};
+
 export const getNotifications = async (req, res, next) => {
   try {
     const { 
       query, page, limit, all, full, sortField, sortOrder,
       lawStatute, law, section, number, year, date, text, text2, subject, department, sroNumber, exact
     } = req.query;
+
+        const isSpammer = req.user?.isSpammer === true;
+    const cacheKey = isSpammer ? null : JSON.stringify(req.query);
+    if (cacheKey) {
+      const hit = notificationSearchCache.get(cacheKey);
+      if (hit && Date.now() - hit.ts < NOTIFICATION_SEARCH_CACHE_TTL_MS) {
+        notificationSearchCache.delete(cacheKey);
+        notificationSearchCache.set(cacheKey, hit);
+        return res.status(200).json(hit.payload);
+      }
+    }
 
     const filter = { isDeleted: false };
 
@@ -219,9 +240,6 @@ export const getNotifications = async (req, res, next) => {
     const safeLimit = isAll ? 1000 : Math.min(Math.max(limitNum || 100, 1), 1000);
     const safePage = Math.max(pageNum || 1, 1);
 
-    const total = await Notification.countDocuments(filter);
-    const totalPages = Math.ceil(total / safeLimit) || 1;
-
     const order = sortOrder === 'asc' ? 1 : -1;
     let sortObj = { srNumberInt: order };
     if (sortField === 'year') sortObj = { year: order, srNumberInt: order };
@@ -239,13 +257,18 @@ export const getNotifications = async (req, res, next) => {
       dbQuery = dbQuery.skip((safePage - 1) * safeLimit).limit(safeLimit);
     }
 
-    const notifications = await dbQuery.lean();
-    const isSpammer = req.user?.isSpammer === true;
+    const needCount = !isAll;
+    const [notifications, rawTotal] = await Promise.all([
+      dbQuery.lean(),
+      needCount ? Notification.countDocuments(filter) : Promise.resolve(null)
+    ]);
+    const total = rawTotal !== null ? rawTotal : notifications.length;
+    const totalPages = isAll ? 1 : (Math.ceil(total / safeLimit) || 1);
     const data = (isSpammer ? notifications.map(spoofNotification) : notifications).map(formatNotificationForFrontend);
     const isUnfiltered = Object.keys(filter).length === 1;
     const boardCounts = await getBoardStatuteAndNotificationCounts({ liveNotifications: isUnfiltered ? total : null });
 
-    return res.status(200).json({
+    const payload = {
       success: true,
       message: 'Notifications retrieved successfully.',
       count: data.length,
@@ -254,7 +277,17 @@ export const getNotifications = async (req, res, next) => {
       totalPages,
       currentPage: safePage,
       data
-    });
+    };
+
+    if (cacheKey) {
+      if (notificationSearchCache.size >= NOTIFICATION_SEARCH_CACHE_MAX) {
+        const oldest = notificationSearchCache.keys().next().value;
+        notificationSearchCache.delete(oldest);
+      }
+      notificationSearchCache.set(cacheKey, { ts: Date.now(), payload });
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     next(error);
   }
@@ -412,7 +445,7 @@ export const createNotification = async (req, res, next) => {
       await newNotif.save();
     }
 
-    invalidateBoardCountsCache();
+    invalidateNotificationCaches();
     logger.info(`[Notification Created] Notification ID ${newNotif.notificationId} (SR #${newNotif.srNumber}) added.`);
 
     return res.status(201).json({
@@ -493,6 +526,7 @@ export const updateNotification = async (req, res, next) => {
     if (blocks !== undefined) n.blocks = sanitizeBlocksAttachments(blocks);
 
     await n.save();
+    invalidateNotificationCaches();
     logger.info(`[Notification Updated] SR #${n.srNumber} updated.`);
 
     return res.status(200).json({
@@ -532,7 +566,7 @@ export const deleteNotification = async (req, res, next) => {
     await n.save();
 
     await adjustSrOnDelete(Notification, n, { srField: 'srNumber', intField: 'srNumberInt', isString: true, counterName: 'notification' });
-    invalidateBoardCountsCache();
+    invalidateNotificationCaches();
     logger.info(`[Notification Deleted] ID ${n.notificationId || n.srNumber} soft-deleted and SR# auto-adjusted.`);
 
     return res.status(200).json({

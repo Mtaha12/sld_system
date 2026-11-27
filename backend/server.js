@@ -228,6 +228,7 @@ const setInlineUploadHeaders = (res, filePath) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
   if (filePath) {
     let headBuf = null;
     try {

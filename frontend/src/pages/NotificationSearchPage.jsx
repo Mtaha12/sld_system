@@ -107,6 +107,7 @@ const NotificationSearchPage = () => {
   const [error, setError]                             = useState(null);
   const [viewNotification, setViewNotification]       = useState(null);
   const resultsRef                                    = useRef(null);
+  const searchAbortRef                                = useRef(null);
 
   // Automatically scroll to extracted results list upon search completion
   useEffect(() => {
@@ -127,6 +128,12 @@ const NotificationSearchPage = () => {
       return [];
     }
   });
+
+    useEffect(() => {
+    return () => {
+      searchAbortRef.current?.abort();
+    };
+  }, []);
 
   const [urlSearchParams] = useSearchParams();
 
@@ -229,6 +236,12 @@ const NotificationSearchPage = () => {
       return;
     }
 
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+    }
+    const abortCtrl = new AbortController();
+    searchAbortRef.current = abortCtrl;
+
     setLoading(true);
     setNotificationResults(null);
 
@@ -240,7 +253,7 @@ const NotificationSearchPage = () => {
       if (activeText.trim())  searchParams.text   = activeText.trim();
       if (activeText2.trim()) searchParams.text2  = activeText2.trim();
 
-      const notifs = await notificationService.getNotifications(searchParams);
+      const notifs = await notificationService.getNotifications(searchParams, { signal: abortCtrl.signal });
       const list = Array.isArray(notifs) ? notifs : [];
 
       setNotificationResults(list);
@@ -252,6 +265,9 @@ const NotificationSearchPage = () => {
         text2: activeText2.trim()
       }, list.length);
     } catch (err) {
+      if (err?.name === 'CanceledError' || err?.name === 'AbortError' || err?.code === 'ERR_CANCELED') {
+        return;
+      }
       setError(err?.response?.data?.message || 'Search execution encountered an error. Please try again.');
     } finally {
       setLoading(false);

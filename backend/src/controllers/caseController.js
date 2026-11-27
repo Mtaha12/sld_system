@@ -2385,6 +2385,8 @@ export const searchCases = async (req, res, next) => {
       selectedHint = { isDeleted: 1, judges: 1, sldNumberInt: -1 };
     } else if (filters.lawyers && !lawQuery && !filters.section && !filters.section2 && !hasTextSearch && !filters.court && !filters.judges && !filters.fromYear && !filters.toYear) {
       selectedHint = { isDeleted: 1, lawyers: 1, sldNumberInt: -1 };
+    } else if (filters.petitioner && !lawQuery && !filters.section && !filters.section2 && !hasTextSearch && !filters.court && !filters.judges && !filters.lawyers && !filters.fromYear && !filters.toYear) {
+      selectedHint = { isDeleted: 1, petitioners: 1, sldNumberInt: -1 };
     }
 
     let cases = [];

@@ -1378,6 +1378,20 @@ export const getCourtsByType = async (courtType) => {
  * Executes high-performance deterministic database counts & statistics.
  * Eliminates LLM count hallucinations by executing directly in MongoDB.
  */
+
+const courtCountCache = new Map();
+const COURT_COUNT_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+const getCachedCourtCount = async (cacheKey, countFetcher) => {
+  const hit = courtCountCache.get(cacheKey);
+  if (hit && Date.now() < hit.expiresAt) {
+    return hit.count;
+  }
+  const count = await countFetcher();
+  courtCountCache.set(cacheKey, { count, expiresAt: Date.now() + COURT_COUNT_CACHE_TTL });
+  return count;
+};
+
 export const handleDatabaseStatisticsQuery = async (queryText) => {
   if (!queryText || typeof queryText !== 'string') return null;
   const q = queryText.toLowerCase().trim();
@@ -1401,7 +1415,7 @@ export const handleDatabaseStatisticsQuery = async (queryText) => {
     // 1. Specific Court Queries
     if (isSC) {
       const scCourts = await getCourtsByType('supreme');
-      const count = await Case.countDocuments({ isDeleted: false, court: { $in: scCourts } });
+      const count = await getCachedCourtCount('sc', () => Case.countDocuments({ isDeleted: false, court: { $in: scCourts } }));
       return {
         text: `### 🏛️ Supreme Court of Pakistan Judicial Statistics\n\n` +
           `• **Total Verified Supreme Court Judgments**: **${count.toLocaleString()}** cases\n` +
@@ -1414,7 +1428,7 @@ export const handleDatabaseStatisticsQuery = async (queryText) => {
 
     if (isLHC) {
       const lhcCourts = await getCourtsByType('lhc');
-      const count = await Case.countDocuments({ isDeleted: false, court: { $in: lhcCourts } });
+      const count = await getCachedCourtCount('lhc', () => Case.countDocuments({ isDeleted: false, court: { $in: lhcCourts } }));
       return {
         text: `### 🏛️ Lahore High Court Judicial Statistics\n\n` +
           `• **Total Verified Lahore High Court Judgments**: **${count.toLocaleString()}** cases\n` +
@@ -1427,7 +1441,7 @@ export const handleDatabaseStatisticsQuery = async (queryText) => {
 
     if (isSHC) {
       const shcCourts = await getCourtsByType('shc');
-      const count = await Case.countDocuments({ isDeleted: false, court: { $in: shcCourts } });
+      const count = await getCachedCourtCount('shc', () => Case.countDocuments({ isDeleted: false, court: { $in: shcCourts } }));
       return {
         text: `### 🏛️ High Court of Sindh Judicial Statistics\n\n` +
           `• **Total Verified Sindh High Court Judgments**: **${count.toLocaleString()}** cases\n` +
@@ -1440,7 +1454,7 @@ export const handleDatabaseStatisticsQuery = async (queryText) => {
 
     if (isPHC || isIHC || isBHC || isHighCourt) {
       const highCourts = await getCourtsByType('high');
-      const count = await Case.countDocuments({ isDeleted: false, court: { $in: highCourts } });
+      const count = await getCachedCourtCount('high', () => Case.countDocuments({ isDeleted: false, court: { $in: highCourts } }));
       return {
         text: `### 🏛️ High Courts of Pakistan Judicial Statistics\n\n` +
           `• **Total Verified High Court Judgments**: **${count.toLocaleString()}** cases\n` +
@@ -1453,7 +1467,7 @@ export const handleDatabaseStatisticsQuery = async (queryText) => {
 
     if (isTribunal) {
       const tribunalCourts = await getCourtsByType('tribunal');
-      const count = await Case.countDocuments({ isDeleted: false, court: { $in: tribunalCourts } });
+      const count = await getCachedCourtCount('tribunal', () => Case.countDocuments({ isDeleted: false, court: { $in: tribunalCourts } }));
       return {
         text: `### ⚖️ Appellate Tribunals Statistics\n\n` +
           `• **Total Verified Appellate Tribunal Judgments**: **${count.toLocaleString()}** orders\n` +
@@ -1727,7 +1741,10 @@ export const executeMultiConditionSearch = async (queryText) => {
       });
     }
 
-    let queryObj = Case.find({ $and: andConditions }).limit(10).maxTimeMS(2500);
+    let queryObj = Case.find({ $and: andConditions })
+      .select('sldNumber citation caseTitle caseNumber court judges dated judgmentDate decisionDate headNote laws principleLaw mapYearPage')
+      .limit(10)
+      .maxTimeMS(2500);
     if (courtList.length > 0) {
       queryObj = queryObj.hint({ isDeleted: 1, court: 1 });
     }
